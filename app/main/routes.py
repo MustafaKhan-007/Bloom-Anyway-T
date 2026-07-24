@@ -15,12 +15,14 @@ from ..models import (MARKETPLACE_KINDS, MARKETPLACE_KIND_LABELS,
                       MARKETPLACE_TAG_MAX, MARKETPLACE_TAGS, PRODUCT_SUBJECTS,
                       CoachingRequest, ContactMessage, FaqItem,
                       ListingImage, MarketplaceListing, MembershipPlan, Order,
-                      Page, Product, ProductAsset, Quote, QuoteFavorite,
+                      Page, Product, ProductAsset, Purchase, Quote, QuoteFavorite,
                       ReelReview, ReelReviewApplication, Subscriber,
                       Testimonial, User, Video, utcnow)
 from ..services import quotes as quotes_service
+from ..services import purchases as purchases_service
 from ..services import reel_reviews as reel_svc
 from ..services import settings as settings_service
+from ..services import shop_catalog
 from ..services.assets import docx_to_html
 from ..services.avatars import AvatarError, process_avatar
 from ..services.badges import CATEGORIES, category_progress, earned_badges
@@ -574,11 +576,49 @@ def account():
                           .limit(20).all())
     return render_template("main/account.html", greeting=greeting, orders=orders,
                            favorites=favorites, library=_owned_products(current_user),
+                           shop_downloads=_shop_downloads(current_user),
                            recommended=recommend_products(current_user),
                            premium=is_premium(current_user),
                            coaching_checkout=coaching_checkout,
                            my_coaching=my_coaching,
                            owner_coaching=owner_coaching)
+
+
+def _shop_downloads(user):
+    """Paid Lemon shop purchases with catalog metadata for My space cards."""
+    rows = purchases_service.purchases_for_user(user)
+    out = []
+    for p in rows:
+        entry = shop_catalog.catalog_entry(p.variant_id) or {}
+        out.append({
+            "purchase": p,
+            "name": entry.get("name") or p.product_name or "Your download",
+            "description": entry.get("description") or "",
+            "has_file": bool(purchases_service.resolve_download(p)),
+        })
+    return out
+
+
+@bp.route("/account/purchases/<int:purchase_id>/download")
+@login_required
+def purchase_download(purchase_id):
+    """Stream a shop download only if this account owns the purchase."""
+    purchase = db.session.get(Purchase, purchase_id)
+    if purchase is None or purchase.status != "paid":
+        abort(404)
+    email = (current_user.email or "").strip().lower()
+    owns = (
+        purchase.user_id == current_user.id
+        or (purchase.email or "").strip().lower() == email
+    )
+    if not owns:
+        abort(404)
+    resolved = purchases_service.resolve_download(purchase)
+    if not resolved:
+        flash("That download isn't available yet — please contact support.", "error")
+        return redirect(url_for("main.account"))
+    path, filename = resolved
+    return send_file(path, as_attachment=True, download_name=filename)
 
 
 @bp.route("/account/coaching", methods=["POST"])

@@ -483,6 +483,28 @@ class Order(db.Model):
             return "\u2022\u2022\u2022"
 
 
+class Purchase(db.Model):
+    """A digital download bought on the external Lemon Squeezy storefront.
+
+    Distinct from ``Order`` (which ties to in-app Studio products / memberships).
+    Purchases are fulfilled from ``shop_catalog`` by Lemon variant_id and shown
+    in My space with an authenticated download link.
+    """
+    __tablename__ = "purchases"
+
+    id = db.Column(db.Integer, primary_key=True)
+    email = db.Column(db.String(255), nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), index=True)
+    product_id = db.Column(db.String(40))   # Lemon product id
+    variant_id = db.Column(db.String(40), index=True)  # Lemon variant id
+    product_name = db.Column(db.String(200), nullable=False, default="")
+    order_id = db.Column(db.String(40), unique=True, nullable=False)
+    status = db.Column(db.String(20), nullable=False, default="paid")
+    created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
+
+    user = db.relationship("User", backref=db.backref("purchases", lazy="dynamic"))
+
+
 class Subscriber(db.Model):
     __tablename__ = "subscribers"
 

@@ -123,6 +123,11 @@ def _log_in(user: User, remember: bool = True):
     # honour any membership bought before this account existed / signed in
     from ..services.memberships import reconcile_user
     reconcile_user(user)
+    # link shop downloads bought under this email before the account existed
+    from ..services.purchases import link_purchases_for_user
+    linked = link_purchases_for_user(user)
+    if linked:
+        log.info("auth: linked %s purchase(s) to user %s", linked, user.id)
     # owner always holds Creator perks in the DB too — some older rows still
     # have membership="none" from before tiers existed
     if user.is_admin and user.membership != "creator":

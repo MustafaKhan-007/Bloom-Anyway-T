@@ -237,6 +237,13 @@ ok("Replayed webhook creates exactly one order", len(orders) == 1, f"got {len(or
 ok("Order matched to product via variant id", orders[0].product_id is not None)
 ok("Buyer email lowercased", orders[0].buyer_email == "buyer@example.com")
 
+with app.app_context():
+    from app.models import Purchase as _Purchase
+    purchases = _Purchase.query.filter_by(order_id="9001").all()
+ok("Webhook also records a Purchase row", len(purchases) == 1, f"got {len(purchases)}")
+ok("Purchase email lowercased", purchases[0].email == "buyer@example.com")
+ok("Purchase status paid", purchases[0].status == "paid")
+
 # purchase lands in My space for that email (even before course files are uploaded)
 with app.app_context():
     from app.models import User as _U
@@ -1243,5 +1250,85 @@ ok("SECRET_KEY stable across restarts", k1 == k2)
 with boot2.app_context():
     from app.services.settings import all_settings
     ok("Secret key never leaks into public settings", "_secret_key" not in all_settings())
+
+# --- shop downloads (external Lemon storefront → My space) --------------------
+from app.models import Purchase
+from app.services import shop_catalog
+from app.services.purchases import purchase_files_dir
+
+SHOP_VARIANT = "99112233"
+shop_catalog.PURCHASE_PRODUCTS[SHOP_VARIANT] = {
+    "name": "Smoke Test Guide",
+    "description": "A test downloadable guide.",
+    "file": "smoke-guide.pdf",
+}
+
+# buy before the account exists
+shop_payload = json.dumps({
+    "meta": {"event_name": "order_created"},
+    "data": {"id": "SHOP-1", "attributes": {
+        "user_email": "ShopBuyer@Example.com", "total": 1900, "currency": "USD",
+        "status": "paid",
+        "first_order_item": {
+            "variant_id": int(SHOP_VARIANT),
+            "product_id": 42,
+            "product_name": "Smoke Test Guide",
+        }}},
+}).encode()
+shop_sig = hmac.new(b"test-secret", shop_payload, hashlib.sha256).hexdigest()
+r = client.post("/webhooks/lemonsqueezy", data=shop_payload,
+                headers={"Content-Type": "application/json", "X-Signature": shop_sig})
+ok("Shop order webhook accepted", r.status_code == 200)
+with app.app_context():
+    pre = Purchase.query.filter_by(order_id="SHOP-1").first()
+ok("Shop purchase stored before account",
+   pre is not None and pre.user_id is None and pre.email == "shopbuyer@example.com")
+
+# create account + login → auto-link
+with app.app_context():
+    shop_user = User(email="shopbuyer@example.com", email_verified_at=utcnow())
+    shop_user.set_password(USER_PW)
+    db.session.add(shop_user)
+    db.session.commit()
+    shop_uid = shop_user.id
+shop_client = app.test_client()
+shop_client.post("/login", data={"email": "shopbuyer@example.com", "password": USER_PW})
+with app.app_context():
+    linked = Purchase.query.filter_by(order_id="SHOP-1").first()
+ok("Login links prior shop purchase to user",
+   linked is not None and linked.user_id == shop_uid)
+
+# place the private file and download via authenticated route
+with app.app_context():
+    files_dir = purchase_files_dir()
+    os.makedirs(files_dir, exist_ok=True)
+    guide_path = Path(files_dir) / "smoke-guide.pdf"
+    guide_path.write_bytes(b"%PDF-1.4 smoke-test-guide")
+    pid = Purchase.query.filter_by(order_id="SHOP-1").first().id
+
+r = shop_client.get("/account")
+ok("Shop download appears on My space",
+   r.status_code == 200 and "Smoke Test Guide" in r.get_data(as_text=True)
+   and "Your downloads" in r.get_data(as_text=True))
+
+r = shop_client.get(f"/account/purchases/{pid}/download")
+ok("Owner can download shop file",
+   r.status_code == 200 and r.data.startswith(b"%PDF"))
+
+anon = app.test_client()
+r = anon.get(f"/account/purchases/{pid}/download", follow_redirects=False)
+ok("Unauthenticated download is blocked",
+   r.status_code in (302, 401, 403) or "/login" in (r.headers.get("Location") or ""))
+
+# another logged-in user must not download someone else's purchase
+r = buyer_client.get(f"/account/purchases/{pid}/download")
+ok("Other user cannot download shop file", r.status_code == 404)
+
+# idempotent replay
+r = client.post("/webhooks/lemonsqueezy", data=shop_payload,
+                headers={"Content-Type": "application/json", "X-Signature": shop_sig})
+with app.app_context():
+    n = Purchase.query.filter_by(order_id="SHOP-1").count()
+ok("Shop purchase webhook is idempotent", r.status_code == 200 and n == 1)
 
 print(f"\nAll {PASS} checks passed.")

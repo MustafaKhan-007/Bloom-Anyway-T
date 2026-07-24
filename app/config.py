@@ -76,6 +76,12 @@ class Config:
     LEMONSQUEEZY_API_KEY = os.environ.get("LEMONSQUEEZY_API_KEY", "")
     LEMONSQUEEZY_WEBHOOK_SECRET = os.environ.get("LEMONSQUEEZY_WEBHOOK_SECRET", "")
 
+    # Private files for shop.bloomanyway.online downloads (served only via
+    # authenticated /account/purchases/<id>/download). Relative filenames in
+    # app/services/shop_catalog.py are resolved under this directory.
+    # Default (when empty): <instance>/purchase_files/
+    PURCHASE_FILES_DIR = os.environ.get("PURCHASE_FILES_DIR", "").strip()
+
     # Flask-Limiter: in-memory storage. Fine at this scale; counters reset on
     # deploy/restart (noted in README).
     RATELIMIT_STORAGE_URI = "memory://"

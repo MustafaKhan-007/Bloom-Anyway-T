@@ -122,6 +122,12 @@ Everything else is optional or auto-managed:
      to the product for your dashboard stats.
 4. **PayPal** — enable it once in LS *Settings → Payment methods*; it appears
    at checkout automatically, no code change.
+5. **External shop downloads** (`shop.bloomanyway.online`) — the same webhook
+   also creates a `Purchase` row. Map each Lemon **variant ID** in
+   `app/services/shop_catalog.py` to a display name and a private filename under
+   `PURCHASE_FILES_DIR` (default `instance/purchase_files/`, on Render:
+   `/var/media/purchases`). Downloads appear in **My space → Your downloads**
+   and are streamed only through an authenticated route (no public file URLs).
 
 To test the webhook locally, send a signed request:
 

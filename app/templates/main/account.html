@@ -138,7 +138,40 @@
 </section>
 {% endif %}
 
-<section class="section section--tight{% if not library %} section--band{% endif %}">
+{% if shop_downloads %}
+<section class="section section--tight" id="shop-downloads">
+  <div class="container">
+    <h2>Your downloads</h2>
+    <p style="color: var(--ink-soft); margin-top: -6px;">
+      Guides and courses from the
+      <a href="https://shop.bloomanyway.online" rel="noopener">Bloom Anyway shop</a>
+      show up here after checkout.
+    </p>
+    <div class="grid grid--3" style="margin-top: 20px;">
+      {% for item in shop_downloads %}
+      <div class="library-card">
+        <h3>{{ item.name }}</h3>
+        {% if item.description %}
+        <p class="field-help">{{ item.description }}</p>
+        {% endif %}
+        <p class="field-help" style="margin-top: 8px;">
+          Purchased {{ item.purchase.created_at.strftime('%b') }}
+          {{ item.purchase.created_at.day }}, {{ item.purchase.created_at.year }}
+        </p>
+        {% if item.has_file %}
+        <a class="btn btn--primary btn--sm"
+           href="{{ url_for('main.purchase_download', purchase_id=item.purchase.id) }}">Download</a>
+        {% else %}
+        <p class="field-help" style="margin-top: 8px;">Download file coming soon.</p>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+{% endif %}
+
+<section class="section section--tight{% if not library and not shop_downloads %} section--band{% endif %}">
   <div class="container">
     <h2>Your purchases</h2>
     {% if orders %}
@@ -159,7 +192,8 @@
         Anything with reading material shows up in <strong>Read your courses &amp; guides</strong> above &mdash; it stays here for you to open anytime.
       </p>
     {% else %}
-      <p>Nothing here yet &mdash; and that's fine. <a href="{{ url_for('main.courses') }}">The shelf is over here</a> whenever you're ready.</p>
+      <p>Nothing here yet &mdash; and that's fine. Shop downloads appear under <strong>Your downloads</strong> after you buy at
+        <a href="https://shop.bloomanyway.online" rel="noopener">shop.bloomanyway.online</a>.</p>
     {% endif %}
   </div>
 </section>
