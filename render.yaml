@@ -41,10 +41,10 @@ services:
         sync: false
       - key: LEMONSQUEEZY_API_KEY
         sync: false
-      # Private shop download files (default: instance/purchase_files).
-      # Prefer putting them on the media disk, e.g. /var/media/purchases
-      - key: PURCHASE_FILES_DIR
-        value: /var/media/purchases
+      # Optional self-hosted shop download files (default: instance/shop_files).
+      # Prefer the media disk, e.g. /var/media/shop_files
+      - key: SHOP_FILES_DIR
+        value: /var/media/shop_files
 
 databases:
   - name: first-light-db

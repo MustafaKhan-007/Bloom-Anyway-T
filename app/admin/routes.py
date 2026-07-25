@@ -23,14 +23,13 @@ from sqlalchemy.orm import joinedload
 from ..extensions import db
 from ..models import (Announcement, CoachingRequest, FaqItem, ForumComment,
                       ForumPost, MEMBERSHIPS, MarketplaceListing, MembershipPlan,
-                      Order, Page, Product, PRODUCT_SUBJECTS, ProductAsset, Quote,
+                      Order, Page, Product, Quote,
                       QuoteFavorite, QuotePin, ReelReview, ReelReviewApplication,
                       Subscriber, Testimonial, User, Video, QUOTE_CATEGORIES)
 from ..services import badges as badges_service
 from ..services import quotes as quotes_service
 from ..services import reel_reviews as reel_svc
 from ..services import stats
-from ..services.assets import AssetError, process_asset
 from ..services.lemonsqueezy import sync_recent_orders
 from ..services.mailer import last_send_error, send_email
 from ..services.settings import DEFAULTS as SETTING_DEFAULTS
@@ -70,11 +69,6 @@ def admin_required(f):
             db.session.commit()
         return f(*args, **kwargs)
     return wrapper
-
-
-def slugify(text: str) -> str:
-    slug = re.sub(r"[^a-z0-9]+", "-", (text or "").lower()).strip("-")
-    return slug[:150] or "item"
 
 
 def _spotlight_candidates():
@@ -143,195 +137,20 @@ def sync():
 
 
 # =============================== PRODUCTS ====================================
+# Courses & guides are sold on shop.bloomanyway.online. The Product / ProductAsset
+# tables remain for historical orders, testimonials, and dashboard filters — but
+# Studio no longer publishes an on-site catalog.
 
 @bp.route("/products")
-@admin_required
-def products():
-    items = Product.query.order_by(Product.sort_order, Product.created_at.desc()).all()
-    return render_template("admin/products.html", products=items)
-
-
+@bp.route("/products/new")
+@bp.route("/products/<int:product_id>/edit")
+@bp.route("/products/<int:product_id>/delete", methods=["POST"])
 @bp.route("/products/reorder", methods=["POST"])
 @admin_required
-def products_reorder():
-    ids = (request.get_json(silent=True) or {}).get("ids", [])
-    for position, pid in enumerate(ids):
-        product = db.session.get(Product, int(pid))
-        if product:
-            product.sort_order = position
-    db.session.commit()
-    return {"ok": True}
-
-
-def _product_from_form(product: Product, form) -> list[str]:
-    """Apply form values to a product; returns a list of validation errors."""
-    errors = []
-
-    product.title = (form.get("title") or "").strip()[:160]
-    if not product.title:
-        errors.append("Title is required.")
-
-    slug = slugify(form.get("slug") or product.title)
-    clash = Product.query.filter(Product.slug == slug, Product.id != (product.id or 0)).first()
-    if clash:
-        errors.append(f'Slug "{slug}" is already taken.')
-    product.slug = slug
-
-    if form.get("type") in ("course", "guide"):
-        product.type = form.get("type")
-    subject = (form.get("subject") or "").strip()
-    product.subject = subject if subject in PRODUCT_SUBJECTS else None
-    product.featured = bool(form.get("featured"))
-    product.badge = (form.get("badge") or "").strip()[:30] or None
-    try:
-        product.sort_order = int(form.get("sort_order") or 0)
-    except ValueError:
-        product.sort_order = 0
-
-    promise = (form.get("promise") or "").strip()
-    if len(promise) > 120:
-        errors.append("The one-line promise must be 120 characters or fewer.")
-    product.promise = promise[:120] or None
-    product.description_md = form.get("description_md") or None
-    product.audience = form.get("audience") or None
-    product.contents_text = form.get("contents_text") or None
-
-    titles = form.getlist("curriculum_title")
-    descs = form.getlist("curriculum_desc")
-    modules = [{"title": t.strip(), "description": d.strip()}
-               for t, d in zip(titles, descs) if t.strip()]
-    product.curriculum_json = json.dumps(modules) if modules else None
-
-    cover = (form.get("cover_url") or "").strip()
-    if cover and not cover.startswith("https://"):
-        errors.append("Cover image URL must start with https://")
-    product.cover_url = cover or None
-    gallery = [u.strip() for u in (form.get("gallery_urls") or "").splitlines() if u.strip()]
-    bad = [u for u in gallery if not u.startswith("https://")]
-    if bad:
-        errors.append("All gallery URLs must start with https://")
-    product.gallery_json = json.dumps(gallery) if gallery else None
-
-    price_raw = (form.get("price_cents") or "").strip()
-    if price_raw:
-        try:
-            product.price_cents = int(price_raw)
-            if product.price_cents < 0:
-                raise ValueError
-        except ValueError:
-            errors.append("Price must be a whole number of cents (e.g. 2900 for $29).")
-    else:
-        product.price_cents = None
-    compare_raw = (form.get("compare_at_cents") or "").strip()
-    if compare_raw:
-        try:
-            product.compare_at_cents = int(compare_raw)
-        except ValueError:
-            errors.append("Compare-at price must be a whole number of cents.")
-    else:
-        product.compare_at_cents = None
-    product.currency = (form.get("currency") or "USD").upper()[:3]
-
-    ls_url = (form.get("ls_checkout_url") or "").strip()
-    if ls_url and not ls_url.startswith("https://"):
-        errors.append("The Lemon Squeezy buy link must start with https://")
-    product.ls_checkout_url = ls_url or None
-    product.ls_variant_id = (form.get("ls_variant_id") or "").strip() or None
-
-    product.meta_title = (form.get("meta_title") or "").strip()[:160] or None
-    product.meta_description = (form.get("meta_description") or "").strip()[:200] or None
-
-    raw_tags = re.split(r"[,\n]", form.get("tags") or "")
-    product.set_tags(raw_tags)
-
-    status = form.get("status")
-    if status in ("draft", "published", "archived"):
-        if status == "published":
-            blockers = product.publish_blockers()
-            if blockers:
-                errors.append("Can't publish yet \u2014 still missing: " + ", ".join(blockers) + ".")
-                status = "draft"
-        product.status = status
-    return errors
-
-
-@bp.route("/products/new", methods=["GET", "POST"])
-@bp.route("/products/<int:product_id>/edit", methods=["GET", "POST"])
-@admin_required
-def product_form(product_id=None):
-    product = db.session.get(Product, product_id) if product_id else Product()
-    if product_id and product is None:
-        abort(404)
-
-    if request.method == "POST":
-        errors = _product_from_form(product, request.form)
-        if errors:
-            db.session.rollback()
-            for e in errors:
-                flash(e, "error")
-        else:
-            if product.id is None:
-                db.session.add(product)
-            db.session.flush()   # assign an id so assets can attach
-
-            for aid in request.form.getlist("remove_asset"):
-                if aid.isdigit():
-                    asset = db.session.get(ProductAsset, int(aid))
-                    if asset and asset.product_id == product.id:
-                        db.session.delete(asset)
-
-            asset_errors = []
-            position = len(product.assets)
-            for fs in request.files.getlist("asset_files"):
-                if not fs or not fs.filename:
-                    continue
-                try:
-                    data, mime, kind, fname = process_asset(fs)
-                except AssetError as exc:
-                    asset_errors.append(f"{fs.filename}: {exc}")
-                    continue
-                db.session.add(ProductAsset(
-                    product_id=product.id, filename=fname, mime=mime, kind=kind,
-                    size=len(data), data=data, sort_order=position))
-                position += 1
-
-            if asset_errors:
-                db.session.rollback()
-                for e in asset_errors:
-                    flash(e, "error")
-            else:
-                db.session.commit()
-                flash("Product saved.", "success")
-                return redirect(url_for("admin.products"))
-
-    curriculum = []
-    if product.curriculum_json:
-        try:
-            curriculum = json.loads(product.curriculum_json)
-        except ValueError:
-            pass
-    gallery = ""
-    if product.gallery_json:
-        try:
-            gallery = "\n".join(json.loads(product.gallery_json))
-        except ValueError:
-            pass
-    return render_template("admin/product_form.html", product=product,
-                           curriculum=curriculum, gallery=gallery,
-                           subjects=PRODUCT_SUBJECTS)
-
-
-@bp.route("/products/<int:product_id>/delete", methods=["POST"])
-@admin_required
-def product_delete(product_id):
-    product = db.session.get(Product, product_id) or abort(404)
-    if product.orders.count() > 0:
-        flash("This product has orders \u2014 archive it instead of deleting.", "error")
-        return redirect(url_for("admin.products"))
-    db.session.delete(product)
-    db.session.commit()
-    flash("Product deleted.", "success")
-    return redirect(url_for("admin.products"))
+def products(product_id=None):
+    flash("Courses & guides are managed on the Lemon Squeezy shop "
+          "(shop.bloomanyway.online), not in Studio.", "info")
+    return redirect(url_for("admin.dashboard"))
 
 
 # ================================ QUOTES =====================================

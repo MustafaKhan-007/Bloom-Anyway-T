@@ -98,105 +98,59 @@
   </div>
 </section>
 
-{% if recommended %}
-<section class="section section--tight">
-  <div class="container">
-    <h2>Picked for where you are</h2>
-    <p style="color: var(--ink-soft); margin-top: -6px;">Based on what you told us brings you here. Update it anytime in <a href="{{ url_for('main.settings') }}">your settings</a>.</p>
-    <div class="grid grid--3" style="margin-top: 20px;">
-      {% for product in recommended %}
-        {% include "partials/product_card.html" %}
-      {% endfor %}
-    </div>
-  </div>
-</section>
-{% endif %}
-
-{% if library %}
 <section class="section section--band section--tight">
   <div class="container">
     <h2>Your courses &amp; guides</h2>
-    <p style="color: var(--ink-soft); margin-top: -6px;">Purchases land here automatically &mdash; open them to read online anytime. Nothing to download.</p>
-    <div class="grid grid--3" style="margin-top: 20px;">
-      {% for product in library %}
-      <div class="library-card">
-        {% if product.cover_url %}
-        <img class="library-card__cover" src="{{ product.cover_url }}" alt="Cover of {{ product.title }}" loading="lazy">
-        {% endif %}
-        <span class="type-pill type-pill--{{ product.type }}">{{ product.type_label() }}</span>
-        <h3>{{ product.title }}</h3>
-        {% if product.has_assets() %}
-        <a class="btn btn--primary btn--sm" href="{{ url_for('main.library_item', slug=product.slug) }}">Read online</a>
-        {% else %}
-        <a class="btn btn--secondary btn--sm" href="{{ url_for('main.library_item', slug=product.slug) }}">View in library</a>
-        <p class="field-help" style="margin-top: 8px;">Reading pages are on the way.</p>
-        {% endif %}
-      </div>
-      {% endfor %}
-    </div>
-  </div>
-</section>
-{% endif %}
-
-{% if shop_downloads %}
-<section class="section section--tight" id="shop-downloads">
-  <div class="container">
-    <h2>Your downloads</h2>
     <p style="color: var(--ink-soft); margin-top: -6px;">
-      Guides and courses from the
-      <a href="https://shop.bloomanyway.online" rel="noopener">Bloom Anyway shop</a>
-      show up here after checkout.
+      Shop purchases land here automatically. Buy on
+      <a href="{{ shop_url }}" target="_blank" rel="noopener">shop.bloomanyway.online</a>
+      with this same email.
     </p>
+    {% if shop_purchases %}
     <div class="grid grid--3" style="margin-top: 20px;">
-      {% for item in shop_downloads %}
+      {% for item in shop_purchases %}
       <div class="library-card">
-        <h3>{{ item.name }}</h3>
-        {% if item.description %}
-        <p class="field-help">{{ item.description }}</p>
-        {% endif %}
-        <p class="field-help" style="margin-top: 8px;">
-          Purchased {{ item.purchase.created_at.strftime('%b') }}
-          {{ item.purchase.created_at.day }}, {{ item.purchase.created_at.year }}
+        <h3>{{ item.product_name }}</h3>
+        <p class="field-help" style="margin-top: 4px;">
+          {{ item.purchased_at.strftime('%b') }} {{ item.purchased_at.day }}, {{ item.purchased_at.year }}
         </p>
-        {% if item.has_file %}
-        <a class="btn btn--primary btn--sm"
-           href="{{ url_for('main.purchase_download', purchase_id=item.purchase.id) }}">Download</a>
+        {% if item.download_url %}
+        <a class="btn btn--primary btn--sm" href="{{ item.download_url }}" target="_blank" rel="noopener">Download</a>
+        {% elif item.file_key %}
+        <a class="btn btn--primary btn--sm" href="{{ url_for('main.shop_download', purchase_id=item.id) }}">Download</a>
         {% else %}
-        <p class="field-help" style="margin-top: 8px;">Download file coming soon.</p>
+        <p class="field-help" style="margin-top: 8px;">Your download link is on the way &mdash; check the receipt email from Lemon Squeezy in the meantime.</p>
         {% endif %}
       </div>
       {% endfor %}
     </div>
-  </div>
-</section>
-{% endif %}
-
-<section class="section section--tight{% if not library and not shop_downloads %} section--band{% endif %}">
-  <div class="container">
-    <h2>Your purchases</h2>
-    {% if orders %}
-      <table class="admin-table">
-        <thead><tr><th>Date</th><th>Product</th><th>Amount</th><th>Status</th></tr></thead>
-        <tbody>
-          {% for order in orders %}
-          <tr>
-            <td>{{ order.created_at.strftime('%b') }} {{ order.created_at.day }}, {{ order.created_at.year }}</td>
-            <td>{% if order.product %}<a href="{{ url_for('main.product_detail', slug=order.product.slug) }}">{{ order.product.title }}</a>{% else %}Order {{ order.ls_order_id }}{% endif %}</td>
-            <td>{{ order.total_display() }}</td>
-            <td><span class="status-pill status-pill--{{ order.status }}">{{ order.status }}</span></td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-      <p class="field-help" style="margin-top: 14px;">
-        Anything with reading material shows up in <strong>Read your courses &amp; guides</strong> above &mdash; it stays here for you to open anytime.
-      </p>
     {% else %}
-      <p>Nothing here yet &mdash; and that's fine. Shop downloads appear under <strong>Your downloads</strong> after you buy at
-        <a href="https://shop.bloomanyway.online" rel="noopener">shop.bloomanyway.online</a>.</p>
+    <p style="margin-top: 16px;">Nothing here yet &mdash; and that's fine.
+      <a href="{{ shop_url }}" target="_blank" rel="noopener">The shop is over here</a> whenever you're ready.</p>
     {% endif %}
   </div>
 </section>
+
+{% if orders %}
+<section class="section section--tight">
+  <div class="container">
+    <h2>Order history</h2>
+    <table class="admin-table">
+      <thead><tr><th>Date</th><th>Product</th><th>Amount</th><th>Status</th></tr></thead>
+      <tbody>
+        {% for order in orders %}
+        <tr>
+          <td>{{ order.created_at.strftime('%b') }} {{ order.created_at.day }}, {{ order.created_at.year }}</td>
+          <td>{% if order.product %}{{ order.product.title }}{% else %}Order {{ order.ls_order_id }}{% endif %}</td>
+          <td>{{ order.total_display() }}</td>
+          <td><span class="status-pill status-pill--{{ order.status }}">{{ order.status }}</span></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
 
 <section class="section section--tight">
   <div class="container">

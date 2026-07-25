@@ -29,7 +29,7 @@
       <hr class="horizon-rule" data-rise="3">
       <p class="subline" data-rise="4">Courses and guided notebooks for rebuilding, one honest day at a time.</p>
       <div class="hero-actions" data-rise="5">
-        <a class="btn btn--primary" href="{{ url_for('main.courses') }}">Browse the courses</a>
+        <a class="btn btn--primary" href="{{ shop_url }}" target="_blank" rel="noopener">Browse the courses</a>
         <a class="btn btn--secondary" href="{{ url_for('main.about') }}">Read my story</a>
       </div>
     </div>
@@ -48,23 +48,20 @@
   </div>
 </section>
 
-<!-- 3. Featured products -->
-{% if featured %}
+<!-- 3. Shop CTA -->
 <section class="section section--band">
-  <div class="container">
+  <div class="container" style="text-align: center;">
     <h2>Start where you are</h2>
-    <div class="grid grid--3">
-      {% for product in featured %}
-        {% include "partials/product_card.html" %}
-      {% endfor %}
-    </div>
+    <p style="color: var(--ink-soft); max-width: 40ch; margin: 0 auto 20px;">
+      Courses and guided notebooks live in the shop &mdash; buy once, and they show up in My space with a download link.
+    </p>
+    <a class="btn btn--primary" href="{{ shop_url }}" target="_blank" rel="noopener">Open the shop</a>
   </div>
 </section>
-{% endif %}
 
 <!-- 3b. Spotlight: Creator of the Month + Reel of the Week -->
 {% if creator_of_month or reel_of_week %}
-<section class="section section--band">
+<section class="section">
   <div class="container">
     <p class="eyebrow text-center">In the spotlight</p>
     <h2 class="text-center">Faces &amp; moments we love</h2>

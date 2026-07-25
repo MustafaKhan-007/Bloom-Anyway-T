@@ -2,18 +2,20 @@
 
 Verifies X-Signature (HMAC-SHA256 of the raw body with the webhook secret),
 handles order_created / order_refunded, and is idempotent on ls_order_id.
-Also records shop downloads (Purchase) for the external storefront.
+
+Also fulfills shop.bloomanyway.online digital purchases into ShopPurchase rows
+for My Space (separate from legacy on-site Product/Order matching).
 """
 import hashlib
 import hmac
-import json
 import logging
+from datetime import datetime
 
 from flask import current_app, request
 
 from ..extensions import db
 from ..services.lemonsqueezy import upsert_order
-from ..services.purchases import upsert_purchase
+from ..services.shop_purchases import upsert_shop_purchase
 from . import bp
 
 log = logging.getLogger(__name__)
@@ -29,23 +31,25 @@ def _signature_valid(raw_body: bytes, signature: str) -> bool:
     return hmac.compare_digest(expected, signature.strip())
 
 
+def _parse_purchased_at(attrs: dict):
+    raw = attrs.get("created_at") or attrs.get("createdAt")
+    if not raw or not isinstance(raw, str):
+        return None
+    try:
+        # Lemon sends ISO-8601, often with Z
+        return datetime.fromisoformat(raw.replace("Z", "+00:00")).replace(tzinfo=None)
+    except ValueError:
+        return None
+
+
 @bp.route("/lemonsqueezy", methods=["POST"])
 def lemonsqueezy():
-    # Raw body for HMAC — do not rely on Flask's JSON cache for signing.
     raw = request.get_data()
     if not _signature_valid(raw, request.headers.get("X-Signature", "")):
         log.warning("webhook: invalid signature (ip=%s)", request.remote_addr)
         return {"error": "invalid signature"}, 401
 
-    try:
-        payload = json.loads(raw.decode("utf-8") or "{}")
-    except (UnicodeDecodeError, ValueError):
-        log.warning("webhook: malformed JSON body")
-        return {"error": "malformed payload"}, 400
-
-    if not isinstance(payload, dict):
-        return {"error": "malformed payload"}, 400
-
+    payload = request.get_json(silent=True) or {}
     event = (
         request.headers.get("X-Event-Name")
         or (payload.get("meta") or {}).get("event_name")
@@ -65,37 +69,39 @@ def lemonsqueezy():
         custom.update(attrs.get("custom_data") or {})
         gift_to = custom.get("gift_to") or custom.get("giftTo") or None
 
-        order_id = data.get("id")
-        buyer_email = attrs.get("user_email") or ""
-        variant_id = first_item.get("variant_id")
-        product_id = first_item.get("product_id")
-        product_name = first_item.get("product_name") or first_item.get("variant_name") or ""
-
-        # Studio / membership products (matched by Product.ls_variant_id)
         upsert_order(
-            ls_order_id=order_id,
-            ls_variant_id=variant_id,
-            buyer_email=buyer_email,
+            ls_order_id=data.get("id"),
+            ls_variant_id=first_item.get("variant_id"),
+            buyer_email=attrs.get("user_email") or "",
             total_cents=int(attrs.get("total") or 0),
             currency=attrs.get("currency") or "USD",
             status=status,
             gift_to=gift_to,
         )
 
-        # External shop downloads (shop.bloomanyway.online → My space)
-        purchase_status = "refunded" if event == "order_refunded" else str(status).lower()
-        if purchase_status in ("paid", "refunded"):
-            upsert_purchase(
-                order_id=str(order_id) if order_id is not None else "",
-                email=buyer_email,
-                product_id=str(product_id) if product_id is not None else None,
-                variant_id=str(variant_id) if variant_id is not None else None,
-                product_name=product_name,
-                status=purchase_status,
-            )
+        # Shop storefront fulfillment for My Space downloads.
+        # Lemon does not put a stable signed file URL on order webhooks; the
+        # order receipt URL is the durable customer-facing download entry point.
+        urls = attrs.get("urls") or {}
+        product_name = (
+            first_item.get("product_name")
+            or first_item.get("variant_name")
+            or attrs.get("first_order_item_name")
+            or "Shop purchase"
+        )
+        upsert_shop_purchase(
+            lemon_squeezy_order_id=data.get("id"),
+            customer_email=attrs.get("user_email") or "",
+            product_name=product_name,
+            product_id=first_item.get("product_id"),
+            variant_id=first_item.get("variant_id"),
+            download_url=urls.get("receipt") or None,
+            purchased_at=_parse_purchased_at(attrs),
+            refunded=(event == "order_refunded" or status == "refunded"),
+        )
 
         db.session.commit()
-        log.info("webhook: %s processed (order %s)", event, order_id)
+        log.info("webhook: %s processed (order %s)", event, data.get("id"))
         return {"status": "ok"}, 200
     except Exception:
         db.session.rollback()

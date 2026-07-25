@@ -1,5 +1,4 @@
 """Public pages."""
-import json
 import logging
 import os
 import re
@@ -9,29 +8,26 @@ from flask import (Response, abort, current_app, flash, redirect,
 from flask_login import current_user, login_required
 
 from ..extensions import db, limiter
-from sqlalchemy import func
 
 from ..models import (MARKETPLACE_KINDS, MARKETPLACE_KIND_LABELS,
-                      MARKETPLACE_TAG_MAX, MARKETPLACE_TAGS, PRODUCT_SUBJECTS,
+                      MARKETPLACE_TAG_MAX, MARKETPLACE_TAGS,
                       CoachingRequest, ContactMessage, FaqItem,
                       ListingImage, MarketplaceListing, MembershipPlan, Order,
-                      Page, Product, ProductAsset, Purchase, Quote, QuoteFavorite,
-                      ReelReview, ReelReviewApplication, Subscriber,
-                      Testimonial, User, Video, utcnow)
+                      Page, Quote, QuoteFavorite,
+                      ReelReview, ReelReviewApplication, ShopPurchase,
+                      Subscriber, Testimonial, User, Video, utcnow)
 from ..services import quotes as quotes_service
-from ..services import purchases as purchases_service
 from ..services import reel_reviews as reel_svc
 from ..services import settings as settings_service
-from ..services import shop_catalog
-from ..services.assets import docx_to_html
 from ..services.avatars import AvatarError, process_avatar
 from ..services.badges import CATEGORIES, category_progress, earned_badges
-from ..services.checkout import with_custom, with_success_redirect
+from ..services.checkout import with_success_redirect
 from ..services.journey import build_journey_pdf
 from ..services.mailer import send_contact_notification
-from ..services.recommend import INTENTS, recommend_products, valid_intent_keys
+from ..services.recommend import INTENTS, valid_intent_keys
 from ..services.listings import (ListingError, can_add_listing, listing_limit,
                                  process_listing_image)
+from ..services.shop_purchases import linked_purchases_for
 from ..services.social import (ALLOWED_LABELS, clean_social_links,
                                instagram_embed_url, instagram_handle,
                                instagram_profile_url)
@@ -78,10 +74,6 @@ SEED_TESTIMONIALS = [
     {"quote": "The course felt like a friend who's been through it, not a guru shouting at me. I finished it. I never finish things.", "first_name": "Priya"},
     {"quote": "Small daily pages. That's it. Three months later I barely recognize my mornings.", "first_name": "Leah"},
 ]
-
-
-def _published_products():
-    return Product.query.filter_by(status="published")
 
 
 def _quote_context():
@@ -137,13 +129,10 @@ def _video_notice():
 
 @bp.route("/")
 def index():
-    featured = (_published_products().filter_by(featured=True)
-                .order_by(Product.sort_order, Product.created_at.desc()).limit(3).all())
     testimonials = (Testimonial.query.filter_by(show_on_home=True)
                     .order_by(Testimonial.sort_order).limit(3).all())
     return render_template(
         "main/index.html",
-        featured=featured,
         testimonials=testimonials or SEED_TESTIMONIALS,
         testimonials_are_models=bool(testimonials),
         latest_video=_video_notice(),
@@ -153,31 +142,10 @@ def index():
 
 
 @bp.route("/courses")
-def courses():
-    ptype = request.args.get("type", "all")
-    query = _published_products()
-    if ptype == "course":
-        query = query.filter_by(type="course")
-    elif ptype == "guide":
-        query = query.filter_by(type="guide")
-    else:
-        ptype = "all"
-
-    # subjects that actually have published products, in the canonical order
-    used = {s for (s,) in db.session.query(Product.subject)
-            .filter(Product.status == "published", Product.subject.isnot(None))
-            .distinct().all() if s}
-    subjects = [s for s in PRODUCT_SUBJECTS if s in used]
-
-    active_subject = request.args.get("subject")
-    if active_subject and active_subject in PRODUCT_SUBJECTS:
-        query = query.filter(Product.subject == active_subject)
-    else:
-        active_subject = None
-
-    products = query.order_by(Product.sort_order, Product.created_at.desc()).all()
-    return render_template("main/courses.html", products=products, active_type=ptype,
-                           subjects=subjects, active_subject=active_subject)
+@bp.route("/courses/<path:_rest>")
+def courses(_rest=None):
+    """Courses & Guides live on the Lemon storefront now."""
+    return redirect(current_app.config["SHOP_URL"], code=302)
 
 
 #: the comparison matrix shown on /membership. Each row: (label, free, healing, creator)
@@ -460,55 +428,6 @@ def listing_delete(listing_id):
     return redirect(url_for("main.my_listings"))
 
 
-@bp.route("/courses/<slug>")
-def product_detail(slug):
-    product = Product.query.filter_by(slug=slug, status="published").first_or_404()
-    curriculum = []
-    if product.curriculum_json:
-        try:
-            curriculum = json.loads(product.curriculum_json)
-        except ValueError:
-            curriculum = []
-    contents = [line.strip() for line in (product.contents_text or "").splitlines() if line.strip()]
-    related = (_published_products()
-               .filter(Product.type == product.type, Product.id != product.id)
-               .order_by(Product.sort_order).limit(3).all())
-    testimonials = product.testimonials.order_by(Testimonial.sort_order).all()
-    faqs = FaqItem.query.order_by(FaqItem.sort_order).limit(6).all()
-    checkout_url = _checkout_url(product.ls_checkout_url) if product.ls_checkout_url else ""
-    already_owned = _owns_product(current_user, product) if current_user.is_authenticated else False
-    return render_template("main/product_detail.html", product=product,
-                           curriculum=curriculum, contents=contents,
-                           related=related, testimonials=testimonials, faqs=faqs,
-                           checkout_url=checkout_url, already_owned=already_owned)
-
-
-@bp.route("/courses/<slug>/gift", methods=["POST"])
-def gift_checkout(slug):
-    """Send the buyer to checkout with a friend's account tagged as recipient.
-
-    The friend must already have an account; the gift email rides along as
-    Lemon Squeezy custom data and the webhook grants them access on payment.
-    """
-    product = Product.query.filter_by(slug=slug, status="published").first_or_404()
-    friend = (request.form.get("gift_email") or "").strip().lower()
-    if not friend:
-        flash("Add your friend's account email to gift this.", "error")
-        return redirect(url_for("main.product_detail", slug=slug))
-    recipient = (User.query
-                 .filter(func.lower(User.email) == friend, User.deleted_at.is_(None))
-                 .first())
-    if recipient is None:
-        flash("We couldn't find an account with that email. Ask your friend to "
-              "sign up first, then gift away.", "error")
-        return redirect(url_for("main.product_detail", slug=slug))
-    if not (product.ls_checkout_url or "").strip():
-        flash("This one isn't available for checkout yet.", "error")
-        return redirect(url_for("main.product_detail", slug=slug))
-    url = with_custom(_checkout_url(product.ls_checkout_url), gift_to=friend)
-    return redirect(url)
-
-
 @bp.route("/about")
 def about():
     page = Page.query.filter_by(slug="about").first()
@@ -575,50 +494,35 @@ def account():
                           .order_by(CoachingRequest.created_at.desc())
                           .limit(20).all())
     return render_template("main/account.html", greeting=greeting, orders=orders,
-                           favorites=favorites, library=_owned_products(current_user),
-                           shop_downloads=_shop_downloads(current_user),
-                           recommended=recommend_products(current_user),
+                           favorites=favorites,
+                           shop_purchases=linked_purchases_for(current_user),
                            premium=is_premium(current_user),
                            coaching_checkout=coaching_checkout,
                            my_coaching=my_coaching,
                            owner_coaching=owner_coaching)
 
 
-def _shop_downloads(user):
-    """Paid Lemon shop purchases with catalog metadata for My space cards."""
-    rows = purchases_service.purchases_for_user(user)
-    out = []
-    for p in rows:
-        entry = shop_catalog.catalog_entry(p.variant_id) or {}
-        out.append({
-            "purchase": p,
-            "name": entry.get("name") or p.product_name or "Your download",
-            "description": entry.get("description") or "",
-            "has_file": bool(purchases_service.resolve_download(p)),
-        })
-    return out
-
-
-@bp.route("/account/purchases/<int:purchase_id>/download")
+@bp.route("/account/shop/<int:purchase_id>/download")
 @login_required
-def purchase_download(purchase_id):
-    """Stream a shop download only if this account owns the purchase."""
-    purchase = db.session.get(Purchase, purchase_id)
-    if purchase is None or purchase.status != "paid":
+def shop_download(purchase_id):
+    """Serve a self-hosted shop file only to the purchaser who owns it."""
+    purchase = db.session.get(ShopPurchase, purchase_id)
+    if (purchase is None
+            or purchase.user_id != current_user.id
+            or purchase.status != "linked"
+            or not purchase.file_key):
         abort(404)
-    email = (current_user.email or "").strip().lower()
-    owns = (
-        purchase.user_id == current_user.id
-        or (purchase.email or "").strip().lower() == email
-    )
-    if not owns:
+    # file_key is a basename only — never allow path traversal
+    key = os.path.basename(purchase.file_key.strip())
+    if not key or key != purchase.file_key.strip():
         abort(404)
-    resolved = purchases_service.resolve_download(purchase)
-    if not resolved:
-        flash("That download isn't available yet — please contact support.", "error")
-        return redirect(url_for("main.account"))
-    path, filename = resolved
-    return send_file(path, as_attachment=True, download_name=filename)
+    directory = os.path.abspath(current_app.config["SHOP_FILES_DIR"])
+    path = os.path.abspath(os.path.join(directory, key))
+    if not path.startswith(directory + os.sep) and path != directory:
+        abort(404)
+    if not os.path.isfile(path):
+        abort(404)
+    return send_file(path, as_attachment=True, download_name=key)
 
 
 @bp.route("/account/coaching", methods=["POST"])
@@ -764,79 +668,9 @@ def avatar(user_id):
     return resp
 
 
-# --- library: read purchased courses & guides online -----------------------
-
-def _owns_product(user, product) -> bool:
-    """True if the user may read a product's files (the owner, or a buyer)."""
-    if not user.is_authenticated:
-        return False
-    if user.is_admin:
-        return True
-    email = (user.email or "").lower()
-    return db.session.query(Order.id).filter(
-        Order.product_id == product.id,
-        Order.status == "paid",
-        db.or_(func.lower(Order.buyer_email) == email,
-               func.lower(Order.gift_to_email) == email),
-    ).first() is not None
-
-
-def _owned_products(user):
-    """Distinct products the user has bought (or been gifted) — shown in My space."""
-    if not user.is_authenticated:
-        return []
-    email = (user.email or "").lower()
-    return (Product.query.join(Order, Order.product_id == Product.id)
-            .filter(Order.status == "paid",
-                    db.or_(func.lower(Order.buyer_email) == email,
-                           func.lower(Order.gift_to_email) == email))
-            .order_by(Product.title).distinct().all())
-
-
 def is_premium(user) -> bool:
     """My Journey + profile links are a members' perk (Healing/Creator or owner)."""
     return bool(getattr(user, "is_authenticated", False) and user.is_member())
-
-
-@bp.route("/library/<slug>")
-@login_required
-def library_item(slug):
-    product = Product.query.filter_by(slug=slug).first_or_404()
-    if not _owns_product(current_user, product):
-        abort(404)   # hide existence from non-buyers
-    contents = [line.strip() for line in (product.contents_text or "").splitlines()
-                if line.strip()]
-    curriculum = []
-    if product.curriculum_json:
-        try:
-            curriculum = json.loads(product.curriculum_json)
-        except ValueError:
-            curriculum = []
-    readable = []
-    for asset in product.assets:
-        entry = {"asset": asset}
-        if asset.kind == "docx":
-            entry["html"] = docx_to_html(bytes(asset.data))
-        readable.append(entry)
-    return render_template("main/library_item.html", product=product,
-                           readable=readable, contents=contents, curriculum=curriculum)
-
-
-@bp.route("/library/<slug>/file/<int:asset_id>")
-@login_required
-def library_asset(slug, asset_id):
-    product = Product.query.filter_by(slug=slug).first_or_404()
-    if not _owns_product(current_user, product):
-        abort(404)
-    asset = db.session.get(ProductAsset, asset_id)
-    if asset is None or asset.product_id != product.id:
-        abort(404)
-    resp = Response(bytes(asset.data), mimetype=asset.mime)
-    # inline (viewer), never an attachment; don't let it linger in shared caches
-    resp.headers["Content-Disposition"] = f'inline; filename="{asset.filename}"'
-    resp.headers["Cache-Control"] = "private, no-store"
-    resp.headers["X-Content-Type-Options"] = "nosniff"
-    return resp
 
 
 # --- Content Library --------------------------------------------------------

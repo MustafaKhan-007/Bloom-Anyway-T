@@ -86,6 +86,15 @@ def create_app(config_class=None):
         logging.getLogger(__name__).warning(
             "Could not create video storage directory %s", video_dir)
 
+    shop_dir = (app.config.get("SHOP_FILES_DIR") or "").strip() \
+        or _os.path.join(app.instance_path, "shop_files")
+    app.config["SHOP_FILES_DIR"] = shop_dir
+    try:
+        _os.makedirs(shop_dir, exist_ok=True)
+    except OSError:
+        logging.getLogger(__name__).warning(
+            "Could not create shop files directory %s", shop_dir)
+
     db.init_app(app)
     migrate.init_app(app, db)
     _ensure_secret_key(app)
@@ -147,7 +156,8 @@ def create_app(config_class=None):
     def inject_globals():
         return {"site": all_settings(), "announcement": active_announcement(),
                 "announcements": active_announcements(),
-                "current_year": date.today().year}
+                "current_year": date.today().year,
+                "shop_url": app.config.get("SHOP_URL") or "https://shop.bloomanyway.online"}
 
     # --- health check ---------------------------------------------------------
     @app.route("/healthz")

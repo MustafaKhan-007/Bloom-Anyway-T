@@ -19,7 +19,6 @@
       <nav class="admin-nav" aria-label="Admin">
         {% set here = request.path %}
         <a href="{{ url_for('admin.dashboard') }}" class="{{ 'active' if here == '/admin/' }}">Dashboard</a>
-        <a href="{{ url_for('admin.products') }}" class="{{ 'active' if here.startswith('/admin/products') }}">Products</a>
         <a href="{{ url_for('admin.quotes') }}" class="{{ 'active' if here.startswith('/admin/quotes') }}">Quotes</a>
         <a href="{{ url_for('admin.testimonials') }}" class="{{ 'active' if here.startswith('/admin/testimonials') }}">Testimonials</a>
         <a href="{{ url_for('admin.faq') }}" class="{{ 'active' if here.startswith('/admin/faq') }}">FAQ</a>

@@ -113,21 +113,15 @@ Everything else is optional or auto-managed:
    - Signing secret: any long random string → also set it as
      `LEMONSQUEEZY_WEBHOOK_SECRET` on the server
    - Subscribe to: `order_created` and `order_refunded`
-3. **Per product** (in this site's admin → Products):
-   - **Buy link**: LS product → *Share* → copy the checkout/buy link → paste
-     into "Lemon Squeezy buy link". Buttons use `lemon.js`, so checkout opens
-     as an overlay on your page (plain link if JS is off).
-   - **Variant ID**: LS product → *Variants* tab → the variant's ID → paste
-     into "Lemon Squeezy variant ID". This is how webhook orders are matched
-     to the product for your dashboard stats.
+3. **Courses & guides** sell on the Lemon-hosted storefront
+   (`https://shop.bloomanyway.online`). The site nav and `/courses` redirect
+   there. Paid `order_created` webhooks create a `ShopPurchase` row; My space
+   shows linked purchases with a Download button (Lemon receipt URL when the
+   webhook includes `urls.receipt`, or a protected route when `file_key` is set
+   under `SHOP_FILES_DIR`). Membership variants stay on the membership path and
+   do not create shop rows.
 4. **PayPal** — enable it once in LS *Settings → Payment methods*; it appears
    at checkout automatically, no code change.
-5. **External shop downloads** (`shop.bloomanyway.online`) — the same webhook
-   also creates a `Purchase` row. Map each Lemon **variant ID** in
-   `app/services/shop_catalog.py` to a display name and a private filename under
-   `PURCHASE_FILES_DIR` (default `instance/purchase_files/`, on Render:
-   `/var/media/purchases`). Downloads appear in **My space → Your downloads**
-   and are streamed only through an authenticated route (no public file URLs).
 
 To test the webhook locally, send a signed request:
 

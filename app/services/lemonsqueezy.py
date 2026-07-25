@@ -13,6 +13,28 @@ from ..models import Order, Product
 
 log = logging.getLogger(__name__)
 
+
+def _shop_from_order_attrs(item_id, attrs):
+    """Mirror API sync into ShopPurchase (same rules as the webhook)."""
+    from .shop_purchases import upsert_shop_purchase
+    first_item = attrs.get("first_order_item") or {}
+    urls = attrs.get("urls") or {}
+    product_name = (
+        first_item.get("product_name")
+        or first_item.get("variant_name")
+        or "Shop purchase"
+    )
+    status = attrs.get("status") or "paid"
+    upsert_shop_purchase(
+        lemon_squeezy_order_id=item_id,
+        customer_email=attrs.get("user_email") or "",
+        product_name=product_name,
+        product_id=first_item.get("product_id"),
+        variant_id=first_item.get("variant_id"),
+        download_url=urls.get("receipt") or None,
+        refunded=(status == "refunded"),
+    )
+
 API_BASE = "https://api.lemonsqueezy.com/v1"
 MAX_PAGES = 5
 PAGE_SIZE = 50
@@ -95,6 +117,7 @@ def sync_recent_orders() -> dict:
                     currency=attrs.get("currency") or "USD",
                     status=attrs.get("status") or "paid",
                 )
+                _shop_from_order_attrs(item.get("id"), attrs)
                 seen += 1
             next_url = (payload.get("links") or {}).get("next")
             if not next_url:

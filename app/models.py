@@ -483,26 +483,31 @@ class Order(db.Model):
             return "\u2022\u2022\u2022"
 
 
-class Purchase(db.Model):
-    """A digital download bought on the external Lemon Squeezy storefront.
+class ShopPurchase(db.Model):
+    """A digital purchase from shop.bloomanyway.online (Lemon Squeezy storefront).
 
-    Distinct from ``Order`` (which ties to in-app Studio products / memberships).
-    Purchases are fulfilled from ``shop_catalog`` by Lemon variant_id and shown
-    in My space with an authenticated download link.
+    Linked to a Bloom Anyway account by email when possible; otherwise stays
+    pending_link until that email signs up / logs in.
     """
-    __tablename__ = "purchases"
+    __tablename__ = "shop_purchases"
+
+    STATUSES = ("pending_link", "linked", "refunded")
 
     id = db.Column(db.Integer, primary_key=True)
-    email = db.Column(db.String(255), nullable=False, index=True)
+    lemon_squeezy_order_id = db.Column(db.String(40), unique=True, nullable=False)
+    customer_email = db.Column(db.String(255), nullable=False, index=True)
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), index=True)
-    product_id = db.Column(db.String(40))   # Lemon product id
-    variant_id = db.Column(db.String(40), index=True)  # Lemon variant id
-    product_name = db.Column(db.String(200), nullable=False, default="")
-    order_id = db.Column(db.String(40), unique=True, nullable=False)
-    status = db.Column(db.String(20), nullable=False, default="paid")
-    created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
+    product_name = db.Column(db.String(200), nullable=False, default="Shop purchase")
+    product_id = db.Column(db.String(80))   # Lemon product id
+    variant_id = db.Column(db.String(80))   # Lemon variant id
+    # Lemon webhooks do not include a stable signed file URL; we store the
+    # order receipt URL (customer portal with downloads) when present.
+    download_url = db.Column(db.String(1000))
+    file_key = db.Column(db.String(255), index=True)  # self-hosted file id
+    purchased_at = db.Column(db.DateTime, nullable=False, default=utcnow)
+    status = db.Column(db.String(20), nullable=False, default="pending_link")
 
-    user = db.relationship("User", backref=db.backref("purchases", lazy="dynamic"))
+    user = db.relationship("User", backref=db.backref("shop_purchases", lazy="dynamic"))
 
 
 class Subscriber(db.Model):

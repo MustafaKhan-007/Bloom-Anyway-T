@@ -22,8 +22,8 @@ from app import create_app
 from app.config import DevConfig
 from app.extensions import db
 from app.models import (ForumCategory, ForumComment, ForumPost, ForumTag,
-                        Order, Product, Quote, QuotePin, Subscriber, User,
-                        Video, utcnow)
+                        Order, Product, Quote, QuotePin, ShopPurchase,
+                        Subscriber, User, Video, utcnow)
 
 TMP_DB = Path(tempfile.mkdtemp()) / "smoke.db"
 
@@ -182,43 +182,40 @@ with admin.session_transaction() as sess:
 r = admin.get("/admin/", follow_redirects=False)
 ok("Active admin stays signed in (sliding window)", r.status_code == 200)
 
-# draft product missing required fields cannot be published
-form = {"title": "Begin Again", "slug": "", "type": "course", "status": "published",
-        "promise": "", "currency": "USD", "sort_order": "0"}
-r = admin.post("/admin/products/new", data=form, follow_redirects=True)
-body = r.get_data(as_text=True)
-ok("Publish blocked with missing fields", "still missing" in body)
-
-form.update({
-    "status": "published", "featured": "1",
-    "promise": "A 4-week path from stuck to started.",
-    "cover_url": "https://example.com/cover.jpg",
-    "price_cents": "4900",
-    "ls_checkout_url": "https://store.lemonsqueezy.com/buy/abc123",
-    "ls_variant_id": "123456",
-})
-r = admin.post("/admin/products/new", data=form, follow_redirects=True)
-ok("Product published once complete", "Product saved" in r.get_data(as_text=True))
-
-r = client.get("/courses")
-ok("Published product on /courses", "Begin Again" in r.get_data(as_text=True))
+# Studio products UI is retired; courses live on the external shop
+r = admin.get("/admin/products", follow_redirects=True)
+ok("Studio products UI redirects away",
+   r.status_code == 200 and "shop.bloomanyway.online" in r.get_data(as_text=True))
+r = client.get("/courses", follow_redirects=False)
+ok("/courses redirects to the Lemon shop",
+   r.status_code == 302 and "shop.bloomanyway.online" in r.headers.get("Location", ""))
 r = client.get("/")
-ok("Featured product on home", "Begin Again" in r.get_data(as_text=True))
-r = client.get("/courses/begin-again")
-detail = r.get_data(as_text=True)
-ok("Detail page has LS overlay button",
-   "lemonsqueezy-button" in detail and "lemon.js" in detail
-   and "store.lemonsqueezy.com/buy/abc123" in detail)
-ok("Checkout sends buyers back to My space after payment",
-   "checkout%5Bredirect_url%5D" in detail or "checkout[redirect_url]" in detail
-   or "/account" in detail)
+home = r.get_data(as_text=True)
+ok("Home links out to the shop", "shop.bloomanyway.online" in home and "Open the shop" in home)
+ok("Nav Courses & Guides points at the shop", "shop.bloomanyway.online" in home)
 
-# --- 4. webhook: signature + idempotency ---------------------------------------
+# historical Product row kept for dashboard filters / order matching
+with app.app_context():
+    hist = Product(
+        title="Begin Again", slug="begin-again", type="course", status="published",
+        promise="A 4-week path from stuck to started.",
+        cover_url="https://example.com/cover.jpg", price_cents=4900,
+        currency="USD", ls_checkout_url="https://store.lemonsqueezy.com/buy/abc123",
+        ls_variant_id="123456", featured=True)
+    db.session.add(hist)
+    db.session.commit()
+    hist_id = hist.id
+
+# --- 4. webhook: signature + idempotency + ShopPurchase -----------------------
 payload = json.dumps({
     "meta": {"event_name": "order_created"},
     "data": {"id": "9001", "attributes": {
         "user_email": "Buyer@Example.com", "total": 4900, "currency": "USD",
-        "status": "paid", "first_order_item": {"variant_id": 123456}}},
+        "status": "paid",
+        "urls": {"receipt": "https://app.lemonsqueezy.com/my-orders/9001"},
+        "first_order_item": {
+            "variant_id": 123456, "product_id": 55,
+            "product_name": "Begin Again"}}},
 }).encode()
 sig = hmac.new(b"test-secret", payload, hashlib.sha256).hexdigest()
 
@@ -232,19 +229,19 @@ r2 = client.post("/webhooks/lemonsqueezy", data=payload,
                  headers={"Content-Type": "application/json", "X-Signature": sig})
 with app.app_context():
     orders = Order.query.filter_by(ls_order_id="9001").all()
+    shops = ShopPurchase.query.filter_by(lemon_squeezy_order_id="9001").all()
 ok("Webhook accepted (200)", r.status_code == 200 and r2.status_code == 200)
 ok("Replayed webhook creates exactly one order", len(orders) == 1, f"got {len(orders)}")
+ok("Replayed webhook creates exactly one ShopPurchase", len(shops) == 1, f"got {len(shops)}")
 ok("Order matched to product via variant id", orders[0].product_id is not None)
 ok("Buyer email lowercased", orders[0].buyer_email == "buyer@example.com")
+ok("Unknown-email shop purchase is pending_link",
+   shops[0].status == "pending_link" and shops[0].user_id is None)
+ok("Shop purchase stores receipt download_url",
+   shops[0].download_url == "https://app.lemonsqueezy.com/my-orders/9001")
+ok("Shop purchase product name from webhook", shops[0].product_name == "Begin Again")
 
-with app.app_context():
-    from app.models import Purchase as _Purchase
-    purchases = _Purchase.query.filter_by(order_id="9001").all()
-ok("Webhook also records a Purchase row", len(purchases) == 1, f"got {len(purchases)}")
-ok("Purchase email lowercased", purchases[0].email == "buyer@example.com")
-ok("Purchase status paid", purchases[0].status == "paid")
-
-# purchase lands in My space for that email (even before course files are uploaded)
+# purchase auto-links when that email signs up / logs in
 with app.app_context():
     from app.models import User as _U
     buyer = _U(email="buyer@example.com", email_verified_at=utcnow())
@@ -253,15 +250,81 @@ with app.app_context():
     db.session.commit()
 buyer_client = app.test_client()
 buyer_client.post("/login", data={"email": "buyer@example.com", "password": USER_PW})
+with app.app_context():
+    linked = ShopPurchase.query.filter_by(lemon_squeezy_order_id="9001").first()
+ok("Pending shop purchase links on login",
+   linked.status == "linked" and linked.user_id is not None)
 r = buyer_client.get("/account")
-ok("Paid product appears in My space library (no download — read online)",
-   r.status_code == 200 and "Begin Again" in r.get_data(as_text=True)
-   and ("Read online" in r.get_data(as_text=True) or "View in library" in r.get_data(as_text=True)
-        or "Your courses" in r.get_data(as_text=True)))
+abody = r.get_data(as_text=True)
+ok("Linked shop purchase appears in My space with Download",
+   r.status_code == 200 and "Begin Again" in abody and "Download" in abody
+   and "Your courses" in abody)
+
+# purchase for an email that already has an account links immediately
+with app.app_context():
+    known = User.query.filter_by(email="newperson@example.com").first()
+    known_id = known.id
+payload_known = json.dumps({
+    "meta": {"event_name": "order_created"},
+    "data": {"id": "9002", "attributes": {
+        "user_email": "newperson@example.com", "total": 1900, "currency": "USD",
+        "status": "paid",
+        "urls": {"receipt": "https://app.lemonsqueezy.com/my-orders/9002"},
+        "first_order_item": {"variant_id": 999, "product_name": "Quiet Mornings"}}},
+}).encode()
+sig_k = hmac.new(b"test-secret", payload_known, hashlib.sha256).hexdigest()
+r = client.post("/webhooks/lemonsqueezy", data=payload_known,
+                headers={"Content-Type": "application/json", "X-Signature": sig_k})
+with app.app_context():
+    sp2 = ShopPurchase.query.filter_by(lemon_squeezy_order_id="9002").first()
+ok("Existing-account shop purchase links immediately",
+   r.status_code == 200 and sp2 is not None
+   and sp2.status == "linked" and sp2.user_id == known_id)
+
+# refund hides from My space
+payload_ref = json.dumps({
+    "meta": {"event_name": "order_refunded"},
+    "data": {"id": "9002", "attributes": {
+        "user_email": "newperson@example.com", "total": 1900, "currency": "USD",
+        "status": "refunded", "first_order_item": {"variant_id": 999}}},
+}).encode()
+sig_r = hmac.new(b"test-secret", payload_ref, hashlib.sha256).hexdigest()
+client.post("/webhooks/lemonsqueezy", data=payload_ref,
+            headers={"Content-Type": "application/json", "X-Signature": sig_r})
+with app.app_context():
+    sp2 = ShopPurchase.query.filter_by(lemon_squeezy_order_id="9002").first()
+ok("Refunded shop purchase marked refunded", sp2.status == "refunded")
+r = client.get("/account")
+ok("My space hides refunded purchases",
+   "Quiet Mornings" not in r.get_data(as_text=True))
+
+# protected self-hosted download
+with app.app_context():
+    from flask import current_app
+    shop_dir = current_app.config["SHOP_FILES_DIR"]
+    key = "quiet-guide.pdf"
+    Path(shop_dir).mkdir(parents=True, exist_ok=True)
+    (Path(shop_dir) / key).write_bytes(b"%PDF-1.4 shop-file")
+    owned = ShopPurchase(
+        lemon_squeezy_order_id="FILE-1", customer_email="newperson@example.com",
+        user_id=known_id, product_name="Self Hosted Guide", file_key=key,
+        status="linked", purchased_at=utcnow())
+    other = ShopPurchase(
+        lemon_squeezy_order_id="FILE-2", customer_email="buyer@example.com",
+        user_id=None, product_name="Someone Else", file_key=key,
+        status="pending_link", purchased_at=utcnow())
+    db.session.add_all([owned, other])
+    db.session.commit()
+    owned_id = owned.id
+r = client.get(f"/account/shop/{owned_id}/download")
+ok("Owner can download self-hosted shop file",
+   r.status_code == 200 and r.get_data() == b"%PDF-1.4 shop-file")
+r = buyer_client.get(f"/account/shop/{owned_id}/download")
+ok("Non-owner blocked from shop file download", r.status_code == 404)
 
 r = admin.get("/admin/")
 ok("Dashboard shows revenue after order", "$49.00" in r.get_data(as_text=True))
-r = admin.get("/admin/?product=1")
+r = admin.get(f"/admin/?product={hist_id}")
 body = r.get_data(as_text=True)
 ok("Dashboard filters by product", r.status_code == 200 and "Begin Again" in body and "$49.00" in body)
 r = admin.get("/admin/?product=999")
@@ -545,63 +608,23 @@ with app.app_context():
     n_logged = CheckIn.query.filter_by(user_id=mid).count()
 ok("Check-ins are logged for the journey history", n_logged >= 1, f"got {n_logged}")
 
-# recommendations match a member's stated intent to hidden course tags
+# intent tags still save on the member (shop recommendations retired)
 with app.app_context():
-    from app.models import Product
-    from app.services.recommend import recommend_products
-    p = Product.query.filter_by(slug="begin-again").first()
-    p.set_tags(["divorce", "starting-over"])
     m = User.query.filter_by(email="newperson@example.com").first()
     m.set_goals(["divorce"])
     db.session.commit()
-    recs = recommend_products(m)
-ok("Course recommended from matching intent tags",
-   any(x.slug == "begin-again" for x in recs), f"got {[x.slug for x in recs]}")
+    goals = m.goals()
+ok("Member intent tags still save", "divorce" in goals)
 
 r = admin.get("/admin/community")
 ok("Admin community moderation page", r.status_code == 200 and "rude@example.com" in r.get_data(as_text=True))
 
-# --- 5c. purchased-course reader + PDF/Word uploads ---------------------------
-import io as _io_assets
-with app.app_context():
-    lib_prod_id = Product.query.filter_by(slug="begin-again").first().id
-minimal_pdf = b"%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n"
-r = admin.post(f"/admin/products/{lib_prod_id}/edit",
-               data={**form, "asset_files": (_io_assets.BytesIO(minimal_pdf), "lesson.pdf")},
-               content_type="multipart/form-data", follow_redirects=True)
-ok("Admin uploads a course PDF", "Product saved" in r.get_data(as_text=True))
-with app.app_context():
-    lib_prod = Product.query.filter_by(slug="begin-again").first()
-    lib_asset_id = lib_prod.assets[0].id
-    lib_asset_kind = lib_prod.assets[0].kind
-ok("Course file stored on the product", lib_asset_kind == "pdf")
-
-# a non-buyer cannot reach the reader (hidden as 404)
+# --- 5c. on-site course reader retired (shop downloads in My space) -----------
 r = client.get("/library/begin-again", follow_redirects=False)
-ok("Non-buyer can't open the reader", r.status_code == 404)
-
-# give the signed-in member a paid order, then they can read online
-with app.app_context():
-    db.session.add(Order(ls_order_id="LIB-1", ls_variant_id="123456",
-                         product_id=lib_prod_id, buyer_email="newperson@example.com",
-                         total_cents=4900, currency="USD", status="paid"))
-    db.session.commit()
-r = client.get("/library/begin-again")
-ok("Buyer opens the on-site reader",
-   r.status_code == 200 and "Read online" in r.get_data(as_text=True))
-r = client.get(f"/library/begin-again/file/{lib_asset_id}")
-ok("Course file served inline, not as a download",
-   r.status_code == 200 and r.mimetype == "application/pdf"
-   and r.headers.get("Content-Disposition", "").startswith("inline"))
+ok("Legacy library reader is gone", r.status_code == 404)
 r = client.get("/account")
-ok("Account surfaces the read-online library",
-   "Your courses" in r.get_data(as_text=True) or "Read your courses" in r.get_data(as_text=True))
-r = admin.get("/library/begin-again")
-ok("Owner can preview the reader without buying", r.status_code == 200)
-r = admin.post(f"/admin/products/{lib_prod_id}/edit",
-               data={**form, "asset_files": (_io_assets.BytesIO(b"not a real file"), "notes.txt")},
-               content_type="multipart/form-data", follow_redirects=True)
-ok("Non PDF/Word upload is rejected", "only PDF or Word" in r.get_data(as_text=True))
+ok("Account still has courses & guides section",
+   "Your courses" in r.get_data(as_text=True))
 
 # --- 5d. announcement: expiry window + remove ---------------------------------
 base_settings = {"site_title": "Bloom Anyway", "instagram_url": "", "hero_image_url": "",
@@ -638,18 +661,10 @@ ok("Free member's post was not created", free_posts == 0)
 r = free_client.get("/forums/c/healing")
 ok("Free member sees the community gate", "member-gate" in r.get_data(as_text=True))
 
-# subjects: filterable catalogue tabs
-with app.app_context():
-    bp2 = Product.query.filter_by(slug="begin-again").first()
-    bp2.subject = "Healing"
-    db.session.commit()
-r = client.get("/courses")
-ok("Subject filter tab appears once a product has a subject",
-   "filter-tabs--subjects" in r.get_data(as_text=True))
-r = client.get("/courses?subject=Healing")
-ok("Subject filter keeps matching products", "Begin Again" in r.get_data(as_text=True))
-r = client.get("/courses?subject=Money")
-ok("Subject filter hides non-matching products", "Begin Again" not in r.get_data(as_text=True))
+# /courses always redirects to the shop (subject filters retired)
+r = client.get("/courses?subject=Healing", follow_redirects=False)
+ok("Subject-filtered /courses still redirects to shop",
+   r.status_code == 302 and "shop.bloomanyway.online" in r.headers.get("Location", ""))
 
 # videos: owner uploads, Creator watches, free is blocked
 minimal_mp4 = b"\x00\x00\x00\x18ftypmp42" + b"\x00" * 64
@@ -959,24 +974,26 @@ with app.app_context():
 ok("Cancelling membership drops the tier", tier == "none", f"got {tier}")
 ok("Cancelling hides the member's ads", still_active == 0)
 
-# Gifting a course to a friend's account
-r = free_client.get("/library/begin-again", follow_redirects=False)
-ok("Friend has no access before the gift", r.status_code == 404)
-with app.app_context():
-    Product.query.filter_by(slug="begin-again").first().ls_variant_id = "123456"
-    db.session.commit()
+# Gift custom_data still stored on Order (shop My Space links by buyer email only)
 gbody = json.dumps({
     "meta": {"event_name": "order_created", "custom_data": {"gift_to": "free@example.com"}},
     "data": {"id": "GIFT-1", "attributes": {
         "user_email": "santa@example.com", "total": 4900, "currency": "USD",
-        "status": "paid", "first_order_item": {"variant_id": "123456"}}},
+        "status": "paid",
+        "first_order_item": {"variant_id": "123456", "product_name": "Gifted Guide"}}},
 }).encode()
 gs = hmac.new(b"test-secret", gbody, hashlib.sha256).hexdigest()
 r = client.post("/webhooks/lemonsqueezy", data=gbody,
                 headers={"Content-Type": "application/json", "X-Signature": gs})
 ok("Gift webhook accepted", r.status_code == 200)
-r = free_client.get("/library/begin-again")
-ok("Gifted friend can read the course online", r.status_code == 200)
+with app.app_context():
+    gift_order = Order.query.filter_by(ls_order_id="GIFT-1").first()
+    gift_shop = ShopPurchase.query.filter_by(lemon_squeezy_order_id="GIFT-1").first()
+ok("Gift order stores gift_to_email",
+   gift_order is not None and gift_order.gift_to_email == "free@example.com")
+ok("Shop purchase links to buyer email (not gift recipient)",
+   gift_shop is not None and gift_shop.customer_email == "santa@example.com"
+   and gift_shop.status == "pending_link")
 
 # Multiple announcements stack; blank expiry defaults to +1 day
 admin.post("/admin/settings", data={"add_announcement": "1",
@@ -1250,85 +1267,5 @@ ok("SECRET_KEY stable across restarts", k1 == k2)
 with boot2.app_context():
     from app.services.settings import all_settings
     ok("Secret key never leaks into public settings", "_secret_key" not in all_settings())
-
-# --- shop downloads (external Lemon storefront → My space) --------------------
-from app.models import Purchase
-from app.services import shop_catalog
-from app.services.purchases import purchase_files_dir
-
-SHOP_VARIANT = "99112233"
-shop_catalog.PURCHASE_PRODUCTS[SHOP_VARIANT] = {
-    "name": "Smoke Test Guide",
-    "description": "A test downloadable guide.",
-    "file": "smoke-guide.pdf",
-}
-
-# buy before the account exists
-shop_payload = json.dumps({
-    "meta": {"event_name": "order_created"},
-    "data": {"id": "SHOP-1", "attributes": {
-        "user_email": "ShopBuyer@Example.com", "total": 1900, "currency": "USD",
-        "status": "paid",
-        "first_order_item": {
-            "variant_id": int(SHOP_VARIANT),
-            "product_id": 42,
-            "product_name": "Smoke Test Guide",
-        }}},
-}).encode()
-shop_sig = hmac.new(b"test-secret", shop_payload, hashlib.sha256).hexdigest()
-r = client.post("/webhooks/lemonsqueezy", data=shop_payload,
-                headers={"Content-Type": "application/json", "X-Signature": shop_sig})
-ok("Shop order webhook accepted", r.status_code == 200)
-with app.app_context():
-    pre = Purchase.query.filter_by(order_id="SHOP-1").first()
-ok("Shop purchase stored before account",
-   pre is not None and pre.user_id is None and pre.email == "shopbuyer@example.com")
-
-# create account + login → auto-link
-with app.app_context():
-    shop_user = User(email="shopbuyer@example.com", email_verified_at=utcnow())
-    shop_user.set_password(USER_PW)
-    db.session.add(shop_user)
-    db.session.commit()
-    shop_uid = shop_user.id
-shop_client = app.test_client()
-shop_client.post("/login", data={"email": "shopbuyer@example.com", "password": USER_PW})
-with app.app_context():
-    linked = Purchase.query.filter_by(order_id="SHOP-1").first()
-ok("Login links prior shop purchase to user",
-   linked is not None and linked.user_id == shop_uid)
-
-# place the private file and download via authenticated route
-with app.app_context():
-    files_dir = purchase_files_dir()
-    os.makedirs(files_dir, exist_ok=True)
-    guide_path = Path(files_dir) / "smoke-guide.pdf"
-    guide_path.write_bytes(b"%PDF-1.4 smoke-test-guide")
-    pid = Purchase.query.filter_by(order_id="SHOP-1").first().id
-
-r = shop_client.get("/account")
-ok("Shop download appears on My space",
-   r.status_code == 200 and "Smoke Test Guide" in r.get_data(as_text=True)
-   and "Your downloads" in r.get_data(as_text=True))
-
-r = shop_client.get(f"/account/purchases/{pid}/download")
-ok("Owner can download shop file",
-   r.status_code == 200 and r.data.startswith(b"%PDF"))
-
-anon = app.test_client()
-r = anon.get(f"/account/purchases/{pid}/download", follow_redirects=False)
-ok("Unauthenticated download is blocked",
-   r.status_code in (302, 401, 403) or "/login" in (r.headers.get("Location") or ""))
-
-# another logged-in user must not download someone else's purchase
-r = buyer_client.get(f"/account/purchases/{pid}/download")
-ok("Other user cannot download shop file", r.status_code == 404)
-
-# idempotent replay
-r = client.post("/webhooks/lemonsqueezy", data=shop_payload,
-                headers={"Content-Type": "application/json", "X-Signature": shop_sig})
-with app.app_context():
-    n = Purchase.query.filter_by(order_id="SHOP-1").count()
-ok("Shop purchase webhook is idempotent", r.status_code == 200 and n == 1)
 
 print(f"\nAll {PASS} checks passed.")

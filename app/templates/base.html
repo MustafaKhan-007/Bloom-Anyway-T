@@ -19,7 +19,7 @@
     <nav class="nav" aria-label="Main">
       <a class="nav-brand" href="{{ url_for('main.index') }}">{% include "partials/logo.html" %}</a>
       <div class="nav-links">
-        <a href="{{ url_for('main.courses') }}" {% if request.path.startswith('/courses') %}aria-current="page"{% endif %}>Courses &amp; Guides</a>
+        <a href="{{ shop_url }}" target="_blank" rel="noopener">Courses &amp; Guides</a>
         <a href="{{ url_for('forums.index') }}" {% if request.path.startswith('/forums') %}aria-current="page"{% endif %}>Community</a>
         <a href="{{ url_for('main.showcase') }}" {% if request.path.startswith('/showcase') or request.path.startswith('/marketplace') %}aria-current="page"{% endif %}>Showcase</a>
         <a href="{{ url_for('main.videos') }}" {% if request.path.startswith('/watch') %}aria-current="page"{% endif %}>Content Hub</a>
@@ -38,7 +38,7 @@
       </button>
     </nav>
     <div class="nav-drawer" id="nav-drawer">
-      <a href="{{ url_for('main.courses') }}">Courses &amp; Guides</a>
+      <a href="{{ shop_url }}" target="_blank" rel="noopener">Courses &amp; Guides</a>
       <a href="{{ url_for('forums.index') }}">Community</a>
       <a href="{{ url_for('main.showcase') }}">Showcase</a>
       <a href="{{ url_for('main.videos') }}">Content Hub</a>
@@ -77,7 +77,7 @@
           <p style="color: var(--rose-soft); max-width: 32ch;">Courses and guided notebooks for rebuilding, one honest day at a time.</p>
         </div>
         <div class="footer-links">
-          <a href="{{ url_for('main.courses') }}">Courses &amp; Guides</a>
+          <a href="{{ shop_url }}" target="_blank" rel="noopener">Courses &amp; Guides</a>
           <a href="{{ url_for('main.about') }}">My story</a>
           <a href="{{ url_for('main.quotes') }}">Daily quotes</a>
           <a href="{{ url_for('forums.index') }}">Community</a>
