@@ -19,11 +19,16 @@
         <label for="password">Password</label>
         <div class="password-wrap">
           <input type="password" id="password" name="password" required minlength="8"
-                 autocomplete="new-password" aria-describedby="password-hint">
+                 autocomplete="off" data-clear-on-bfcache aria-describedby="password-hint">
           <button type="button" class="password-toggle" data-toggles="password"
                   aria-label="Show password" aria-pressed="false">Show</button>
         </div>
         <p class="field-help" id="password-hint">At least 8 characters. A short sentence you'll remember works beautifully.</p>
+      </div>
+      <div class="field">
+        <label for="captcha">Quick check: what is {{ captcha_q }}?</label>
+        <input type="text" id="captcha" name="captcha" required inputmode="numeric"
+               autocomplete="off" maxlength="4" placeholder="Answer">
       </div>
 
       <fieldset class="intent-picker">

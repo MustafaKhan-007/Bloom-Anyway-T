@@ -124,6 +124,11 @@ def create_post(slug):
     post = ForumPost(category_id=cat.id, tag_id=tag_id, user_id=current_user.id,
                      title=title, body=body, anonymous=_wants_anonymous())
     db.session.add(post)
+    db.session.flush()
+    from ..services.social_graph import notify_followers_of_post, notify_mentions
+    if not post.anonymous:
+        notify_followers_of_post(current_user, post)
+        notify_mentions(current_user, f"{title}\n{body}", post_id=post.id)
     db.session.commit()
     flash("Posted. Thank you for adding your voice.", "success")
     return redirect(url_for("forums.post", post_id=post.id))
@@ -187,9 +192,13 @@ def create_comment(post_id):
     if not _guard_content(body):
         return redirect(url_for("forums.post", post_id=post_id))
 
-    db.session.add(ForumComment(post_id=post.id, parent_id=parent_id,
-                                user_id=current_user.id, body=body,
-                                anonymous=_wants_anonymous()))
+    comment = ForumComment(post_id=post.id, parent_id=parent_id,
+                           user_id=current_user.id, body=body,
+                           anonymous=_wants_anonymous())
+    db.session.add(comment)
+    if not comment.anonymous:
+        from ..services.social_graph import notify_mentions
+        notify_mentions(current_user, body, post_id=post.id)
     db.session.commit()
     return redirect(url_for("forums.post", post_id=post_id) + "#comments")
 

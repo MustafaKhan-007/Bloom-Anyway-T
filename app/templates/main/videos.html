@@ -7,7 +7,7 @@
     <p class="eyebrow">Videos &amp; reel reviews</p>
     <h1>Content Hub</h1>
     <p style="color: var(--ink-soft); max-width: 62ch; margin-bottom: 0;">
-      Longer-form videos for Creator members, plus public reel reviews from the community.
+      Browse the library on any signed-in account. Some videos are free picks; full playback is a Creator perk. Finished community reviews stay open to everyone below.
     </p>
   </div>
 </section>
@@ -17,23 +17,25 @@
     <h2>Video library</h2>
     {% if can_browse %}
       <p style="color: var(--ink-soft); max-width: 60ch; margin-top: -4px;">
-        {% if can_play %}Watch here whenever you need them &mdash; nothing to download.
-        {% else %}Browse what's inside on Healing; upgrade to Creator to press play.{% endif %}
+        {% if can_play %}Watch Creator videos anytime &mdash; nothing to download.
+        {% else %}Browse everything; play the ones tagged as included in your membership, or upgrade to Creator for the full shelf.{% endif %}
       </p>
       {% if videos %}
       <div class="video-grid">
         {% for v in videos %}
-        <a class="video-card {{ 'video-card--locked' if not can_play }}" href="{{ url_for('main.watch', video_id=v.id) }}">
+        {% set playable_for_me = can_play_video(current_user, v) %}
+        <a class="video-card {{ 'video-card--locked' if not playable_for_me }}" href="{{ url_for('main.watch', video_id=v.id) }}">
           <div class="video-card__thumb">
             {% if v.has_thumb() %}
             <img src="{{ url_for('main.video_thumb', video_id=v.id) }}" alt="" loading="lazy">
             {% else %}
             <span class="video-card__play" aria-hidden="true">&#9654;</span>
             {% endif %}
-            {% if not can_play %}<span class="video-card__lock" aria-hidden="true">&#128274;</span>{% endif %}
+            {% if not playable_for_me %}<span class="video-card__lock" aria-hidden="true">&#128274;</span>{% endif %}
           </div>
           <div class="video-card__body">
             <h3>{{ v.title }}</h3>
+            <span class="video-access-tag {{ 'video-access-tag--yours' if playable_for_me }}">{{ v.access_label(current_user) }}</span>
             {% if v.description %}<p>{{ v.description|truncate(110) }}</p>{% endif %}
             <span class="video-card__date">{{ v.created_at.strftime('%b %d, %Y') }}</span>
           </div>
@@ -47,8 +49,9 @@
       {% endif %}
     {% else %}
       <div class="empty-state">
-        <p>Video browsing is a members' perk.
-          <a href="{{ url_for('main.membership') }}">Join Healing or Creator</a> to open the library.</p>
+        <p>Sign in (even on Free) to browse the video library.
+          <a href="{{ url_for('auth.login', next=url_for('main.videos')) }}">Sign in</a>
+          or <a href="{{ url_for('auth.register', next=url_for('main.videos')) }}">create an account</a>.</p>
       </div>
     {% endif %}
   </div>

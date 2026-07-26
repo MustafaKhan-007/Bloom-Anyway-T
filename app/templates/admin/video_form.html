@@ -44,8 +44,13 @@
       </div>
       <div class="field">
         <label style="font-weight: 400; display: flex; gap: 8px; align-items: center; margin-top: 30px;">
-          <input type="checkbox" name="published" value="1" style="width: auto;" {{ 'checked' if not video or video.published }}> Live (visible to Creator members)
+          <input type="checkbox" name="published" value="1" style="width: auto;" {{ 'checked' if not video or video.published }}> Live in the Content Hub
         </label>
+        <label style="font-weight: 400; display: flex; gap: 8px; align-items: center; margin-top: 12px;">
+          <input type="checkbox" name="free_access" value="1" style="width: auto;" {{ 'checked' if video and video.free_access }}>
+          Allow Free members to watch (not just browse)
+        </label>
+        <p class="field-help">Everyone signed in can browse the library. Playback is Creator-only unless this box is checked.</p>
       </div>
     </div>
   </div>

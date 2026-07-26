@@ -32,14 +32,17 @@
       <div class="video-locked__veil">
         <span class="video-locked__icon" aria-hidden="true">&#128274;</span>
         <h2>Creator members only</h2>
-        <p>You can browse the Content Hub on Healing, but watching is a Creator perk.</p>
-        <a class="btn btn--primary" href="{{ url_for('main.membership') }}">Upgrade to Creator</a>
+        <p>You can browse on Free, but this video's playback is a Creator perk.</p>
+        <a class="btn btn--primary" href="{{ url_for('main.membership', next=request.path) }}">Upgrade to Creator</a>
       </div>
     </div>
     {% endif %}
 
     <h1>{{ video.title }}</h1>
-    <p style="color: var(--ink-soft);">{{ video.created_at.strftime('%B %d, %Y') }}</p>
+    <p style="color: var(--ink-soft);">
+      {{ video.created_at.strftime('%B %d, %Y') }}
+      &middot; <span class="video-access-tag {{ 'video-access-tag--yours' if can_play }}">{{ access_label }}</span>
+    </p>
     {% if video.description %}
     <div class="forum-body">{{ video.description|nl2br }}</div>
     {% endif %}

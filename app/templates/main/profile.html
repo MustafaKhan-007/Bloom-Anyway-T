@@ -9,11 +9,18 @@
     <div class="profile-card">
       {{ avatar(profile_user, 'xl') }}
       <h1>{{ profile_user.public_name() }}</h1>
+      {% if profile_user.username %}
+      <p class="at-handle">@{{ profile_user.username }}</p>
+      {% endif %}
       {% if profile_user.is_admin or profile_user.is_creator() %}
       <span class="membership-pill membership-pill--creator">{{ profile_user.membership_label() }}</span>
       {% elif profile_user.is_member() %}
       <span class="membership-pill membership-pill--healing">Healing member</span>
       {% endif %}
+      <p class="field-help" style="margin-top: 10px;">
+        {{ followers_n }} follower{{ '' if followers_n == 1 else 's' }}
+        &middot; {{ following_n }} following
+      </p>
       {% if profile_user.bio %}<p class="profile-card__bio">{{ profile_user.bio }}</p>{% endif %}
 
       {% set shown = profile_badges(profile_user) %}
@@ -31,12 +38,27 @@
       </div>
       {% endif %}
 
+      {% if current_user.is_authenticated and current_user.id != profile_user.id %}
+      <form method="post" action="{{ url_for('main.follow_user', user_id=profile_user.id) }}" style="margin-top: 18px;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="next" value="{{ request.full_path.rstrip('?') }}">
+        <button class="btn {{ 'btn--secondary' if is_following else 'btn--primary' }} btn--sm" type="submit">
+          {{ 'Following' if is_following else 'Follow' }}
+        </button>
+      </form>
+      <p class="field-help">Follow to get a note in My space when they post.</p>
+      {% endif %}
+
       {% if profile_user.is_admin %}
       <p class="field-help" style="margin-top: 20px;">This is the studio owner.</p>
       {% endif %}
     </div>
     <p style="text-align: center; margin-top: 24px;">
+      {% if from_post %}
+      <a href="{{ url_for('forums.post', post_id=from_post) }}">&larr; Back to thread</a>
+      {% else %}
       <a href="{{ url_for('forums.index') }}">&larr; Back to the community</a>
+      {% endif %}
     </p>
   </div>
 </section>

@@ -55,6 +55,7 @@ class User(UserMixin, db.Model):
     password_hash = db.Column(db.String(255))
     email_verified_at = db.Column(db.DateTime)
     display_name = db.Column(db.String(80))
+    username = db.Column(db.String(30), unique=True, index=True)  # @handle for tags
     is_admin = db.Column(db.Boolean, nullable=False, default=False)
     created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
     last_login_at = db.Column(db.DateTime)
@@ -112,10 +113,13 @@ class User(UserMixin, db.Model):
         return None
 
     def public_name(self):
-        return self.display_name or "Member"
+        return self.display_name or (f"@{self.username}" if self.username else "Member")
+
+    def at_handle(self) -> str:
+        return f"@{self.username}" if self.username else ""
 
     def initials(self):
-        base = (self.display_name or self.email or "?").strip()
+        base = (self.display_name or self.username or self.email or "?").strip()
         parts = base.split()
         if len(parts) >= 2:
             return (parts[0][0] + parts[1][0]).upper()
@@ -427,11 +431,60 @@ class CheckIn(db.Model):
     created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
 
 
+JOURNAL_PROMPTS = (
+    ("mind", "What's on your mind?"),
+    ("change", "What's a change you made today?"),
+    ("grateful", "What are you grateful for right now?"),
+)
+
+
+class JournalEntry(db.Model):
+    """Optional short journal note attached to a check-in day."""
+    __tablename__ = "journal_entries"
+    __table_args__ = (db.UniqueConstraint("user_id", "day", name="uq_journal_user_day"),)
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    day = db.Column(db.Date, nullable=False)
+    prompt_key = db.Column(db.String(40), nullable=False, default="mind")
+    prompt_label = db.Column(db.String(120), nullable=False, default="")
+    body = db.Column(db.Text, nullable=False, default="")
+    created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
+
+    author = db.relationship("User", backref=db.backref("journal_entries", lazy="dynamic"))
+
+
+class Follow(db.Model):
+    __tablename__ = "follows"
+    __table_args__ = (db.UniqueConstraint("follower_id", "following_id",
+                                          name="uq_follow_pair"),)
+
+    id = db.Column(db.Integer, primary_key=True)
+    follower_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    following_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
+
+
+class Notification(db.Model):
+    __tablename__ = "notifications"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    actor_id = db.Column(db.Integer, db.ForeignKey("users.id"))
+    kind = db.Column(db.String(30), nullable=False)  # follow_post / mention
+    post_id = db.Column(db.Integer, db.ForeignKey("forum_posts.id"))
+    body = db.Column(db.String(300), nullable=False, default="")
+    read_at = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
+
+    actor = db.relationship("User", foreign_keys=[actor_id])
+    post = db.relationship("ForumPost")
+
+
 class Video(db.Model):
-    """An owner-uploaded video (Creator-membership perk). The file is streamed
-    to a directory on disk (a mounted persistent disk in production) so large
-    uploads don't exhaust worker memory; only the small thumbnail lives in the
-    DB. ``disk_name`` is the file's name within VIDEO_STORAGE_DIR."""
+    """An owner-uploaded video. Creator members can play by default; optional
+    ``free_access`` opens playback to every signed-in member (including Free).
+    Files stream from disk (VIDEO_STORAGE_DIR); thumbnails live in the DB."""
     __tablename__ = "videos"
 
     id = db.Column(db.Integer, primary_key=True)
@@ -445,8 +498,20 @@ class Video(db.Model):
     thumb_data = db.Column(db.LargeBinary)
     thumb_mime = db.Column(db.String(40))
     published = db.Column(db.Boolean, nullable=False, default=True)
+    free_access = db.Column(db.Boolean, nullable=False, default=False)
     sort_order = db.Column(db.Integer, nullable=False, default=0)
     created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
+
+    def access_label(self, user) -> str:
+        """Membership inclusion label for cards / watch pages."""
+        if self.free_access:
+            if getattr(user, "is_authenticated", False):
+                return "Included in your membership"
+            return "Included in Free membership"
+        if getattr(user, "is_authenticated", False) and (
+                getattr(user, "is_admin", False) or user.is_creator()):
+            return "Included in your membership"
+        return "Included in Creator membership"
 
     def has_thumb(self) -> bool:
         return self.thumb_data is not None

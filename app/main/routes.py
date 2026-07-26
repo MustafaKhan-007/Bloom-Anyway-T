@@ -9,11 +9,11 @@ from flask_login import current_user, login_required
 
 from ..extensions import db, limiter
 
-from ..models import (MARKETPLACE_KINDS, MARKETPLACE_KIND_LABELS,
+from ..models import (JOURNAL_PROMPTS, MARKETPLACE_KINDS, MARKETPLACE_KIND_LABELS,
                       MARKETPLACE_TAG_MAX, MARKETPLACE_TAGS,
-                      CoachingRequest, ContactMessage, FaqItem,
-                      ListingImage, MarketplaceListing, MembershipPlan, Order,
-                      Page, Quote, QuoteFavorite,
+                      CoachingRequest, ContactMessage, FaqItem, JournalEntry,
+                      ListingImage, MarketplaceListing, MembershipPlan,
+                      Notification, Order, Page, Quote, QuoteFavorite,
                       ReelReview, ReelReviewApplication, ShopPurchase,
                       Subscriber, Testimonial, User, Video, utcnow)
 from ..services import quotes as quotes_service
@@ -156,8 +156,8 @@ MEMBERSHIP_MATRIX = [
     ("Earn & display badges", True, True, True),
     ("Read the community", "Top 3 threads", True, True),
     ("Post, reply & like", False, True, True),
-    ("Browse the Content Hub", False, True, True),
-    ("Watch Content Hub videos", False, False, True),
+    ("Browse the Content Hub", True, True, True),
+    ("Watch Content Hub videos", "Free picks", "Free picks", True),
     ("Request a weekly reel review", False, False, True),
     ("1-on-1 coaching sessions", False, False, True),
     ("Profile links", False, True, True),
@@ -178,6 +178,24 @@ def _checkout_url(url):
     return out
 
 
+def _safe_back_url(raw: str | None):
+    """Same-origin path only (open-redirect safe)."""
+    if not raw:
+        return None
+    raw = raw.strip()
+    if raw.startswith("/") and not raw.startswith("//"):
+        return raw
+    try:
+        from urllib.parse import urlparse
+        here = urlparse(request.host_url)
+        there = urlparse(raw)
+        if there.netloc == here.netloc and there.path:
+            return there.path + (f"?{there.query}" if there.query else "")
+    except Exception:
+        pass
+    return None
+
+
 @bp.route("/membership")
 def membership():
     plans = {p.tier: p for p in MembershipPlan.query.filter_by(active=True).all()}
@@ -186,9 +204,26 @@ def membership():
     checkout = {}
     for tier, plan in plans.items():
         checkout[tier] = _checkout_url(plan.ls_checkout_url) if plan else None
+    back_url = (_safe_back_url(request.args.get("next"))
+                or _safe_back_url(request.referrer)
+                or url_for("main.index"))
+    if back_url.rstrip("/") == url_for("main.membership").rstrip("/"):
+        back_url = url_for("main.index")
+    # Friendly label from the path
+    if back_url.startswith("/account"):
+        back_label = "My space"
+    elif back_url.startswith("/forums"):
+        back_label = "the community"
+    elif back_url.startswith("/watch"):
+        back_label = "the Content Hub"
+    elif back_url.startswith("/showcase") or back_url.startswith("/marketplace"):
+        back_label = "Showcase"
+    else:
+        back_label = "where you were"
     return render_template("main/membership.html", plans=plans,
                            matrix=MEMBERSHIP_MATRIX, current=current,
-                           checkout=checkout)
+                           checkout=checkout,
+                           back_url=back_url, back_label=back_label)
 
 
 # --- marketplace (member adverts; we redirect out, we don't sell) ----------
@@ -478,6 +513,12 @@ def account():
     else:
         greeting = "Good evening"
 
+    tab = (request.args.get("tab") or "profile").strip().lower()
+    if tab not in ("profile", "saved", "journal", "activity", "settings"):
+        tab = "profile"
+    if tab == "settings":
+        return redirect(url_for("main.settings"))
+
     orders = (Order.query.filter_by(buyer_email=current_user.email)
               .order_by(Order.created_at.desc()).all())
     favorites = (db.session.query(Quote).join(QuoteFavorite)
@@ -493,13 +534,34 @@ def account():
                           .filter(CoachingRequest.status == "pending")
                           .order_by(CoachingRequest.created_at.desc())
                           .limit(20).all())
-    return render_template("main/account.html", greeting=greeting, orders=orders,
-                           favorites=favorites,
-                           shop_purchases=linked_purchases_for(current_user),
-                           premium=is_premium(current_user),
-                           coaching_checkout=coaching_checkout,
-                           my_coaching=my_coaching,
-                           owner_coaching=owner_coaching)
+    journal = (JournalEntry.query.filter_by(user_id=current_user.id)
+               .order_by(JournalEntry.day.desc()).limit(60).all())
+    notes = (Notification.query.filter_by(user_id=current_user.id)
+             .order_by(Notification.created_at.desc()).limit(40).all())
+    # Mark visible activity as read
+    if tab == "activity":
+        for n in notes:
+            if n.read_at is None:
+                n.read_at = utcnow()
+        db.session.commit()
+    from ..services.social_graph import follow_counts, unread_notification_count
+    followers_n, following_n = follow_counts(current_user)
+    return render_template(
+        "main/account.html", greeting=greeting, orders=orders,
+        favorites=favorites,
+        shop_purchases=linked_purchases_for(current_user),
+        premium=is_premium(current_user),
+        coaching_checkout=coaching_checkout,
+        my_coaching=my_coaching,
+        owner_coaching=owner_coaching,
+        active_tab=tab,
+        journal_entries=journal,
+        journal_prompts=JOURNAL_PROMPTS,
+        notifications=notes,
+        unread_notes=unread_notification_count(current_user),
+        followers_n=followers_n,
+        following_n=following_n,
+    )
 
 
 @bp.route("/account/shop/<int:purchase_id>/download")
@@ -606,12 +668,31 @@ def cancel_membership():
 @bp.route("/account/checkin", methods=["POST"])
 @login_required
 def checkin():
-    if current_user.check_in():
-        db.session.commit()
+    freshly = current_user.check_in()
+    journal_body = (request.form.get("journal") or "").strip()[:4000]
+    prompt_key = (request.form.get("prompt") or "mind").strip()
+    prompt_map = dict(JOURNAL_PROMPTS)
+    if prompt_key not in prompt_map:
+        prompt_key = "mind"
+    if journal_body:
+        today = date.today()
+        entry = JournalEntry.query.filter_by(
+            user_id=current_user.id, day=today).first()
+        if entry is None:
+            entry = JournalEntry(user_id=current_user.id, day=today)
+            db.session.add(entry)
+        entry.prompt_key = prompt_key
+        entry.prompt_label = prompt_map[prompt_key]
+        entry.body = journal_body
+    db.session.commit()
+    if freshly:
         flash("You showed up today. That's the whole thing.", "success")
+    elif journal_body:
+        flash("Journal note saved.", "success")
     else:
         flash("Already checked in today \u2014 see you tomorrow.", "info")
-    return redirect(request.form.get("next") or url_for("main.account"))
+    next_url = request.form.get("next") or url_for("main.account", tab="journal")
+    return redirect(next_url)
 
 
 @bp.route("/u/<int:user_id>")
@@ -619,14 +700,51 @@ def profile(user_id):
     user = db.session.get(User, user_id)
     if user is None or user.deleted_at is not None:
         abort(404)
-    return render_template("main/profile.html", profile_user=user)
+    from_post = request.args.get("from", type=int)
+    from ..services.social_graph import follow_counts, is_following
+    followers_n, following_n = follow_counts(user)
+    following = (current_user.is_authenticated
+                 and is_following(current_user, user))
+    return render_template(
+        "main/profile.html", profile_user=user, from_post=from_post,
+        followers_n=followers_n, following_n=following_n, is_following=following)
+
+
+@bp.route("/u/<int:user_id>/follow", methods=["POST"])
+@login_required
+def follow_user(user_id):
+    target = db.session.get(User, user_id)
+    if target is None or target.deleted_at is not None or target.id == current_user.id:
+        abort(404)
+    from ..services.social_graph import toggle_follow
+    now_following = toggle_follow(current_user, target)
+    db.session.commit()
+    flash("Following — you'll hear when they post." if now_following
+          else "Unfollowed.", "success")
+    return redirect(request.form.get("next")
+                    or url_for("main.profile", user_id=user_id))
 
 
 @bp.route("/account/profile", methods=["POST"])
 @login_required
 def update_profile():
+    from ..services.social_graph import is_valid_username, normalize_username
+    from sqlalchemy import func
+
     name = (request.form.get("display_name") or "").strip()[:80]
     bio = (request.form.get("bio") or "").strip()[:400]
+    raw_user = normalize_username(request.form.get("username") or "")
+    if raw_user:
+        if not is_valid_username(raw_user):
+            flash("Usernames are 3–30 letters, numbers, or underscores.", "error")
+            return redirect(url_for("main.settings"))
+        clash = (User.query
+                 .filter(func.lower(User.username) == raw_user,
+                         User.id != current_user.id).first())
+        if clash:
+            flash("That @username is already taken.", "error")
+            return redirect(url_for("main.settings"))
+        current_user.username = raw_user
     current_user.display_name = name or None
     current_user.bio = bio or None
     current_user.default_anonymous = request.form.get("default_anonymous") == "1"
@@ -677,9 +795,18 @@ def is_premium(user) -> bool:
 # Members (Healing+) can browse titles/thumbnails; only Creators can play.
 
 def _can_play_videos(user) -> bool:
-    """Creator members and the site owner can press play."""
+    """Creator members and the site owner can press play on Creator videos."""
     return bool(getattr(user, "is_authenticated", False)
                 and (getattr(user, "is_admin", False) or user.is_creator()))
+
+
+def _can_play_video(user, video) -> bool:
+    """Per-video play gate: Creator/owner always; free_access for any signed-in user."""
+    if not getattr(user, "is_authenticated", False) or video is None:
+        return False
+    if getattr(user, "is_admin", False) or user.is_creator():
+        return True
+    return bool(video.free_access)
 
 
 def _video_playable(video) -> bool:
@@ -696,9 +823,9 @@ def _video_playable(video) -> bool:
 
 @bp.route("/watch")
 def videos():
-    """Content Hub: public reel reviews + member video library."""
-    can_browse = (current_user.is_authenticated and current_user.is_member())
-    can_play = _can_play_videos(current_user)
+    """Content Hub: public reel reviews + signed-in video library (Free+)."""
+    can_browse = current_user.is_authenticated
+    can_play_creator = _can_play_videos(current_user)
     items = []
     if can_browse:
         items = (Video.query.filter_by(published=True)
@@ -710,7 +837,8 @@ def videos():
     if current_user.is_authenticated and current_user.is_creator():
         my_app = reel_svc.application_for(current_user.id, week_key)
     return render_template(
-        "main/videos.html", videos=items, can_browse=can_browse, can_play=can_play,
+        "main/videos.html", videos=items, can_browse=can_browse,
+        can_play=can_play_creator, can_play_video=_can_play_video,
         reviews=reviews, my_application=my_app, week_key=week_key,
         max_mb=current_app.config.get("REEL_RAW_MAX_MB", 100),
     )
@@ -757,9 +885,6 @@ def reel_review_request():
 @bp.route("/watch/<int:video_id>")
 @login_required
 def watch(video_id):
-    if not current_user.is_member():
-        flash("The Content Hub videos are a members' perk \u2014 join to watch.", "info")
-        return redirect(url_for("main.membership"))
     video = db.session.get(Video, video_id)
     # Owner can preview unpublished drafts; everyone else needs published.
     if video is None:
@@ -768,17 +893,17 @@ def watch(video_id):
         abort(404)
     more = (Video.query.filter(Video.published.is_(True), Video.id != video.id)
             .order_by(Video.sort_order, Video.created_at.desc()).limit(6).all())
-    can_play = _can_play_videos(current_user)
+    can_play = _can_play_video(current_user, video)
     playable = _video_playable(video)
     return render_template("main/watch.html", video=video, more=more,
-                           can_play=can_play, playable=playable)
+                           can_play=can_play, playable=playable,
+                           access_label=video.access_label(current_user),
+                           can_play_video=_can_play_video)
 
 
 @bp.route("/watch/<int:video_id>/thumb")
 @login_required
 def video_thumb(video_id):
-    if not (current_user.is_authenticated and current_user.is_member()):
-        abort(404)
     video = db.session.get(Video, video_id)
     if video is None or not video.thumb_data:
         abort(404)
@@ -823,10 +948,10 @@ def _range_response(data, mime, filename):
 @bp.route("/watch/<int:video_id>/stream")
 @login_required
 def video_stream(video_id):
-    if not _can_play_videos(current_user):
-        abort(404)
     video = db.session.get(Video, video_id)
     if video is None:
+        abort(404)
+    if not _can_play_video(current_user, video):
         abort(404)
     if not video.published and not current_user.is_admin:
         abort(404)

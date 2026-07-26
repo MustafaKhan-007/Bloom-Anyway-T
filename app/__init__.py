@@ -8,6 +8,7 @@ load_dotenv()
 
 from flask import (Flask, flash, redirect, render_template,  # noqa: E402
                    request, url_for)
+from flask_login import current_user  # noqa: E402
 from sqlalchemy import text  # noqa: E402
 
 from .config import get_config  # noqa: E402
@@ -145,6 +146,9 @@ def create_app(config_class=None):
 
     app.jinja_env.filters["nl2br"] = nl2br
 
+    from .services.social_graph import linkify_mentions, unread_notification_count
+    app.jinja_env.filters["mentions"] = linkify_mentions
+
     from .services import badges as badges_service
 
     app.jinja_env.globals.update(
@@ -154,10 +158,17 @@ def create_app(config_class=None):
 
     @app.context_processor
     def inject_globals():
+        unread = 0
+        if getattr(current_user, "is_authenticated", False):
+            try:
+                unread = unread_notification_count(current_user)
+            except Exception:
+                unread = 0
         return {"site": all_settings(), "announcement": active_announcement(),
                 "announcements": active_announcements(),
                 "current_year": date.today().year,
-                "shop_url": app.config.get("SHOP_URL") or "https://shop.bloomanyway.online"}
+                "shop_url": app.config.get("SHOP_URL") or "https://shop.bloomanyway.online",
+                "unread_notes": unread}
 
     # --- health check ---------------------------------------------------------
     @app.route("/healthz")

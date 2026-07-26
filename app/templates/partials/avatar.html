@@ -11,8 +11,13 @@
 {% endmacro %}
 
 {# Author name — links to the public profile only when NOT anonymous #}
-{% macro author_name(user, anonymous=False) %}
+{% macro author_name(user, anonymous=False, from_post=None) %}
 {%- if anonymous -%}Anonymous
-{%- else -%}<a class="author-link" href="{{ url_for('main.profile', user_id=user.id) }}">{{ user.public_name() }}</a>
+{%- else -%}
+{%- if from_post -%}
+<a class="author-link" href="{{ url_for('main.profile', user_id=user.id, **{'from': from_post}) }}">{{ user.public_name() }}</a>
+{%- else -%}
+<a class="author-link" href="{{ url_for('main.profile', user_id=user.id) }}">{{ user.public_name() }}</a>
+{%- endif -%}
 {%- endif -%}
 {% endmacro %}

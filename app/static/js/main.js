@@ -84,6 +84,17 @@
     });
   });
 
+  /* Clear auth passwords when navigating back to login/register */
+  if (document.querySelector(".auth-card")) {
+    var clearAuthPasswords = function () {
+      document.querySelectorAll(".auth-card input[type='password']").forEach(function (input) {
+        input.value = "";
+      });
+    };
+    clearAuthPasswords();
+    window.addEventListener("pageshow", clearAuthPasswords);
+  }
+
   /* ---- confirm dialogs (delete account etc.) ---- */
   document.querySelectorAll("form[data-confirm]").forEach(function (form) {
     form.addEventListener("submit", function (e) {

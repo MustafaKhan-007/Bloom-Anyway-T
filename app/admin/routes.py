@@ -654,6 +654,7 @@ def video_form(video_id=None):
         title = (request.form.get("title") or "").strip()[:160]
         description = (request.form.get("description") or "").strip() or None
         published = bool(request.form.get("published"))
+        free_access = bool(request.form.get("free_access"))
         try:
             sort_order = int(request.form.get("sort_order") or 0)
         except ValueError:
@@ -695,6 +696,7 @@ def video_form(video_id=None):
                 video.title = title
                 video.description = description
                 video.published = published
+                video.free_access = free_access
                 video.sort_order = sort_order
                 if new_video:
                     disk_name, mime, fname, size = new_video

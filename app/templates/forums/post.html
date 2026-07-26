@@ -19,10 +19,13 @@
 <div class="comment {{ 'comment--reply' if is_reply }}">
   <div class="comment__head">
     {{ avatar(c.author, 'sm', c.anonymous) }}
-    <strong>{{ author_name(c.author, c.anonymous) }}</strong>{{ byline_badge(c.author, c.anonymous) }}
-    <span class="comment__date">{{ c.created_at.strftime('%b %d, %Y') }}</span>
+    <strong>{{ author_name(c.author, c.anonymous, post.id) }}</strong>
+    {% if not c.anonymous and c.author.username %}<span class="at-handle">@{{ c.author.username }}</span>{% endif %}
+    {% if not c.anonymous and c.user_id == post.user_id %}<span class="op-tag">OP</span>{% endif %}
+    {{ byline_badge(c.author, c.anonymous) }}
+    <span class="comment__date">{{ c.created_at.strftime('%b %d, %Y · %I:%M %p') }}</span>
   </div>
-  <div class="forum-body">{{ c.body|nl2br }}</div>
+  <div class="forum-body">{{ c.body|mentions }}</div>
   <div class="forum-actions">
     {{ like_button(url_for('forums.like_comment', comment_id=c.id), c.like_count(), c.id in liked_comments) }}
     {% if not is_reply and can_participate and not current_user.forum_banned %}
@@ -31,7 +34,7 @@
       <form method="post" action="{{ url_for('forums.create_comment', post_id=post.id) }}" class="comment-form comment-form--reply">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="parent_id" value="{{ c.id }}">
-        <textarea name="body" rows="2" required maxlength="4000" placeholder="Reply kindly…"></textarea>
+        <textarea name="body" rows="2" required maxlength="4000" placeholder="Reply kindly… use @username to tag"></textarea>
         <label style="font-weight: 400; display: flex; gap: 8px; align-items: center; margin: 8px 0;">
           <input type="checkbox" name="anonymous" value="1" style="width: auto;" {{ 'checked' if anon_default }}>
           Reply anonymously
@@ -54,9 +57,13 @@
       <h1>{{ post.title }}</h1>
       <p class="post-row__meta">
         {{ avatar(post.author, 'sm', post.anonymous) }}
-        {{ author_name(post.author, post.anonymous) }}{{ byline_badge(post.author, post.anonymous) }} &middot; {{ post.created_at.strftime('%b %d, %Y') }}
+        {{ author_name(post.author, post.anonymous, post.id) }}
+        {% if not post.anonymous and post.author.username %}<span class="at-handle">@{{ post.author.username }}</span>{% endif %}
+        <span class="op-tag">OP</span>
+        {{ byline_badge(post.author, post.anonymous) }}
+        &middot; {{ post.created_at.strftime('%b %d, %Y · %I:%M %p') }}
       </p>
-      <div class="forum-body">{{ post.body|nl2br }}</div>
+      <div class="forum-body">{{ post.body|mentions }}</div>
       <div class="forum-actions">
         {{ like_button(url_for('forums.like_post', post_id=post.id), post.like_count(), post.id in liked_posts) }}
       </div>
@@ -69,7 +76,7 @@
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="field">
         <label for="body" class="sr-only">Add a comment</label>
-        <textarea id="body" name="body" rows="3" required maxlength="4000" placeholder="Add something kind or helpful…"></textarea>
+        <textarea id="body" name="body" rows="3" required maxlength="4000" placeholder="Add something kind… tip: @username tags them"></textarea>
       </div>
       <label style="font-weight: 400; display: flex; gap: 8px; align-items: center; margin-bottom: 12px;">
         <input type="checkbox" name="anonymous" value="1" style="width: auto;" {{ 'checked' if anon_default }}>
@@ -82,7 +89,7 @@
     {% elif current_user.is_authenticated %}
     <div class="member-gate">
       <p><strong>Want to reply?</strong> Joining the community with a Healing or Creator membership lets you comment and like.</p>
-      <a class="btn btn--primary btn--sm" href="{{ url_for('main.membership') }}">See memberships</a>
+      <a class="btn btn--primary btn--sm" href="{{ url_for('main.membership', next=request.path) }}">See memberships</a>
     </div>
     {% else %}
     <p><a href="{{ url_for('auth.login', next=request.path) }}">Sign in</a> to comment.</p>
@@ -106,8 +113,8 @@
     </div>
     {% if limited %}
     <div class="member-gate member-gate--soft">
-      <p>You're seeing the first few comments. Members read every reply.</p>
-      <a class="btn btn--secondary btn--sm" href="{{ url_for('main.membership') }}">Unlock the community</a>
+      <p>You're seeing the first few comments. Members read every reply.
+        <a href="{{ url_for('main.membership', next=request.path) }}">See memberships</a>.</p>
     </div>
     {% endif %}
   </div>

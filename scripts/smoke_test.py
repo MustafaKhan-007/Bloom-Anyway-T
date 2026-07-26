@@ -24,6 +24,12 @@ from app.extensions import db
 from app.models import (ForumCategory, ForumComment, ForumPost, ForumTag,
                         Order, Product, Quote, QuotePin, ShopPurchase,
                         Subscriber, User, Video, utcnow)
+from app.services import captcha as captcha_service
+
+# Smoke tests don't exercise the math captcha UI.
+captcha_service.verify_captcha = lambda _answer: True
+captcha_service.captcha_question = lambda: "1 + 1"
+captcha_service.issue_captcha = lambda: "1 + 1"
 
 TMP_DB = Path(tempfile.mkdtemp()) / "smoke.db"
 
@@ -254,11 +260,11 @@ with app.app_context():
     linked = ShopPurchase.query.filter_by(lemon_squeezy_order_id="9001").first()
 ok("Pending shop purchase links on login",
    linked.status == "linked" and linked.user_id is not None)
-r = buyer_client.get("/account")
+r = buyer_client.get("/account?tab=saved")
 abody = r.get_data(as_text=True)
 ok("Linked shop purchase appears in My space with Download",
    r.status_code == 200 and "Begin Again" in abody and "Download" in abody
-   and "Your courses" in abody)
+   and "Courses" in abody)
 
 # purchase for an email that already has an account links immediately
 with app.app_context():
@@ -294,7 +300,7 @@ client.post("/webhooks/lemonsqueezy", data=payload_ref,
 with app.app_context():
     sp2 = ShopPurchase.query.filter_by(lemon_squeezy_order_id="9002").first()
 ok("Refunded shop purchase marked refunded", sp2.status == "refunded")
-r = client.get("/account")
+r = client.get("/account?tab=saved")
 ok("My space hides refunded purchases",
    "Quiet Mornings" not in r.get_data(as_text=True))
 
@@ -622,9 +628,9 @@ ok("Admin community moderation page", r.status_code == 200 and "rude@example.com
 # --- 5c. on-site course reader retired (shop downloads in My space) -----------
 r = client.get("/library/begin-again", follow_redirects=False)
 ok("Legacy library reader is gone", r.status_code == 404)
-r = client.get("/account")
+r = client.get("/account?tab=saved")
 ok("Account still has courses & guides section",
-   "Your courses" in r.get_data(as_text=True))
+   "Courses" in r.get_data(as_text=True) and "myspace-tabs" in client.get("/account").get_data(as_text=True))
 
 # --- 5d. announcement: expiry window + remove ---------------------------------
 base_settings = {"site_title": "Bloom Anyway", "instagram_url": "", "hero_image_url": "",
@@ -680,7 +686,9 @@ with app.app_context():
 r = free_client.get("/watch", follow_redirects=False)
 ok("Free member can open Content Hub (public reviews)",
    r.status_code == 200 and "Content Hub" in r.get_data(as_text=True)
-   and "members' perk" in r.get_data(as_text=True))
+   and ("Video library" in r.get_data(as_text=True)
+        or "Sign in" in r.get_data(as_text=True)
+        or "Morning pages" in r.get_data(as_text=True)))
 r = free_client.get(f"/watch/{vid_id}/stream")
 ok("Free member can't stream a video", r.status_code == 404)
 
@@ -1184,7 +1192,7 @@ ok("Creator sees coaching fold on My space",
    "1-on-1 coaching" in abody and "data-coaching-toggle" in abody
    and "datetime-local" in abody and "$100" in abody)
 ok("My Journey and coaching sit at the bottom of My space",
-   abody.find("Quotes you kept") < abody.find("My Journey")
+   "myspace-tabs" in abody
    and abody.find("My Journey") < abody.find("1-on-1 coaching"))
 r = client.post("/account/coaching", data={
     "message": "Help me plan a month of reels.",

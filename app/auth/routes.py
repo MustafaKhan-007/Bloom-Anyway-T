@@ -120,6 +120,9 @@ def _check_code(user: User, purpose: str, submitted: str) -> tuple[bool, str]:
 
 def _log_in(user: User, remember: bool = True):
     user.last_login_at = utcnow()
+    if not user.username:
+        from ..services.social_graph import allocate_username
+        user.username = allocate_username(user.email)
     # honour any membership bought before this account existed / signed in
     from ..services.memberships import reconcile_user
     reconcile_user(user)
@@ -194,11 +197,14 @@ def setup():
 @bp.route("/register", methods=["GET", "POST"])
 @limiter.limit("10 per hour", methods=["POST"])
 def register():
+    from ..services.captcha import captcha_question, verify_captcha
+
     if current_user.is_authenticated:
         return redirect(url_for("main.account"))
     if request.method == "GET":
         return render_template("auth/register.html", next=request.args.get("next", ""),
-                               intents=INTENTS, selected_goals=set())
+                               intents=INTENTS, selected_goals=set(),
+                               captcha_q=captcha_question())
 
     email = _normalize(request.form.get("email"))
     password = _password()
@@ -210,12 +216,15 @@ def register():
         errors.append("That doesn't look like an email address \u2014 mind checking it?")
     if len(password) < MIN_PASSWORD_LEN:
         errors.append(f"Your password needs at least {MIN_PASSWORD_LEN} characters.")
+    if not verify_captcha(request.form.get("captcha")):
+        errors.append("That little math check didn't match \u2014 try again.")
     if errors:
         for e in errors:
             flash(e, "error")
         return render_template("auth/register.html", next=next_path,
                                email=request.form.get("email", ""),
-                               intents=INTENTS, selected_goals=set(goals)), 400
+                               intents=INTENTS, selected_goals=set(goals),
+                               captcha_q=captcha_question()), 400
 
     existing = User.query.filter_by(email=email).first()
     if existing and existing.is_verified:
@@ -229,6 +238,9 @@ def register():
         user = User(email=email)
         user.set_password(password)
         db.session.add(user)
+    if not user.username:
+        from ..services.social_graph import allocate_username
+        user.username = allocate_username(email)
     if goals:
         user.set_goals(goals)
     db.session.commit()
@@ -286,15 +298,25 @@ def verify_email():
 @limiter.limit("20 per hour", methods=["POST"])
 @limiter.limit("5 per minute", key_func=_email_key, methods=["POST"])
 def login():
+    from ..services.captcha import captcha_question, verify_captcha
+
     if request.method == "GET":
         if current_user.is_authenticated:
             return redirect(url_for("main.account"))
         return render_template("auth/login.html", next=request.args.get("next", ""),
-                               setup_available=_setup_available())
+                               setup_available=_setup_available(),
+                               captcha_q=captcha_question())
 
     email = _normalize(request.form.get("email"))
     password = _password()
     next_path = request.form.get("next", "")
+
+    if not verify_captcha(request.form.get("captcha")):
+        flash("That little math check didn't match \u2014 try again.", "error")
+        return render_template("auth/login.html", next=next_path,
+                               email=request.form.get("email", ""),
+                               setup_available=_setup_available(),
+                               captcha_q=captcha_question()), 400
 
     user = User.query.filter_by(email=email).first()
     if user is None or user.deleted_at is not None or not user.check_password(password):
@@ -302,7 +324,8 @@ def login():
         flash("That email and password don't match. Take a breath and try again \u2014 or reset your password below.", "error")
         return render_template("auth/login.html", next=next_path,
                                email=request.form.get("email", ""),
-                               setup_available=_setup_available()), 401
+                               setup_available=_setup_available(),
+                               captcha_q=captcha_question()), 401
 
     if not user.is_verified:
         # Keep any still-valid registration code. Re-issuing here used to
