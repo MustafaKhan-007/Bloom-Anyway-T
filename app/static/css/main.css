@@ -1580,7 +1580,16 @@ details.faq-item > form { padding: 0 20px 20px; }
   background: linear-gradient(180deg, rgba(201, 146, 138, 0.14), rgba(250, 245, 238, 0.9));
   border: 1px solid rgba(74, 44, 63, 0.08);
   border-radius: 999px;
+  width: 100%;
+  max-width: none;
+  box-sizing: border-box;
 }
+.settings-panel {
+  max-width: 820px;
+  margin: 0 auto;
+  padding: 8px 4px 28px;
+}
+.settings-panel h1 { margin-top: 0; }
 .myspace-tabs__tab {
   flex: 1 1 auto; text-align: center; text-decoration: none;
   padding: 10px 16px; border-radius: 999px;

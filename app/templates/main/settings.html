@@ -4,16 +4,22 @@
 {% block title %}Settings — {{ site.site_title }}{% endblock %}
 
 {% block content %}
-<section class="section">
-  <div class="container" style="max-width: 640px;">
+<section class="section section--tight">
+  <div class="container">
     <p class="eyebrow"><a href="{{ url_for('main.account', tab='profile') }}">&larr; My space</a></p>
-    <nav class="myspace-tabs" aria-label="My space sections" style="margin: 12px 0 20px;">
+    <nav class="myspace-tabs" aria-label="My space sections">
       <a class="myspace-tabs__tab" href="{{ url_for('main.account', tab='profile') }}">Profile</a>
       <a class="myspace-tabs__tab" href="{{ url_for('main.account', tab='saved') }}">Saved</a>
       <a class="myspace-tabs__tab" href="{{ url_for('main.account', tab='journal') }}">Journal</a>
       <a class="myspace-tabs__tab" href="{{ url_for('main.account', tab='activity') }}">Activity</a>
       <a class="myspace-tabs__tab is-active" href="{{ url_for('main.settings') }}">Settings</a>
     </nav>
+  </div>
+</section>
+
+<section class="section section--tight">
+  <div class="container">
+    <div class="settings-panel">
     <h1>Settings</h1>
 
     {% if current_user.forum_banned %}
@@ -172,6 +178,7 @@
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button class="btn btn--secondary btn--sm" type="submit">Sign out</button>
       </form>
+    </div>
     </div>
   </div>
 </section>
