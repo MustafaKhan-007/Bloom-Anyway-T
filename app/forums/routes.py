@@ -11,8 +11,7 @@ from flask_login import current_user, login_required
 from sqlalchemy import func
 
 from ..extensions import db, limiter
-from ..models import (FREE_COMMENTS_PER_POST, FREE_POSTS_PER_CATEGORY,
-                      ForumCategory, ForumComment, ForumCommentLike, ForumPost,
+from ..models import (ForumCategory, ForumComment, ForumCommentLike, ForumPost,
                       ForumPostLike, ForumTag)
 from ..services.moderation import contains_profanity, register_violation
 from . import bp
@@ -29,12 +28,6 @@ def _can_participate() -> bool:
     """True if the current user may like (any signed-in member, including Free)."""
     return bool(getattr(current_user, "is_authenticated", False)
                 and not getattr(current_user, "forum_banned", False))
-
-
-def _can_browse_fully() -> bool:
-    """Healing+ see the full community; Free still peeks with limits."""
-    return bool(getattr(current_user, "is_authenticated", False)
-                and current_user.is_member())
 
 
 def _require_participant(redirect_to):
@@ -90,16 +83,12 @@ def category(slug):
     query = query.order_by(ForumPost.created_at.desc())
 
     can_participate = _can_participate()
-    limited = not _can_browse_fully()
-    if limited:
-        posts = query.limit(FREE_POSTS_PER_CATEGORY).all()
-    else:
-        posts = query.limit(100).all()
+    posts = query.limit(100).all()
 
     return render_template("forums/category.html", category=cat, posts=posts,
                            tags=tags, active_tag=active_tag,
                            anon_default=_anon_default(), view="list",
-                           can_participate=can_participate, limited=limited)
+                           can_participate=can_participate)
 
 
 @bp.route("/c/<slug>/new", methods=["POST"])
@@ -155,10 +144,6 @@ def post(post_id):
     # top-level comments, each with its (one-level) replies
     top = (post.comments.filter_by(hidden=False, parent_id=None)
            .order_by(ForumComment.created_at).all())
-    total_top = len(top)
-    limited = not _can_browse_fully() and total_top > FREE_COMMENTS_PER_POST
-    if not _can_browse_fully():
-        top = top[:FREE_COMMENTS_PER_POST]
     all_ids = []
     threads = []
     for c in top:
@@ -171,7 +156,7 @@ def post(post_id):
                            comment_count=len(all_ids),
                            liked_posts=liked_posts, liked_comments=liked_comments,
                            anon_default=_anon_default(),
-                           can_participate=can_participate, limited=limited)
+                           can_participate=can_participate)
 
 
 @bp.route("/p/<int:post_id>/comment", methods=["POST"])

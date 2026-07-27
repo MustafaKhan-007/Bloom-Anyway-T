@@ -302,9 +302,9 @@ PY
 - **Assign by hand**: the owner can still set any tier in **Studio → Members**
   (`/admin/members`); manual changes always win. That page also shows live counts
   and a spotlight pick-list of Creator members + their Instagram handles.
-  - **Free**: shop, quotes, announcements, badges; can *peek* at the community
-    (top 3 threads per forum, top 5 comments each) but can't post, reply or like.
-  - **Healing**: full community read + post/reply/like, **profile links** (any
+  - **Free**: shop, quotes, announcements, badges; full community browse;
+    1 post and 5 replies per week; likes unlimited.
+  - **Healing**: unlimited community post/reply/like, **profile links** (any
     URL), the **My Journey** export, a **marketplace** listing (one at a time),
     and can **browse** the Content Library (playback stays locked).
   - **Creator**: everything in Healing, plus **watching** the Content Library,

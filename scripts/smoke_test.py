@@ -686,7 +686,7 @@ r = client.get("/")
 ok("No announcement markup after removal", "hero-announcement" not in r.get_data(as_text=True))
 
 # --- 5e. memberships, videos, subjects, spotlight ---------------------------
-# free member: 1 post/week, 5 replies/week, unlimited likes; browse still gated
+# free member: 1 post/week, 5 replies/week, unlimited likes; full browse
 r = free_client.post("/forums/c/healing/new",
                      data={"title": "free weekly post", "body": "one gentle post"},
                      follow_redirects=True)
@@ -706,9 +706,12 @@ with app.app_context():
     blocked = ForumPost.query.filter_by(title="second try").count()
 ok("Blocked free post was not created", blocked == 0)
 r = free_client.get("/forums/c/healing")
+free_cat = r.get_data(as_text=True)
 ok("Free member can open the compose UI on Free",
-   "Start a conversation" in r.get_data(as_text=True)
-   or "member-gate" in r.get_data(as_text=True))
+   "Start a conversation" in free_cat)
+ok("Free member browse is not soft-gated",
+   "member-gate--soft" not in free_cat
+   and "Showing a few recent threads" not in free_cat)
 
 # /courses always redirects to the shop (subject filters retired)
 r = client.get("/courses?subject=Healing", follow_redirects=False)

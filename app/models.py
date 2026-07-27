@@ -21,9 +21,9 @@ PRODUCT_TYPES = ("course", "guide")
 PRODUCT_STATUSES = ("draft", "published", "archived")
 QUOTE_CATEGORIES = ("comfort", "determination", "renewal")
 
-#: membership tiers. "none" = free (limited forum peek + shop); "healing" =
-#: full community read + post; "creator" = healing perks + videos, My Journey
-#: export, profile links, and eligibility for the home-page spotlight.
+#: membership tiers. "none" = free (full community browse + weekly post/reply
+#: quotas + shop); "healing" = unlimited community post/reply + links + journey;
+#: "creator" = healing perks + videos, reel reviews, coaching, showcase.
 MEMBERSHIPS = ("none", "healing", "creator")
 MEMBERSHIP_LABELS = {"none": "Free", "healing": "Healing", "creator": "Creator"}
 #: ordering so we can compare / take the "highest" tier a member holds
@@ -41,10 +41,6 @@ PRODUCT_SUBJECTS = (
     "Healing", "Confidence", "Relationships", "Parenting", "Money",
     "Creativity", "Content Creation", "Productivity", "Mindfulness", "Career",
 )
-
-#: how many free (no-membership) visitors can peek at in the community
-FREE_POSTS_PER_CATEGORY = 3
-FREE_COMMENTS_PER_POST = 5
 
 
 class User(UserMixin, db.Model):

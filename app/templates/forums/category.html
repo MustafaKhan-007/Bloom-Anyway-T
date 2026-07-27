@@ -79,11 +79,6 @@
       <p>No posts here yet &mdash; be the first gentle voice{% if active_tag %} on {{ active_tag.name }}{% endif %}.</p>
       {% endfor %}
     </div>
-    {% if limited %}
-    <div class="member-gate member-gate--soft">
-      <p>Showing a few recent threads. Healing and Creator members see the whole conversation.</p>
-    </div>
-    {% endif %}
   </div>
 </section>
 {% endblock %}
