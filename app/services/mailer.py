@@ -1,8 +1,8 @@
 """Mailer with two transports.
 
-1. Resend HTTP API (``RESEND_API_KEY``) — preferred on hosts that block outbound
-   SMTP ports (e.g. Render free tier).
-2. Plain SMTP (``SMTP_HOST`` etc.) — any relay, only when Resend is unset.
+1. Brevo HTTP API (``BREVO_API_KEY``) — preferred on hosts that block outbound
+   SMTP ports (e.g. Render free tier). Templates/customization live in Brevo.
+2. Plain SMTP (``SMTP_HOST`` etc.) — any relay, only when Brevo is unset.
 
 When neither is configured (local dev) emails are printed to the console so the
 auth flows are testable without a mail account.
@@ -19,7 +19,7 @@ from flask import current_app
 
 log = logging.getLogger(__name__)
 
-RESEND_SEND_URL = "https://api.resend.com/emails"
+BREVO_SEND_URL = "https://api.brevo.com/v3/smtp/email"
 
 # Most recent send failure (human-readable). Cleared on success.
 _last_error = ""
@@ -42,11 +42,11 @@ def _strip_env_quotes(value: str) -> str:
     return v
 
 
-def _resend_api_key() -> str:
-    """Normalize the Resend API key (env first, then app config)."""
-    raw = os.environ.get("RESEND_API_KEY")
+def _brevo_api_key() -> str:
+    """Normalize the Brevo API key (env first, then app config)."""
+    raw = os.environ.get("BREVO_API_KEY")
     if raw is None or not str(raw).strip():
-        raw = current_app.config.get("RESEND_API_KEY") or ""
+        raw = current_app.config.get("BREVO_API_KEY") or ""
     key = _strip_env_quotes(str(raw))
     key = re.sub(r"\s+", "", key)
     lower = key.lower()
@@ -67,80 +67,95 @@ def _mail_from() -> str:
     return _strip_env_quotes(str(raw))
 
 
-def _resend_error_hint(status: int, body: str) -> str:
-    """Turn a Resend HTTP failure into a short owner-facing hint."""
+def _parse_mail_from(raw: str) -> tuple[str, str]:
+    """Return (display_name, email) from ``Name <email>`` or bare email."""
+    value = (raw or "").strip()
+    match = re.match(r"^(.*?)\s*<([^>]+)>\s*$", value)
+    if match:
+        name = match.group(1).strip().strip('"').strip("'")
+        email = match.group(2).strip()
+        return name or "Bloom Anyway", email
+    return "Bloom Anyway", value
+
+
+def _brevo_error_hint(status: int, body: str) -> str:
+    """Turn a Brevo HTTP failure into a short owner-facing hint."""
     text = (body or "").lower()
-    if status == 401 or "unauthorized" in text or "invalid api key" in text:
+    if status == 401 or "unauthorized" in text or "key not found" in text \
+            or "invalid" in text and "key" in text:
         return (
-            "Resend rejected the API key (401). Set RESEND_API_KEY to a key "
-            "from Resend → API Keys (usually starts with re_)."
+            "Brevo rejected the API key (401). Set BREVO_API_KEY to a key "
+            "from Brevo → SMTP & API → API Keys."
         )
     if status == 403:
         return (
-            "Resend forbade the send (403). Check your Resend plan/limits and "
-            "that the domain for MAIL_FROM is verified."
+            "Brevo forbade the send (403). Check your Brevo plan/limits and "
+            "that the sender for MAIL_FROM is verified."
         )
-    if status == 422 or "validation" in text or "from" in text:
+    if status == 400 or "sender" in text or "from" in text:
         return (
-            "Resend rejected the sender or payload. MAIL_FROM must use a "
-            "verified domain in Resend (or onboarding@resend.dev for testing). "
+            "Brevo rejected the sender or payload. MAIL_FROM must use a "
+            "verified sender/domain in Brevo. "
             f"Details: {(body or '')[:220]}"
         )
     if status == 429:
-        return "Resend rate limit hit — wait a minute and try again."
-    return f"Resend error {status}: {(body or '')[:240]}"
+        return "Brevo rate limit hit — wait a minute and try again."
+    return f"Brevo error {status}: {(body or '')[:240]}"
 
 
-def _send_via_resend(to: str, subject: str, text_body: str) -> bool:
-    """Send through Resend's HTTP API."""
-    key = _resend_api_key()
+def _send_via_brevo(to: str, subject: str, text_body: str,
+                    html_body: str | None = None) -> bool:
+    """Send through Brevo's transactional HTTP API."""
+    key = _brevo_api_key()
     if not key:
-        _set_error("RESEND_API_KEY is empty on the server. Set it in Render and redeploy.")
+        _set_error("BREVO_API_KEY is empty on the server. Set it in Render and redeploy.")
         return False
 
     mail_from = _mail_from()
-    if not mail_from or "@" not in mail_from or "@localhost" in mail_from.lower():
-        log.error("Resend: MAIL_FROM is missing a real email address (got %r).", mail_from)
+    name, email = _parse_mail_from(mail_from)
+    if not email or "@" not in email or email.lower().endswith("@localhost"):
+        log.error("Brevo: MAIL_FROM is missing a real email address (got %r).", mail_from)
         _set_error(
-            "MAIL_FROM must be a real address on a Resend-verified domain, "
+            "MAIL_FROM must be a real address on a Brevo-verified sender, "
             "e.g. Bloom Anyway <hello@yourdomain.com>."
         )
         return False
 
-    html_body = (
-        "<pre style=\"font-family:ui-monospace,monospace;white-space:pre-wrap;"
-        "font-size:15px;line-height:1.5;\">"
-        f"{escape(text_body)}</pre>"
-    )
+    if not html_body:
+        html_body = (
+            "<pre style=\"font-family:ui-monospace,monospace;white-space:pre-wrap;"
+            "font-size:15px;line-height:1.5;\">"
+            f"{escape(text_body)}</pre>"
+        )
     payload = {
-        "from": mail_from,
-        "to": [to],
+        "sender": {"name": name, "email": email},
+        "to": [{"email": to}],
         "subject": subject,
-        "text": text_body,
-        "html": html_body,
+        "textContent": text_body,
+        "htmlContent": html_body,
     }
     try:
         resp = requests.post(
-            RESEND_SEND_URL,
+            BREVO_SEND_URL,
             json=payload,
             headers={
-                "Authorization": f"Bearer {key}",
+                "api-key": key,
                 "accept": "application/json",
                 "content-type": "application/json",
             },
             timeout=20,
         )
-        if resp.status_code in (200, 201):
-            log.info("Resend: sent to %s (status %s)", to, resp.status_code)
+        if resp.status_code in (200, 201, 202):
+            log.info("Brevo: sent to %s (status %s)", to, resp.status_code)
             _set_error("")
             return True
-        hint = _resend_error_hint(resp.status_code, resp.text)
-        log.error("Resend rejected email to %s: %s %s", to, resp.status_code, resp.text)
+        hint = _brevo_error_hint(resp.status_code, resp.text)
+        log.error("Brevo rejected email to %s: %s %s", to, resp.status_code, resp.text)
         _set_error(hint)
         return False
     except Exception as exc:
-        log.exception("Failed to reach Resend API for email to %s", to)
-        _set_error(f"Could not reach Resend ({exc.__class__.__name__}).")
+        log.exception("Failed to reach Brevo API for email to %s", to)
+        _set_error(f"Could not reach Brevo ({exc.__class__.__name__}).")
         return False
 
 
@@ -165,15 +180,15 @@ def _send_via_smtp(to: str, msg: EmailMessage) -> bool:
 
 
 def send_email(to: str, subject: str, text_body: str, html_body: str | None = None) -> bool:
-    """Send email. Prefer Resend; fall back to SMTP; else console in local dev."""
+    """Send email. Prefer Brevo; fall back to SMTP; else console in local dev."""
     cfg = current_app.config
     to = (to or "").strip()
     if not to:
         _set_error("Missing recipient email.")
         return False
 
-    if _resend_api_key():
-        return _send_via_resend(to, subject, text_body)
+    if _brevo_api_key():
+        return _send_via_brevo(to, subject, text_body, html_body=html_body)
 
     if not cfg["SMTP_HOST"]:
         log.warning("No email transport configured; printing email to console.")

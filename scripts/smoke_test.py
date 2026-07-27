@@ -1252,30 +1252,34 @@ ok("Content Hub lists video library above reel reviews",
    hub.find('id="videos"') < hub.find('id="reviews"')
    and hub.find("Video library") < hub.find("Reel reviews"))
 
-# Resend helper strips Bearer / whitespace / wrapping quotes
+# Brevo helper strips Bearer / whitespace / wrapping quotes
 from app.services import mailer as mailer_mod
-_prev_resend = os.environ.pop("RESEND_API_KEY", None)
+_prev_brevo = os.environ.pop("BREVO_API_KEY", None)
 try:
     with app.app_context():
-        app.config["RESEND_API_KEY"] = "  Bearer  re_abc123  "
-        cleaned = mailer_mod._resend_api_key()
-        app.config["RESEND_API_KEY"] = '"re_xyz-key"'
-        quoted = mailer_mod._resend_api_key()
+        app.config["BREVO_API_KEY"] = "  Bearer  xkeysib-abc123  "
+        cleaned = mailer_mod._brevo_api_key()
+        app.config["BREVO_API_KEY"] = '"xkeysib-xyz-key"'
+        quoted = mailer_mod._brevo_api_key()
         from_parsed = mailer_mod._strip_env_quotes('"Bloom Anyway <hello@example.com>"')
-        bad_key_hint = mailer_mod._resend_error_hint(401, '{"message":"Invalid API key"}')
-        domain_hint = mailer_mod._resend_error_hint(422, '{"message":"Invalid from field"}')
-    ok("Resend API key is normalized", cleaned == "re_abc123" and quoted == "re_xyz-key")
+        name, email = mailer_mod._parse_mail_from("Bloom Anyway <hello@example.com>")
+        bad_key_hint = mailer_mod._brevo_error_hint(401, '{"message":"Key not found"}')
+        domain_hint = mailer_mod._brevo_error_hint(400, '{"message":"Invalid sender"}')
+    ok("Brevo API key is normalized",
+       cleaned == "xkeysib-abc123" and quoted == "xkeysib-xyz-key")
     ok("MAIL_FROM wrapping quotes are stripped",
        from_parsed == "Bloom Anyway <hello@example.com>")
-    ok("Resend 401 hint mentions API key",
-       "RESEND_API_KEY" in bad_key_hint)
-    ok("Resend 422 hint mentions verified domain",
-       "verified domain" in domain_hint)
+    ok("MAIL_FROM parses into Brevo sender fields",
+       name == "Bloom Anyway" and email == "hello@example.com")
+    ok("Brevo 401 hint mentions API key",
+       "BREVO_API_KEY" in bad_key_hint)
+    ok("Brevo 400 hint mentions verified sender",
+       "verified" in domain_hint.lower())
 finally:
-    if _prev_resend is not None:
-        os.environ["RESEND_API_KEY"] = _prev_resend
+    if _prev_brevo is not None:
+        os.environ["BREVO_API_KEY"] = _prev_brevo
     else:
-        os.environ.pop("RESEND_API_KEY", None)
+        os.environ.pop("BREVO_API_KEY", None)
 
 # brand rename: leftover "First Light" becomes Bloom Anyway on boot
 from app.services.settings import ensure_brand_title, get_setting, invalidate_cache, set_setting
