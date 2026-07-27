@@ -298,25 +298,15 @@ def verify_email():
 @limiter.limit("20 per hour", methods=["POST"])
 @limiter.limit("5 per minute", key_func=_email_key, methods=["POST"])
 def login():
-    from ..services.captcha import captcha_challenge, verify_captcha
-
     if request.method == "GET":
         if current_user.is_authenticated:
             return redirect(url_for("main.account"))
         return render_template("auth/login.html", next=request.args.get("next", ""),
-                               setup_available=_setup_available(),
-                               captcha=captcha_challenge())
+                               setup_available=_setup_available())
 
     email = _normalize(request.form.get("email"))
     password = _password()
     next_path = request.form.get("next", "")
-
-    if not verify_captcha():
-        flash("Please complete the captcha check and try again.", "error")
-        return render_template("auth/login.html", next=next_path,
-                               email=request.form.get("email", ""),
-                               setup_available=_setup_available(),
-                               captcha=captcha_challenge()), 400
 
     user = User.query.filter_by(email=email).first()
     if user is None or user.deleted_at is not None or not user.check_password(password):
@@ -324,8 +314,7 @@ def login():
         flash("That email and password don't match. Take a breath and try again \u2014 or reset your password below.", "error")
         return render_template("auth/login.html", next=next_path,
                                email=request.form.get("email", ""),
-                               setup_available=_setup_available(),
-                               captcha=captcha_challenge()), 401
+                               setup_available=_setup_available()), 401
 
     if not user.is_verified:
         # Keep any still-valid registration code. Re-issuing here used to
