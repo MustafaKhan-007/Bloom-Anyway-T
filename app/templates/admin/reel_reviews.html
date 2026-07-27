@@ -4,22 +4,35 @@
 {% block content %}
 <h1>Reel reviews</h1>
 <p class="field-help">This week's draw (week of {{ week_key.strftime('%b %d, %Y') }}).
-  One applicant is chosen at random; publish their review to the Content Hub.
+  One applicant is chosen at random; publish <strong>one</strong> review to the Content Hub.
   A new week starts every Monday and last week's entries no longer count.</p>
+
+{% if week_closed and week_review %}
+<div class="flash flash--info" style="margin-top: 16px;">
+  This week's review is live: <strong>{{ week_review.title }}</strong>.
+  The draw is closed — one review per week. Unpublish below if you need to replace it,
+  or wait until Monday for a fresh round.
+</div>
+{% endif %}
 
 <div class="admin-panel" style="margin-top: 20px;">
   <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;">
     <h2 style="margin:0;">This week's applicants ({{ applicants|length }})</h2>
+    {% if not week_closed %}
     <form method="post" action="{{ url_for('admin.reel_reviews_pick') }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <button class="btn btn--primary btn--sm" type="submit"
               {% if not applicants %}disabled{% endif %}>Pick random winner</button>
     </form>
+    {% else %}
+    <span class="field-help" style="margin:0;">Draw closed for this week</span>
+    {% endif %}
   </div>
 
   {% if applicants %}
   <div class="reel-applicant-list">
     {% for a in applicants %}
+    {% set is_live = a.review and a.review.published %}
     <article class="reel-applicant{% if a.selected %} reel-applicant--winner{% endif %}">
       <div class="reel-applicant__top">
         <div class="reel-applicant__who">
@@ -37,11 +50,22 @@
           <a class="btn btn--{{ 'gold' if a.selected else 'secondary' }} btn--sm"
              href="{{ url_for('admin.reel_reviews_raw_download', app_id=a.id) }}">Download raw</a>
           {% endif %}
-          {% if a.review and a.review.published %}
+          {% if is_live %}
           <span>Review live</span>
           {% endif %}
         </div>
       </div>
+      {% if week_closed %}
+        {% if is_live %}
+        <p class="field-help" style="margin: 12px 0 0;">
+          Published as <strong>{{ a.review.title }}</strong>. Use Unpublish below to edit and republish.
+        </p>
+        {% else %}
+        <p class="field-help" style="margin: 12px 0 0;">
+          Not selected — this week's review is already published.
+        </p>
+        {% endif %}
+      {% else %}
       <details class="reel-applicant__fold"{% if a.selected %} open{% endif %}>
         <summary class="reel-applicant__summary">
           <span>Write &amp; publish review</span>
@@ -70,6 +94,7 @@
           </form>
         </div>
       </details>
+      {% endif %}
     </article>
     {% endfor %}
   </div>

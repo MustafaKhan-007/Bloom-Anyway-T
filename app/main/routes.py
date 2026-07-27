@@ -861,12 +861,14 @@ def videos():
                .order_by(ReelReview.created_at.desc()).limit(24).all())
     my_app = None
     week_key = reel_svc.current_week_key()
+    week_review = reel_svc.published_review_for_week(week_key)
     if current_user.is_authenticated and current_user.is_creator():
         my_app = reel_svc.application_for(current_user.id, week_key)
     return render_template(
         "main/videos.html", videos=items, can_browse=can_browse,
         can_play=can_play_creator, can_play_video=_can_play_video,
         reviews=reviews, my_application=my_app, week_key=week_key,
+        week_review=week_review,
         max_mb=current_app.config.get("REEL_RAW_MAX_MB", 100),
     )
 
@@ -878,6 +880,10 @@ def reel_review_request():
         flash("Reel reviews are a Creator membership perk.", "info")
         return redirect(url_for("main.membership"))
     week = reel_svc.current_week_key()
+    if reel_svc.week_is_closed(week):
+        flash("This week's reel review is already live. "
+              "A fresh draw opens next Monday.", "info")
+        return redirect(url_for("main.videos") + "#reviews")
     if reel_svc.application_for(current_user.id, week):
         flash("You've already entered this week's reel-review draw. "
               "A fresh round opens every Monday.", "info")

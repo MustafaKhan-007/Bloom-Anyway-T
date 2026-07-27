@@ -67,7 +67,26 @@
 
     {% if current_user.is_authenticated and current_user.is_creator() %}
     <div class="hub-request" style="margin-top: 24px;">
-      {% if my_application %}
+      {% if week_review %}
+      <div class="empty-state" style="padding: 28px;">
+        <p>This week's reel review is published
+          (week of {{ week_key.strftime('%b %d, %Y') }}).</p>
+        <p class="field-help" style="margin-top: 8px;">
+          The draw is closed &mdash; see
+          <strong>{{ week_review.title }}</strong> below.
+          A fresh round opens next Monday.
+        </p>
+        {% if my_application %}
+        <p class="field-help" style="margin-top: 8px;">
+          Your entry:
+          <a href="{{ my_application.reel_url }}" target="_blank" rel="noopener">view on Instagram</a>
+          {% if my_application.selected %}
+          &middot; you were this week's pick
+          {% endif %}
+        </p>
+        {% endif %}
+      </div>
+      {% elif my_application %}
       <div class="empty-state" style="padding: 28px;">
         <p>You're in this week's draw
           (week of {{ week_key.strftime('%b %d, %Y') }}).

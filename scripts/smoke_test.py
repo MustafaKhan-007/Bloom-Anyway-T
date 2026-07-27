@@ -1174,9 +1174,31 @@ r = admin.post(f"/admin/reel-reviews/{app_id}/publish", data={
 }, follow_redirects=True)
 ok("Owner can publish a reel review",
    "published to the Content Hub" in r.get_data(as_text=True))
-r = app.test_client().get("/watch")
+r = admin.get("/admin/reel-reviews")
+abody = r.get_data(as_text=True)
+ok("Studio hides publish UI once this week's review is live",
+   "Draw closed for this week" in abody
+   and "Write &amp; publish review" not in abody
+   and "Write & publish review" not in abody)
+r = admin.post("/admin/reel-reviews/pick", follow_redirects=True)
+ok("Picking again is blocked after the week's review is published",
+   "already published" in r.get_data(as_text=True).lower()
+   or "one review per week" in r.get_data(as_text=True).lower())
+r = client.get("/watch")
+cbody = r.get_data(as_text=True)
 ok("Published reel reviews are public on Content Hub",
-   "Loved your pacing" in r.get_data(as_text=True))
+   "Loved your pacing" in cbody)
+ok("Content Hub shows the week is closed after publish",
+   "reel review is published" in cbody.lower()
+   and "Hang tight" not in cbody)
+r = client.post("/watch/review-request", data={
+    "reel_url": "https://www.instagram.com/reel/TESTREEL3/",
+    "raw_video": (io.BytesIO(minimal_mp4), "raw3.mp4"),
+}, content_type="multipart/form-data", follow_redirects=True)
+ok("New draw entries are blocked once the week's review is published",
+   "already live" in r.get_data(as_text=True).lower()
+   or "already published" in r.get_data(as_text=True).lower()
+   or "already entered" in r.get_data(as_text=True).lower())
 r = app.test_client().get("/")
 ok("Sunflower favicon is linked in the tab",
    "favicon.svg" in r.get_data(as_text=True))

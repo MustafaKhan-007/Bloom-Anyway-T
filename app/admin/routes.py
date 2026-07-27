@@ -923,16 +923,23 @@ def community_reset_member(user_id):
 def reel_reviews():
     week = reel_svc.current_week_key()
     applicants = reel_svc.week_applicants(week)
+    week_review = reel_svc.published_review_for_week(week)
     published = (ReelReview.query
                  .order_by(ReelReview.created_at.desc()).limit(40).all())
     return render_template("admin/reel_reviews.html", week_key=week,
                            applicants=applicants, reviews=published,
+                           week_review=week_review,
+                           week_closed=week_review is not None,
                            max_mb=current_app.config["MAX_VIDEO_MB"])
 
 
 @bp.route("/reel-reviews/pick", methods=["POST"])
 @admin_required
 def reel_reviews_pick():
+    if reel_svc.week_is_closed():
+        flash("This week's review is already published — one review per week. "
+              "A new draw opens next Monday.", "info")
+        return redirect(url_for("admin.reel_reviews"))
     chosen = reel_svc.pick_random_applicant()
     if chosen is None:
         flash("No applicants in this week's draw yet.", "error")
@@ -986,6 +993,11 @@ def reel_reviews_raw_download(app_id):
 @admin_required
 def reel_reviews_publish(app_id):
     application = db.session.get(ReelReviewApplication, app_id) or abort(404)
+    existing = reel_svc.published_review_for_week(application.week_key)
+    if existing and (application.review is None or existing.id != application.review.id):
+        flash("This week's review is already published — one review per week. "
+              "Unpublish it first if you need to replace it.", "error")
+        return redirect(url_for("admin.reel_reviews"))
     title = (request.form.get("title") or "").strip()[:160]
     body = (request.form.get("body") or "").strip()
     if not title:
