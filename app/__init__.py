@@ -151,7 +151,9 @@ def create_app(config_class=None):
 
     app.jinja_env.filters["nl2br"] = nl2br
 
-    from .services.social_graph import linkify_mentions, unread_notification_count
+    from .services.social_graph import (
+        linkify_mentions, recent_notifications, unread_notification_count,
+    )
     app.jinja_env.filters["mentions"] = linkify_mentions
 
     from .services import badges as badges_service
@@ -164,16 +166,20 @@ def create_app(config_class=None):
     @app.context_processor
     def inject_globals():
         unread = 0
+        nav_notes = []
         if getattr(current_user, "is_authenticated", False):
             try:
                 unread = unread_notification_count(current_user)
+                nav_notes = recent_notifications(current_user, limit=8)
             except Exception:
                 unread = 0
+                nav_notes = []
         return {"site": all_settings(), "announcement": active_announcement(),
                 "announcements": active_announcements(),
                 "current_year": date.today().year,
                 "shop_url": app.config.get("SHOP_URL") or "https://shop.bloomanyway.online",
                 "unread_notes": unread,
+                "nav_notifications": nav_notes,
                 "turnstile_site_key": app.config.get("TURNSTILE_SITE_KEY") or ""}
 
     # --- health check ---------------------------------------------------------

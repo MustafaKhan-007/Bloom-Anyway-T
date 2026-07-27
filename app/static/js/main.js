@@ -175,6 +175,20 @@
     });
   }
 
+  /* ---- notification bell: click-outside + Escape close ---- */
+  document.querySelectorAll("details.note-bell").forEach(function (bell) {
+    document.addEventListener("click", function (e) {
+      if (!bell.open) return;
+      if (bell.contains(e.target)) return;
+      bell.removeAttribute("open");
+    });
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape" && bell.open) {
+        bell.removeAttribute("open");
+      }
+    });
+  });
+
   /* ---- Coaching fold: smooth expand on My space ---- */
   document.querySelectorAll("[data-coaching-toggle]").forEach(function (btn) {
     var panel = document.getElementById(btn.getAttribute("aria-controls"));

@@ -1,0 +1,28 @@
+{# Notification bell for the site nav. Expects unread_notes + nav_notifications. #}
+<details class="note-bell">
+  <summary class="note-bell__btn" aria-label="Notifications{% if unread_notes %} ({{ unread_notes }} unread){% endif %}">
+    <span class="note-bell__icon" aria-hidden="true">&#128276;</span>
+    {% if unread_notes %}<span class="note-bell__count">{{ unread_notes }}</span>{% endif %}
+  </summary>
+  <div class="note-bell__panel" role="region" aria-label="Notifications">
+    <p class="note-bell__title">Notifications</p>
+    {% if nav_notifications %}
+    <ul class="note-bell__list">
+      {% for n in nav_notifications %}
+      <li class="note-bell__item {{ 'is-unread' if not n.read_at }}">
+        {% set href = n.href() %}
+        {% if href %}
+        <a href="{{ href }}">{{ n.body }}</a>
+        {% else %}
+        <span>{{ n.body }}</span>
+        {% endif %}
+        <time>{{ n.created_at.strftime('%b %d · %I:%M %p') }}</time>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="field-help" style="margin: 0; padding: 8px 4px;">Nothing new yet.</p>
+    {% endif %}
+    <a class="note-bell__all" href="{{ url_for('main.account', tab='activity') }}">See all activity</a>
+  </div>
+</details>

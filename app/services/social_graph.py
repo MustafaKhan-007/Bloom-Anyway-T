@@ -274,3 +274,11 @@ def unread_notification_count(user: User) -> int:
     if not user:
         return 0
     return Notification.query.filter_by(user_id=user.id, read_at=None).count()
+
+
+def recent_notifications(user: User, limit: int = 8) -> list:
+    if not user:
+        return []
+    return (Notification.query.filter_by(user_id=user.id)
+            .order_by(Notification.created_at.desc())
+            .limit(limit).all())

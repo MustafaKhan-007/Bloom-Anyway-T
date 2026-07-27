@@ -27,33 +27,6 @@
         </div>
       </div>
       <div class="account-head__actions">
-        <details class="note-bell">
-          <summary class="note-bell__btn" aria-label="Notifications">
-            <span class="note-bell__icon" aria-hidden="true">&#128276;</span>
-            {% if unread_notes %}<span class="note-bell__count">{{ unread_notes }}</span>{% endif %}
-          </summary>
-          <div class="note-bell__panel">
-            <p class="note-bell__title">Notifications</p>
-            {% if notifications %}
-            <ul class="note-bell__list">
-              {% for n in notifications[:8] %}
-              <li class="note-bell__item {{ 'is-unread' if not n.read_at }}">
-                {% set href = n.href() %}
-                {% if href %}
-                <a href="{{ href }}">{{ n.body }}</a>
-                {% else %}
-                <span>{{ n.body }}</span>
-                {% endif %}
-                <time>{{ n.created_at.strftime('%b %d · %I:%M %p') }}</time>
-              </li>
-              {% endfor %}
-            </ul>
-            {% else %}
-            <p class="field-help" style="margin: 0; padding: 8px 4px;">Nothing new yet.</p>
-            {% endif %}
-            <a class="note-bell__all" href="{{ url_for('main.account', tab='activity') }}">See all activity</a>
-          </div>
-        </details>
         <form method="post" action="{{ url_for('auth.logout') }}">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <button class="btn btn--quiet" type="submit">Sign out</button>
