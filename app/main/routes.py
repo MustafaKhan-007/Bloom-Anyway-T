@@ -727,13 +727,22 @@ def follow_user(user_id):
 
 
 @bp.route("/mentions/suggest")
-@login_required
 def mention_suggest():
-    """JSON autocomplete for @username tagging in the community."""
+    """JSON autocomplete for @username tagging in the community.
+
+    Always returns JSON (never an HTML login redirect) so the compose-box
+    fetch handler can parse the response reliably.
+    """
+    if not current_user.is_authenticated:
+        return jsonify([]), 401
     from ..services.social_graph import suggest_usernames
     q = request.args.get("q") or ""
-    return jsonify(suggest_usernames(
-        q, limit=8, exclude_id=current_user.id))
+    try:
+        return jsonify(suggest_usernames(
+            q, limit=8, exclude_id=current_user.id))
+    except Exception:
+        log.exception("mention suggest failed")
+        return jsonify([])
 
 
 @bp.route("/account/profile", methods=["POST"])

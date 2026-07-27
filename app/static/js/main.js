@@ -220,8 +220,8 @@
 
   /* ---- @username mention autocomplete ---- */
   (function setupMentions() {
-    var fields = document.querySelectorAll("textarea[data-mentions]");
-    if (!fields.length) return;
+    var suggestUrl = document.body.getAttribute("data-mention-suggest");
+    if (!suggestUrl) return;
 
     var menu = document.createElement("div");
     menu.className = "mention-menu";
@@ -234,19 +234,27 @@
     var highlight = 0;
     var tokenStart = -1;
     var debounce = null;
+    var reqId = 0;
 
     function hide() {
       menu.hidden = true;
       menu.innerHTML = "";
       items = [];
-      active = null;
     }
 
     function placeMenu(textarea) {
+      if (!textarea) return;
       var rect = textarea.getBoundingClientRect();
-      menu.style.left = Math.max(12, rect.left + window.scrollX) + "px";
-      menu.style.top = (rect.bottom + window.scrollY + 6) + "px";
-      menu.style.minWidth = Math.min(280, rect.width) + "px";
+      var width = Math.min(300, Math.max(200, rect.width));
+      var left = Math.min(
+        Math.max(8, rect.left),
+        Math.max(8, window.innerWidth - width - 8)
+      );
+      menu.style.position = "fixed";
+      menu.style.left = left + "px";
+      menu.style.top = (rect.bottom + 6) + "px";
+      menu.style.minWidth = width + "px";
+      menu.style.zIndex = "200";
     }
 
     function applyChoice(username) {
@@ -260,11 +268,12 @@
       active.focus();
       active.setSelectionRange(pos, pos);
       hide();
+      active = null;
     }
 
     function render() {
       menu.innerHTML = "";
-      if (!items.length) {
+      if (!items.length || !active) {
         hide();
         return;
       }
@@ -273,8 +282,14 @@
         btn.type = "button";
         btn.className = "mention-menu__item" + (i === highlight ? " is-active" : "");
         btn.setAttribute("role", "option");
-        btn.innerHTML = "<strong>@" + row.username + "</strong>" +
-          (row.name ? "<span>" + row.name + "</span>" : "");
+        var handle = document.createElement("strong");
+        handle.textContent = "@" + row.username;
+        btn.appendChild(handle);
+        if (row.name) {
+          var name = document.createElement("span");
+          name.textContent = row.name;
+          btn.appendChild(name);
+        }
         btn.addEventListener("mousedown", function (e) {
           e.preventDefault();
           applyChoice(row.username);
@@ -286,60 +301,92 @@
     }
 
     function fetchSuggestions(q) {
-      fetch("/mentions/suggest?q=" + encodeURIComponent(q), {
+      var myReq = ++reqId;
+      var url = suggestUrl + (suggestUrl.indexOf("?") >= 0 ? "&" : "?") +
+                "q=" + encodeURIComponent(q);
+      fetch(url, {
         headers: { "Accept": "application/json" },
-        credentials: "same-origin"
+        credentials: "same-origin",
+        redirect: "follow"
       })
-        .then(function (r) { return r.ok ? r.json() : []; })
+        .then(function (r) {
+          var ct = (r.headers.get("content-type") || "").toLowerCase();
+          if (!r.ok || ct.indexOf("application/json") === -1) return [];
+          return r.json();
+        })
         .then(function (data) {
+          if (myReq !== reqId) return;
           items = Array.isArray(data) ? data : [];
           highlight = 0;
           render();
         })
-        .catch(function () { hide(); });
+        .catch(function () {
+          if (myReq === reqId) hide();
+        });
+    }
+
+    function mentionQuery(textarea) {
+      var caret = typeof textarea.selectionStart === "number"
+        ? textarea.selectionStart
+        : textarea.value.length;
+      var upto = textarea.value.slice(0, caret);
+      // Allow bare "@" (empty query) and partial handles; require a boundary
+      // before @ so emails like name@host are ignored.
+      var match = upto.match(/(?:^|[^\w@])@([a-zA-Z0-9_]{0,30})$/);
+      if (!match) return null;
+      var handle = match[1] || "";
+      return {
+        q: handle,
+        tokenStart: caret - handle.length - 1
+      };
     }
 
     function onInput(textarea) {
       active = textarea;
-      var caret = textarea.selectionStart;
-      var upto = textarea.value.slice(0, caret);
-      var match = upto.match(/(^|[\s([{])@([a-zA-Z][a-zA-Z0-9_]{0,29})$/);
-      if (!match) {
+      var hit = mentionQuery(textarea);
+      if (!hit) {
         hide();
         return;
       }
-      tokenStart = caret - match[2].length - 1;
-      var q = match[2];
+      tokenStart = hit.tokenStart;
       clearTimeout(debounce);
-      debounce = setTimeout(function () { fetchSuggestions(q); }, 120);
+      debounce = setTimeout(function () { fetchSuggestions(hit.q); }, 80);
     }
 
-    fields.forEach(function (textarea) {
-      textarea.addEventListener("input", function () { onInput(textarea); });
-      textarea.addEventListener("keydown", function (e) {
-        if (menu.hidden || !items.length) return;
-        if (e.key === "ArrowDown") {
-          e.preventDefault();
-          highlight = (highlight + 1) % items.length;
-          render();
-        } else if (e.key === "ArrowUp") {
-          e.preventDefault();
-          highlight = (highlight - 1 + items.length) % items.length;
-          render();
-        } else if (e.key === "Enter" || e.key === "Tab") {
-          e.preventDefault();
-          applyChoice(items[highlight].username);
-        } else if (e.key === "Escape") {
-          hide();
-        }
-      });
-      textarea.addEventListener("blur", function () {
-        setTimeout(hide, 150);
-      });
+    function isMentionField(el) {
+      return el && el.tagName === "TEXTAREA" && el.hasAttribute("data-mentions");
+    }
+
+    document.addEventListener("input", function (e) {
+      if (isMentionField(e.target)) onInput(e.target);
     });
+    document.addEventListener("keydown", function (e) {
+      if (!isMentionField(e.target)) return;
+      if (menu.hidden || !items.length) return;
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        highlight = (highlight + 1) % items.length;
+        render();
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        highlight = (highlight - 1 + items.length) % items.length;
+        render();
+      } else if (e.key === "Enter" || e.key === "Tab") {
+        e.preventDefault();
+        applyChoice(items[highlight].username);
+      } else if (e.key === "Escape") {
+        hide();
+      }
+    });
+    document.addEventListener("blur", function (e) {
+      if (isMentionField(e.target)) setTimeout(hide, 180);
+    }, true);
 
     window.addEventListener("scroll", function () {
       if (!menu.hidden && active) placeMenu(active);
     }, true);
+    window.addEventListener("resize", function () {
+      if (!menu.hidden && active) placeMenu(active);
+    });
   })();
 })();

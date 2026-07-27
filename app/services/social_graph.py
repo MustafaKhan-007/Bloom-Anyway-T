@@ -2,7 +2,7 @@
 import re
 
 from markupsafe import Markup, escape
-from sqlalchemy import func
+from sqlalchemy import func, or_
 
 from ..extensions import db
 from ..models import Follow, ForumPost, Notification, User, utcnow
@@ -78,32 +78,62 @@ def allocate_username(email: str, preferred: str | None = None) -> str:
     return candidate
 
 
+def ensure_usernames(limit: int = 300) -> int:
+    """Allocate handles for members who still don't have one (e.g. pre-feature)."""
+    missing = (User.query
+               .filter(User.deleted_at.is_(None),
+                       or_(User.username.is_(None), User.username == ""))
+               .limit(limit)
+               .all())
+    for u in missing:
+        u.username = allocate_username(u.email)
+    if missing:
+        db.session.commit()
+    return len(missing)
+
+
 def suggest_usernames(query: str, *, limit: int = 8, exclude_id: int | None = None):
-    """Autocomplete matches for @mention typing."""
+    """Autocomplete matches for @mention typing.
+
+    Matches @username prefix, and also display-name prefix so people can find
+    someone by the name they know. Empty query returns a small starter list.
+    """
+    ensure_usernames()
     q = normalize_username(query)
-    if len(q) < 1:
-        return []
-    filt = (
+    base = (
         User.deleted_at.is_(None),
         User.username.isnot(None),
-        func.lower(User.username).like(q + "%"),
+        User.username != "",
     )
-    rows = (User.query.filter(*filt)
-            .order_by(User.username)
-            .limit(limit * 2)
-            .all())
-    out = []
-    for u in rows:
-        if exclude_id and u.id == exclude_id:
-            continue
-        out.append({
-            "username": u.username,
-            "name": (u.display_name or "").strip(),
-            "id": u.id,
-        })
-        if len(out) >= limit:
-            break
-    return out
+    if exclude_id:
+        base = (*base, User.id != exclude_id)
+
+    if not q:
+        rows = (User.query.filter(*base)
+                .order_by(User.username)
+                .limit(limit)
+                .all())
+    else:
+        uname = func.lower(User.username)
+        dname = func.lower(func.coalesce(User.display_name, ""))
+        rows = (User.query.filter(
+                    *base,
+                    or_(uname.startswith(q),
+                        dname.startswith(q),
+                        uname.contains(q)))
+                .order_by(
+                    # Prefix hits on the handle first, then everything else.
+                    uname.startswith(q).desc(),
+                    User.username,
+                )
+                .limit(limit)
+                .all())
+
+    return [{
+        "username": u.username,
+        "name": (u.display_name or "").strip(),
+        "id": u.id,
+    } for u in rows]
 
 
 def find_mentioned_users(text: str) -> list[User]:
