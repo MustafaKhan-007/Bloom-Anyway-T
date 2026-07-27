@@ -21,7 +21,17 @@
       {% elif profile_user.is_member() %}
       <span class="membership-pill membership-pill--healing">Healing member</span>
       {% endif %}
-      <p class="field-help" style="margin-top: 10px;">
+      {% if current_user.is_authenticated and current_user.id != profile_user.id %}
+      <form method="post" action="{{ url_for('main.follow_user', user_id=profile_user.id) }}" class="profile-follow">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="next" value="{{ request.full_path.rstrip('?') }}">
+        <button class="btn {{ 'btn--secondary' if is_following else 'btn--primary' }} btn--sm" type="submit">
+          {{ 'Following' if is_following else 'Follow' }}
+        </button>
+      </form>
+      <p class="field-help profile-follow__hint">Follow to get a note when they post.</p>
+      {% endif %}
+      <p class="field-help profile-card__counts">
         {{ followers_n }} follower{{ '' if followers_n == 1 else 's' }}
         &middot; {{ following_n }} following
       </p>
@@ -40,17 +50,6 @@
         <a class="btn btn--secondary btn--sm" href="{{ link.url }}" rel="noopener nofollow" target="_blank">{{ link.label }}</a>
         {% endfor %}
       </div>
-      {% endif %}
-
-      {% if current_user.is_authenticated and current_user.id != profile_user.id %}
-      <form method="post" action="{{ url_for('main.follow_user', user_id=profile_user.id) }}" style="margin-top: 18px;">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <input type="hidden" name="next" value="{{ request.full_path.rstrip('?') }}">
-        <button class="btn {{ 'btn--secondary' if is_following else 'btn--primary' }} btn--sm" type="submit">
-          {{ 'Following' if is_following else 'Follow' }}
-        </button>
-      </form>
-      <p class="field-help">Follow to get a note in My space when they post.</p>
       {% endif %}
 
       {% if profile_user.is_admin %}
