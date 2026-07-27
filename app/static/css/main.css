@@ -974,6 +974,9 @@ details.faq-item > form { padding: 0 20px 20px; }
 }
 .profile-card .avatar { margin: 0 auto 16px; }
 .profile-card h1 { margin: 0; }
+.profile-follow { margin: 14px 0 0; }
+.profile-follow__hint { margin: 8px 0 0; }
+.profile-card__counts { margin-top: 10px; }
 .profile-card__bio { color: var(--ink-soft); margin: 12px auto 0; max-width: 48ch; }
 .profile-links { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-top: 22px; }
 
