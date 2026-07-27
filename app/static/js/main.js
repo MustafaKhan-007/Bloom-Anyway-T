@@ -175,8 +175,58 @@
     });
   }
 
-  /* ---- notification bell: click-outside + Escape close ---- */
+  /* ---- notification bell: click-outside, Escape, mark-as-read ---- */
   document.querySelectorAll("details.note-bell").forEach(function (bell) {
+    var marked = false;
+
+    function clearUnreadUi() {
+      var count = bell.querySelector(".note-bell__count");
+      if (count) count.remove();
+      bell.querySelectorAll(".note-bell__item.is-unread").forEach(function (el) {
+        el.classList.remove("is-unread");
+      });
+      var markBtn = bell.querySelector("[data-mark-read]");
+      if (markBtn) markBtn.remove();
+      var summary = bell.querySelector(".note-bell__btn");
+      if (summary) summary.setAttribute("aria-label", "Notifications");
+      document.querySelectorAll(".myspace-tabs__dot").forEach(function (dot) {
+        dot.remove();
+      });
+    }
+
+    function markRead() {
+      if (marked) return;
+      var url = bell.getAttribute("data-mark-read-url");
+      var csrf = bell.getAttribute("data-csrf");
+      if (!url || !csrf) return;
+      marked = true;
+      clearUnreadUi();
+      fetch(url, {
+        method: "POST",
+        headers: {
+          "X-CSRFToken": csrf,
+          "X-Requested-With": "fetch",
+          "Accept": "application/json"
+        },
+        credentials: "same-origin"
+      }).catch(function () {
+        marked = false;
+      });
+    }
+
+    bell.addEventListener("toggle", function () {
+      if (bell.open) markRead();
+    });
+
+    var markBtn = bell.querySelector("[data-mark-read]");
+    if (markBtn) {
+      markBtn.addEventListener("click", function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        markRead();
+      });
+    }
+
     document.addEventListener("click", function (e) {
       if (!bell.open) return;
       if (bell.contains(e.target)) return;
@@ -185,6 +235,26 @@
     document.addEventListener("keydown", function (e) {
       if (e.key === "Escape" && bell.open) {
         bell.removeAttribute("open");
+      }
+    });
+  });
+
+  /* ---- reply textarea: full width, grow with lines (no horizontal resize) ---- */
+  function autosizeTextarea(el) {
+    el.style.height = "auto";
+    el.style.height = el.scrollHeight + "px";
+  }
+  document.querySelectorAll(".comment-form--reply textarea").forEach(function (ta) {
+    autosizeTextarea(ta);
+    ta.addEventListener("input", function () { autosizeTextarea(ta); });
+  });
+  document.querySelectorAll("details.reply-toggle").forEach(function (d) {
+    d.addEventListener("toggle", function () {
+      if (!d.open) return;
+      var ta = d.querySelector("textarea");
+      if (ta) {
+        autosizeTextarea(ta);
+        ta.focus();
       }
     });
   });

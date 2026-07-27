@@ -889,8 +889,18 @@ details.faq-item > form { padding: 0 20px 20px; }
   padding: 12px 14px 10px;
 }
 .note-bell__title {
-  margin: 0 0 8px; font-weight: 800; color: var(--plum); font-size: 14px;
+  margin: 0; font-weight: 800; color: var(--plum); font-size: 14px;
 }
+.note-bell__head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 10px; margin-bottom: 8px;
+}
+.note-bell__mark {
+  border: none; background: none; cursor: pointer; padding: 0;
+  font: inherit; font-size: 12px; font-weight: 700; color: var(--plum);
+  text-decoration: underline; text-underline-offset: 2px;
+}
+.note-bell__mark:hover { color: var(--berry); }
 .note-bell__list { list-style: none; padding: 0; margin: 0; max-height: 280px; overflow: auto; }
 .note-bell__item {
   padding: 10px 6px; border-top: 1px solid var(--ivory-deep);
@@ -999,7 +1009,10 @@ details.faq-item > form { padding: 0 20px 20px; }
   box-shadow: var(--shadow-card); padding: 28px; margin: 16px 0 40px; }
 .forum-post h1 { margin-top: 0; }
 .forum-body { line-height: 1.6; margin: 16px 0; white-space: normal; }
-.forum-actions { margin-top: 12px; }
+.forum-actions {
+  margin-top: 12px;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px;
+}
 
 .comment-form { margin: 16px 0 28px; }
 .comment-list { display: grid; gap: 16px; }
@@ -1032,14 +1045,28 @@ details.faq-item > form { padding: 0 20px 20px; }
 .reply-list { display: grid; gap: 12px; margin-left: 28px;
   padding-left: 16px; border-left: 2px solid var(--rose-soft); }
 .comment--reply { background: var(--ivory); }
-.reply-toggle { display: inline-block; margin-left: 6px; }
+.reply-toggle {
+  display: block; width: 100%; flex: 1 1 100%;
+  margin-left: 0;
+}
 .reply-toggle > summary {
-  display: inline; list-style: none; cursor: pointer;
+  display: inline-block; list-style: none; cursor: pointer;
   color: var(--plum); font-size: 13px; font-weight: 600;
 }
 .reply-toggle > summary::-webkit-details-marker { display: none; }
-.comment-form--reply { margin-top: 12px; }
-.comment-form--reply textarea { width: 100%; }
+.comment-form--reply {
+  width: 100%; max-width: 100%;
+  margin: 12px 0 0; box-sizing: border-box;
+}
+.comment-form--reply textarea {
+  display: block;
+  width: 100%; max-width: 100%;
+  box-sizing: border-box;
+  resize: none;
+  overflow-y: hidden;
+  min-height: 2.75rem;
+  field-sizing: content;
+}
 
 /* -------------------------- library + reader ---------------------------- */
 .library-card {

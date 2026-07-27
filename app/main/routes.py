@@ -570,6 +570,22 @@ def account():
     )
 
 
+@bp.route("/account/notifications/read", methods=["POST"])
+@login_required
+def mark_notifications_read():
+    """Mark all unread notifications as read (used by the nav bell)."""
+    from ..services.social_graph import mark_notifications_read as mark_read
+    n = mark_read(current_user)
+    wants_json = (
+        request.accept_mimetypes.best == "application/json"
+        or request.headers.get("X-Requested-With") == "fetch"
+        or request.is_json
+    )
+    if wants_json:
+        return {"ok": True, "marked": n}
+    return redirect(url_for("main.account", tab="activity"))
+
+
 @bp.route("/account/shop/<int:purchase_id>/download")
 @login_required
 def shop_download(purchase_id):

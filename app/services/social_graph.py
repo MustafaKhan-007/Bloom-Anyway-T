@@ -276,6 +276,22 @@ def unread_notification_count(user: User) -> int:
     return Notification.query.filter_by(user_id=user.id, read_at=None).count()
 
 
+def mark_notifications_read(user: User) -> int:
+    """Mark every unread notification as read. Returns how many were updated."""
+    if not user:
+        return 0
+    rows = (Notification.query
+            .filter_by(user_id=user.id, read_at=None)
+            .all())
+    if not rows:
+        return 0
+    now = utcnow()
+    for n in rows:
+        n.read_at = now
+    db.session.commit()
+    return len(rows)
+
+
 def recent_notifications(user: User, limit: int = 8) -> list:
     if not user:
         return []

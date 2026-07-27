@@ -1,11 +1,18 @@
 {# Notification bell for the site nav. Expects unread_notes + nav_notifications. #}
-<details class="note-bell">
+<details class="note-bell"
+         data-mark-read-url="{{ url_for('main.mark_notifications_read') }}"
+         data-csrf="{{ csrf_token() }}">
   <summary class="note-bell__btn" aria-label="Notifications{% if unread_notes %} ({{ unread_notes }} unread){% endif %}">
     <span class="note-bell__icon" aria-hidden="true">&#128276;</span>
     {% if unread_notes %}<span class="note-bell__count">{{ unread_notes }}</span>{% endif %}
   </summary>
   <div class="note-bell__panel" role="region" aria-label="Notifications">
-    <p class="note-bell__title">Notifications</p>
+    <div class="note-bell__head">
+      <p class="note-bell__title">Notifications</p>
+      {% if unread_notes %}
+      <button type="button" class="note-bell__mark" data-mark-read>Mark as read</button>
+      {% endif %}
+    </div>
     {% if nav_notifications %}
     <ul class="note-bell__list">
       {% for n in nav_notifications %}
