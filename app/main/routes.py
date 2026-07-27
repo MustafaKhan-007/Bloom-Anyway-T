@@ -32,7 +32,7 @@ from ..services.shop_purchases import linked_purchases_for
 from ..services.social import (ALLOWED_LABELS, clean_social_links,
                                instagram_embed_url, instagram_handle,
                                instagram_profile_url)
-from ..services.videos import VideoError, process_video, process_video_bytes
+from ..services.videos import VideoError, delete_stored, process_video
 from . import bp
 
 log = logging.getLogger(__name__)
@@ -882,19 +882,27 @@ def reel_review_request():
     if not upload or not upload.filename:
         flash("Upload the raw video file for your reel too.", "error")
         return redirect(url_for("main.videos") + "#reviews")
-    # Store in the database so the owner can download after deploys
-    # (Render's local disk is wiped unless a persistent volume is attached).
+    # Stream to VIDEO_STORAGE_DIR (same as Content Hub). Loading the whole
+    # file into Postgres BYTEA OOMs Render workers and returns a 502.
     max_bytes = current_app.config.get("REEL_RAW_MAX_MB", 100) * 1024 * 1024
     try:
-        mime, fname, size, data = process_video_bytes(upload, max_bytes)
+        disk_name, mime, fname, size = process_video(
+            upload, current_app.config["VIDEO_STORAGE_DIR"], max_bytes)
     except VideoError as exc:
         flash(str(exc), "error")
         return redirect(url_for("main.videos") + "#reviews")
     app_row = ReelReviewApplication(
         user_id=current_user.id, week_key=week, reel_url=reel_url,
-        data=data, filename=fname, mime=mime, size=size)
+        disk_name=disk_name, filename=fname, mime=mime, size=size)
     db.session.add(app_row)
-    db.session.commit()
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        delete_stored(current_app.config["VIDEO_STORAGE_DIR"], disk_name)
+        log.exception("reel review application failed")
+        flash("We couldn't save your entry just now — please try again.", "error")
+        return redirect(url_for("main.videos") + "#reviews")
     flash("You're in this week's reel-review draw. One applicant is chosen at random.",
           "success")
     return redirect(url_for("main.videos") + "#reviews")

@@ -1139,9 +1139,13 @@ ok("Creator member can enter the weekly reel-review draw",
    "You're in this week's" in r.get_data(as_text=True)
    or "reel-review draw" in r.get_data(as_text=True))
 with app.app_context():
+    import os as _os
     stored = ReelReviewApplication.query.first()
-    ok("Reel raw video is stored in the database (survives deploys)",
-       stored is not None and stored.data is not None and len(stored.data) > 0)
+    disk_ok = (stored is not None and stored.disk_name
+               and _os.path.isfile(_os.path.join(
+                   app.config["VIDEO_STORAGE_DIR"], stored.disk_name)))
+    ok("Reel raw video is streamed to video storage (not loaded into Postgres)",
+       disk_ok)
 r = client.post("/watch/review-request", data={
     "reel_url": "https://www.instagram.com/reel/TESTREEL2/",
     "raw_video": (io.BytesIO(minimal_mp4), "raw2.mp4"),

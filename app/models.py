@@ -923,8 +923,8 @@ class ReelReviewApplication(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
     week_key = db.Column(db.Date, nullable=False, index=True)  # Monday of the week
     reel_url = db.Column(db.String(500), nullable=False)
-    disk_name = db.Column(db.String(64))   # legacy: raw video on disk (ephemeral)
-    data = db.Column(db.LargeBinary)       # raw video bytes (survives deploys)
+    disk_name = db.Column(db.String(64))   # raw video on VIDEO_STORAGE_DIR
+    data = db.Column(db.LargeBinary)       # legacy: old entries stored in Postgres
     filename = db.Column(db.String(255))
     mime = db.Column(db.String(120), nullable=False, default="video/mp4")
     size = db.Column(db.Integer, nullable=False, default=0)

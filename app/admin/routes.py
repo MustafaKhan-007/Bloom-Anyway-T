@@ -950,18 +950,7 @@ def reel_reviews_raw_download(app_id):
     name = application.filename or "raw-reel.mp4"
     mime = application.mime or "application/octet-stream"
 
-    # Prefer DB bytes (survives deploys). Fall back to legacy on-disk files.
-    if application.data:
-        resp = send_file(
-            io.BytesIO(bytes(application.data)),
-            mimetype=mime,
-            as_attachment=True,
-            download_name=name,
-            max_age=0,
-        )
-        resp.headers["Cache-Control"] = "private, no-store"
-        return resp
-
+    # Prefer on-disk file (streamed uploads). Fall back to legacy DB bytes.
     disk_name = os.path.basename(application.disk_name or "")
     if disk_name:
         directory = os.path.abspath(current_app.config["VIDEO_STORAGE_DIR"])
@@ -976,6 +965,17 @@ def reel_reviews_raw_download(app_id):
             )
             resp.headers["Cache-Control"] = "private, no-store"
             return resp
+
+    if application.data:
+        resp = send_file(
+            io.BytesIO(bytes(application.data)),
+            mimetype=mime,
+            as_attachment=True,
+            download_name=name,
+            max_age=0,
+        )
+        resp.headers["Cache-Control"] = "private, no-store"
+        return resp
 
     flash("That entry has no raw video upload. Ask them to re-enter "
           "this week's draw with a fresh file.", "error")

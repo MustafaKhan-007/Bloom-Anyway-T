@@ -39,8 +39,8 @@ class Config:
     # per-file cap; MAX_CONTENT_LENGTH sits just above it (+ headroom for the
     # thumbnail and several 25 MB course files) and rejects absurd bodies fast.
     MAX_VIDEO_MB = int(os.environ.get("MAX_VIDEO_MB", "1024") or 1024)
-    # Reel-review raw uploads are stored in Postgres so they survive Render's
-    # ephemeral disk; keep this modest (not the full Content Hub video cap).
+    # Reel-review raw uploads stream to VIDEO_STORAGE_DIR (like Content Hub
+    # videos). Keep the cap modest so weekly draw files stay manageable.
     REEL_RAW_MAX_MB = int(os.environ.get("REEL_RAW_MAX_MB", "100") or 100)
     VIDEO_STORAGE_DIR = os.environ.get("VIDEO_STORAGE_DIR", "").strip()
     MAX_CONTENT_LENGTH = (MAX_VIDEO_MB + 32) * 1024 * 1024
