@@ -25,11 +25,7 @@
         </div>
         <p class="field-help" id="password-hint">At least 8 characters. A short sentence you'll remember works beautifully.</p>
       </div>
-      <div class="field">
-        <label for="captcha">Quick check: what is {{ captcha_q }}?</label>
-        <input type="text" id="captcha" name="captcha" required inputmode="numeric"
-               autocomplete="off" maxlength="4" placeholder="Answer">
-      </div>
+      {% include "partials/captcha.html" %}
 
       <fieldset class="intent-picker">
         <legend>What brings you here?</legend>

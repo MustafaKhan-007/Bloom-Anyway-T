@@ -354,6 +354,79 @@ input[type="file"]:not(.sr-only):not(.file-pick__input):hover::-webkit-file-uplo
   padding-left: 16px;
 }
 
+/* Image-identification captcha */
+.captcha-field__prompt {
+  display: block;
+  font-weight: 700;
+  color: var(--plum);
+  margin-bottom: 4px;
+}
+.captcha-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+  max-width: 320px;
+}
+.captcha-tile {
+  position: relative;
+  display: block;
+  margin: 0;
+  cursor: pointer;
+  border-radius: 16px;
+  line-height: 0;
+  user-select: none;
+}
+.captcha-tile input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+}
+.captcha-tile img {
+  width: 100%;
+  height: auto;
+  border-radius: 16px;
+  border: 2px solid var(--ivory-deep);
+  background: #fff;
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+.captcha-tile:hover img {
+  border-color: var(--rose);
+}
+.captcha-tile:has(input:checked) img,
+.captcha-tile input:focus-visible + img {
+  border-color: var(--plum);
+  box-shadow: 0 0 0 3px var(--rose-soft);
+  transform: translateY(-1px);
+}
+.captcha-tile:has(input:checked)::after {
+  content: "✓";
+  position: absolute;
+  right: 8px;
+  top: 8px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--plum), var(--berry));
+  color: var(--dawn-ivory);
+  font-size: 13px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  pointer-events: none;
+}
+.captcha-refresh {
+  display: inline-block;
+  margin-top: 10px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--plum);
+}
+
 /* ------------------------------- flashes ---------------------------------- */
 .flash { padding: 14px 20px; border-radius: var(--radius-input); margin: 0 0 16px; font-weight: 600; }
 .flash--success, .flash--subscribe-success { background: #E6EEE7; color: var(--success); }

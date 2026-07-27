@@ -14,7 +14,7 @@ import re
 import secrets
 from datetime import datetime, timedelta
 
-from flask import (abort, current_app, flash, redirect, render_template,
+from flask import (Response, abort, current_app, flash, redirect, render_template,
                    request, session, url_for)
 from flask_login import current_user, login_required, login_user, logout_user
 
@@ -192,19 +192,36 @@ def setup():
     return redirect(url_for("admin.dashboard"))
 
 
+# ============================== CAPTCHA TILES ================================
+
+@bp.route("/captcha/tile/<int:index>.png")
+def captcha_tile(index: int):
+    """Serve one icon from the current session challenge as a PNG."""
+    from ..services.captcha import render_tile
+    data = render_tile(index)
+    if not data:
+        abort(404)
+    resp = Response(data, mimetype="image/png")
+    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    return resp
+
+
 # ================================ REGISTER ===================================
 
 @bp.route("/register", methods=["GET", "POST"])
 @limiter.limit("10 per hour", methods=["POST"])
 def register():
-    from ..services.captcha import captcha_question, verify_captcha
+    from ..services.captcha import (captcha_challenge, issue_captcha,
+                                    verify_captcha)
 
     if current_user.is_authenticated:
         return redirect(url_for("main.account"))
     if request.method == "GET":
+        if request.args.get("refresh_captcha"):
+            issue_captcha()
         return render_template("auth/register.html", next=request.args.get("next", ""),
                                intents=INTENTS, selected_goals=set(),
-                               captcha_q=captcha_question())
+                               captcha=captcha_challenge())
 
     email = _normalize(request.form.get("email"))
     password = _password()
@@ -216,15 +233,15 @@ def register():
         errors.append("That doesn't look like an email address \u2014 mind checking it?")
     if len(password) < MIN_PASSWORD_LEN:
         errors.append(f"Your password needs at least {MIN_PASSWORD_LEN} characters.")
-    if not verify_captcha(request.form.get("captcha")):
-        errors.append("That little math check didn't match \u2014 try again.")
+    if not verify_captcha(request.form.getlist("captcha")):
+        errors.append("The image check didn't match \u2014 select the right pictures and try again.")
     if errors:
         for e in errors:
             flash(e, "error")
         return render_template("auth/register.html", next=next_path,
                                email=request.form.get("email", ""),
                                intents=INTENTS, selected_goals=set(goals),
-                               captcha_q=captcha_question()), 400
+                               captcha=captcha_challenge()), 400
 
     existing = User.query.filter_by(email=email).first()
     if existing and existing.is_verified:
@@ -298,25 +315,29 @@ def verify_email():
 @limiter.limit("20 per hour", methods=["POST"])
 @limiter.limit("5 per minute", key_func=_email_key, methods=["POST"])
 def login():
-    from ..services.captcha import captcha_question, verify_captcha
+    from ..services.captcha import (captcha_challenge, issue_captcha,
+                                    verify_captcha)
 
     if request.method == "GET":
         if current_user.is_authenticated:
             return redirect(url_for("main.account"))
+        if request.args.get("refresh_captcha"):
+            issue_captcha()
         return render_template("auth/login.html", next=request.args.get("next", ""),
                                setup_available=_setup_available(),
-                               captcha_q=captcha_question())
+                               captcha=captcha_challenge())
 
     email = _normalize(request.form.get("email"))
     password = _password()
     next_path = request.form.get("next", "")
 
-    if not verify_captcha(request.form.get("captcha")):
-        flash("That little math check didn't match \u2014 try again.", "error")
+    if not verify_captcha(request.form.getlist("captcha")):
+        flash("The image check didn't match \u2014 select the right pictures and try again.",
+              "error")
         return render_template("auth/login.html", next=next_path,
                                email=request.form.get("email", ""),
                                setup_available=_setup_available(),
-                               captcha_q=captcha_question()), 400
+                               captcha=captcha_challenge()), 400
 
     user = User.query.filter_by(email=email).first()
     if user is None or user.deleted_at is not None or not user.check_password(password):
@@ -325,7 +346,7 @@ def login():
         return render_template("auth/login.html", next=next_path,
                                email=request.form.get("email", ""),
                                setup_available=_setup_available(),
-                               captcha_q=captcha_question()), 401
+                               captcha=captcha_challenge()), 401
 
     if not user.is_verified:
         # Keep any still-valid registration code. Re-issuing here used to

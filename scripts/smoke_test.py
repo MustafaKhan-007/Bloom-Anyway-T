@@ -26,10 +26,16 @@ from app.models import (ForumCategory, ForumComment, ForumPost, ForumTag,
                         Subscriber, User, Video, utcnow)
 from app.services import captcha as captcha_service
 
-# Smoke tests don't exercise the math captcha UI.
+# Smoke tests don't exercise the image captcha UI.
 captcha_service.verify_captcha = lambda _answer: True
-captcha_service.captcha_question = lambda: "1 + 1"
-captcha_service.issue_captcha = lambda: "1 + 1"
+captcha_service.captcha_challenge = lambda: {
+    "prompt": "Select all images with a star",
+    "token": "smoke",
+    "count": 0,
+    "target": "star",
+}
+captcha_service.issue_captcha = captcha_service.captcha_challenge
+captcha_service.captcha_question = lambda: "Select all images with a star"
 
 TMP_DB = Path(tempfile.mkdtemp()) / "smoke.db"
 

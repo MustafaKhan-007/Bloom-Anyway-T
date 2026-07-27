@@ -23,11 +23,7 @@
                   aria-label="Show password" aria-pressed="false">Show</button>
         </div>
       </div>
-      <div class="field">
-        <label for="captcha">Quick check: what is {{ captcha_q }}?</label>
-        <input type="text" id="captcha" name="captcha" required inputmode="numeric"
-               autocomplete="off" maxlength="4" placeholder="Answer">
-      </div>
+      {% include "partials/captcha.html" %}
       <button class="btn btn--primary btn--wide" type="submit">Sign in</button>
     </form>
     <p class="field-help" style="margin-top: 20px;">
