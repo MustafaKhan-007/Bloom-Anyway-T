@@ -27,6 +27,15 @@
         </div>
         <p class="field-help">At least 8 characters. You can change it later from your account page.</p>
       </div>
+      <div class="field">
+        <label for="password_confirm">Confirm password</label>
+        <div class="password-wrap">
+          <input type="password" id="password_confirm" name="password_confirm" required minlength="8"
+                 autocomplete="new-password">
+          <button type="button" class="password-toggle" data-toggles="password_confirm"
+                  aria-label="Show password" aria-pressed="false">Show</button>
+        </div>
+      </div>
       <button class="btn btn--primary btn--wide" type="submit">Create the owner account</button>
     </form>
   </div>

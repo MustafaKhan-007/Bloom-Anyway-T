@@ -102,7 +102,8 @@ r = setup_client.get("/setup")
 ok("Setup page available on fresh install", r.status_code == 200)
 r = setup_client.get("/login")
 ok("Login page advertises setup on fresh install", "Claim the owner account" in r.get_data(as_text=True))
-r = setup_client.post("/setup", data={"email": "owner@example.com", "password": ADMIN_PW},
+r = setup_client.post("/setup", data={"email": "owner@example.com", "password": ADMIN_PW,
+                                      "password_confirm": ADMIN_PW},
                       follow_redirects=False)
 ok("Owner account claimed via setup", r.status_code == 302 and "/admin" in r.headers["Location"])
 r = setup_client.get("/admin/")
@@ -113,10 +114,17 @@ ok("Setup locks after owner signs in", r.status_code == 404)
 # --- 2b. email + password auth with confirmation codes ---------------------------
 USER_PW = "sunrise-day-1"
 
-r = client.post("/register", data={"email": "newperson@example.com", "password": "short"})
+r = client.post("/register", data={"email": "newperson@example.com", "password": "short",
+                                   "password_confirm": "short"})
 ok("Weak password rejected on registration", r.status_code == 400)
 
-r = client.post("/register", data={"email": "newperson@example.com", "password": USER_PW},
+r = client.post("/register", data={"email": "newperson@example.com", "password": USER_PW,
+                                   "password_confirm": "different-pass"}, follow_redirects=False)
+ok("Mismatched passwords rejected on registration",
+   r.status_code == 400 and "those passwords" in r.get_data(as_text=True).lower())
+
+r = client.post("/register", data={"email": "newperson@example.com", "password": USER_PW,
+                                   "password_confirm": USER_PW},
                 follow_redirects=False)
 ok("Registration redirects to verify page", r.status_code == 302 and "verify-email" in r.headers["Location"])
 ok("Confirmation code emailed", len(sent_codes) == 1 and sent_codes[0][2] == "confirm")
@@ -162,7 +170,22 @@ ok("Uniform reset message for known + unknown email", uniform_known and uniform_
 ok("Reset code only sent for real account", len(sent_codes) == 1 and sent_codes[0][2] == "reset")
 r = reset_client.post("/reset-password", data={"email": "newperson@example.com",
                                                "code": sent_codes[0][1],
-                                               "password": "brand-new-pass-9"}, follow_redirects=False)
+                                               "password": USER_PW,
+                                               "password_confirm": USER_PW}, follow_redirects=False)
+ok("Password reset rejects reusing the current password",
+   r.status_code == 400 and "different password" in r.get_data(as_text=True).lower())
+r = reset_client.post("/reset-password", data={"email": "newperson@example.com",
+                                               "code": sent_codes[0][1],
+                                               "password": "brand-new-pass-9",
+                                               "password_confirm": "brand-new-pass-x"},
+                      follow_redirects=False)
+ok("Password reset rejects mismatched confirmation",
+   r.status_code == 400 and "those passwords" in r.get_data(as_text=True).lower())
+r = reset_client.post("/reset-password", data={"email": "newperson@example.com",
+                                               "code": sent_codes[0][1],
+                                               "password": "brand-new-pass-9",
+                                               "password_confirm": "brand-new-pass-9"},
+                      follow_redirects=False)
 ok("Password reset with valid code succeeds", r.status_code == 302)
 r = app.test_client().post("/login", data={"email": "newperson@example.com",
                                            "password": "brand-new-pass-9"}, follow_redirects=False)
@@ -428,7 +451,8 @@ ok("Reply-to-a-reply flattens to one level", nested.parent_id == cid,
 # escalating profanity leads to a ban after the warning limit
 banclient = app.test_client()
 sent_codes.clear()
-banclient.post("/register", data={"email": "rude@example.com", "password": USER_PW})
+banclient.post("/register", data={"email": "rude@example.com", "password": USER_PW,
+                                  "password_confirm": USER_PW})
 bcode = sent_codes[-1][1]
 banclient.post("/verify-email", data={"email": "rude@example.com", "code": bcode})
 with app.app_context():
@@ -471,7 +495,9 @@ ok("Settings offers a change-password button (no inline fields)",
 
 r = client.get("/account/password")
 ok("Change-password subpage renders",
-   r.status_code == 200 and 'name="current_password"' in r.get_data(as_text=True))
+   r.status_code == 200
+   and 'name="current_password"' in r.get_data(as_text=True)
+   and 'name="new_password_confirm"' in r.get_data(as_text=True))
 
 # profile links + public profile page
 client.post("/account/profile", data={

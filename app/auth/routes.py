@@ -49,6 +49,10 @@ def _password(form_field: str = "password") -> str:
     return (request.form.get(form_field) or "").strip()
 
 
+def _passwords_match(password: str, confirm_field: str = "password_confirm") -> bool:
+    return password == _password(confirm_field)
+
+
 def _email_key():
     return _normalize(request.form.get("email", "")) or (request.remote_addr or "ip")
 
@@ -95,8 +99,13 @@ EMAIL_TROUBLE = ("We couldn't send the email just now \u2014 the site's email se
                  "didn't respond. Please try again in a few minutes.")
 
 
-def _check_code(user: User, purpose: str, submitted: str) -> tuple[bool, str]:
-    """Validate a submitted code. Returns (ok, error_message)."""
+def _check_code(user: User, purpose: str, submitted: str, *,
+                consume: bool = True) -> tuple[bool, str]:
+    """Validate a submitted code. Returns (ok, error_message).
+
+    When ``consume`` is False, a matching code is left usable (for checks that
+    may still fail after the code, e.g. rejecting a reused password).
+    """
     # Digits only — paste from email may include spaces, dashes, or newlines.
     submitted = re.sub(r"\D", "", submitted or "")
     row = (VerificationCode.query
@@ -113,8 +122,9 @@ def _check_code(user: User, purpose: str, submitted: str) -> tuple[bool, str]:
         if left <= 0:
             return False, "Too many tries with that code. Send yourself a fresh one below."
         return False, f"That code doesn't match \u2014 check the email again ({left} tries left)."
-    row.used_at = utcnow()
-    db.session.commit()
+    if consume:
+        row.used_at = utcnow()
+        db.session.commit()
     return True, ""
 
 
@@ -174,6 +184,9 @@ def setup():
     if len(password) < MIN_PASSWORD_LEN:
         flash(f"Your password needs at least {MIN_PASSWORD_LEN} characters.", "error")
         return render_template("auth/setup.html", email=email), 400
+    if not _passwords_match(password):
+        flash("Those passwords don't match \u2014 enter the same one twice.", "error")
+        return render_template("auth/setup.html", email=email), 400
 
     user = User.query.filter_by(email=email).first()
     if user is None:
@@ -216,6 +229,8 @@ def register():
         errors.append("That doesn't look like an email address \u2014 mind checking it?")
     if len(password) < MIN_PASSWORD_LEN:
         errors.append(f"Your password needs at least {MIN_PASSWORD_LEN} characters.")
+    if not _passwords_match(password):
+        errors.append("Those passwords don't match \u2014 enter the same one twice.")
     if not verify_captcha():
         errors.append("Please complete the captcha check and try again.")
     if errors:
@@ -386,6 +401,9 @@ def reset_password():
     if len(password) < MIN_PASSWORD_LEN:
         flash(f"Your new password needs at least {MIN_PASSWORD_LEN} characters.", "error")
         return render_template("auth/reset_password.html", email=email), 400
+    if not _passwords_match(password):
+        flash("Those passwords don't match \u2014 enter the same one twice.", "error")
+        return render_template("auth/reset_password.html", email=email), 400
 
     user = User.query.filter_by(email=email).first() if email else None
     if user is None or user.deleted_at is not None:
@@ -393,7 +411,16 @@ def reset_password():
         flash("That code doesn't match \u2014 check the email again.", "error")
         return render_template("auth/reset_password.html", email=email), 400
 
-    ok, error = _check_code(user, "reset", request.form.get("code"))
+    ok, error = _check_code(user, "reset", request.form.get("code"), consume=False)
+    if not ok:
+        flash(error, "error")
+        return render_template("auth/reset_password.html", email=email), 400
+
+    if user.check_password(password):
+        flash("Pick a different password \u2014 the new one can't be the same as your current password.", "error")
+        return render_template("auth/reset_password.html", email=email), 400
+
+    ok, error = _check_code(user, "reset", request.form.get("code"), consume=True)
     if not ok:
         flash(error, "error")
         return render_template("auth/reset_password.html", email=email), 400

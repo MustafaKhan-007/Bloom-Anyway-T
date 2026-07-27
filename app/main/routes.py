@@ -1044,11 +1044,18 @@ def change_password():
         return render_template("main/password.html")
     current = (request.form.get("current_password") or "").strip()
     new = (request.form.get("new_password") or "").strip()
+    confirm = (request.form.get("new_password_confirm") or "").strip()
     if not current_user.check_password(current):
         flash("Your current password didn't match \u2014 no changes made.", "error")
         return redirect(url_for("main.change_password"))
     if len(new) < 8:
         flash("Your new password needs at least 8 characters.", "error")
+        return redirect(url_for("main.change_password"))
+    if new != confirm:
+        flash("Those passwords don't match \u2014 enter the same one twice.", "error")
+        return redirect(url_for("main.change_password"))
+    if current_user.check_password(new):
+        flash("Pick a different password \u2014 the new one can't be the same as your current password.", "error")
         return redirect(url_for("main.change_password"))
     current_user.set_password(new)
     db.session.commit()
