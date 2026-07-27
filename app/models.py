@@ -734,12 +734,34 @@ class ForumTag(db.Model):
     sort_order = db.Column(db.Integer, nullable=False, default=0)
 
 
+#: Site-wide "Looking for" intents on community posts (not per-forum).
+LOOKING_FOR = (
+    ("advice", "Advice"),
+    ("support", "Support"),
+    ("recognition", "Recognition"),
+    ("listening", "A listening ear"),
+    ("resources", "Resources"),
+    ("accountability", "Accountability"),
+    ("celebration", "Celebration"),
+    ("company", "Company"),
+)
+LOOKING_FOR_LABELS = dict(LOOKING_FOR)
+LOOKING_FOR_SLUGS = frozenset(LOOKING_FOR_LABELS)
+
+
+def looking_for_label(slug: str | None) -> str | None:
+    if not slug:
+        return None
+    return LOOKING_FOR_LABELS.get(slug)
+
+
 class ForumPost(db.Model):
     __tablename__ = "forum_posts"
 
     id = db.Column(db.Integer, primary_key=True)
     category_id = db.Column(db.Integer, db.ForeignKey("forum_categories.id"), nullable=False, index=True)
     tag_id = db.Column(db.Integer, db.ForeignKey("forum_tags.id"), index=True)
+    looking_for = db.Column(db.String(40), index=True)  # LOOKING_FOR slug
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
     title = db.Column(db.String(160), nullable=False)
     body = db.Column(db.Text, nullable=False)
@@ -756,6 +778,9 @@ class ForumPost(db.Model):
 
     def display_author(self):
         return "Anonymous" if self.anonymous else self.author.public_name()
+
+    def looking_for_label(self) -> str | None:
+        return looking_for_label(self.looking_for)
 
     def like_count(self):
         return self.likes.count()

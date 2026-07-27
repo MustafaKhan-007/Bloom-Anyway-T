@@ -11,8 +11,8 @@ from flask_login import current_user, login_required
 from sqlalchemy import func
 
 from ..extensions import db, limiter
-from ..models import (ForumCategory, ForumComment, ForumCommentLike, ForumPost,
-                      ForumPostLike, ForumTag)
+from ..models import (LOOKING_FOR, LOOKING_FOR_SLUGS, ForumCategory, ForumComment,
+                      ForumCommentLike, ForumPost, ForumPostLike, ForumTag)
 from ..services.moderation import contains_profanity, register_violation
 from . import bp
 
@@ -77,9 +77,15 @@ def category(slug):
     if tag_slug:
         active_tag = next((t for t in tags if t.slug == tag_slug), None)
 
+    looking = (request.args.get("looking") or "").strip().lower()
+    if looking not in LOOKING_FOR_SLUGS:
+        looking = None
+
     query = cat.posts.filter_by(hidden=False)
     if active_tag:
         query = query.filter_by(tag_id=active_tag.id)
+    if looking:
+        query = query.filter_by(looking_for=looking)
     query = query.order_by(ForumPost.created_at.desc())
 
     can_participate = _can_participate()
@@ -90,11 +96,25 @@ def category(slug):
     if can_participate:
         can_post, post_quota_msg = can_free_post(current_user)
 
-    return render_template("forums/category.html", category=cat, posts=posts,
-                           tags=tags, active_tag=active_tag,
-                           anon_default=_anon_default(), view="list",
-                           can_participate=can_participate,
-                           can_post=can_post, post_quota_msg=post_quota_msg)
+    def filter_url(**extra):
+        args = {}
+        tag_val = extra["tag"] if "tag" in extra else (active_tag.slug if active_tag else None)
+        look_val = extra["looking"] if "looking" in extra else looking
+        if tag_val:
+            args["tag"] = tag_val
+        if look_val:
+            args["looking"] = look_val
+        return url_for("forums.category", slug=cat.slug, **args)
+
+    return render_template(
+        "forums/category.html", category=cat, posts=posts,
+        tags=tags, active_tag=active_tag,
+        looking_for_options=LOOKING_FOR, active_looking=looking,
+        anon_default=_anon_default(), view="list",
+        can_participate=can_participate,
+        can_post=can_post, post_quota_msg=post_quota_msg,
+        filter_url=filter_url,
+    )
 
 
 @bp.route("/c/<slug>/new", methods=["POST"])
@@ -129,10 +149,15 @@ def create_post(slug):
         if tag and tag.category_id == cat.id:
             tag_id = tag.id
 
+    looking = (request.form.get("looking_for") or "").strip().lower()
+    if looking not in LOOKING_FOR_SLUGS:
+        looking = None
+
     if not _guard_content(title, body):
         return redirect(url_for("forums.category", slug=slug))
 
-    post = ForumPost(category_id=cat.id, tag_id=tag_id, user_id=current_user.id,
+    post = ForumPost(category_id=cat.id, tag_id=tag_id, looking_for=looking,
+                     user_id=current_user.id,
                      title=title, body=body, anonymous=_wants_anonymous())
     db.session.add(post)
     db.session.flush()

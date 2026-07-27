@@ -388,14 +388,30 @@ ok("Forums index renders", r.status_code == 200 and "Healing" in r.get_data(as_t
 # category page shows topic filter chips
 r = client.get("/forums/c/healing")
 ok("Category shows tag filter chips", "The Vent" in r.get_data(as_text=True) and "Grief &amp; Loss" in r.get_data(as_text=True))
+ok("Category shows Looking for filter chips",
+   "Looking for" in r.get_data(as_text=True) and "Advice" in r.get_data(as_text=True)
+   and "Recognition" in r.get_data(as_text=True))
 
 # member (client = newperson, verified + logged in) can post with a tag
 r = client.post("/forums/c/healing/new",
                 data={"title": "Rough day", "body": "Just needed to say it out loud.",
-                      "tag_id": str(vent_tag_id)},
+                      "tag_id": str(vent_tag_id), "looking_for": "support"},
                 follow_redirects=True)
+body = r.get_data(as_text=True)
 ok("Member can create a tagged forum post",
-   "Rough day" in r.get_data(as_text=True) and "The Vent" in r.get_data(as_text=True))
+   "Rough day" in body and "The Vent" in body)
+ok("Looking for label shows on the post",
+   "tag-chip--looking" in body and "support" in body.lower())
+with app.app_context():
+    saved = ForumPost.query.filter_by(title="Rough day").first()
+ok("Looking for intent saved on the post",
+   saved is not None and saved.looking_for == "support")
+r = client.get("/forums/c/healing?looking=support")
+ok("Looking-for filter shows matching posts",
+   "Rough day" in r.get_data(as_text=True))
+r = client.get("/forums/c/healing?looking=advice")
+ok("Looking-for filter hides other intents",
+   "Rough day" not in r.get_data(as_text=True))
 
 # tag filter narrows the list
 r = client.get("/forums/c/healing?tag=grief")

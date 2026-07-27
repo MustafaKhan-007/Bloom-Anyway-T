@@ -68,7 +68,12 @@
     <p class="eyebrow"><a href="{{ url_for('forums.category', slug=post.category.slug) }}">&larr; {{ post.category.name }}</a></p>
 
     <article class="forum-post">
-      {% if post.tag %}<span class="tag-chip tag-chip--mini">{{ post.tag.name }}</span>{% endif %}
+      <div class="forum-post__tags">
+        {% if post.tag %}<span class="tag-chip tag-chip--mini">{{ post.tag.name }}</span>{% endif %}
+        {% if post.looking_for_label() %}
+        <span class="tag-chip tag-chip--mini tag-chip--looking">Looking for {{ post.looking_for_label()|lower }}</span>
+        {% endif %}
+      </div>
       <h1>{{ post.title }}</h1>
       <p class="post-row__meta">
         {{ avatar(post.author, 'sm', post.anonymous) }}
