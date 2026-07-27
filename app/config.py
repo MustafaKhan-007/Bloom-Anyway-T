@@ -145,8 +145,8 @@ class ProdConfig(Config):
         missing = [name for name in cls.REQUIRED_ENV if unset(name)]
         if unset("BREVO_API_KEY") and any(unset(name) for name in cls.SMTP_ENV):
             missing.append("BREVO_API_KEY or all of SMTP_HOST/SMTP_PORT/SMTP_USER/SMTP_PASSWORD")
-        if unset("TURNSTILE_SITE_KEY") or unset("TURNSTILE_SECRET_KEY"):
-            missing.append("TURNSTILE_SITE_KEY and TURNSTILE_SECRET_KEY (Cloudflare Turnstile)")
+        # Turnstile is optional: when unset, signup has no captcha widget.
+        # Set TURNSTILE_SITE_KEY + TURNSTILE_SECRET_KEY to enable Cloudflare on signup.
         mail_from = strip_quotes(os.environ.get("MAIL_FROM", ""))
         if mail_from and ("@" not in mail_from or mail_from.lower().endswith("@localhost")):
             missing.append("MAIL_FROM (must be a real verified sender, not @localhost)")

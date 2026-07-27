@@ -59,8 +59,10 @@ def verify_captcha(token=None) -> bool:
     token = (token or "").strip()
     secret = secret_key()
     if not secret:
-        log.error("TURNSTILE_SECRET_KEY is not configured")
-        return False
+        # Keys not configured yet — allow signup so deploys aren't blocked.
+        # Sign-in never uses captcha. Set TURNSTILE_* to enable Cloudflare on signup.
+        log.warning("TURNSTILE_SECRET_KEY is not configured; skipping captcha check")
+        return True
     if not token:
         return False
 

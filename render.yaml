@@ -36,7 +36,7 @@ services:
         sync: false
       - key: MAIL_FROM
         sync: false
-      # Cloudflare Turnstile captcha (required for login/register).
+      # Cloudflare Turnstile on signup only (optional until keys are set).
       - key: TURNSTILE_SITE_KEY
         sync: false
       - key: TURNSTILE_SECRET_KEY
