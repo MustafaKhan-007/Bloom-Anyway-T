@@ -101,22 +101,16 @@
         <span class="streak-done">&#10003; You showed up today</span>
         <p class="field-help" style="margin-top: 8px;"><a href="{{ url_for('main.account', tab='journal') }}">Open your journal</a></p>
         {% else %}
-        <details class="checkin-fold">
-          <summary class="btn btn--primary">I showed up today</summary>
-          <form method="post" action="{{ url_for('main.checkin') }}" class="checkin-journal" style="margin-top: 14px;">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <input type="hidden" name="next" value="{{ url_for('main.account', tab='journal') }}">
-            <label for="prompt">Optional — jot a line</label>
-            <select id="prompt" name="prompt">
-              {% for key, label in journal_prompts %}
-              <option value="{{ key }}">{{ label }}</option>
-              {% endfor %}
-            </select>
-            <textarea name="journal" rows="3" maxlength="4000"
-                      placeholder="A few words is plenty. Or leave this blank."></textarea>
-            <button class="btn btn--primary btn--sm" type="submit">Save &amp; check in</button>
-          </form>
-        </details>
+        <form method="post" action="{{ url_for('main.checkin') }}" class="checkin-journal">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="next" value="{{ url_for('main.account', tab='journal') }}">
+          <input type="hidden" name="prompt" value="{{ today_prompt[0] }}">
+          <p class="checkin-journal__q">{{ today_prompt[1] }}</p>
+          <textarea name="journal" rows="3" maxlength="4000"
+                    placeholder="A few words is plenty. Or leave this blank."
+                    aria-label="{{ today_prompt[1] }}"></textarea>
+          <button class="btn btn--primary btn--sm" type="submit">I showed up today</button>
+        </form>
         {% endif %}
       </div>
     </div>
@@ -280,13 +274,11 @@
     <form method="post" action="{{ url_for('main.checkin') }}" class="checkin-journal" style="margin: 24px 0;">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="next" value="{{ url_for('main.account', tab='journal') }}">
-      <label for="prompt2">Check in with a note</label>
-      <select id="prompt2" name="prompt">
-        {% for key, label in journal_prompts %}
-        <option value="{{ key }}">{{ label }}</option>
-        {% endfor %}
-      </select>
-      <textarea name="journal" rows="4" maxlength="4000" placeholder="What's stirring today?"></textarea>
+      <input type="hidden" name="prompt" value="{{ today_prompt[0] }}">
+      <p class="checkin-journal__q">{{ today_prompt[1] }}</p>
+      <textarea name="journal" rows="4" maxlength="4000"
+                placeholder="Write as much or as little as you like."
+                aria-label="{{ today_prompt[1] }}"></textarea>
       <button class="btn btn--primary" type="submit">I showed up today</button>
     </form>
     {% endif %}

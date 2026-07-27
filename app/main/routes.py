@@ -15,7 +15,8 @@ from ..models import (JOURNAL_PROMPTS, MARKETPLACE_KINDS, MARKETPLACE_KIND_LABEL
                       ListingImage, MarketplaceListing, MembershipPlan,
                       Notification, Order, Page, Quote, QuoteFavorite,
                       ReelReview, ReelReviewApplication, ShopPurchase,
-                      Subscriber, Testimonial, User, Video, utcnow)
+                      Subscriber, Testimonial, User, Video, utcnow,
+                      random_journal_prompt)
 from ..services import quotes as quotes_service
 from ..services import reel_reviews as reel_svc
 from ..services import settings as settings_service
@@ -556,7 +557,7 @@ def account():
         owner_coaching=owner_coaching,
         active_tab=tab,
         journal_entries=journal,
-        journal_prompts=JOURNAL_PROMPTS,
+        today_prompt=random_journal_prompt(),
         notifications=notes,
         unread_notes=unread_notification_count(current_user),
         followers_n=followers_n,
@@ -670,10 +671,10 @@ def cancel_membership():
 def checkin():
     freshly = current_user.check_in()
     journal_body = (request.form.get("journal") or "").strip()[:4000]
-    prompt_key = (request.form.get("prompt") or "mind").strip()
+    prompt_key = (request.form.get("prompt") or "").strip()
     prompt_map = dict(JOURNAL_PROMPTS)
     if prompt_key not in prompt_map:
-        prompt_key = "mind"
+        prompt_key, _ = random_journal_prompt()
     if journal_body:
         today = date.today()
         entry = JournalEntry.query.filter_by(
