@@ -15,6 +15,14 @@
   {% endif %}
 {% endmacro %}
 
+{% macro reply_quota_box() %}
+<div class="quota-locked quota-locked--inline" role="status">
+  <p class="quota-locked__title">This week's free replies are used</p>
+  <p>{{ reply_quota_msg }}</p>
+  <a class="btn btn--secondary btn--sm" href="{{ url_for('main.membership', next=request.path) }}">See memberships</a>
+</div>
+{% endmacro %}
+
 {% macro comment_block(c, liked_comments, is_reply=False) %}
 <div class="comment {{ 'comment--reply' if is_reply }}">
   <div class="comment__head">
@@ -28,20 +36,27 @@
   <div class="forum-actions">
     {{ like_button(url_for('forums.like_comment', comment_id=c.id), c.like_count(), c.id in liked_comments) }}
     {% if not is_reply and can_participate and not current_user.forum_banned %}
-    <details class="reply-toggle">
-      <summary>Reply</summary>
-      <form method="post" action="{{ url_for('forums.create_comment', post_id=post.id) }}" class="comment-form comment-form--reply">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <input type="hidden" name="parent_id" value="{{ c.id }}">
-        <textarea name="body" rows="2" required maxlength="4000" data-mentions
-                  placeholder="Reply kindly… type @ to tag someone"></textarea>
-        <label style="font-weight: 400; display: flex; gap: 8px; align-items: center; margin: 8px 0;">
-          <input type="checkbox" name="anonymous" value="1" style="width: auto;" {{ 'checked' if anon_default }}>
-          Reply anonymously
-        </label>
-        <button class="btn btn--secondary btn--sm" type="submit">Reply</button>
-      </form>
-    </details>
+      {% if can_reply %}
+      <details class="reply-toggle">
+        <summary>Reply</summary>
+        <form method="post" action="{{ url_for('forums.create_comment', post_id=post.id) }}" class="comment-form comment-form--reply">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="parent_id" value="{{ c.id }}">
+          <textarea name="body" rows="2" required maxlength="4000" data-mentions
+                    placeholder="Reply kindly… type @ to tag someone"></textarea>
+          <label style="font-weight: 400; display: flex; gap: 8px; align-items: center; margin: 8px 0;">
+            <input type="checkbox" name="anonymous" value="1" style="width: auto;" {{ 'checked' if anon_default }}>
+            Reply anonymously
+          </label>
+          <button class="btn btn--secondary btn--sm" type="submit">Reply</button>
+        </form>
+      </details>
+      {% else %}
+      <details class="reply-toggle">
+        <summary>Reply</summary>
+        {{ reply_quota_box() }}
+      </details>
+      {% endif %}
     {% endif %}
   </div>
 </div>
@@ -71,24 +86,28 @@
     <h2 id="comments">Comments ({{ comment_count }})</h2>
 
     {% if can_participate and not current_user.forum_banned %}
-    <form method="post" action="{{ url_for('forums.create_comment', post_id=post.id) }}" class="comment-form">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <div class="field">
-        <label for="body" class="sr-only">Add a comment</label>
-        <textarea id="body" name="body" rows="3" required maxlength="4000" data-mentions
-                  placeholder="Add something kind… type @ to tag someone"></textarea>
-      </div>
-      <label style="font-weight: 400; display: flex; gap: 8px; align-items: center; margin-bottom: 12px;">
-        <input type="checkbox" name="anonymous" value="1" style="width: auto;" {{ 'checked' if anon_default }}>
-        Comment anonymously
-      </label>
-      <button class="btn btn--primary btn--sm" type="submit">Comment</button>
-    </form>
+      {% if can_reply %}
+      <form method="post" action="{{ url_for('forums.create_comment', post_id=post.id) }}" class="comment-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="field">
+          <label for="body" class="sr-only">Add a comment</label>
+          <textarea id="body" name="body" rows="3" required maxlength="4000" data-mentions
+                    placeholder="Add something kind… type @ to tag someone"></textarea>
+        </div>
+        <label style="font-weight: 400; display: flex; gap: 8px; align-items: center; margin-bottom: 12px;">
+          <input type="checkbox" name="anonymous" value="1" style="width: auto;" {{ 'checked' if anon_default }}>
+          Comment anonymously
+        </label>
+        <button class="btn btn--primary btn--sm" type="submit">Comment</button>
+      </form>
+      {% else %}
+      {{ reply_quota_box() }}
+      {% endif %}
     {% elif current_user.is_authenticated and current_user.forum_banned %}
     <div class="flash flash--error">Commenting is paused for your account.</div>
     {% elif current_user.is_authenticated %}
     <div class="member-gate">
-      <p><strong>Want to reply?</strong> Sign in free to leave up to five replies a week (and like infinitely), or join Healing/Creator for unlimited replies.</p>
+      <p><strong>Want to reply?</strong> Free members leave up to five replies a week (and like infinitely). Healing and Creator get unlimited.</p>
       <a class="btn btn--primary btn--sm" href="{{ url_for('main.membership', next=request.path) }}">See memberships</a>
     </div>
     {% else %}

@@ -85,10 +85,16 @@ def category(slug):
     can_participate = _can_participate()
     posts = query.limit(100).all()
 
+    from ..services.forum_quotas import can_free_post
+    can_post, post_quota_msg = (True, "")
+    if can_participate:
+        can_post, post_quota_msg = can_free_post(current_user)
+
     return render_template("forums/category.html", category=cat, posts=posts,
                            tags=tags, active_tag=active_tag,
                            anon_default=_anon_default(), view="list",
-                           can_participate=can_participate)
+                           can_participate=can_participate,
+                           can_post=can_post, post_quota_msg=post_quota_msg)
 
 
 @bp.route("/c/<slug>/new", methods=["POST"])
@@ -104,6 +110,10 @@ def create_post(slug):
     ok, quota_msg = can_free_post(current_user)
     if not ok:
         flash(quota_msg, "info")
+        from ..services.social_graph import notify
+        notify(current_user.id, kind="quota", body=quota_msg,
+               url=url_for("forums.category", slug=slug))
+        db.session.commit()
         return redirect(url_for("forums.category", slug=slug))
 
     title = (request.form.get("title") or "").strip()[:160]
@@ -132,6 +142,13 @@ def create_post(slug):
         notify_mentions(current_user, f"{title}\n{body}", post_id=post.id)
     db.session.commit()
     flash("Posted. Thank you for adding your voice.", "success")
+    still_ok, exhausted_msg = can_free_post(current_user)
+    if not still_ok:
+        flash(exhausted_msg, "info")
+        from ..services.social_graph import notify
+        notify(current_user.id, kind="quota", body=exhausted_msg,
+               url=url_for("forums.category", slug=slug))
+        db.session.commit()
     return redirect(url_for("forums.post", post_id=post.id))
 
 
@@ -152,11 +169,18 @@ def post(post_id):
         all_ids.append(c.id)
         all_ids.extend(r.id for r in replies)
     liked_posts, liked_comments = _liked_ids([post_id], all_ids)
+
+    from ..services.forum_quotas import can_free_reply
+    can_reply, reply_quota_msg = (True, "")
+    if can_participate:
+        can_reply, reply_quota_msg = can_free_reply(current_user)
+
     return render_template("forums/post.html", post=post, threads=threads,
                            comment_count=len(all_ids),
                            liked_posts=liked_posts, liked_comments=liked_comments,
                            anon_default=_anon_default(),
-                           can_participate=can_participate)
+                           can_participate=can_participate,
+                           can_reply=can_reply, reply_quota_msg=reply_quota_msg)
 
 
 @bp.route("/p/<int:post_id>/comment", methods=["POST"])
@@ -174,6 +198,10 @@ def create_comment(post_id):
     ok, quota_msg = can_free_reply(current_user)
     if not ok:
         flash(quota_msg, "info")
+        from ..services.social_graph import notify
+        notify(current_user.id, kind="quota", body=quota_msg,
+               url=url_for("forums.post", post_id=post_id))
+        db.session.commit()
         return redirect(url_for("forums.post", post_id=post_id))
 
     body = (request.form.get("body") or "").strip()[:4000]
@@ -200,6 +228,13 @@ def create_comment(post_id):
         from ..services.social_graph import notify_mentions
         notify_mentions(current_user, body, post_id=post.id)
     db.session.commit()
+    still_ok, exhausted_msg = can_free_reply(current_user)
+    if not still_ok:
+        flash(exhausted_msg, "info")
+        from ..services.social_graph import notify
+        notify(current_user.id, kind="quota", body=exhausted_msg,
+               url=url_for("forums.post", post_id=post_id))
+        db.session.commit()
     return redirect(url_for("forums.post", post_id=post_id) + "#comments")
 
 

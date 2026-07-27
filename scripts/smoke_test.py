@@ -700,18 +700,21 @@ r = free_client.post("/forums/c/healing/new",
                      data={"title": "second try", "body": "should be blocked"},
                      follow_redirects=True)
 ok("Free member's second post in the same week is blocked",
-   "one conversation per week" in r.get_data(as_text=True).lower()
-   or "this week's post" in r.get_data(as_text=True).lower())
+   "you've used this week's free post" in r.get_data(as_text=True).lower()
+   or "this week's free post" in r.get_data(as_text=True).lower())
 with app.app_context():
     blocked = ForumPost.query.filter_by(title="second try").count()
 ok("Blocked free post was not created", blocked == 0)
 r = free_client.get("/forums/c/healing")
 free_cat = r.get_data(as_text=True)
-ok("Free member can open the compose UI on Free",
-   "Start a conversation" in free_cat)
+ok("Free member compose UI is replaced by a weekly quota message",
+   "quota-locked" in free_cat
+   and "this week's free post is used" in free_cat.lower())
 ok("Free member browse is not soft-gated",
    "member-gate--soft" not in free_cat
    and "Showing a few recent threads" not in free_cat)
+ok("Community post rows spread meta into an aside",
+   "post-row__aside" in free_cat)
 
 # /courses always redirects to the shop (subject filters retired)
 r = client.get("/courses?subject=Healing", follow_redirects=False)
