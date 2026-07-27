@@ -7,8 +7,16 @@ from sqlalchemy import func
 from ..extensions import db
 from ..models import Follow, ForumPost, Notification, User, utcnow
 
-USERNAME_RE = re.compile(r"^[a-zA-Z0-9_]{3,30}$")
-MENTION_RE = re.compile(r"(?<![\w@])@([a-zA-Z0-9_]{3,30})\b")
+# Letters, numbers, underscore only; 3–30 chars; must start with a letter.
+USERNAME_RE = re.compile(r"^[a-z][a-z0-9_]{2,29}$")
+MENTION_RE = re.compile(r"(?<![\w@])@([a-zA-Z][a-zA-Z0-9_]{2,29})\b")
+
+RESERVED_USERNAMES = frozenset({
+    "admin", "administrator", "owner", "support", "help", "bloom",
+    "bloomanyway", "mod", "moderator", "staff", "system", "root",
+    "null", "undefined", "api", "www", "mail", "email", "me", "you",
+    "everyone", "here", "channel", "community", "official",
+})
 
 
 def normalize_username(raw: str) -> str:
@@ -16,7 +24,36 @@ def normalize_username(raw: str) -> str:
 
 
 def is_valid_username(raw: str) -> bool:
-    return bool(USERNAME_RE.match(normalize_username(raw)))
+    handle = normalize_username(raw)
+    if not USERNAME_RE.match(handle):
+        return False
+    if handle in RESERVED_USERNAMES:
+        return False
+    if "__" in handle:
+        return False
+    return True
+
+
+def username_error(raw: str) -> str | None:
+    """Human-readable validation error, or None if the handle is fine."""
+    handle = normalize_username(raw)
+    if not handle:
+        return "Pick a username so people can tag you."
+    if len(handle) < 3:
+        return "Usernames need at least 3 characters."
+    if len(handle) > 30:
+        return "Usernames can be at most 30 characters."
+    if not handle[0].isalpha():
+        return "Usernames must start with a letter."
+    if not re.match(r"^[a-z0-9_]+$", handle):
+        return "Only letters, numbers, and underscores — no spaces or symbols."
+    if "__" in handle:
+        return "Skip double underscores — one at a time is plenty."
+    if handle in RESERVED_USERNAMES:
+        return "That username is reserved. Try another."
+    if not USERNAME_RE.match(handle):
+        return "That username isn't allowed. Try letters, numbers, and underscores."
+    return None
 
 
 def allocate_username(email: str, preferred: str | None = None) -> str:
@@ -25,15 +62,48 @@ def allocate_username(email: str, preferred: str | None = None) -> str:
     if not is_valid_username(base):
         local = (email or "member").split("@", 1)[0]
         base = re.sub(r"[^a-z0-9_]", "", local.lower())[:24] or "member"
+        if base and not base[0].isalpha():
+            base = "u" + base
         if len(base) < 3:
             base = (base + "user")[:3]
+        if not is_valid_username(base):
+            base = "member"
     candidate = base
     n = 0
-    while User.query.filter(func.lower(User.username) == candidate).first():
+    while (User.query.filter(func.lower(User.username) == candidate).first()
+           or candidate in RESERVED_USERNAMES):
         n += 1
         suffix = str(n)
         candidate = f"{base[: 30 - len(suffix)]}{suffix}"
     return candidate
+
+
+def suggest_usernames(query: str, *, limit: int = 8, exclude_id: int | None = None):
+    """Autocomplete matches for @mention typing."""
+    q = normalize_username(query)
+    if len(q) < 1:
+        return []
+    filt = (
+        User.deleted_at.is_(None),
+        User.username.isnot(None),
+        func.lower(User.username).like(q + "%"),
+    )
+    rows = (User.query.filter(*filt)
+            .order_by(User.username)
+            .limit(limit * 2)
+            .all())
+    out = []
+    for u in rows:
+        if exclude_id and u.id == exclude_id:
+            continue
+        out.append({
+            "username": u.username,
+            "name": (u.display_name or "").strip(),
+            "id": u.id,
+        })
+        if len(out) >= limit:
+            break
+    return out
 
 
 def find_mentioned_users(text: str) -> list[User]:

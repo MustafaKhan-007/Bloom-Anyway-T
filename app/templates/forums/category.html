@@ -42,8 +42,8 @@
         {% endif %}
         <div class="field">
           <label for="body">What's on your mind?</label>
-          <textarea id="body" name="body" rows="6" required maxlength="8000"
-                    placeholder="Share what's on your mind. Tip: tag someone with @username"></textarea>
+          <textarea id="body" name="body" rows="6" required maxlength="8000" data-mentions
+                    placeholder="Share what's on your mind. Type @ to tag someone."></textarea>
         </div>
         <label style="font-weight: 400; display: flex; gap: 8px; align-items: center; margin-bottom: 12px;">
           <input type="checkbox" name="anonymous" value="1" style="width: auto;" {{ 'checked' if anon_default }}>
@@ -71,7 +71,7 @@
           <h3>{{ post.title }}</h3>
           <p class="post-row__meta">
             {% if post.tag %}<span class="tag-chip tag-chip--mini">{{ post.tag.name }}</span>{% endif %}
-            {{ post.display_author() }}{% if not post.anonymous and post.author.username %} <span class="at-handle">@{{ post.author.username }}</span>{% endif %}{{ byline_badge(post.author, post.anonymous) }} &middot; {{ post.created_at.strftime('%b %d, %Y · %I:%M %p') }} &middot; {{ post.comments.filter_by(hidden=False).count() }} comment{{ 's' if post.comments.filter_by(hidden=False).count() != 1 }}
+            {% if post.anonymous %}Anonymous{% elif post.author.username %}<span class="at-handle">@{{ post.author.username }}</span>{% else %}{{ post.display_author() }}{% endif %}{{ byline_badge(post.author, post.anonymous) }} &middot; {{ post.created_at.strftime('%b %d, %Y · %I:%M %p') }} &middot; {{ post.comments.filter_by(hidden=False).count() }} comment{{ 's' if post.comments.filter_by(hidden=False).count() != 1 }}
           </p>
         </div>
       </a>

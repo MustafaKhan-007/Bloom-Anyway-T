@@ -52,13 +52,19 @@
         <label for="display_name">Display name</label>
         <input type="text" id="display_name" name="display_name" maxlength="80"
                value="{{ current_user.display_name or '' }}" placeholder="Your first name is plenty">
+        <p class="field-help">Personal — used to greet you in My space. Not shown as your community handle.</p>
       </div>
       <div class="field">
         <label for="username">@username</label>
-        <input type="text" id="username" name="username" maxlength="30"
-               pattern="[A-Za-z0-9_]{3,30}"
-               value="{{ current_user.username or '' }}" placeholder="your_handle">
-        <p class="field-help">People can tag you in the community with @username.</p>
+        <div class="username-field">
+          <span class="username-field__at" aria-hidden="true">@</span>
+          <input type="text" id="username" name="username" maxlength="30" required
+                 pattern="[A-Za-z][A-Za-z0-9_]{2,29}"
+                 value="{{ current_user.username or '' }}" placeholder="your_handle"
+                 autocomplete="username" spellcheck="false">
+        </div>
+        <p class="field-help">Public &amp; unique. Shown on posts and comments, and how people tag you.
+          Start with a letter; use only letters, numbers, and underscores (3–30 characters).</p>
       </div>
       <div class="field">
         <label for="bio">A little about you</label>

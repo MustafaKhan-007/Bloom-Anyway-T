@@ -8,9 +8,13 @@
   <div class="container" style="max-width: 560px;">
     <div class="profile-card">
       {{ avatar(profile_user, 'xl') }}
-      <h1>{{ profile_user.public_name() }}</h1>
       {% if profile_user.username %}
-      <p class="at-handle">@{{ profile_user.username }}</p>
+      <h1 class="at-handle" style="font-size: clamp(1.8rem, 4vw, 2.4rem);">@{{ profile_user.username }}</h1>
+      {% if profile_user.display_name %}
+      <p class="field-help" style="margin-top: -4px;">{{ profile_user.display_name }}</p>
+      {% endif %}
+      {% else %}
+      <h1>{{ profile_user.public_name() }}</h1>
       {% endif %}
       {% if profile_user.is_admin or profile_user.is_creator() %}
       <span class="membership-pill membership-pill--creator">{{ profile_user.membership_label() }}</span>

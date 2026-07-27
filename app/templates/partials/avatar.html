@@ -10,14 +10,16 @@
 {%- endif -%}
 {% endmacro %}
 
-{# Author name — links to the public profile only when NOT anonymous #}
+{# Community identity: @username (linked). Display name is for My space only. #}
 {% macro author_name(user, anonymous=False, from_post=None) %}
 {%- if anonymous -%}Anonymous
-{%- else -%}
-{%- if from_post -%}
+{%- elif user.username and from_post -%}
+<a class="author-link at-handle" href="{{ url_for('main.profile', user_id=user.id, **{'from': from_post}) }}">@{{ user.username }}</a>
+{%- elif user.username -%}
+<a class="author-link at-handle" href="{{ url_for('main.profile', user_id=user.id) }}">@{{ user.username }}</a>
+{%- elif from_post -%}
 <a class="author-link" href="{{ url_for('main.profile', user_id=user.id, **{'from': from_post}) }}">{{ user.public_name() }}</a>
 {%- else -%}
 <a class="author-link" href="{{ url_for('main.profile', user_id=user.id) }}">{{ user.public_name() }}</a>
-{%- endif -%}
 {%- endif -%}
 {% endmacro %}

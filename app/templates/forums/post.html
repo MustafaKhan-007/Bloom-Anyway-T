@@ -20,7 +20,6 @@
   <div class="comment__head">
     {{ avatar(c.author, 'sm', c.anonymous) }}
     <strong>{{ author_name(c.author, c.anonymous, post.id) }}</strong>
-    {% if not c.anonymous and c.author.username %}<span class="at-handle">@{{ c.author.username }}</span>{% endif %}
     {% if not c.anonymous and c.user_id == post.user_id %}<span class="op-tag">OP</span>{% endif %}
     {{ byline_badge(c.author, c.anonymous) }}
     <span class="comment__date">{{ c.created_at.strftime('%b %d, %Y · %I:%M %p') }}</span>
@@ -34,7 +33,8 @@
       <form method="post" action="{{ url_for('forums.create_comment', post_id=post.id) }}" class="comment-form comment-form--reply">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="parent_id" value="{{ c.id }}">
-        <textarea name="body" rows="2" required maxlength="4000" placeholder="Reply kindly… use @username to tag"></textarea>
+        <textarea name="body" rows="2" required maxlength="4000" data-mentions
+                  placeholder="Reply kindly… type @ to tag someone"></textarea>
         <label style="font-weight: 400; display: flex; gap: 8px; align-items: center; margin: 8px 0;">
           <input type="checkbox" name="anonymous" value="1" style="width: auto;" {{ 'checked' if anon_default }}>
           Reply anonymously
@@ -58,7 +58,6 @@
       <p class="post-row__meta">
         {{ avatar(post.author, 'sm', post.anonymous) }}
         {{ author_name(post.author, post.anonymous, post.id) }}
-        {% if not post.anonymous and post.author.username %}<span class="at-handle">@{{ post.author.username }}</span>{% endif %}
         <span class="op-tag">OP</span>
         {{ byline_badge(post.author, post.anonymous) }}
         &middot; {{ post.created_at.strftime('%b %d, %Y · %I:%M %p') }}
@@ -76,7 +75,8 @@
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="field">
         <label for="body" class="sr-only">Add a comment</label>
-        <textarea id="body" name="body" rows="3" required maxlength="4000" placeholder="Add something kind… tip: @username tags them"></textarea>
+        <textarea id="body" name="body" rows="3" required maxlength="4000" data-mentions
+                  placeholder="Add something kind… type @ to tag someone"></textarea>
       </div>
       <label style="font-weight: 400; display: flex; gap: 8px; align-items: center; margin-bottom: 12px;">
         <input type="checkbox" name="anonymous" value="1" style="width: auto;" {{ 'checked' if anon_default }}>

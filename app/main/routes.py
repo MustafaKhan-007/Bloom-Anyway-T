@@ -3,7 +3,7 @@ import logging
 import os
 import re
 from datetime import date, datetime
-from flask import (Response, abort, current_app, flash, redirect,
+from flask import (Response, abort, current_app, flash, jsonify, redirect,
                    render_template, request, send_file, url_for)
 from flask_login import current_user, login_required
 
@@ -726,18 +726,35 @@ def follow_user(user_id):
                     or url_for("main.profile", user_id=user_id))
 
 
+@bp.route("/mentions/suggest")
+@login_required
+def mention_suggest():
+    """JSON autocomplete for @username tagging in the community."""
+    from ..services.social_graph import suggest_usernames
+    q = request.args.get("q") or ""
+    return jsonify(suggest_usernames(
+        q, limit=8, exclude_id=current_user.id))
+
+
 @bp.route("/account/profile", methods=["POST"])
 @login_required
 def update_profile():
-    from ..services.social_graph import is_valid_username, normalize_username
+    from ..services.social_graph import (allocate_username, normalize_username,
+                                         username_error)
     from sqlalchemy import func
 
     name = (request.form.get("display_name") or "").strip()[:80]
     bio = (request.form.get("bio") or "").strip()[:400]
     raw_user = normalize_username(request.form.get("username") or "")
-    if raw_user:
-        if not is_valid_username(raw_user):
-            flash("Usernames are 3–30 letters, numbers, or underscores.", "error")
+    current_handle = (current_user.username or "").lower()
+    if not raw_user:
+        # Username is required for tagging — keep existing or allocate one.
+        if not current_user.username:
+            current_user.username = allocate_username(current_user.email)
+    elif raw_user != current_handle:
+        err = username_error(raw_user)
+        if err:
+            flash(err, "error")
             return redirect(url_for("main.settings"))
         clash = (User.query
                  .filter(func.lower(User.username) == raw_user,

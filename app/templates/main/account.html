@@ -11,9 +11,6 @@
         {{ avatar(current_user, 'lg') }}
         <div>
           <h1>{{ greeting }}{% if current_user.first_name() %}, {{ current_user.first_name() }}{% endif %}.</h1>
-          {% if current_user.username %}
-          <p class="at-handle" style="margin: 2px 0 6px;">@{{ current_user.username }}</p>
-          {% endif %}
           {% if current_user.is_admin %}
           <span class="membership-pill membership-pill--creator">Owner</span>
           {% elif current_user.is_creator() %}
