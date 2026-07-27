@@ -27,6 +27,33 @@
         </div>
       </div>
       <div class="account-head__actions">
+        <details class="note-bell">
+          <summary class="note-bell__btn" aria-label="Notifications">
+            <span class="note-bell__icon" aria-hidden="true">&#128276;</span>
+            {% if unread_notes %}<span class="note-bell__count">{{ unread_notes }}</span>{% endif %}
+          </summary>
+          <div class="note-bell__panel">
+            <p class="note-bell__title">Notifications</p>
+            {% if notifications %}
+            <ul class="note-bell__list">
+              {% for n in notifications[:8] %}
+              <li class="note-bell__item {{ 'is-unread' if not n.read_at }}">
+                {% set href = n.href() %}
+                {% if href %}
+                <a href="{{ href }}">{{ n.body }}</a>
+                {% else %}
+                <span>{{ n.body }}</span>
+                {% endif %}
+                <time>{{ n.created_at.strftime('%b %d · %I:%M %p') }}</time>
+              </li>
+              {% endfor %}
+            </ul>
+            {% else %}
+            <p class="field-help" style="margin: 0; padding: 8px 4px;">Nothing new yet.</p>
+            {% endif %}
+            <a class="note-bell__all" href="{{ url_for('main.account', tab='activity') }}">See all activity</a>
+          </div>
+        </details>
         <form method="post" action="{{ url_for('auth.logout') }}">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <button class="btn btn--quiet" type="submit">Sign out</button>
@@ -302,24 +329,25 @@
   <div class="container" style="max-width: 680px;">
     <h2>Activity</h2>
     <p style="color: var(--ink-soft); margin-top: -6px;">
-      Mentions and posts from people you follow.
+      Mentions, follows, posts from people you follow, Content Hub updates, and site news.
     </p>
     {% if notifications %}
     <ul class="activity-list">
       {% for n in notifications %}
-      <li class="activity-list__item">
+      <li class="activity-list__item {{ 'is-unread' if not n.read_at }}">
         <p>{{ n.body }}</p>
         <p class="field-help">
           {{ n.created_at.strftime('%b %d, %Y · %I:%M %p') }}
-          {% if n.post_id %}
-          &middot; <a href="{{ url_for('forums.post', post_id=n.post_id) }}">Open thread</a>
+          {% set href = n.href() %}
+          {% if href %}
+          &middot; <a href="{{ href }}">Open</a>
           {% endif %}
         </p>
       </li>
       {% endfor %}
     </ul>
     {% else %}
-    <p style="margin-top: 18px;">Quiet for now. Follow someone in the community to get notified when they post — or wait for an @mention.</p>
+    <p style="margin-top: 18px;">Quiet for now. Follow someone to hear when they post, or keep an eye out for Content Hub and Showcase updates.</p>
     {% endif %}
   </div>
 </section>

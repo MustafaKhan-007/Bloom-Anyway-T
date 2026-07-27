@@ -195,16 +195,26 @@ def toggle_follow(follower: User, target: User) -> bool:
         db.session.delete(row)
         return False
     db.session.add(Follow(follower_id=follower.id, following_id=target.id))
+    handle = f"@{follower.username}" if follower.username else follower.public_name()
+    from flask import url_for
+    try:
+        profile_url = url_for("main.profile", user_id=follower.id)
+    except RuntimeError:
+        profile_url = f"/u/{follower.id}"
+    notify(target.id, kind="followed",
+           body=f"{handle} started following you",
+           actor_id=follower.id, url=profile_url)
     return True
 
 
 def notify(user_id: int, *, kind: str, body: str, actor_id: int | None = None,
-           post_id: int | None = None):
+           post_id: int | None = None, url: str | None = None):
     if user_id == actor_id:
         return
     db.session.add(Notification(
         user_id=user_id, actor_id=actor_id, kind=kind,
-        post_id=post_id, body=(body or "")[:300], created_at=utcnow(),
+        post_id=post_id, url=(url or None),
+        body=(body or "")[:300], created_at=utcnow(),
     ))
 
 
@@ -220,6 +230,27 @@ def notify_followers_of_post(author: User, post: ForumPost):
                actor_id=author.id, post_id=post.id)
 
 
+def notify_followers_of_listing(author: User, listing):
+    """Tell followers when someone they follow lists in the Showcase."""
+    if not listing or not getattr(listing, "active", True):
+        return
+    follower_ids = [f.follower_id for f in
+                    Follow.query.filter_by(following_id=author.id).all()]
+    if not follower_ids:
+        return
+    handle = f"@{author.username}" if author.username else author.public_name()
+    title = (listing.title or "a listing")[:80]
+    from flask import url_for
+    try:
+        href = url_for("main.listing_detail", listing_id=listing.id)
+    except RuntimeError:
+        href = f"/marketplace/l/{listing.id}"
+    body = f"{handle} shared “{title}” in Showcase"
+    for fid in follower_ids:
+        notify(fid, kind="follow_listing", body=body,
+               actor_id=author.id, url=href)
+
+
 def notify_mentions(actor: User, text: str, post_id: int | None = None):
     handle = f"@{actor.username}" if actor.username else actor.public_name()
     for user in find_mentioned_users(text):
@@ -227,6 +258,16 @@ def notify_mentions(actor: User, text: str, post_id: int | None = None):
             continue
         notify(user.id, kind="mention", body=f"{handle} mentioned you",
                actor_id=actor.id, post_id=post_id)
+
+
+def notify_everyone(*, kind: str, body: str, url: str | None = None,
+                    actor_id: int | None = None, exclude_id: int | None = None):
+    """Fan out a broadcast notification (Content Hub, new course, etc.)."""
+    q = User.query.filter(User.deleted_at.is_(None))
+    if exclude_id:
+        q = q.filter(User.id != exclude_id)
+    for u in q.yield_per(200):
+        notify(u.id, kind=kind, body=body, url=url, actor_id=actor_id)
 
 
 def unread_notification_count(user: User) -> int:

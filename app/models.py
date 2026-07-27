@@ -524,14 +524,28 @@ class Notification(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
     actor_id = db.Column(db.Integer, db.ForeignKey("users.id"))
-    kind = db.Column(db.String(30), nullable=False)  # follow_post / mention
+    kind = db.Column(db.String(30), nullable=False)
+    # follow_post / mention / followed / follow_listing / content_hub / shop
     post_id = db.Column(db.Integer, db.ForeignKey("forum_posts.id"))
     body = db.Column(db.String(300), nullable=False, default="")
+    url = db.Column(db.String(300))  # optional deep link when not a forum post
     read_at = db.Column(db.DateTime)
     created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
 
     actor = db.relationship("User", foreign_keys=[actor_id])
     post = db.relationship("ForumPost")
+
+    def href(self) -> str | None:
+        """Best link for this notification."""
+        if self.url:
+            return self.url
+        if self.post_id:
+            from flask import url_for
+            try:
+                return url_for("forums.post", post_id=self.post_id)
+            except RuntimeError:
+                return f"/forums/p/{self.post_id}"
+        return None
 
 
 class Video(db.Model):

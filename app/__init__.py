@@ -75,6 +75,11 @@ def create_app(config_class=None):
         app.config["BREVO_API_KEY"] = _sq(_os.environ.get("BREVO_API_KEY", ""))
     if _os.environ.get("MAIL_FROM", "").strip():
         app.config["MAIL_FROM"] = _sq(_os.environ.get("MAIL_FROM", ""))
+    if _os.environ.get("TURNSTILE_SITE_KEY", "").strip():
+        app.config["TURNSTILE_SITE_KEY"] = _sq(_os.environ.get("TURNSTILE_SITE_KEY", ""))
+    if _os.environ.get("TURNSTILE_SECRET_KEY", "").strip():
+        app.config["TURNSTILE_SECRET_KEY"] = _sq(
+            _os.environ.get("TURNSTILE_SECRET_KEY", ""))
 
     # Resolve where uploaded videos live: a mounted persistent disk in
     # production (VIDEO_STORAGE_DIR), or the instance folder locally.
@@ -168,7 +173,8 @@ def create_app(config_class=None):
                 "announcements": active_announcements(),
                 "current_year": date.today().year,
                 "shop_url": app.config.get("SHOP_URL") or "https://shop.bloomanyway.online",
-                "unread_notes": unread}
+                "unread_notes": unread,
+                "turnstile_site_key": app.config.get("TURNSTILE_SITE_KEY") or ""}
 
     # --- health check ---------------------------------------------------------
     @app.route("/healthz")

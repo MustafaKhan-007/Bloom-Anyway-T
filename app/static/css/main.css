@@ -354,78 +354,14 @@ input[type="file"]:not(.sr-only):not(.file-pick__input):hover::-webkit-file-uplo
   padding-left: 16px;
 }
 
-/* Image-identification captcha */
+/* Cloudflare Turnstile */
 .captcha-field__prompt {
   display: block;
   font-weight: 700;
   color: var(--plum);
   margin-bottom: 4px;
 }
-.captcha-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
-  margin-top: 10px;
-  max-width: 320px;
-}
-.captcha-tile {
-  position: relative;
-  display: block;
-  margin: 0;
-  cursor: pointer;
-  border-radius: 16px;
-  line-height: 0;
-  user-select: none;
-}
-.captcha-tile input {
-  position: absolute;
-  opacity: 0;
-  width: 1px;
-  height: 1px;
-  margin: 0;
-}
-.captcha-tile img {
-  width: 100%;
-  height: auto;
-  border-radius: 16px;
-  border: 2px solid var(--ivory-deep);
-  background: #fff;
-  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
-}
-.captcha-tile:hover img {
-  border-color: var(--rose);
-}
-.captcha-tile:has(input:checked) img,
-.captcha-tile input:focus-visible + img {
-  border-color: var(--plum);
-  box-shadow: 0 0 0 3px var(--rose-soft);
-  transform: translateY(-1px);
-}
-.captcha-tile:has(input:checked)::after {
-  content: "✓";
-  position: absolute;
-  right: 8px;
-  top: 8px;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, var(--plum), var(--berry));
-  color: var(--dawn-ivory);
-  font-size: 13px;
-  font-weight: 800;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  line-height: 1;
-  pointer-events: none;
-}
-.captcha-refresh {
-  display: inline-block;
-  margin-top: 10px;
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--plum);
-}
+.captcha-field .cf-turnstile { margin-top: 8px; }
 
 /* ------------------------------- flashes ---------------------------------- */
 .flash { padding: 14px 20px; border-radius: var(--radius-input); margin: 0 0 16px; font-weight: 600; }
@@ -908,6 +844,54 @@ details.faq-item > form { padding: 0 20px 20px; }
 .account-head__who h1 { margin: 0; }
 .account-head__actions { display: flex; align-items: center; gap: 10px; }
 .account-head__actions form { margin: 0; }
+
+.note-bell { position: relative; }
+.note-bell__btn {
+  list-style: none; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 42px; height: 42px; border-radius: 50%;
+  background: var(--ivory-deep); border: 1.5px solid transparent;
+  position: relative; color: var(--plum);
+}
+.note-bell__btn::-webkit-details-marker { display: none; }
+.note-bell[open] .note-bell__btn,
+.note-bell__btn:hover {
+  border-color: var(--plum); background: #fff;
+}
+.note-bell__icon { font-size: 18px; line-height: 1; }
+.note-bell__count {
+  position: absolute; top: -2px; right: -2px;
+  min-width: 18px; height: 18px; padding: 0 5px;
+  border-radius: 999px; background: var(--plum); color: #fff;
+  font-size: 11px; font-weight: 800; line-height: 18px; text-align: center;
+}
+.note-bell__panel {
+  position: absolute; right: 0; top: calc(100% + 10px); z-index: 40;
+  width: min(340px, 86vw);
+  background: #fff; border-radius: 16px;
+  box-shadow: var(--shadow-card-hover);
+  border: 1px solid rgba(74, 44, 63, 0.1);
+  padding: 12px 14px 10px;
+}
+.note-bell__title {
+  margin: 0 0 8px; font-weight: 800; color: var(--plum); font-size: 14px;
+}
+.note-bell__list { list-style: none; padding: 0; margin: 0; max-height: 280px; overflow: auto; }
+.note-bell__item {
+  padding: 10px 6px; border-top: 1px solid var(--ivory-deep);
+  display: flex; flex-direction: column; gap: 2px;
+}
+.note-bell__item a { color: var(--ink); text-decoration: none; font-weight: 600; font-size: 14px; }
+.note-bell__item a:hover { color: var(--plum); }
+.note-bell__item time { font-size: 12px; color: var(--ink-soft); }
+.note-bell__item.is-unread a { color: var(--plum); }
+.note-bell__all {
+  display: block; text-align: center; margin-top: 8px; padding-top: 10px;
+  border-top: 1px solid var(--ivory-deep);
+  font-weight: 700; font-size: 13px; color: var(--plum);
+}
+
+.activity-list__item.is-unread { background: var(--gold-soft); }
 
 /* clickable avatar uploader */
 .avatar-edit {

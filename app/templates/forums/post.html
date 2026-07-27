@@ -88,7 +88,7 @@
     <div class="flash flash--error">Commenting is paused for your account.</div>
     {% elif current_user.is_authenticated %}
     <div class="member-gate">
-      <p><strong>Want to reply?</strong> Joining the community with a Healing or Creator membership lets you comment and like.</p>
+      <p><strong>Want to reply?</strong> Sign in free to leave up to five replies a week (and like infinitely), or join Healing/Creator for unlimited replies.</p>
       <a class="btn btn--primary btn--sm" href="{{ url_for('main.membership', next=request.path) }}">See memberships</a>
     </div>
     {% else %}

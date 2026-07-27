@@ -21,20 +21,29 @@ log = logging.getLogger(__name__)
 
 BANNED_NOTICE = ("Posting is paused for your account after repeated unkind "
                  "language. You can still read the community.")
-JOIN_NOTICE = ("Joining in is a member perk. A Healing or Creator membership "
-               "lets you post, reply and read the whole community.")
+JOIN_NOTICE = ("Sign in to join the conversation — Free members can post once "
+               "a week and reply five times; Healing and Creator are unlimited.")
 
 
 def _can_participate() -> bool:
-    """True if the current user may post/comment/like (Healing+ or owner)."""
+    """True if the current user may like (any signed-in member, including Free)."""
+    return bool(getattr(current_user, "is_authenticated", False)
+                and not getattr(current_user, "forum_banned", False))
+
+
+def _can_browse_fully() -> bool:
+    """Healing+ see the full community; Free still peeks with limits."""
     return bool(getattr(current_user, "is_authenticated", False)
                 and current_user.is_member())
 
 
-def _require_member(redirect_to):
-    """Flash + redirect if the current user can't participate; else None."""
-    if not _can_participate():
+def _require_participant(redirect_to):
+    """Flash + redirect if the current user can't interact; else None."""
+    if not getattr(current_user, "is_authenticated", False):
         flash(JOIN_NOTICE, "info")
+        return redirect(url_for("auth.login", next=request.path))
+    if current_user.forum_banned:
+        flash(BANNED_NOTICE, "error")
         return redirect(redirect_to)
     return None
 
@@ -81,7 +90,7 @@ def category(slug):
     query = query.order_by(ForumPost.created_at.desc())
 
     can_participate = _can_participate()
-    limited = not can_participate
+    limited = not _can_browse_fully()
     if limited:
         posts = query.limit(FREE_POSTS_PER_CATEGORY).all()
     else:
@@ -98,11 +107,14 @@ def category(slug):
 @limiter.limit("15 per hour")
 def create_post(slug):
     cat = ForumCategory.query.filter_by(slug=slug).first_or_404()
-    blocked = _require_member(url_for("forums.category", slug=slug))
+    blocked = _require_participant(url_for("forums.category", slug=slug))
     if blocked:
         return blocked
-    if current_user.forum_banned:
-        flash(BANNED_NOTICE, "error")
+
+    from ..services.forum_quotas import can_free_post
+    ok, quota_msg = can_free_post(current_user)
+    if not ok:
+        flash(quota_msg, "info")
         return redirect(url_for("forums.category", slug=slug))
 
     title = (request.form.get("title") or "").strip()[:160]
@@ -144,8 +156,8 @@ def post(post_id):
     top = (post.comments.filter_by(hidden=False, parent_id=None)
            .order_by(ForumComment.created_at).all())
     total_top = len(top)
-    limited = not can_participate and total_top > FREE_COMMENTS_PER_POST
-    if not can_participate:
+    limited = not _can_browse_fully() and total_top > FREE_COMMENTS_PER_POST
+    if not _can_browse_fully():
         top = top[:FREE_COMMENTS_PER_POST]
     all_ids = []
     threads = []
@@ -169,11 +181,14 @@ def create_comment(post_id):
     post = db.session.get(ForumPost, post_id)
     if post is None or post.hidden:
         abort(404)
-    blocked = _require_member(url_for("forums.post", post_id=post_id))
+    blocked = _require_participant(url_for("forums.post", post_id=post_id))
     if blocked:
         return blocked
-    if current_user.forum_banned:
-        flash(BANNED_NOTICE, "error")
+
+    from ..services.forum_quotas import can_free_reply
+    ok, quota_msg = can_free_reply(current_user)
+    if not ok:
+        flash(quota_msg, "info")
         return redirect(url_for("forums.post", post_id=post_id))
 
     body = (request.form.get("body") or "").strip()[:4000]
@@ -209,7 +224,7 @@ def like_post(post_id):
     post = db.session.get(ForumPost, post_id)
     if post is None or post.hidden:
         abort(404)
-    blocked = _require_member(url_for("forums.post", post_id=post_id))
+    blocked = _require_participant(url_for("forums.post", post_id=post_id))
     if blocked:
         return blocked
     existing = ForumPostLike.query.filter_by(user_id=current_user.id, post_id=post.id).first()
@@ -227,7 +242,7 @@ def like_comment(comment_id):
     comment = db.session.get(ForumComment, comment_id)
     if comment is None or comment.hidden:
         abort(404)
-    blocked = _require_member(url_for("forums.post", post_id=comment.post_id))
+    blocked = _require_participant(url_for("forums.post", post_id=comment.post_id))
     if blocked:
         return blocked
     existing = ForumCommentLike.query.filter_by(

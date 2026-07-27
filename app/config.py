@@ -70,6 +70,11 @@ class Config:
     SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "")
     MAIL_FROM = os.environ.get("MAIL_FROM", "Bloom Anyway <hello@localhost>")
 
+    # Cloudflare Turnstile (auth captcha). Dev defaults to Cloudflare's
+    # always-pass test keys so local auth works without a dashboard setup.
+    TURNSTILE_SITE_KEY = os.environ.get("TURNSTILE_SITE_KEY", "").strip()
+    TURNSTILE_SECRET_KEY = os.environ.get("TURNSTILE_SECRET_KEY", "").strip()
+
     # Lemon Squeezy (both optional: the storefront works before payments are
     # wired. Webhooks are rejected until the secret is set; the "Sync" button
     # needs the API key.)
@@ -95,6 +100,8 @@ def _strip_config_quotes(value: str) -> str:
 # Normalize env pastes once at import (Render/dashboard often wrap in quotes).
 Config.BREVO_API_KEY = _strip_config_quotes(Config.BREVO_API_KEY)
 Config.MAIL_FROM = _strip_config_quotes(Config.MAIL_FROM)
+Config.TURNSTILE_SITE_KEY = _strip_config_quotes(Config.TURNSTILE_SITE_KEY)
+Config.TURNSTILE_SECRET_KEY = _strip_config_quotes(Config.TURNSTILE_SECRET_KEY)
 
 
 class DevConfig(Config):
@@ -103,7 +110,11 @@ class DevConfig(Config):
     REMEMBER_COOKIE_SECURE = False
     # Zero-config local dev: a fixed dev key unless one is provided.
     SECRET_KEY = os.environ.get("SECRET_KEY", "").strip() or "dev-only-not-secret"
-
+    # Cloudflare always-pass test keys when unset (see Turnstile docs).
+    TURNSTILE_SITE_KEY = Config.TURNSTILE_SITE_KEY or "1x00000000000000000000AA"
+    TURNSTILE_SECRET_KEY = (
+        Config.TURNSTILE_SECRET_KEY or "1x0000000000000000000000000000000AA"
+    )
 
 class ProdConfig(Config):
     DEBUG = False
@@ -134,6 +145,8 @@ class ProdConfig(Config):
         missing = [name for name in cls.REQUIRED_ENV if unset(name)]
         if unset("BREVO_API_KEY") and any(unset(name) for name in cls.SMTP_ENV):
             missing.append("BREVO_API_KEY or all of SMTP_HOST/SMTP_PORT/SMTP_USER/SMTP_PASSWORD")
+        if unset("TURNSTILE_SITE_KEY") or unset("TURNSTILE_SECRET_KEY"):
+            missing.append("TURNSTILE_SITE_KEY and TURNSTILE_SECRET_KEY (Cloudflare Turnstile)")
         mail_from = strip_quotes(os.environ.get("MAIL_FROM", ""))
         if mail_from and ("@" not in mail_from or mail_from.lower().endswith("@localhost")):
             missing.append("MAIL_FROM (must be a real verified sender, not @localhost)")

@@ -555,6 +555,14 @@ def settings():
                     except ValueError:
                         pass
                 db.session.add(Announcement(body=body, expires=expires))
+                from ..services.social_graph import notify_everyone
+                notify_everyone(
+                    kind="announcement",
+                    body=f"Site update: {body[:120]}",
+                    url=url_for("main.index"),
+                    actor_id=current_user.id,
+                    exclude_id=current_user.id,
+                )
                 db.session.commit()
                 flash("Announcement added.", "success")
             else:
@@ -689,6 +697,7 @@ def video_form(video_id=None):
                 flash(e, "error")
         else:
             old_disk = None
+            was_live = bool(video and video.published)
             try:
                 if video is None:
                     video = Video(mime="video/mp4")
@@ -709,6 +718,16 @@ def video_form(video_id=None):
                 if request.form.get("remove_thumb"):
                     video.thumb_data = None
                     video.thumb_mime = None
+                db.session.flush()
+                if published and not was_live:
+                    from ..services.social_graph import notify_everyone
+                    notify_everyone(
+                        kind="content_hub",
+                        body=f"New on Content Hub: “{title[:80]}”",
+                        url=url_for("main.watch", video_id=video.id),
+                        actor_id=current_user.id,
+                        exclude_id=current_user.id,
+                    )
                 db.session.commit()
             except Exception:
                 db.session.rollback()
@@ -1025,6 +1044,15 @@ def reel_reviews_publish(app_id):
         review.review_mime = mime
         review.review_filename = fname
     application.selected = True
+    db.session.flush()
+    from ..services.social_graph import notify_everyone
+    notify_everyone(
+        kind="content_hub",
+        body=f"New reel review on Content Hub: “{title[:80]}”",
+        url=url_for("main.videos") + "#reviews",
+        actor_id=current_user.id,
+        exclude_id=current_user.id,
+    )
     db.session.commit()
     flash("Reel review published to the Content Hub.", "success")
     return redirect(url_for("admin.reel_reviews"))

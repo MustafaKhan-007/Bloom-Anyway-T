@@ -420,6 +420,7 @@ def listing_form(listing_id=None):
             for e in errors:
                 flash(e, "error")
         else:
+            is_new = listing is None
             if listing is None:
                 listing = MarketplaceListing(user_id=current_user.id)
                 db.session.add(listing)
@@ -437,6 +438,10 @@ def listing_form(listing_id=None):
             start = len(listing.images)
             for i, (data, mime) in enumerate(new_images):
                 listing.images.append(ListingImage(data=data, mime=mime, sort_order=start + i))
+            db.session.flush()
+            if is_new:
+                from ..services.social_graph import notify_followers_of_listing
+                notify_followers_of_listing(current_user, listing)
             db.session.commit()
             flash("Listing saved. It's live in the marketplace.", "success")
             return redirect(url_for("main.my_listings"))

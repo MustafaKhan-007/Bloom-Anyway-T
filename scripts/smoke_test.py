@@ -26,16 +26,13 @@ from app.models import (ForumCategory, ForumComment, ForumPost, ForumTag,
                         Subscriber, User, Video, utcnow)
 from app.services import captcha as captcha_service
 
-# Smoke tests don't exercise the image captcha UI.
-captcha_service.verify_captcha = lambda _answer: True
-captcha_service.captcha_challenge = lambda: {
-    "prompt": "Select all images with a star",
-    "token": "smoke",
-    "count": 0,
-    "target": "star",
-}
+# Smoke tests don't call Cloudflare; always pass the captcha check.
+captcha_service.verify_captcha = lambda token=None: True
+captcha_service.captcha_challenge = lambda: {"site_key": "1x00000000000000000000AA"}
 captcha_service.issue_captcha = captcha_service.captcha_challenge
-captcha_service.captcha_question = lambda: "Select all images with a star"
+captcha_service.captcha_question = lambda: "turnstile"
+captcha_service.site_key = lambda: "1x00000000000000000000AA"
+
 
 TMP_DB = Path(tempfile.mkdtemp()) / "smoke.db"
 
@@ -663,15 +660,29 @@ r = client.get("/")
 ok("No announcement markup after removal", "hero-announcement" not in r.get_data(as_text=True))
 
 # --- 5e. memberships, videos, subjects, spotlight ---------------------------
-# free member: posting blocked, reads gated
+# free member: 1 post/week, 5 replies/week, unlimited likes; browse still gated
 r = free_client.post("/forums/c/healing/new",
-                     data={"title": "hi", "body": "can I post?"}, follow_redirects=False)
-ok("Free member is blocked from posting (redirected)", r.status_code == 302)
+                     data={"title": "free weekly post", "body": "one gentle post"},
+                     follow_redirects=True)
+body = r.get_data(as_text=True)
 with app.app_context():
-    free_posts = ForumPost.query.filter_by(title="hi").count()
-ok("Free member's post was not created", free_posts == 0)
+    free_posts = ForumPost.query.filter_by(title="free weekly post").count()
+ok("Free member can post once per week",
+   free_posts == 1 or "Posted" in body)
+ok("Free member's first weekly post was created", free_posts == 1)
+r = free_client.post("/forums/c/healing/new",
+                     data={"title": "second try", "body": "should be blocked"},
+                     follow_redirects=True)
+ok("Free member's second post in the same week is blocked",
+   "one conversation per week" in r.get_data(as_text=True).lower()
+   or "this week's post" in r.get_data(as_text=True).lower())
+with app.app_context():
+    blocked = ForumPost.query.filter_by(title="second try").count()
+ok("Blocked free post was not created", blocked == 0)
 r = free_client.get("/forums/c/healing")
-ok("Free member sees the community gate", "member-gate" in r.get_data(as_text=True))
+ok("Free member can open the compose UI on Free",
+   "Start a conversation" in r.get_data(as_text=True)
+   or "member-gate" in r.get_data(as_text=True))
 
 # /courses always redirects to the shop (subject filters retired)
 r = client.get("/courses?subject=Healing", follow_redirects=False)

@@ -36,6 +36,11 @@ services:
         sync: false
       - key: MAIL_FROM
         sync: false
+      # Cloudflare Turnstile captcha (required for login/register).
+      - key: TURNSTILE_SITE_KEY
+        sync: false
+      - key: TURNSTILE_SECRET_KEY
+        sync: false
       # Lemon Squeezy (optional: set when you wire up payments).
       - key: LEMONSQUEEZY_WEBHOOK_SECRET
         sync: false

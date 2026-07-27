@@ -1,18 +1,10 @@
-{# Image-identification captcha grid. Expects `captcha` dict from captcha_challenge(). #}
-{% if captcha %}
+{# Cloudflare Turnstile widget. Expects `captcha.site_key` (or turnstile_site_key). #}
+{% set ts_key = (captcha.site_key if captcha is defined and captcha.site_key else turnstile_site_key) %}
+{% if ts_key %}
 <div class="field captcha-field">
-  <span class="captcha-field__prompt" id="captcha-prompt">{{ captcha.prompt }}</span>
-  <p class="field-help">Tap every matching picture. This helps keep bots out.</p>
-  <div class="captcha-grid" role="group" aria-labelledby="captcha-prompt">
-    {% for i in range(captcha.count) %}
-    <label class="captcha-tile">
-      <input type="checkbox" name="captcha" value="{{ i }}"
-             aria-label="Image {{ i + 1 }}">
-      <img src="{{ url_for('auth.captcha_tile', index=i, v=captcha.token) }}"
-           width="96" height="96" alt="" draggable="false">
-    </label>
-    {% endfor %}
-  </div>
-  <a class="captcha-refresh" href="?refresh_captcha=1{% if next %}&amp;next={{ next|urlencode }}{% endif %}">New images</a>
+  <span class="captcha-field__prompt">Quick check</span>
+  <p class="field-help">One short verification keeps bots out of the community.</p>
+  <div class="cf-turnstile" data-sitekey="{{ ts_key }}" data-theme="light"></div>
 </div>
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 {% endif %}
