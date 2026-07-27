@@ -70,7 +70,7 @@ class Config:
     SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "")
     MAIL_FROM = os.environ.get("MAIL_FROM", "Bloom Anyway <hello@localhost>")
 
-    # Cloudflare Turnstile (auth captcha). Dev defaults to Cloudflare's
+    # Cloudflare Turnstile (signup only). Dev defaults to Cloudflare's
     # always-pass test keys so local auth works without a dashboard setup.
     TURNSTILE_SITE_KEY = os.environ.get("TURNSTILE_SITE_KEY", "").strip()
     TURNSTILE_SECRET_KEY = os.environ.get("TURNSTILE_SECRET_KEY", "").strip()

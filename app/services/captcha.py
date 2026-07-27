@@ -1,7 +1,8 @@
-"""Cloudflare Turnstile captcha for auth forms.
+"""Cloudflare Turnstile captcha for signup.
 
-Uses the official Turnstile widget (Cloudflare-hosted). Verification is a
-server-side call to Cloudflare's siteverify endpoint.
+Uses the official Turnstile widget (Cloudflare-hosted) on register only.
+Sign-in has no captcha. Verification is a server-side call to Cloudflare's
+siteverify endpoint.
 """
 from __future__ import annotations
 
@@ -53,10 +54,7 @@ def verify_captcha(token=None) -> bool:
     ``token`` may be the raw string, or ignored when reading the standard
     ``cf-turnstile-response`` form field.
     """
-    if token is None:
-        token = request.form.get("cf-turnstile-response")
-    elif isinstance(token, (list, tuple)):
-        # Legacy image-captcha forms posted a list; ignore and read Turnstile.
+    if token is None or isinstance(token, (list, tuple)):
         token = request.form.get("cf-turnstile-response")
     token = (token or "").strip()
     secret = secret_key()

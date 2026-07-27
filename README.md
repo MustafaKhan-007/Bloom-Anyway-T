@@ -86,7 +86,7 @@ In production only these are **required** (the app refuses to boot otherwise):
 - **one email transport** — either `BREVO_API_KEY` (HTTP API, works everywhere)
   or all four of `SMTP_HOST`/`SMTP_PORT`/`SMTP_USER`/`SMTP_PASSWORD`.
 - `TURNSTILE_SITE_KEY` + `TURNSTILE_SECRET_KEY` — Cloudflare Turnstile widget
-  for login/register (https://dash.cloudflare.com → Turnstile).
+  on signup only (https://dash.cloudflare.com → Turnstile). Sign-in has no captcha.
 
 Everything else is optional or auto-managed:
 
