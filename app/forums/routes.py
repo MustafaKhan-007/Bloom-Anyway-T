@@ -9,6 +9,7 @@ import logging
 from flask import (abort, flash, redirect, render_template, request, url_for)
 from flask_login import current_user, login_required
 from sqlalchemy import func
+from sqlalchemy.orm import joinedload
 
 from ..extensions import db, limiter
 from ..models import (LOOKING_FOR, LOOKING_FOR_SLUGS, ForumCategory, ForumComment,
@@ -81,7 +82,8 @@ def category(slug):
     if looking not in LOOKING_FOR_SLUGS:
         looking = None
 
-    query = cat.posts.filter_by(hidden=False)
+    query = (cat.posts.filter_by(hidden=False)
+             .options(joinedload(ForumPost.author), joinedload(ForumPost.tag)))
     if active_tag:
         query = query.filter_by(tag_id=active_tag.id)
     if looking:

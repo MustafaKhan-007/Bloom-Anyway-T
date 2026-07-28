@@ -380,6 +380,18 @@
     });
   })();
 
+  /* ---- CSP-safe auto-submit selects ---- */
+  document.querySelectorAll("select[data-autosubmit]").forEach(function (sel) {
+    sel.addEventListener("change", function () {
+      if (sel.form) sel.form.submit();
+    });
+  });
+
+  /* ---- CSP-safe: block context menu on protected media ---- */
+  document.querySelectorAll("[data-no-contextmenu]").forEach(function (el) {
+    el.addEventListener("contextmenu", function (e) { e.preventDefault(); });
+  });
+
   /* ---- remember browser timezone for local timestamps ---- */
   (function () {
     var tz = "";
@@ -401,22 +413,6 @@
       body: JSON.stringify({ timezone: tz })
     }).catch(function () {});
   })();
-
-  /* ---- live preview when picking a new avatar (legacy non-crop inputs) ---- */
-  document.querySelectorAll("[data-avatar-preview]").forEach(function (input) {
-    input.addEventListener("change", function () {
-      var file = input.files && input.files[0];
-      if (!file) return;
-      var pick = input.closest(".avatar-edit") &&
-                 input.closest(".avatar-edit").querySelector(".avatar");
-      if (!pick) return;
-      var url = URL.createObjectURL(file);
-      pick.style.backgroundImage = "url('" + url + "')";
-      pick.textContent = "";
-      var remove = document.querySelector("input[name='remove_avatar']");
-      if (remove) remove.checked = false;
-    });
-  });
 
   /* ---- marketplace listing form: show location box for services ---- */
   var listingForm = document.getElementById("listing-form");

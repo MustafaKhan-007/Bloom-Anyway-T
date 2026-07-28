@@ -2,6 +2,8 @@
 import hashlib
 from datetime import date, timedelta
 
+from flask import g, has_request_context
+
 from ..extensions import db
 from ..models import Quote, QuotePin
 
@@ -12,6 +14,16 @@ CATEGORY_OF_WEEKDAY = {
     5: "comfort",        # Saturday
     6: "comfort",        # Sunday
 }
+
+
+def _active_pool() -> list[Quote]:
+    """Load active quotes once per request (today + tomorrow share the pool)."""
+    if has_request_context() and hasattr(g, "_quote_pool"):
+        return g._quote_pool
+    pool = Quote.query.filter_by(active=True).order_by(Quote.id).all()
+    if has_request_context():
+        g._quote_pool = pool
+    return pool
 
 
 def _pick_from_pool(day: date, pool: list[Quote]) -> Quote:
@@ -36,7 +48,7 @@ def quote_for(day: date, count_view: bool = False) -> Quote | None:
     if pin and pin.quote and pin.quote.active:
         quote = pin.quote
     else:
-        pool = Quote.query.filter_by(active=True).order_by(Quote.id).all()
+        pool = _active_pool()
         if not pool:
             return None
         quote = _pick_from_pool(day, pool)
@@ -55,7 +67,7 @@ def recent_quotes(days: int = 30, today: date | None = None):
     rather than re-querying per day.
     """
     today = today or date.today()
-    pool = Quote.query.filter_by(active=True).order_by(Quote.id).all()
+    pool = _active_pool()
     if not pool:
         return []
     oldest = today - timedelta(days=days - 1)

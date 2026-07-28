@@ -32,7 +32,7 @@
         <form class="inline-form" method="post" action="{{ url_for('admin.set_membership', user_id=m.id) }}">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input type="hidden" name="q" value="{{ q }}">
-          <select name="membership" onchange="this.form.submit()" {{ 'disabled' if m.is_admin }}>
+          <select name="membership" data-autosubmit {{ 'disabled' if m.is_admin }}>
             {% for tier in memberships %}
             <option value="{{ tier }}" {{ 'selected' if m.membership == tier }}>{{ tier|capitalize }}</option>
             {% endfor %}

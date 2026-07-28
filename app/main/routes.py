@@ -240,40 +240,47 @@ def _showcase_index():
     tag = (request.args.get("tag") or "").strip()
     location = (request.args.get("location") or "").strip()
     sort = request.args.get("sort", "popular")
+    if sort not in MARKETPLACE_SORTS:
+        sort = "popular"
     view = "list" if request.args.get("view") == "list" else "tiles"
 
-    base = MarketplaceListing.query.filter_by(active=True)
-    if kind:
-        base = base.filter_by(kind=kind)
-    query = base
-    if q:
-        like = f"%{q}%"
-        query = query.filter(db.or_(MarketplaceListing.title.ilike(like),
-                                    MarketplaceListing.description.ilike(like)))
-    if location:
-        query = query.filter(MarketplaceListing.location.ilike(f"%{location}%"))
-    if sort == "new":
-        query = query.order_by(MarketplaceListing.created_at.desc())
-    else:
-        sort = "popular"
-        query = query.order_by(MarketplaceListing.clicks.desc(),
-                               MarketplaceListing.created_at.desc())
-    listings = query.all()
-    if tag:
-        listings = [ln for ln in listings if tag in ln.tags()]
+    # One pass over active listings: filter, tag catalogue, and locations.
+    active = MarketplaceListing.query.filter_by(active=True).all()
+    used = set()
+    locations = set()
+    listings = []
+    q_lower = q.lower()
+    loc_lower = location.lower()
+    for ln in active:
+        tags = ln.tags()
+        if kind is None or ln.kind == kind:
+            used.update(tags)
+        loc = (ln.location or "").strip()
+        if ln.kind == "service" and loc:
+            locations.add(loc)
+        if kind and ln.kind != kind:
+            continue
+        if q_lower and q_lower not in (ln.title or "").lower() \
+                and q_lower not in (ln.description or "").lower():
+            continue
+        if location and loc_lower not in (ln.location or "").lower():
+            continue
+        if tag and tag not in tags:
+            continue
+        listings.append(ln)
 
-    # curated catalogue first, then any custom tags already in use
-    used = {t for ln in base.all() for t in ln.tags()}
+    if sort == "new":
+        listings.sort(key=lambda ln: ln.created_at or datetime.min, reverse=True)
+    else:
+        listings.sort(key=lambda ln: (ln.clicks or 0, ln.created_at or datetime.min),
+                      reverse=True)
+
     all_tags = list(MARKETPLACE_TAGS) + sorted(used - set(MARKETPLACE_TAGS))
-    # distinct locations from active service listings (for chip filters)
-    loc_q = MarketplaceListing.query.filter_by(active=True, kind="service")
-    locations = sorted({
-        (ln.location or "").strip() for ln in loc_q.all() if (ln.location or "").strip()
-    }, key=str.lower)
     return render_template("marketplace/index.html", listings=listings,
                            kind=kind, kinds=MARKETPLACE_KIND_LABELS, q=q, tag=tag,
                            location=location, sort=sort, sorts=MARKETPLACE_SORTS,
-                           view=view, all_tags=all_tags, locations=locations)
+                           view=view, all_tags=all_tags,
+                           locations=sorted(locations, key=str.lower))
 
 
 @bp.route("/showcase")

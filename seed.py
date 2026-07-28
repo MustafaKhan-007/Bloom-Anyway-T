@@ -16,7 +16,7 @@ from pathlib import Path
 from app import create_app
 from app.extensions import db
 from app.models import (FaqItem, ForumCategory, ForumTag, MembershipPlan, Page,
-                        Product, Quote)
+                        Quote)
 
 SEED_FILE = Path(__file__).parent / "data" / "quotes_seed.json"
 

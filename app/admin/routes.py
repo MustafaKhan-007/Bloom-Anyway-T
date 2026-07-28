@@ -4,18 +4,15 @@ Freshness is a *sliding* idle timeout: each admin action pushes the clock
 forward, so day-to-day use never nags. Re-authentication is only required after
 ``ADMIN_IDLE_DAYS`` of no admin activity.
 """
-import csv
 import io
-import json
 import logging
 import os
-import re
 from datetime import date, datetime, timedelta
 from functools import wraps
 
-from flask import (Response, abort, current_app, flash, redirect,
+from flask import (abort, current_app, flash, redirect,
                    render_template, request, send_file, send_from_directory,
-                   session, stream_with_context, url_for)
+                   session, url_for)
 from flask_login import current_user
 from sqlalchemy import func
 from sqlalchemy.orm import joinedload
@@ -23,9 +20,9 @@ from sqlalchemy.orm import joinedload
 from ..extensions import db
 from ..models import (Announcement, CoachingRequest, FaqItem, ForumComment,
                       ForumPost, MEMBERSHIPS, MarketplaceListing, MembershipPlan,
-                      Order, Page, Product, Quote,
+                      Page, Product, Quote,
                       QuoteFavorite, QuotePin, ReelReview, ReelReviewApplication,
-                      Subscriber, Testimonial, User, Video, QUOTE_CATEGORIES)
+                      Testimonial, User, Video, QUOTE_CATEGORIES)
 from ..services import badges as badges_service
 from ..services import quotes as quotes_service
 from ..services import reel_reviews as reel_svc
@@ -539,6 +536,7 @@ def settings():
 @admin_required
 def marketplace():
     listings = (MarketplaceListing.query
+                .options(joinedload(MarketplaceListing.author))
                 .order_by(MarketplaceListing.active.desc(),
                           MarketplaceListing.created_at.desc()).all())
     return render_template("admin/marketplace.html", listings=listings)

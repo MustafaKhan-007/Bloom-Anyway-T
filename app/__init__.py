@@ -18,14 +18,16 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name
 
 CSP = (
     "default-src 'self'; "
-    "script-src 'self' https://assets.lemonsqueezy.com https://cdn.jsdelivr.net; "
+    "script-src 'self' https://assets.lemonsqueezy.com https://cdn.jsdelivr.net "
+    "https://challenges.cloudflare.com; "
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
     "font-src 'self' https://fonts.gstatic.com; "
     "img-src 'self' https: data: blob:; "
     "media-src 'self' blob:; "
     "frame-src 'self' https://*.lemonsqueezy.com https://app.lemonsqueezy.com "
-    "https://www.instagram.com https://instagram.com; "
-    "connect-src 'self' https://*.lemonsqueezy.com; "
+    "https://www.instagram.com https://instagram.com "
+    "https://challenges.cloudflare.com; "
+    "connect-src 'self' https://*.lemonsqueezy.com https://challenges.cloudflare.com; "
     "base-uri 'self'; form-action 'self' https://*.lemonsqueezy.com; "
     "frame-ancestors 'none'"
 )
@@ -141,8 +143,7 @@ def create_app(config_class=None):
     from markupsafe import Markup, escape
 
     from .services.markdown import render_markdown
-    from .services.settings import (active_announcement, active_announcements,
-                                    all_settings)
+    from .services.settings import active_announcements, all_settings
 
     app.jinja_env.filters["markdown"] = render_markdown
 
@@ -179,7 +180,7 @@ def create_app(config_class=None):
             except Exception:
                 unread = 0
                 nav_notes = []
-        return {"site": all_settings(), "announcement": active_announcement(),
+        return {"site": all_settings(),
                 "announcements": active_announcements(),
                 "current_year": date.today().year,
                 "shop_url": app.config.get("SHOP_URL") or "https://shop.bloomanyway.online",
@@ -215,11 +216,19 @@ def create_app(config_class=None):
                 and len(request.path) <= 300
             ):
                 today = date.today()
-                row = PageView.query.filter_by(path=request.path, date=today).first()
-                if row is None:
-                    db.session.add(PageView(path=request.path, date=today, count=1))
+                dialect = db.engine.dialect.name
+                table = PageView.__table__
+                if dialect == "postgresql":
+                    from sqlalchemy.dialects.postgresql import insert as dialect_insert
                 else:
-                    row.count += 1
+                    from sqlalchemy.dialects.sqlite import insert as dialect_insert
+                stmt = dialect_insert(table).values(
+                    path=request.path, date=today, count=1)
+                stmt = stmt.on_conflict_do_update(
+                    index_elements=["path", "date"],
+                    set_={"count": table.c.count + 1},
+                )
+                db.session.execute(stmt)
                 db.session.commit()
         except Exception:
             db.session.rollback()

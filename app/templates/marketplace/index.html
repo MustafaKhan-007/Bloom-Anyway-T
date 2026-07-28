@@ -39,7 +39,7 @@
       <input type="text" name="location" value="{{ location }}"
              placeholder="Filter by location" aria-label="Filter by location">
       {% endif %}
-      <select name="sort" onchange="this.form.submit()">
+      <select name="sort" data-autosubmit>
         {% for key, label in sorts.items() %}
         <option value="{{ key }}" {{ 'selected' if sort == key }}>{{ label }}</option>
         {% endfor %}

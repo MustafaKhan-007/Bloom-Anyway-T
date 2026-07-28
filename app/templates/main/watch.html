@@ -10,7 +10,7 @@
     <div class="video-player">
       <video controls playsinline preload="auto"
              {% if video.has_thumb() %}poster="{{ url_for('main.video_thumb', video_id=video.id) }}"{% endif %}
-             controlslist="nodownload" oncontextmenu="return false;">
+             controlslist="nodownload" data-no-contextmenu>
         <source src="{{ url_for('main.video_stream', video_id=video.id) }}" type="{{ video.mime or 'video/mp4' }}">
         Your browser can't play this video.
       </video>
