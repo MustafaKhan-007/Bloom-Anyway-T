@@ -65,6 +65,7 @@ class User(UserMixin, db.Model):
     links_json = db.Column(db.Text)          # JSON list of {"label","url"}
     goals_json = db.Column(db.Text)          # JSON list of intent keys
     default_anonymous = db.Column(db.Boolean, nullable=False, default=False)
+    timezone = db.Column(db.String(64))      # IANA tz from browser, e.g. Europe/Berlin
 
     # forum moderation
     forum_warnings = db.Column(db.Integer, nullable=False, default=0)

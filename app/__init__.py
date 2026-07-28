@@ -156,6 +156,9 @@ def create_app(config_class=None):
     )
     app.jinja_env.filters["mentions"] = linkify_mentions
 
+    from .services.timefmt import format_local
+    app.jinja_env.filters["localtime"] = format_local
+
     from .services import badges as badges_service
 
     app.jinja_env.globals.update(

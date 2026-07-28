@@ -464,6 +464,44 @@ with app.app_context():
 ok("Reply-to-a-reply flattens to one level", nested.parent_id == cid,
    f"parent_id={nested.parent_id} expected {cid}")
 
+# strangers can comment, but only OP (or the comment author) may reply under a comment
+with app.app_context():
+    stranger = User(email="stranger@example.com", username="stranger_one",
+                    membership="healing")
+    stranger.set_password(USER_PW)
+    stranger.email_verified_at = utcnow()
+    bystander = User(email="bystander@example.com", username="bystander_one",
+                     membership="healing")
+    bystander.set_password(USER_PW)
+    bystander.email_verified_at = utcnow()
+    db.session.add_all([stranger, bystander])
+    db.session.commit()
+stranger_client = app.test_client()
+stranger_client.post("/login", data={"email": "stranger@example.com", "password": USER_PW})
+r = stranger_client.post(f"/forums/p/{pid}/comment",
+                         data={"body": "A kind stranger note."}, follow_redirects=True)
+ok("Anyone can leave a top-level comment",
+   "A kind stranger note." in r.get_data(as_text=True))
+with app.app_context():
+    stranger_note = ForumComment.query.filter_by(body="A kind stranger note.").first()
+    stranger_cid = stranger_note.id
+bystander_client = app.test_client()
+bystander_client.post("/login", data={"email": "bystander@example.com", "password": USER_PW})
+r = bystander_client.post(f"/forums/p/{pid}/comment",
+                          data={"body": "Should not nest here.", "parent_id": str(stranger_cid)},
+                          follow_redirects=True)
+page = r.get_data(as_text=True).lower()
+with app.app_context():
+    blocked_reply = ForumComment.query.filter_by(body="Should not nest here.").count()
+ok("Non-OP cannot reply under someone else's comment",
+   blocked_reply == 0 and "only the original poster" in page)
+# OP can still reply under that stranger comment
+r = client.post(f"/forums/p/{pid}/comment",
+                data={"body": "Thanks for the note.", "parent_id": str(stranger_cid)},
+                follow_redirects=True)
+ok("OP can reply under any comment",
+   "Thanks for the note." in r.get_data(as_text=True))
+
 # escalating profanity leads to a ban after the warning limit
 banclient = app.test_client()
 sent_codes.clear()

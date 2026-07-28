@@ -13,7 +13,7 @@
   <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" type="image/svg+xml">
   {% block head %}{% endblock %}
 </head>
-<body{% if current_user.is_authenticated %} data-mention-suggest="{{ url_for('main.mention_suggest') }}"{% endif %}>
+<body{% if current_user.is_authenticated %} data-mention-suggest="{{ url_for('main.mention_suggest') }}" data-tz-sync="{{ url_for('main.save_timezone') }}" data-csrf="{{ csrf_token() }}"{% endif %}>
   {% include "partials/badge_defs.html" %}
   <header class="site-header">
     <nav class="nav" aria-label="Main">

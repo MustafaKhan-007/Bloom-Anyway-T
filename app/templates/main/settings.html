@@ -36,10 +36,10 @@
           {{ avatar(current_user, 'xl') }}
         </label>
         <input type="file" id="avatar_file" name="avatar_file" class="sr-only"
-               accept="image/png,image/jpeg,image/webp,image/gif" data-avatar-preview>
+               accept="image/png,image/jpeg,image/webp,image/gif" data-avatar-crop>
         <div class="avatar-edit__text">
           <strong>{{ current_user.public_name() }}</strong>
-          <p class="field-help">Tap your picture to upload a new one (JPG, PNG, WEBP or GIF, up to 6&nbsp;MB). It's cropped to a circle, and it's how the community sees you unless you post anonymously.</p>
+          <p class="field-help">Tap your picture to upload a new one (JPG, PNG, WEBP or GIF, up to 6&nbsp;MB). You'll crop and resize it before it saves — it's shown as a circle in the community.</p>
           {% if current_user.has_avatar() or current_user.avatar_url %}
           <label class="checkline">
             <input type="checkbox" name="remove_avatar" value="1"> Remove my current picture
@@ -187,4 +187,23 @@
     </div>
   </div>
 </section>
+
+<dialog class="avatar-crop" id="avatar-crop" aria-labelledby="avatar-crop-title">
+  <form method="dialog" class="avatar-crop__panel">
+    <h2 id="avatar-crop-title">Crop your picture</h2>
+    <p class="field-help">Drag to reposition. Use the slider to zoom. The circle is what people will see.</p>
+    <div class="avatar-crop__stage" data-crop-stage>
+      <img data-crop-image alt="" draggable="false">
+      <div class="avatar-crop__mask" aria-hidden="true"></div>
+    </div>
+    <label class="avatar-crop__zoom">
+      <span>Zoom</span>
+      <input type="range" min="1" max="300" value="100" data-crop-zoom>
+    </label>
+    <div class="avatar-crop__actions">
+      <button type="submit" class="btn btn--secondary btn--sm" value="cancel" data-crop-cancel>Cancel</button>
+      <button type="button" class="btn btn--primary btn--sm" data-crop-apply>Use this crop</button>
+    </div>
+  </form>
+</dialog>
 {% endblock %}

@@ -37,7 +37,7 @@
             <h3>{{ v.title }}</h3>
             <span class="video-access-tag {{ 'video-access-tag--yours' if playable_for_me }}">{{ v.access_label(current_user) }}</span>
             {% if v.description %}<p>{{ v.description|truncate(110) }}</p>{% endif %}
-            <span class="video-card__date">{{ v.created_at.strftime('%b %d, %Y') }}</span>
+            <span class="video-card__date">{{ v.created_at|localtime('%b %d, %Y') }}</span>
           </div>
         </a>
         {% endfor %}
@@ -146,7 +146,7 @@
           </video>
         </div>
         {% endif %}
-        <span class="video-card__date">{{ rev.created_at.strftime('%b %d, %Y') }}</span>
+        <span class="video-card__date">{{ rev.created_at|localtime('%b %d, %Y') }}</span>
       </article>
       {% endfor %}
     </div>

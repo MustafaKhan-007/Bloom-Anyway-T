@@ -30,12 +30,13 @@
     <strong>{{ author_name(c.author, c.anonymous, post.id) }}</strong>
     {% if not c.anonymous and c.user_id == post.user_id %}<span class="op-tag">OP</span>{% endif %}
     {{ byline_badge(c.author, c.anonymous) }}
-    <span class="comment__date">{{ c.created_at.strftime('%b %d, %Y · %I:%M %p') }}</span>
+    <span class="comment__date">{{ c.created_at|localtime }}</span>
   </div>
   <div class="forum-body">{{ c.body|mentions }}</div>
   <div class="forum-actions">
     {{ like_button(url_for('forums.like_comment', comment_id=c.id), c.like_count(), c.id in liked_comments) }}
-    {% if not is_reply and can_participate and not current_user.forum_banned %}
+    {% if not is_reply and can_participate and not current_user.forum_banned
+          and (current_user.id == post.user_id or current_user.id == c.user_id) %}
       {% if can_reply %}
       <details class="reply-toggle">
         <summary>Reply</summary>
@@ -80,7 +81,7 @@
         {{ author_name(post.author, post.anonymous, post.id) }}
         <span class="op-tag">OP</span>
         {{ byline_badge(post.author, post.anonymous) }}
-        &middot; {{ post.created_at.strftime('%b %d, %Y · %I:%M %p') }}
+        &middot; {{ post.created_at|localtime }}
       </p>
       <div class="forum-body">{{ post.body|mentions }}</div>
       <div class="forum-actions">

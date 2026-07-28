@@ -208,6 +208,23 @@ def post(post_id):
                            can_reply=can_reply, reply_quota_msg=reply_quota_msg)
 
 
+def _can_reply_under_comment(post, comment) -> bool:
+    """Top-level comments are open to anyone who can participate.
+
+    Nested replies are limited: the post author (OP) may reply to any comment,
+    and a comment's author may reply under their own comment.
+    """
+    if not getattr(current_user, "is_authenticated", False):
+        return False
+    if getattr(current_user, "forum_banned", False):
+        return False
+    if current_user.id == post.user_id:
+        return True
+    if current_user.id == comment.user_id:
+        return True
+    return False
+
+
 @bp.route("/p/<int:post_id>/comment", methods=["POST"])
 @login_required
 @limiter.limit("30 per hour")
@@ -239,8 +256,19 @@ def create_comment(post_id):
     raw_parent = request.form.get("parent_id")
     if raw_parent and raw_parent.isdigit():
         parent = db.session.get(ForumComment, int(raw_parent))
-        if parent and parent.post_id == post.id and not parent.hidden:
-            parent_id = parent.parent_id or parent.id
+        if parent is None or parent.post_id != post.id or parent.hidden:
+            flash("That comment isn't available to reply to.", "error")
+            return redirect(url_for("forums.post", post_id=post_id))
+        # Always attach under the top-level comment in the thread.
+        top = parent if parent.parent_id is None else db.session.get(ForumComment, parent.parent_id)
+        if top is None or top.hidden:
+            flash("That comment isn't available to reply to.", "error")
+            return redirect(url_for("forums.post", post_id=post_id))
+        if not _can_reply_under_comment(post, top):
+            flash("Only the original poster can reply to others' comments. "
+                  "You can still leave a top-level comment, or reply under your own.", "info")
+            return redirect(url_for("forums.post", post_id=post_id) + "#comments")
+        parent_id = top.id
 
     if not _guard_content(body):
         return redirect(url_for("forums.post", post_id=post_id))

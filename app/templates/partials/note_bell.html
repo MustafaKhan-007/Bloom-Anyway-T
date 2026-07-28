@@ -23,7 +23,7 @@
         {% else %}
         <span>{{ n.body }}</span>
         {% endif %}
-        <time>{{ n.created_at.strftime('%b %d · %I:%M %p') }}</time>
+        <time>{{ n.created_at|localtime('%b %d · %I:%M %p') }}</time>
       </li>
       {% endfor %}
     </ul>

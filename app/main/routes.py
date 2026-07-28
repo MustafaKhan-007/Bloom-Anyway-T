@@ -1053,6 +1053,23 @@ def reel_review_stream(review_id):
     return resp
 
 
+@bp.route("/account/timezone", methods=["POST"])
+@login_required
+def save_timezone():
+    """Remember the browser's IANA timezone for local timestamps."""
+    from ..services.timefmt import normalize_timezone
+    raw = request.form.get("timezone")
+    if raw is None and request.is_json:
+        raw = (request.get_json(silent=True) or {}).get("timezone")
+    tz = normalize_timezone(raw)
+    if tz and current_user.timezone != tz:
+        current_user.timezone = tz
+        db.session.commit()
+    if request.headers.get("X-Requested-With") == "fetch" or request.is_json:
+        return {"ok": True, "timezone": tz or current_user.timezone}
+    return redirect(request.referrer or url_for("main.account"))
+
+
 @bp.route("/account/password", methods=["GET", "POST"])
 @login_required
 def change_password():

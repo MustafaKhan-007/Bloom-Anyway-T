@@ -129,7 +129,7 @@
           </div>
         </div>
         <div class="post-row__aside">
-          <time datetime="{{ post.created_at.isoformat() }}">{{ post.created_at.strftime('%b %d · %I:%M %p') }}</time>
+          <time datetime="{{ post.created_at.isoformat() }}">{{ post.created_at|localtime('%b %d · %I:%M %p') }}</time>
           <span>{{ comment_n }} comment{{ '' if comment_n == 1 else 's' }}</span>
         </div>
       </a>

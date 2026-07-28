@@ -102,7 +102,175 @@
     });
   });
 
-  /* ---- live preview when picking a new avatar ---- */
+  /* ---- avatar crop / resize before upload ---- */
+  (function () {
+    var input = document.querySelector("[data-avatar-crop]");
+    var dialog = document.getElementById("avatar-crop");
+    if (!input || !dialog || typeof dialog.showModal !== "function") return;
+
+    var stage = dialog.querySelector("[data-crop-stage]");
+    var img = dialog.querySelector("[data-crop-image]");
+    var zoom = dialog.querySelector("[data-crop-zoom]");
+    var applyBtn = dialog.querySelector("[data-crop-apply]");
+    var cancelBtn = dialog.querySelector("[data-crop-cancel]");
+    var pick = input.closest(".avatar-edit") &&
+               input.closest(".avatar-edit").querySelector(".avatar");
+    var objectUrl = null;
+    var natural = { w: 0, h: 0 };
+    var state = { scale: 1, x: 0, y: 0, dragging: false, lastX: 0, lastY: 0 };
+
+    function stageSize() {
+      return Math.min(stage.clientWidth, stage.clientHeight) || 280;
+    }
+
+    function fitScale() {
+      var s = stageSize();
+      return Math.max(s / natural.w, s / natural.h);
+    }
+
+    function render() {
+      var s = stageSize();
+      var min = fitScale();
+      var scale = Math.max(min, state.scale);
+      state.scale = scale;
+      var w = natural.w * scale;
+      var h = natural.h * scale;
+      var maxX = Math.max(0, (w - s) / 2);
+      var maxY = Math.max(0, (h - s) / 2);
+      state.x = Math.max(-maxX, Math.min(maxX, state.x));
+      state.y = Math.max(-maxY, Math.min(maxY, state.y));
+      img.style.width = w + "px";
+      img.style.height = h + "px";
+      img.style.transform = "translate(calc(-50% + " + state.x + "px), calc(-50% + " + state.y + "px))";
+      zoom.value = String(Math.round((scale / min) * 100));
+    }
+
+    function openCrop(file) {
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      objectUrl = URL.createObjectURL(file);
+      img.onload = function () {
+        natural.w = img.naturalWidth;
+        natural.h = img.naturalHeight;
+        state.scale = fitScale();
+        state.x = 0;
+        state.y = 0;
+        render();
+        dialog.showModal();
+      };
+      img.src = objectUrl;
+    }
+
+    input.addEventListener("change", function () {
+      var file = input.files && input.files[0];
+      if (!file) return;
+      if (!file.type || file.type.indexOf("image/") !== 0) {
+        input.value = "";
+        return;
+      }
+      openCrop(file);
+    });
+
+    zoom.addEventListener("input", function () {
+      var min = fitScale();
+      state.scale = min * (parseInt(zoom.value, 10) / 100);
+      render();
+    });
+
+    stage.addEventListener("pointerdown", function (e) {
+      state.dragging = true;
+      state.lastX = e.clientX;
+      state.lastY = e.clientY;
+      stage.setPointerCapture(e.pointerId);
+    });
+    stage.addEventListener("pointermove", function (e) {
+      if (!state.dragging) return;
+      state.x += e.clientX - state.lastX;
+      state.y += e.clientY - state.lastY;
+      state.lastX = e.clientX;
+      state.lastY = e.clientY;
+      render();
+    });
+    stage.addEventListener("pointerup", function () { state.dragging = false; });
+    stage.addEventListener("pointercancel", function () { state.dragging = false; });
+
+    function closeCrop(clearInput) {
+      dialog.close();
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+        objectUrl = null;
+      }
+      img.removeAttribute("src");
+      if (clearInput) input.value = "";
+    }
+
+    cancelBtn.addEventListener("click", function () { closeCrop(true); });
+    dialog.addEventListener("cancel", function () { closeCrop(true); });
+
+    applyBtn.addEventListener("click", function () {
+      var s = stageSize();
+      var min = fitScale();
+      var scale = Math.max(min, state.scale);
+      var out = 400;
+      var canvas = document.createElement("canvas");
+      canvas.width = out;
+      canvas.height = out;
+      var ctx = canvas.getContext("2d");
+      // Map circle viewport (stage center square) back into image pixels.
+      var srcSize = s / scale;
+      var srcX = (natural.w / 2) - (srcSize / 2) - (state.x / scale);
+      var srcY = (natural.h / 2) - (srcSize / 2) - (state.y / scale);
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(0, 0, out, out);
+      ctx.drawImage(img, srcX, srcY, srcSize, srcSize, 0, 0, out, out);
+      canvas.toBlob(function (blob) {
+        if (!blob) return;
+        try {
+          var file = new File([blob], "avatar.jpg", { type: "image/jpeg" });
+          var dt = new DataTransfer();
+          dt.items.add(file);
+          input.files = dt.files;
+        } catch (err) {
+          // Older browsers: keep original file; server still center-crops.
+        }
+        if (pick) {
+          var preview = URL.createObjectURL(blob);
+          pick.style.backgroundImage = "url('" + preview + "')";
+          pick.textContent = "";
+        }
+        var remove = document.querySelector("input[name='remove_avatar']");
+        if (remove) remove.checked = false;
+        closeCrop(false);
+      }, "image/jpeg", 0.9);
+    });
+
+    window.addEventListener("resize", function () {
+      if (dialog.open && natural.w) render();
+    });
+  })();
+
+  /* ---- remember browser timezone for local timestamps ---- */
+  (function () {
+    var tz = "";
+    try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ""; } catch (e) {}
+    if (!tz) return;
+    document.cookie = "tz=" + encodeURIComponent(tz) + ";path=/;max-age=31536000;SameSite=Lax";
+    var url = document.body.getAttribute("data-tz-sync");
+    var csrf = document.body.getAttribute("data-csrf");
+    if (!url || !csrf) return;
+    fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRFToken": csrf,
+        "X-Requested-With": "fetch",
+        "Accept": "application/json"
+      },
+      credentials: "same-origin",
+      body: JSON.stringify({ timezone: tz })
+    }).catch(function () {});
+  })();
+
+  /* ---- live preview when picking a new avatar (legacy non-crop inputs) ---- */
   document.querySelectorAll("[data-avatar-preview]").forEach(function (input) {
     input.addEventListener("change", function () {
       var file = input.files && input.files[0];
@@ -113,7 +281,6 @@
       var url = URL.createObjectURL(file);
       pick.style.backgroundImage = "url('" + url + "')";
       pick.textContent = "";
-      // untick "remove" if the person just chose a new picture
       var remove = document.querySelector("input[name='remove_avatar']");
       if (remove) remove.checked = false;
     });

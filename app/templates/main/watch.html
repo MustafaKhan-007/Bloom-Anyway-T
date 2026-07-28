@@ -40,7 +40,7 @@
 
     <h1>{{ video.title }}</h1>
     <p style="color: var(--ink-soft);">
-      {{ video.created_at.strftime('%B %d, %Y') }}
+      {{ video.created_at|localtime('%B %d, %Y') }}
       &middot; <span class="video-access-tag {{ 'video-access-tag--yours' if can_play }}">{{ access_label }}</span>
     </p>
     {% if video.description %}
@@ -61,7 +61,7 @@
         </div>
         <div class="video-card__body">
           <h3>{{ v.title }}</h3>
-          <span class="video-card__date">{{ v.created_at.strftime('%b %d, %Y') }}</span>
+          <span class="video-card__date">{{ v.created_at|localtime('%b %d, %Y') }}</span>
         </div>
       </a>
       {% endfor %}

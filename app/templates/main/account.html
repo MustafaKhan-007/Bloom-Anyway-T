@@ -171,7 +171,7 @@
             {% for c in my_coaching %}
             <li>
               <strong>{{ c.status|capitalize }}</strong>
-              &mdash; {{ c.created_at.strftime('%b %d, %Y') }}
+              &mdash; {{ c.created_at|localtime('%b %d, %Y') }}
               {% if c.preferred_times %}<br><span>{{ c.preferred_times }}</span>{% endif %}
             </li>
             {% endfor %}
@@ -201,7 +201,7 @@
       <div class="library-card">
         <h3>{{ item.product_name }}</h3>
         <p class="field-help" style="margin-top: 4px;">
-          {{ item.purchased_at.strftime('%b') }} {{ item.purchased_at.day }}, {{ item.purchased_at.year }}
+          {{ item.purchased_at|localtime('%b %d, %Y') }}
         </p>
         {% if item.download_url %}
         <a class="btn btn--primary btn--sm" href="{{ item.download_url }}" target="_blank" rel="noopener">Download</a>
@@ -225,7 +225,7 @@
       <tbody>
         {% for order in orders %}
         <tr>
-          <td>{{ order.created_at.strftime('%b') }} {{ order.created_at.day }}, {{ order.created_at.year }}</td>
+          <td>{{ order.created_at|localtime('%b %d, %Y') }}</td>
           <td>{% if order.product %}{{ order.product.title }}{% else %}Order {{ order.ls_order_id }}{% endif %}</td>
           <td>{{ order.total_display() }}</td>
           <td><span class="status-pill status-pill--{{ order.status }}">{{ order.status }}</span></td>
@@ -310,7 +310,7 @@
       <li class="activity-list__item {{ 'is-unread' if not n.read_at }}">
         <p>{{ n.body }}</p>
         <p class="field-help">
-          {{ n.created_at.strftime('%b %d, %Y · %I:%M %p') }}
+          {{ n.created_at|localtime }}
           {% set href = n.href() %}
           {% if href %}
           &middot; <a href="{{ href }}">Open</a>
