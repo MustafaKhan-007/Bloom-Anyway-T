@@ -189,21 +189,21 @@
 </section>
 
 <dialog class="avatar-crop" id="avatar-crop" aria-labelledby="avatar-crop-title">
-  <form method="dialog" class="avatar-crop__panel">
+  <div class="avatar-crop__panel">
     <h2 id="avatar-crop-title">Crop your picture</h2>
-    <p class="field-help">Drag to reposition. Use the slider to zoom. The circle is what people will see.</p>
+    <p class="field-help" data-crop-help>Drag to reposition. Use the slider to zoom. The circle is what people will see.</p>
     <div class="avatar-crop__stage" data-crop-stage>
       <img data-crop-image alt="" draggable="false">
       <div class="avatar-crop__mask" aria-hidden="true"></div>
     </div>
     <label class="avatar-crop__zoom">
       <span>Zoom</span>
-      <input type="range" min="1" max="300" value="100" data-crop-zoom>
+      <input type="range" min="100" max="300" value="100" data-crop-zoom>
     </label>
     <div class="avatar-crop__actions">
-      <button type="submit" class="btn btn--secondary btn--sm" value="cancel" data-crop-cancel>Cancel</button>
+      <button type="button" class="btn btn--secondary btn--sm" data-crop-cancel>Cancel</button>
       <button type="button" class="btn btn--primary btn--sm" data-crop-apply>Use this crop</button>
     </div>
-  </form>
+  </div>
 </dialog>
 {% endblock %}

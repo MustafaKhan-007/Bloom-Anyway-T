@@ -21,7 +21,7 @@ CSP = (
     "script-src 'self' https://assets.lemonsqueezy.com https://cdn.jsdelivr.net; "
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
     "font-src 'self' https://fonts.gstatic.com; "
-    "img-src 'self' https: data:; "
+    "img-src 'self' https: data: blob:; "
     "media-src 'self' blob:; "
     "frame-src 'self' https://*.lemonsqueezy.com https://app.lemonsqueezy.com "
     "https://www.instagram.com https://instagram.com; "

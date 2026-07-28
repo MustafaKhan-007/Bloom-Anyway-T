@@ -106,18 +106,35 @@
   (function () {
     var input = document.querySelector("[data-avatar-crop]");
     var dialog = document.getElementById("avatar-crop");
-    if (!input || !dialog || typeof dialog.showModal !== "function") return;
+    if (!input || !dialog) return;
 
+    // Keep the modal at the document root so stacking/CSP ancestors can't hide it.
+    if (dialog.parentElement !== document.body) {
+      document.body.appendChild(dialog);
+    }
+
+    var canModal = typeof dialog.showModal === "function";
     var stage = dialog.querySelector("[data-crop-stage]");
     var img = dialog.querySelector("[data-crop-image]");
     var zoom = dialog.querySelector("[data-crop-zoom]");
     var applyBtn = dialog.querySelector("[data-crop-apply]");
     var cancelBtn = dialog.querySelector("[data-crop-cancel]");
+    var help = dialog.querySelector("[data-crop-help]");
     var pick = input.closest(".avatar-edit") &&
                input.closest(".avatar-edit").querySelector(".avatar");
+    if (!stage || !img || !zoom || !applyBtn || !cancelBtn) return;
+
     var objectUrl = null;
     var natural = { w: 0, h: 0 };
     var state = { scale: 1, x: 0, y: 0, dragging: false, lastX: 0, lastY: 0 };
+    var pendingFile = null;
+
+    function isImageFile(file) {
+      if (!file) return false;
+      if (file.type && file.type.indexOf("image/") === 0) return true;
+      // Some OS file pickers leave type empty — fall back to extension.
+      return /\.(jpe?g|png|gif|webp|bmp|heic|heif)$/i.test(file.name || "");
+    }
 
     function stageSize() {
       return Math.min(stage.clientWidth, stage.clientHeight) || 280;
@@ -125,13 +142,15 @@
 
     function fitScale() {
       var s = stageSize();
+      if (!natural.w || !natural.h) return 1;
       return Math.max(s / natural.w, s / natural.h);
     }
 
     function render() {
+      if (!natural.w || !natural.h) return;
       var s = stageSize();
       var min = fitScale();
-      var scale = Math.max(min, state.scale);
+      var scale = Math.max(min, state.scale || min);
       state.scale = scale;
       var w = natural.w * scale;
       var h = natural.h * scale;
@@ -142,45 +161,105 @@
       img.style.width = w + "px";
       img.style.height = h + "px";
       img.style.transform = "translate(calc(-50% + " + state.x + "px), calc(-50% + " + state.y + "px))";
-      zoom.value = String(Math.round((scale / min) * 100));
+      var zoomPct = Math.round((scale / min) * 100);
+      zoom.value = String(Math.max(100, Math.min(300, zoomPct)));
     }
 
-    function openCrop(file) {
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
-      objectUrl = URL.createObjectURL(file);
-      img.onload = function () {
-        natural.w = img.naturalWidth;
-        natural.h = img.naturalHeight;
-        state.scale = fitScale();
-        state.x = 0;
-        state.y = 0;
-        render();
-        dialog.showModal();
+    function setHelp(text) {
+      if (help) help.textContent = text;
+    }
+
+    function openDialog() {
+      if (canModal) {
+        if (!dialog.open) dialog.showModal();
+      } else {
+        dialog.setAttribute("open", "");
+        dialog.classList.add("avatar-crop--fallback");
+      }
+    }
+
+    function closeDialog() {
+      if (canModal) {
+        if (dialog.open) dialog.close();
+      } else {
+        dialog.removeAttribute("open");
+        dialog.classList.remove("avatar-crop--fallback");
+      }
+    }
+
+    function revokePreview() {
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+        objectUrl = null;
+      }
+    }
+
+    function onImageReady() {
+      natural.w = img.naturalWidth || 0;
+      natural.h = img.naturalHeight || 0;
+      if (!natural.w || !natural.h) {
+        setHelp("That image couldn't be read. Try a JPG or PNG.");
+        return;
+      }
+      state.scale = fitScale();
+      state.x = 0;
+      state.y = 0;
+      setHelp("Drag to reposition. Use the slider to zoom. The circle is what people will see.");
+      render();
+      // Layout is settled once the dialog is open.
+      requestAnimationFrame(render);
+    }
+
+    function loadFile(file) {
+      pendingFile = file;
+      setHelp("Loading your picture…");
+      openDialog();
+      revokePreview();
+      img.onload = onImageReady;
+      img.onerror = function () {
+        setHelp("That image couldn't be previewed. Try a JPG or PNG.");
       };
-      img.src = objectUrl;
+
+      // Prefer blob URLs (now allowed by CSP). Fall back to data URL if needed.
+      try {
+        objectUrl = URL.createObjectURL(file);
+        img.src = objectUrl;
+      } catch (err) {
+        var reader = new FileReader();
+        reader.onload = function () {
+          img.src = String(reader.result || "");
+        };
+        reader.onerror = function () {
+          setHelp("That image couldn't be read. Try a JPG or PNG.");
+        };
+        reader.readAsDataURL(file);
+      }
     }
 
     input.addEventListener("change", function () {
       var file = input.files && input.files[0];
       if (!file) return;
-      if (!file.type || file.type.indexOf("image/") !== 0) {
+      if (!isImageFile(file)) {
         input.value = "";
+        pendingFile = null;
+        window.alert("Please choose an image file (JPG, PNG, WEBP, or GIF).");
         return;
       }
-      openCrop(file);
+      loadFile(file);
     });
 
     zoom.addEventListener("input", function () {
       var min = fitScale();
-      state.scale = min * (parseInt(zoom.value, 10) / 100);
+      state.scale = min * (Math.max(100, parseInt(zoom.value, 10) || 100) / 100);
       render();
     });
 
     stage.addEventListener("pointerdown", function (e) {
+      if (!natural.w) return;
       state.dragging = true;
       state.lastX = e.clientX;
       state.lastY = e.clientY;
-      stage.setPointerCapture(e.pointerId);
+      try { stage.setPointerCapture(e.pointerId); } catch (err) {}
     });
     stage.addEventListener("pointermove", function (e) {
       if (!state.dragging) return;
@@ -190,23 +269,34 @@
       state.lastY = e.clientY;
       render();
     });
-    stage.addEventListener("pointerup", function () { state.dragging = false; });
-    stage.addEventListener("pointercancel", function () { state.dragging = false; });
+    function endDrag() { state.dragging = false; }
+    stage.addEventListener("pointerup", endDrag);
+    stage.addEventListener("pointercancel", endDrag);
 
     function closeCrop(clearInput) {
-      dialog.close();
-      if (objectUrl) {
-        URL.revokeObjectURL(objectUrl);
-        objectUrl = null;
-      }
+      closeDialog();
+      revokePreview();
       img.removeAttribute("src");
+      natural.w = 0;
+      natural.h = 0;
+      pendingFile = null;
+      // Clearing the input lets the same file be chosen again.
       if (clearInput) input.value = "";
     }
 
-    cancelBtn.addEventListener("click", function () { closeCrop(true); });
-    dialog.addEventListener("cancel", function () { closeCrop(true); });
+    cancelBtn.addEventListener("click", function (e) {
+      e.preventDefault();
+      closeCrop(true);
+    });
+    dialog.addEventListener("cancel", function (e) {
+      // Escape key — clear the pending pick.
+      e.preventDefault();
+      closeCrop(true);
+    });
 
-    applyBtn.addEventListener("click", function () {
+    applyBtn.addEventListener("click", function (e) {
+      e.preventDefault();
+      if (!natural.w || !natural.h) return;
       var s = stageSize();
       var min = fitScale();
       var scale = Math.max(min, state.scale);
@@ -215,22 +305,31 @@
       canvas.width = out;
       canvas.height = out;
       var ctx = canvas.getContext("2d");
-      // Map circle viewport (stage center square) back into image pixels.
+      if (!ctx) return;
       var srcSize = s / scale;
       var srcX = (natural.w / 2) - (srcSize / 2) - (state.x / scale);
       var srcY = (natural.h / 2) - (srcSize / 2) - (state.y / scale);
       ctx.fillStyle = "#fff";
       ctx.fillRect(0, 0, out, out);
-      ctx.drawImage(img, srcX, srcY, srcSize, srcSize, 0, 0, out, out);
+      try {
+        ctx.drawImage(img, srcX, srcY, srcSize, srcSize, 0, 0, out, out);
+      } catch (err) {
+        // If canvas is tainted, keep the original file and close.
+        closeCrop(false);
+        return;
+      }
       canvas.toBlob(function (blob) {
-        if (!blob) return;
+        if (!blob) {
+          closeCrop(false);
+          return;
+        }
         try {
-          var file = new File([blob], "avatar.jpg", { type: "image/jpeg" });
+          var cropped = new File([blob], "avatar.jpg", { type: "image/jpeg" });
           var dt = new DataTransfer();
-          dt.items.add(file);
+          dt.items.add(cropped);
           input.files = dt.files;
         } catch (err) {
-          // Older browsers: keep original file; server still center-crops.
+          // Keep the originally selected file; server still center-crops.
         }
         if (pick) {
           var preview = URL.createObjectURL(blob);
@@ -240,11 +339,11 @@
         var remove = document.querySelector("input[name='remove_avatar']");
         if (remove) remove.checked = false;
         closeCrop(false);
-      }, "image/jpeg", 0.9);
+      }, "image/jpeg", 0.92);
     });
 
     window.addEventListener("resize", function () {
-      if (dialog.open && natural.w) render();
+      if ((dialog.open || dialog.hasAttribute("open")) && natural.w) render();
     });
   })();
 

@@ -945,6 +945,11 @@ details.faq-item > form { padding: 0 20px 20px; }
   box-shadow: var(--shadow-card-hover, 0 18px 50px rgba(74, 44, 63, 0.2));
 }
 .avatar-crop::backdrop { background: rgba(45, 24, 40, 0.45); }
+.avatar-crop--fallback {
+  position: fixed; inset: 0; margin: auto; z-index: 1000;
+  max-height: 90vh; overflow: auto;
+  box-shadow: 0 0 0 100vmax rgba(45, 24, 40, 0.45);
+}
 .avatar-crop__panel { margin: 0; padding: 24px 24px 20px; }
 .avatar-crop__panel h2 { margin: 0 0 6px; color: var(--plum); font-size: 1.35rem; }
 .avatar-crop__stage {
