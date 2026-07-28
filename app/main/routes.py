@@ -805,14 +805,18 @@ def update_profile():
     if request.form.get("remove_avatar") == "1":
         current_user.avatar_data = None
         current_user.avatar_mime = None
+        current_user.avatar_anim_data = None
+        current_user.avatar_anim_mime = None
         current_user.avatar_url = None
 
     upload = request.files.get("avatar_file")
     if upload and upload.filename:
         try:
-            data, mime = process_avatar(upload)
+            data, mime, anim, anim_mime = process_avatar(upload)
             current_user.avatar_data = data
             current_user.avatar_mime = mime
+            current_user.avatar_anim_data = anim
+            current_user.avatar_anim_mime = anim_mime
             current_user.avatar_url = None
         except AvatarError as exc:
             db.session.commit()  # keep the other field edits
@@ -832,6 +836,22 @@ def avatar(user_id):
     resp = Response(bytes(user.avatar_data), mimetype=user.avatar_mime or "image/jpeg")
     resp.headers["Cache-Control"] = "public, max-age=86400"
     return resp
+
+
+@bp.route("/avatar/<int:user_id>/anim")
+def avatar_anim(user_id):
+    """Animated GIF (when present) — used only on the public profile page."""
+    user = db.session.get(User, user_id)
+    if user is None:
+        abort(404)
+    if user.avatar_anim_data:
+        resp = Response(bytes(user.avatar_anim_data),
+                        mimetype=user.avatar_anim_mime or "image/gif")
+        resp.headers["Cache-Control"] = "public, max-age=86400"
+        return resp
+    if user.avatar_data:
+        return redirect(url_for("main.avatar", user_id=user_id))
+    abort(404)
 
 
 def is_premium(user) -> bool:

@@ -7,7 +7,7 @@
 <section class="section">
   <div class="container" style="max-width: 560px;">
     <div class="profile-card">
-      {{ avatar(profile_user, 'xl') }}
+      {{ avatar(profile_user, 'xl', animate=True) }}
       {% if profile_user.username %}
       <h1 class="at-handle" style="font-size: clamp(1.8rem, 4vw, 2.4rem);">@{{ profile_user.username }}</h1>
       {% if profile_user.display_name %}

@@ -540,6 +540,40 @@ r = client.get(f"/avatar/{av_uid}")
 ok("Avatar is served from the database",
    r.status_code == 200 and r.headers["Content-Type"].startswith("image/"))
 
+# animated GIF: still used in lists; animation served only on the profile page
+with app.app_context():
+    from PIL import Image as _Image2, ImageDraw as _ImageDraw
+    gif_buf = _io.BytesIO()
+    frames = []
+    for i, color in enumerate([(220, 80, 120), (80, 140, 220)]):
+        fr = _Image2.new("RGB", (40, 40), color)
+        _ImageDraw.Draw(fr).ellipse((8, 8, 32, 32), fill=(255, 255, 255))
+        frames.append(fr)
+    frames[0].save(gif_buf, format="GIF", save_all=True, append_images=frames[1:],
+                   duration=120, loop=0)
+    gif_bytes = gif_buf.getvalue()
+r = client.post("/account/profile", data={
+    "display_name": "River",
+    "avatar_file": (_io.BytesIO(gif_bytes), "me.gif"),
+}, content_type="multipart/form-data", follow_redirects=True)
+with app.app_context():
+    m = User.query.filter_by(email="newperson@example.com").first()
+    av_uid = m.id
+    has_anim = m.has_animated_avatar()
+    still_mime = m.avatar_mime
+ok("Animated GIF stores a still + animation payload",
+   has_anim and (still_mime or "").startswith("image/"))
+r_still = client.get(f"/avatar/{av_uid}")
+r_anim = client.get(f"/avatar/{av_uid}/anim")
+ok("Default avatar route serves the still frame",
+   r_still.status_code == 200 and "gif" not in (r_still.headers.get("Content-Type") or "").lower())
+ok("Anim avatar route serves image/gif",
+   r_anim.status_code == 200 and "gif" in (r_anim.headers.get("Content-Type") or "").lower())
+r_prof = client.get(f"/u/{av_uid}")
+prof_html = r_prof.get_data(as_text=True)
+ok("Profile page uses the animated avatar URL",
+   r_prof.status_code == 200 and f"/avatar/{av_uid}/anim" in prof_html)
+
 r = client.get("/account/settings")
 sbody = r.get_data(as_text=True)
 ok("Settings page renders with intents + upload",

@@ -59,8 +59,10 @@ class User(UserMixin, db.Model):
 
     # profile / personalization
     avatar_url = db.Column(db.String(500))   # legacy external URL (still shown if set)
-    avatar_data = db.Column(db.LargeBinary)  # uploaded avatar bytes (survives deploys)
+    avatar_data = db.Column(db.LargeBinary)  # uploaded avatar still (JPEG; survives deploys)
     avatar_mime = db.Column(db.String(40))
+    avatar_anim_data = db.Column(db.LargeBinary)  # optional animated GIF for profile page
+    avatar_anim_mime = db.Column(db.String(40))
     bio = db.Column(db.String(400))
     links_json = db.Column(db.Text)          # JSON list of {"label","url"}
     goals_json = db.Column(db.Text)          # JSON list of intent keys
@@ -124,6 +126,9 @@ class User(UserMixin, db.Model):
 
     def has_avatar(self) -> bool:
         return self.avatar_data is not None
+
+    def has_animated_avatar(self) -> bool:
+        return self.avatar_anim_data is not None
 
     # --- membership tiers ---------------------------------------------------
     def effective_membership(self) -> str:

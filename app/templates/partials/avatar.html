@@ -1,6 +1,8 @@
-{% macro avatar(user, size='sm', anonymous=False) %}
+{% macro avatar(user, size='sm', anonymous=False, animate=False) %}
 {%- if anonymous -%}
   <span class="avatar avatar--{{ size }}" aria-hidden="true">?</span>
+{%- elif animate and user.has_animated_avatar() -%}
+  <img class="avatar avatar--{{ size }} avatar--photo" src="{{ url_for('main.avatar_anim', user_id=user.id) }}" alt="" width="96" height="96">
 {%- elif user.has_avatar() -%}
   <span class="avatar avatar--{{ size }}" style="background-image:url('{{ url_for('main.avatar', user_id=user.id) }}')"></span>
 {%- elif user.avatar_url -%}

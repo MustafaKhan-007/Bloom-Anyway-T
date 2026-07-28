@@ -39,7 +39,7 @@
                accept="image/png,image/jpeg,image/webp,image/gif" data-avatar-crop>
         <div class="avatar-edit__text">
           <strong>{{ current_user.public_name() }}</strong>
-          <p class="field-help">Tap your picture to upload a new one (JPG, PNG, WEBP or GIF, up to 6&nbsp;MB). You'll crop and resize it before it saves — it's shown as a circle in the community.</p>
+          <p class="field-help">Tap your picture to upload a new one (JPG, PNG, WEBP or GIF, up to 6&nbsp;MB). You'll crop and resize it before it saves. Animated GIFs play on your public profile; everywhere else shows a still frame.</p>
           {% if current_user.has_avatar() or current_user.avatar_url %}
           <label class="checkline checkline--sm checkline--danger">
             <input type="checkbox" name="remove_avatar" value="1"> Remove my current picture

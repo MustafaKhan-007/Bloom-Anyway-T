@@ -835,6 +835,14 @@ details.faq-item > form { padding: 0 20px 20px; }
   font-family: var(--font-display); font-weight: 600; text-transform: uppercase;
   background-size: cover; background-position: center; flex: none; overflow: hidden;
 }
+img.avatar.avatar--photo {
+  display: inline-block;
+  object-fit: cover;
+  object-position: center;
+  padding: 0; border: 0;
+  background: var(--ivory-deep);
+  vertical-align: middle;
+}
 .avatar--sm { width: 30px; height: 30px; font-size: 12px; }
 .avatar--lg { width: 64px; height: 64px; font-size: 24px; }
 .avatar--xl { width: 96px; height: 96px; font-size: 34px; }

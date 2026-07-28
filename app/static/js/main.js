@@ -297,6 +297,36 @@
     applyBtn.addEventListener("click", function (e) {
       e.preventDefault();
       if (!natural.w || !natural.h) return;
+
+      function finishPreview(url) {
+        if (!pick) return;
+        if (pick.tagName === "IMG") {
+          pick.src = url;
+        } else {
+          pick.style.backgroundImage = "url('" + url + "')";
+          pick.textContent = "";
+        }
+      }
+
+      // GIFs: keep the original file so the server can preserve animation.
+      // Canvas export would flatten to a single JPEG frame.
+      var isGif = pendingFile && (
+        (pendingFile.type && pendingFile.type.toLowerCase().indexOf("gif") !== -1) ||
+        /\.gif$/i.test(pendingFile.name || "")
+      );
+      if (isGif) {
+        try {
+          var dtGif = new DataTransfer();
+          dtGif.items.add(pendingFile);
+          input.files = dtGif.files;
+        } catch (err) {}
+        finishPreview(URL.createObjectURL(pendingFile));
+        var removeGif = document.querySelector("input[name='remove_avatar']");
+        if (removeGif) removeGif.checked = false;
+        closeCrop(false);
+        return;
+      }
+
       var s = stageSize();
       var min = fitScale();
       var scale = Math.max(min, state.scale);
@@ -314,7 +344,6 @@
       try {
         ctx.drawImage(img, srcX, srcY, srcSize, srcSize, 0, 0, out, out);
       } catch (err) {
-        // If canvas is tainted, keep the original file and close.
         closeCrop(false);
         return;
       }
@@ -331,11 +360,7 @@
         } catch (err) {
           // Keep the originally selected file; server still center-crops.
         }
-        if (pick) {
-          var preview = URL.createObjectURL(blob);
-          pick.style.backgroundImage = "url('" + preview + "')";
-          pick.textContent = "";
-        }
+        finishPreview(URL.createObjectURL(blob));
         var remove = document.querySelector("input[name='remove_avatar']");
         if (remove) remove.checked = false;
         closeCrop(false);
