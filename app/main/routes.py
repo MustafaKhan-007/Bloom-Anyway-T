@@ -840,14 +840,15 @@ def avatar(user_id):
 
 @bp.route("/avatar/<int:user_id>/anim")
 def avatar_anim(user_id):
-    """Animated GIF (when present) — used only on the public profile page."""
+    """Animated GIF (when present) — profile page and settings preview."""
     user = db.session.get(User, user_id)
     if user is None:
         abort(404)
     if user.avatar_anim_data:
         resp = Response(bytes(user.avatar_anim_data),
                         mimetype=user.avatar_anim_mime or "image/gif")
-        resp.headers["Cache-Control"] = "public, max-age=86400"
+        resp.headers["Cache-Control"] = "public, max-age=3600"
+        resp.headers["Content-Disposition"] = "inline"
         return resp
     if user.avatar_data:
         return redirect(url_for("main.avatar", user_id=user_id))

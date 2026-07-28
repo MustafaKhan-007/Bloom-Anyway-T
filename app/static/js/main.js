@@ -128,12 +128,19 @@
     var natural = { w: 0, h: 0 };
     var state = { scale: 1, x: 0, y: 0, dragging: false, lastX: 0, lastY: 0 };
     var pendingFile = null;
+    var pendingIsGif = false;
 
     function isImageFile(file) {
       if (!file) return false;
       if (file.type && file.type.indexOf("image/") === 0) return true;
-      // Some OS file pickers leave type empty — fall back to extension.
       return /\.(jpe?g|png|gif|webp|bmp|heic|heif)$/i.test(file.name || "");
+    }
+
+    function isGifFile(file) {
+      if (!file) return false;
+      var type = (file.type || "").toLowerCase();
+      if (type === "image/gif" || type.indexOf("gif") !== -1) return true;
+      return /\.gif$/i.test(file.name || "");
     }
 
     function stageSize() {
@@ -204,23 +211,26 @@
       state.scale = fitScale();
       state.x = 0;
       state.y = 0;
-      setHelp("Drag to reposition. Use the slider to zoom. The circle is what people will see.");
+      if (pendingIsGif) {
+        setHelp("Animated GIFs keep their motion. Preview below, then use this GIF — it plays on your profile and in Settings.");
+      } else {
+        setHelp("Drag to reposition. Use the slider to zoom. The circle is what people will see.");
+      }
       render();
-      // Layout is settled once the dialog is open.
       requestAnimationFrame(render);
     }
 
     function loadFile(file) {
       pendingFile = file;
+      pendingIsGif = isGifFile(file);
       setHelp("Loading your picture…");
       openDialog();
       revokePreview();
       img.onload = onImageReady;
       img.onerror = function () {
-        setHelp("That image couldn't be previewed. Try a JPG or PNG.");
+        setHelp("That image couldn't be previewed. Try a JPG, PNG, or GIF.");
       };
 
-      // Prefer blob URLs (now allowed by CSP). Fall back to data URL if needed.
       try {
         objectUrl = URL.createObjectURL(file);
         img.src = objectUrl;
@@ -230,7 +240,7 @@
           img.src = String(reader.result || "");
         };
         reader.onerror = function () {
-          setHelp("That image couldn't be read. Try a JPG or PNG.");
+          setHelp("That image couldn't be read. Try a JPG, PNG, or GIF.");
         };
         reader.readAsDataURL(file);
       }
@@ -242,6 +252,7 @@
       if (!isImageFile(file)) {
         input.value = "";
         pendingFile = null;
+        pendingIsGif = false;
         window.alert("Please choose an image file (JPG, PNG, WEBP, or GIF).");
         return;
       }
@@ -279,9 +290,11 @@
       img.removeAttribute("src");
       natural.w = 0;
       natural.h = 0;
-      pendingFile = null;
-      // Clearing the input lets the same file be chosen again.
-      if (clearInput) input.value = "";
+      if (clearInput) {
+        pendingFile = null;
+        pendingIsGif = false;
+        input.value = "";
+      }
     }
 
     cancelBtn.addEventListener("click", function (e) {
@@ -289,7 +302,6 @@
       closeCrop(true);
     });
     dialog.addEventListener("cancel", function (e) {
-      // Escape key — clear the pending pick.
       e.preventDefault();
       closeCrop(true);
     });
@@ -308,19 +320,17 @@
         }
       }
 
-      // GIFs: keep the original file so the server can preserve animation.
-      // Canvas export would flatten to a single JPEG frame.
-      var isGif = pendingFile && (
-        (pendingFile.type && pendingFile.type.toLowerCase().indexOf("gif") !== -1) ||
-        /\.gif$/i.test(pendingFile.name || "")
-      );
-      if (isGif) {
+      var file = pendingFile || (input.files && input.files[0]);
+      var keepGif = pendingIsGif || isGifFile(file);
+
+      // Never canvas-flatten GIFs — that kills the animation.
+      if (keepGif && file) {
         try {
           var dtGif = new DataTransfer();
-          dtGif.items.add(pendingFile);
+          dtGif.items.add(file);
           input.files = dtGif.files;
         } catch (err) {}
-        finishPreview(URL.createObjectURL(pendingFile));
+        finishPreview(URL.createObjectURL(file));
         var removeGif = document.querySelector("input[name='remove_avatar']");
         if (removeGif) removeGif.checked = false;
         closeCrop(false);
@@ -357,9 +367,7 @@
           var dt = new DataTransfer();
           dt.items.add(cropped);
           input.files = dt.files;
-        } catch (err) {
-          // Keep the originally selected file; server still center-crops.
-        }
+        } catch (err) {}
         finishPreview(URL.createObjectURL(blob));
         var remove = document.querySelector("input[name='remove_avatar']");
         if (remove) remove.checked = false;

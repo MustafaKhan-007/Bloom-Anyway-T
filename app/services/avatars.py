@@ -4,8 +4,8 @@ Stored in the database (not on disk) so avatars survive Render deploys, which
 wipe the ephemeral filesystem. Re-encoding also strips EXIF/metadata and
 neutralises most malformed-image tricks.
 
-Static uploads become JPEGs. Animated GIFs keep a resized animated copy for
-the public profile page, plus a JPEG still for everywhere else.
+Static uploads become JPEGs. Animated GIFs keep a playable GIF copy for the
+profile/settings preview, plus a JPEG still for everywhere else.
 """
 from __future__ import annotations
 
@@ -36,27 +36,35 @@ def _jpeg_bytes(img: Image.Image) -> bytes:
     return out.getvalue()
 
 
-def _is_animated(img: Image.Image) -> bool:
-    return bool(getattr(img, "is_animated", False) and getattr(img, "n_frames", 1) > 1)
+def _looks_like_gif(file_storage, fmt: str) -> bool:
+    if (fmt or "").upper() == "GIF":
+        return True
+    name = (getattr(file_storage, "filename", None) or "").lower()
+    if name.endswith(".gif"):
+        return True
+    ctype = (getattr(file_storage, "mimetype", None) or "").lower()
+    return ctype in ("image/gif", "image/gi_")
 
 
-def _process_animated_gif(raw: bytes) -> tuple[bytes, str, bytes, str]:
-    """Return (still_jpeg, jpeg_mime, anim_gif, gif_mime)."""
+def _frame_count(img: Image.Image) -> int:
+    n = int(getattr(img, "n_frames", 1) or 1)
+    if n > 1:
+        return n
+    if bool(getattr(img, "is_animated", False)):
+        return max(n, 2)
+    return n
+
+
+def _resize_animated_gif(raw: bytes) -> bytes:
     img = Image.open(io.BytesIO(raw))
-    # Still = first frame, square-cropped.
-    first = img.convert("RGBA")
-    still = _jpeg_bytes(_square_fit(first))
-
     frames: list[Image.Image] = []
     durations: list[int] = []
     for frame in ImageSequence.Iterator(img):
         fr = frame.convert("RGBA")
         frames.append(_square_fit(fr))
         durations.append(int(frame.info.get("duration", 100) or 100))
-
     if not frames:
-        raise AvatarError("That GIF didn't have any frames we could use.")
-
+        return b""
     anim_out = io.BytesIO()
     frames[0].save(
         anim_out,
@@ -66,12 +74,29 @@ def _process_animated_gif(raw: bytes) -> tuple[bytes, str, bytes, str]:
         duration=durations,
         loop=img.info.get("loop", 0),
         optimize=False,
+        disposal=2,
     )
-    anim_bytes = anim_out.getvalue()
-    if len(anim_bytes) > MAX_ANIM_BYTES:
-        # Too heavy after resize — keep the still only.
-        return still, OUTPUT_MIME, b"", ""
-    return still, OUTPUT_MIME, anim_bytes, ANIM_MIME
+    return anim_out.getvalue()
+
+
+def _process_gif(raw: bytes) -> tuple[bytes, str, bytes | None, str | None]:
+    """Return (still_jpeg, jpeg_mime, anim_gif|None, gif_mime|None)."""
+    img = Image.open(io.BytesIO(raw))
+    first = img.convert("RGBA")
+    still = _jpeg_bytes(_square_fit(first))
+
+    if _frame_count(img) <= 1:
+        return still, OUTPUT_MIME, None, None
+
+    # Prefer the original bytes so motion stays true to the file the member picked.
+    if len(raw) <= MAX_ANIM_BYTES:
+        return still, OUTPUT_MIME, raw, ANIM_MIME
+
+    resized = _resize_animated_gif(raw)
+    if resized and len(resized) <= MAX_ANIM_BYTES:
+        return still, OUTPUT_MIME, resized, ANIM_MIME
+    # Too heavy even after resize — still only.
+    return still, OUTPUT_MIME, None, None
 
 
 def process_avatar(file_storage) -> tuple[bytes, str, bytes | None, str | None]:
@@ -93,11 +118,8 @@ def process_avatar(file_storage) -> tuple[bytes, str, bytes | None, str | None]:
         raise AvatarError("That didn't look like an image we could read.")
 
     fmt = (img.format or "").upper()
-    if fmt == "GIF" and _is_animated(img):
-        still, still_mime, anim, anim_mime = _process_animated_gif(raw)
-        if anim and anim_mime:
-            return still, still_mime, anim, anim_mime
-        return still, still_mime, None, None
+    if _looks_like_gif(file_storage, fmt) or fmt == "GIF":
+        return _process_gif(raw)
 
     try:
         img = ImageOps.exif_transpose(img)
