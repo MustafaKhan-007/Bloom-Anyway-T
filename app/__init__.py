@@ -77,9 +77,11 @@ def create_app(config_class=None):
         app.config["MAIL_FROM"] = _sq(_os.environ.get("MAIL_FROM", ""))
     if _os.environ.get("TURNSTILE_SITE_KEY", "").strip():
         app.config["TURNSTILE_SITE_KEY"] = _sq(_os.environ.get("TURNSTILE_SITE_KEY", ""))
-    if _os.environ.get("TURNSTILE_SECRET_KEY", "").strip():
-        app.config["TURNSTILE_SECRET_KEY"] = _sq(
-            _os.environ.get("TURNSTILE_SECRET_KEY", ""))
+    _ts_secret = (_os.environ.get("TURNSTILE_SECRET", "").strip()
+                  or _os.environ.get("TURNSTILE_SECRET_KEY", "").strip())
+    if _ts_secret:
+        app.config["TURNSTILE_SECRET"] = _sq(_ts_secret)
+        app.config["TURNSTILE_SECRET_KEY"] = app.config["TURNSTILE_SECRET"]
 
     # Resolve where uploaded videos live: a mounted persistent disk in
     # production (VIDEO_STORAGE_DIR), or the instance folder locally.

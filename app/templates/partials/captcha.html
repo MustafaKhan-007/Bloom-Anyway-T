@@ -4,7 +4,25 @@
 <div class="field captcha-field">
   <span class="captcha-field__prompt">Quick check</span>
   <p class="field-help">One short verification keeps bots out of the community.</p>
-  <div class="cf-turnstile" data-sitekey="{{ ts_key }}" data-theme="light"></div>
+  <div class="cf-turnstile" data-sitekey="{{ ts_key }}" data-theme="light"
+       data-action="turnstile-spin-v2"></div>
 </div>
 <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+<script>
+  /* Tokens are single-use. Reset after submit so a failed attempt can retry. */
+  (function () {
+    var form = document.currentScript && document.currentScript.closest("form");
+    if (!form) form = document.querySelector("form .cf-turnstile") &&
+                     document.querySelector("form .cf-turnstile").closest("form");
+    if (!form || form.dataset.turnstileResetBound) return;
+    form.dataset.turnstileResetBound = "1";
+    form.addEventListener("submit", function () {
+      setTimeout(function () {
+        if (window.turnstile && typeof window.turnstile.reset === "function") {
+          window.turnstile.reset();
+        }
+      }, 0);
+    });
+  })();
+</script>
 {% endif %}

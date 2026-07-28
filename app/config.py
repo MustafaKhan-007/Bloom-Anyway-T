@@ -70,10 +70,17 @@ class Config:
     SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "")
     MAIL_FROM = os.environ.get("MAIL_FROM", "Bloom Anyway <hello@localhost>")
 
-    # Cloudflare Turnstile (signup only). Dev defaults to Cloudflare's
-    # always-pass test keys so local auth works without a dashboard setup.
-    TURNSTILE_SITE_KEY = os.environ.get("TURNSTILE_SITE_KEY", "").strip()
-    TURNSTILE_SECRET_KEY = os.environ.get("TURNSTILE_SECRET_KEY", "").strip()
+    # Cloudflare Turnstile (signup only). Prefer TURNSTILE_SECRET (Spin naming);
+    # TURNSTILE_SECRET_KEY is accepted as a legacy alias.
+    TURNSTILE_SITE_KEY = (
+        os.environ.get("TURNSTILE_SITE_KEY", "").strip()
+        or "0x4AAAAAAEAGFowmHgyFM5Kf"
+    )
+    TURNSTILE_SECRET = (
+        os.environ.get("TURNSTILE_SECRET", "").strip()
+        or os.environ.get("TURNSTILE_SECRET_KEY", "").strip()
+    )
+    TURNSTILE_SECRET_KEY = TURNSTILE_SECRET  # legacy alias
 
     # Lemon Squeezy (both optional: the storefront works before payments are
     # wired. Webhooks are rejected until the secret is set; the "Sync" button
@@ -101,7 +108,8 @@ def _strip_config_quotes(value: str) -> str:
 Config.BREVO_API_KEY = _strip_config_quotes(Config.BREVO_API_KEY)
 Config.MAIL_FROM = _strip_config_quotes(Config.MAIL_FROM)
 Config.TURNSTILE_SITE_KEY = _strip_config_quotes(Config.TURNSTILE_SITE_KEY)
-Config.TURNSTILE_SECRET_KEY = _strip_config_quotes(Config.TURNSTILE_SECRET_KEY)
+Config.TURNSTILE_SECRET = _strip_config_quotes(Config.TURNSTILE_SECRET)
+Config.TURNSTILE_SECRET_KEY = Config.TURNSTILE_SECRET
 
 
 class DevConfig(Config):
@@ -110,11 +118,17 @@ class DevConfig(Config):
     REMEMBER_COOKIE_SECURE = False
     # Zero-config local dev: a fixed dev key unless one is provided.
     SECRET_KEY = os.environ.get("SECRET_KEY", "").strip() or "dev-only-not-secret"
-    # Cloudflare always-pass test keys when unset (see Turnstile docs).
-    TURNSTILE_SITE_KEY = Config.TURNSTILE_SITE_KEY or "1x00000000000000000000AA"
-    TURNSTILE_SECRET_KEY = (
-        Config.TURNSTILE_SECRET_KEY or "1x0000000000000000000000000000000AA"
+    # Cloudflare always-pass test keys when no real secret is set (Turnstile docs).
+    TURNSTILE_SITE_KEY = (
+        os.environ.get("TURNSTILE_SITE_KEY", "").strip()
+        or "1x00000000000000000000AA"
     )
+    TURNSTILE_SECRET = (
+        os.environ.get("TURNSTILE_SECRET", "").strip()
+        or os.environ.get("TURNSTILE_SECRET_KEY", "").strip()
+        or "1x0000000000000000000000000000000AA"
+    )
+    TURNSTILE_SECRET_KEY = TURNSTILE_SECRET
 
 class ProdConfig(Config):
     DEBUG = False
@@ -145,8 +159,8 @@ class ProdConfig(Config):
         missing = [name for name in cls.REQUIRED_ENV if unset(name)]
         if unset("BREVO_API_KEY") and any(unset(name) for name in cls.SMTP_ENV):
             missing.append("BREVO_API_KEY or all of SMTP_HOST/SMTP_PORT/SMTP_USER/SMTP_PASSWORD")
-        # Turnstile is optional: when unset, signup has no captcha widget.
-        # Set TURNSTILE_SITE_KEY + TURNSTILE_SECRET_KEY to enable Cloudflare on signup.
+        # Turnstile: site key defaults to the dashboard widget; set TURNSTILE_SECRET
+        # on the host so signup siteverify can succeed.
         mail_from = strip_quotes(os.environ.get("MAIL_FROM", ""))
         if mail_from and ("@" not in mail_from or mail_from.lower().endswith("@localhost")):
             missing.append("MAIL_FROM (must be a real verified sender, not @localhost)")

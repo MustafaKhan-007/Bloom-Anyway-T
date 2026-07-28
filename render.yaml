@@ -38,8 +38,8 @@ services:
         sync: false
       # Cloudflare Turnstile on signup only (optional until keys are set).
       - key: TURNSTILE_SITE_KEY
-        sync: false
-      - key: TURNSTILE_SECRET_KEY
+        value: 0x4AAAAAAEAGFowmHgyFM5Kf
+      - key: TURNSTILE_SECRET
         sync: false
       # Lemon Squeezy (optional: set when you wire up payments).
       - key: LEMONSQUEEZY_WEBHOOK_SECRET
