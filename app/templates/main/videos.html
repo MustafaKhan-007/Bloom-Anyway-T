@@ -66,18 +66,17 @@
     </p>
 
     {% if current_user.is_authenticated and current_user.is_creator() %}
-    <div class="hub-request" style="margin-top: 24px;">
       {% if week_review %}
-      <div class="empty-state" style="padding: 28px;">
+      <div class="hub-notice">
         <p>This week's reel review is published
           (week of {{ week_key.strftime('%b %d, %Y') }}).</p>
-        <p class="field-help" style="margin-top: 8px;">
+        <p class="field-help">
           The draw is closed &mdash; see
           <strong>{{ week_review.title }}</strong> below.
           A fresh round opens next Monday.
         </p>
         {% if my_application %}
-        <p class="field-help" style="margin-top: 8px;">
+        <p class="field-help">
           Your entry:
           <a href="{{ my_application.reel_url }}" target="_blank" rel="noopener">view on Instagram</a>
           {% if my_application.selected %}
@@ -87,15 +86,16 @@
         {% endif %}
       </div>
       {% elif my_application %}
-      <div class="empty-state" style="padding: 28px;">
+      <div class="hub-notice">
         <p>You're in this week's draw
           (week of {{ week_key.strftime('%b %d, %Y') }}).
           Hang tight &mdash; one person is selected at random.</p>
-        <p class="field-help" style="margin-top: 8px;">
+        <p class="field-help">
           Your reel: <a href="{{ my_application.reel_url }}" target="_blank" rel="noopener">view on Instagram</a>
         </p>
       </div>
       {% else %}
+      <div class="hub-request" style="margin-top: 24px;">
       <form class="stack-form" method="post" action="{{ url_for('main.reel_review_request') }}"
             enctype="multipart/form-data" style="max-width: 520px;">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -111,8 +111,8 @@
         <p class="field-help">Max {{ max_mb }} MB. MP4, MOV or WEBM.</p>
         <button class="btn btn--primary" type="submit">Enter this week's draw</button>
       </form>
+      </div>
       {% endif %}
-    </div>
     {% elif current_user.is_authenticated %}
     <p style="margin-top: 18px;">
       Reel review requests are for Creator members.
