@@ -64,10 +64,10 @@
         <input type="number" id="sort_order" name="sort_order" value="{{ product.sort_order or 0 }}">
       </div>
     </div>
-    <label style="display: flex; gap: 8px; align-items: center;">
-      <input type="checkbox" name="featured" value="1" style="width: auto;" {{ 'checked' if product.featured }}>
-      Feature on the home page (up to 3 shown)
-    </label>
+      <label class="checkline checkline--sm">
+        <input type="checkbox" name="featured" value="1" {{ 'checked' if product.featured }}>
+        Feature on the home page (up to 3 shown)
+      </label>
   </div>
 
   <div class="admin-panel">

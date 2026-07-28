@@ -41,7 +41,7 @@
           <strong>{{ current_user.public_name() }}</strong>
           <p class="field-help">Tap your picture to upload a new one (JPG, PNG, WEBP or GIF, up to 6&nbsp;MB). You'll crop and resize it before it saves — it's shown as a circle in the community.</p>
           {% if current_user.has_avatar() or current_user.avatar_url %}
-          <label class="checkline">
+          <label class="checkline checkline--sm checkline--danger">
             <input type="checkbox" name="remove_avatar" value="1"> Remove my current picture
           </label>
           {% endif %}
@@ -107,7 +107,7 @@
         </div>
       </fieldset>
 
-      <label class="checkline" style="margin: 8px 0 20px;">
+      <label class="checkline checkline--block checkline--stack">
         <input type="checkbox" name="default_anonymous" value="1"
                {{ 'checked' if current_user.default_anonymous }}>
         Post anonymously by default in the forums
@@ -126,7 +126,7 @@
               {% if row.badge %}
                 <span class="field-help">{{ row.badge.title }} &middot; {{ row.badge.phrase }}
                   {% if row.next_phrase %}&mdash; next: {{ row.next_phrase }}{% endif %}</span>
-                <label class="checkline">
+                <label class="checkline checkline--sm">
                   <input type="checkbox" name="badges_display" value="{{ row.cat }}"
                          {{ 'checked' if row.cat in chosen_badges }}> Show on my profile
                 </label>
@@ -174,7 +174,7 @@
       <form method="post" action="{{ url_for('main.delete_account') }}"
             data-confirm="Close your account? This can't be undone from here.">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <label class="checkline" style="margin: 12px 0;">
+        <label class="checkline checkline--sm checkline--danger checkline--stack">
           <input type="checkbox" name="confirm" value="yes"> Yes, I'm sure
         </label>
         <button class="btn btn--danger btn--sm" type="submit">Close my account</button>

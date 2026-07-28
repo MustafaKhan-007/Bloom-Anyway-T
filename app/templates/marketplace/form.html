@@ -87,10 +87,12 @@
         {% if listing and listing.images %}
         <div class="listing-thumbs listing-thumbs--edit">
           {% for img in listing.images %}
-          <label class="listing-thumb-edit">
+          <div class="listing-thumb-edit">
             <img src="{{ url_for('main.listing_image', image_id=img.id) }}" alt="">
-            <span><input type="checkbox" name="remove_image" value="{{ img.id }}"> remove</span>
-          </label>
+            <label class="checkline checkline--sm checkline--danger">
+              <input type="checkbox" name="remove_image" value="{{ img.id }}"> Remove
+            </label>
+          </div>
           {% endfor %}
         </div>
         {% endif %}

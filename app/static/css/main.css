@@ -972,10 +972,66 @@ details.faq-item > form { padding: 0 20px 20px; }
   display: flex; justify-content: flex-end; gap: 10px; flex-wrap: wrap;
 }
 
+/* Toggle buttons (replaces bare checkboxes site-wide) */
 .checkline {
-  display: flex; align-items: center; gap: 8px; font-weight: 400; margin-top: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  margin-top: 8px;
+  padding: 10px 18px;
+  border: 1.5px solid var(--rose-soft);
+  border-radius: 999px;
+  background: #fff;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 1.35;
+  color: var(--plum);
+  text-align: center;
+  transition: border-color 150ms ease, background 150ms ease, color 150ms ease,
+              transform 150ms ease, box-shadow 150ms ease;
+  user-select: none;
+  max-width: 100%;
 }
-.checkline input { width: auto; accent-color: var(--plum); }
+.checkline input {
+  position: absolute;
+  width: 1px; height: 1px; opacity: 0;
+  margin: 0; pointer-events: none;
+}
+.checkline:hover {
+  border-color: var(--plum);
+  background: var(--rose-soft);
+  transform: translateY(-1px);
+}
+.checkline:has(input:checked) {
+  border-color: var(--plum);
+  background: linear-gradient(135deg, var(--plum) 0%, var(--berry) 100%);
+  color: #fff;
+  box-shadow: 0 6px 16px rgba(122, 46, 98, 0.18);
+}
+.checkline:has(input:checked):hover {
+  background: linear-gradient(135deg, var(--plum-deep) 0%, var(--plum) 100%);
+  border-color: var(--plum-deep);
+}
+.checkline:focus-within {
+  outline: 2px solid var(--plum);
+  outline-offset: 3px;
+}
+.checkline--block { display: flex; width: fit-content; }
+.checkline--stack { margin: 8px 0 16px; }
+.checkline--sm {
+  padding: 7px 14px;
+  font-size: 13px;
+  margin-top: 4px;
+}
+.checkline--danger:has(input:checked) {
+  background: linear-gradient(135deg, var(--plum-deep) 0%, var(--plum) 100%);
+  border-color: var(--plum-deep);
+}
+.checkline--compose {
+  margin: 4px 0 16px;
+}
 
 /* screen-reader-only (also hides the raw file input behind the avatar) */
 .sr-only {
@@ -1171,10 +1227,6 @@ details.faq-item > form { padding: 0 20px 20px; }
   border-color: transparent; color: #fff;
 }
 .looking-option:hover span { border-color: var(--plum); }
-.checkline--compose {
-  font-weight: 400; display: flex; gap: 8px; align-items: center;
-  margin: 4px 0 16px;
-}
 
 .post-list { display: grid; gap: 14px; margin-top: 28px; }
 
@@ -1396,7 +1448,8 @@ details.faq-item > form { padding: 0 20px 20px; }
 .badge-collection__row.is-locked { opacity: 0.55; }
 .badge-collection__row.is-locked .badge { filter: grayscale(0.85) drop-shadow(0 1px 2px rgba(43,38,34,0.15)); }
 .badge-collection__meta { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
-.badge-collection__meta .checkline { margin: 4px 0 0; font-weight: 700; }
+.badge-collection__meta .checkline { margin: 6px 0 0; }
+
 
 .badge-tile { display: flex; flex-direction: column; align-items: center; gap: 8px; margin: 0; text-align: center; }
 .badge-tile figcaption strong { display: block; font-size: 14px; }
@@ -1882,7 +1935,8 @@ details.faq-item > form { padding: 0 20px 20px; }
   border: 2px solid transparent; }
 .listing-thumbs--edit img { cursor: default; }
 .listing-thumb-edit { display: inline-flex; flex-direction: column; align-items: center;
-  gap: 4px; font-size: 12px; }
+  gap: 8px; font-size: 12px; }
+.listing-thumb-edit .checkline { margin-top: 0; }
 .listing-desc { margin: 18px 0; line-height: 1.7; }
 .trust-line { font-size: 13px; color: var(--ink-soft); margin-top: 10px; }
 .seller-card { display: flex; gap: 14px; align-items: center; margin-top: 26px;
@@ -1893,8 +1947,12 @@ details.faq-item > form { padding: 0 20px 20px; }
 .kind-option input { position: absolute; opacity: 0; pointer-events: none; }
 .kind-option span { display: block; text-align: center; padding: 14px; border-radius: 12px;
   border: 2px solid var(--ivory-deep); font-weight: 700; cursor: pointer; }
-.kind-option input:checked + span { border-color: var(--plum); background: rgba(122,46,98,0.06);
-  color: var(--plum); }
+.kind-option input:checked + span {
+  border-color: var(--plum);
+  background: linear-gradient(135deg, var(--plum) 0%, var(--berry) 100%);
+  color: #fff;
+  box-shadow: 0 6px 16px rgba(122, 46, 98, 0.18);
+}
 .kind-option input:focus-visible + span { outline: 2px solid var(--gold); outline-offset: 2px; }
 /* dedicated location box for services (toggled via [hidden] + JS) */
 .location-box {
@@ -1925,7 +1983,12 @@ details.faq-item > form { padding: 0 20px 20px; }
 .tag-pick span { display: inline-block; padding: 7px 12px; border-radius: 999px;
   background: var(--ivory-deep); color: var(--ink); font-size: 13px; font-weight: 600;
   cursor: pointer; border: 2px solid transparent; }
-.tag-pick input:checked + span { background: var(--plum); color: #fff; border-color: var(--plum-deep); }
+.tag-pick input:checked + span {
+  background: linear-gradient(135deg, var(--plum) 0%, var(--berry) 100%);
+  color: #fff;
+  border-color: var(--plum-deep);
+  box-shadow: 0 4px 12px rgba(122, 46, 98, 0.16);
+}
 .tag-pick input:disabled + span { opacity: 0.4; cursor: not-allowed; }
 .tag-cloud { max-height: 160px; overflow-y: auto; }
 .gift-box { margin-top: 16px; border: 1px dashed var(--rose); border-radius: 12px;

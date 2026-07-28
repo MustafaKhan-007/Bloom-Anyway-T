@@ -31,8 +31,8 @@
         <input type="number" id="sort_order" name="sort_order" value="0">
       </div>
       <div class="field" style="align-self: end;">
-        <label style="display: flex; gap: 8px; align-items: center; font-weight: 600;">
-          <input type="checkbox" name="show_on_home" value="1" style="width: auto;"> Show on the home page
+        <label class="checkline checkline--sm">
+          <input type="checkbox" name="show_on_home" value="1"> Show on the home page
         </label>
       </div>
     </div>
@@ -58,7 +58,12 @@
           {% for p in products %}<option value="{{ p.id }}" {{ 'selected' if t.product_id == p.id }}>{{ p.title }}</option>{% endfor %}
         </select>
       </td>
-      <td><input type="checkbox" name="show_on_home" value="1" form="t-form-{{ t.id }}" {{ 'checked' if t.show_on_home }} style="width: auto;"></td>
+      <td>
+        <label class="checkline checkline--sm">
+          <input type="checkbox" name="show_on_home" value="1" form="t-form-{{ t.id }}" {{ 'checked' if t.show_on_home }}>
+          On home
+        </label>
+      </td>
       <td><input type="number" name="sort_order" value="{{ t.sort_order }}" form="t-form-{{ t.id }}" style="width: 64px;"></td>
       <td style="white-space: nowrap;">
         <button class="btn btn--primary btn--sm" type="submit" form="t-form-{{ t.id }}">Save</button>

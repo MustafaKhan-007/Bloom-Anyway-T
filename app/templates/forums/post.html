@@ -45,8 +45,8 @@
           <input type="hidden" name="parent_id" value="{{ c.id }}">
           <textarea name="body" rows="2" required maxlength="4000" data-mentions
                     placeholder="Reply kindly… type @ to tag someone"></textarea>
-          <label style="font-weight: 400; display: flex; gap: 8px; align-items: center; margin: 8px 0;">
-            <input type="checkbox" name="anonymous" value="1" style="width: auto;" {{ 'checked' if anon_default }}>
+          <label class="checkline checkline--sm checkline--compose">
+            <input type="checkbox" name="anonymous" value="1" {{ 'checked' if anon_default }}>
             Reply anonymously
           </label>
           <button class="btn btn--secondary btn--sm" type="submit">Reply</button>
@@ -100,8 +100,8 @@
           <textarea id="body" name="body" rows="3" required maxlength="4000" data-mentions
                     placeholder="Add something kind… type @ to tag someone"></textarea>
         </div>
-        <label style="font-weight: 400; display: flex; gap: 8px; align-items: center; margin-bottom: 12px;">
-          <input type="checkbox" name="anonymous" value="1" style="width: auto;" {{ 'checked' if anon_default }}>
+        <label class="checkline checkline--sm checkline--compose">
+          <input type="checkbox" name="anonymous" value="1" {{ 'checked' if anon_default }}>
           Comment anonymously
         </label>
         <button class="btn btn--primary btn--sm" type="submit">Comment</button>

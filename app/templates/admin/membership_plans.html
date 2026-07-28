@@ -60,9 +60,9 @@
       <p class="field-help">Purchases of this variant grant the {{ plan.label() }} tier. Find it in your Lemon Squeezy product's variant.</p>
     </div>
     <div class="field">
-      <label style="font-weight: 400; display: flex; gap: 8px; align-items: center;">
-        <input type="checkbox" name="{{ plan.tier }}_active" value="1" style="width: auto;" {{ 'checked' if plan.active }}>
-        Live &mdash; show this plan on the membership page
+      <label class="checkline checkline--sm">
+        <input type="checkbox" name="{{ plan.tier }}_active" value="1" {{ 'checked' if plan.active }}>
+        Live — show this plan on the membership page
       </label>
     </div>
   </div>
