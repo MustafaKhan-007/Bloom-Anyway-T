@@ -355,12 +355,9 @@ r = buyer_client.get(f"/account/shop/{owned_id}/download")
 ok("Non-owner blocked from shop file download", r.status_code == 404)
 
 r = admin.get("/admin/")
-ok("Dashboard shows revenue after order", "$49.00" in r.get_data(as_text=True))
-r = admin.get(f"/admin/?product={hist_id}")
-body = r.get_data(as_text=True)
-ok("Dashboard filters by product", r.status_code == 200 and "Begin Again" in body and "$49.00" in body)
-r = admin.get("/admin/?product=999")
-ok("Unknown product filter falls back to everything", r.status_code == 200)
+ok("Dashboard loads after order without Lemon revenue mirror",
+   r.status_code == 200 and "Lemon Squeezy" in r.get_data(as_text=True)
+   and "Revenue (30d)" not in r.get_data(as_text=True))
 
 # give the main member a Creator membership: unlocks posting, profile links,
 # the video room, and the My Journey export
@@ -1233,10 +1230,12 @@ ok("Member archive goes back to signup date",
 
 r = admin.get("/admin/quotes")
 ok("Admin quotes page (pins, preview tomorrow)", r.status_code == 200 and "Preview tomorrow" in r.get_data(as_text=True))
-r = admin.get("/admin/orders")
-ok("Admin orders page", r.status_code == 200)
-r = admin.get("/admin/subscribers/export.csv")
-ok("Subscriber CSV export", r.status_code == 200 and "fan@example.com" in r.get_data(as_text=True))
+r = admin.get("/admin/orders", follow_redirects=True)
+ok("Admin orders redirects to Lemon-first dashboard",
+   r.status_code == 200 and "Lemon Squeezy" in r.get_data(as_text=True))
+r = admin.get("/admin/subscribers/export.csv", follow_redirects=True)
+ok("Admin subscribers redirects away from local list",
+   r.status_code == 200 and "Lemon Squeezy" in r.get_data(as_text=True))
 
 # --- 7b. reel reviews, coaching, nav order ---------------------------------
 from app.models import CoachingRequest, ReelReview, ReelReviewApplication

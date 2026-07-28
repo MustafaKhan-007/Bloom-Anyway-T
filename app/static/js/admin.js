@@ -154,52 +154,19 @@
   var dataEl = document.getElementById("dashboard-data");
   if (dataEl && window.Chart) {
     var data = JSON.parse(dataEl.textContent);
-    var plum = "#7A2E62", rose = "#E08A6D", gold = "#EFA733";
-
-    var revenueCtx = document.getElementById("chart-revenue");
-    if (revenueCtx) {
-      new Chart(revenueCtx, {
-        type: "line",
-        data: {
-          labels: data.revenue.labels,
-          datasets: [{
-            label: "Revenue",
-            data: data.revenue.values,
-            borderColor: gold,
-            backgroundColor: "rgba(239, 167, 51, 0.15)",
-            fill: true, tension: 0.3, pointRadius: 0, borderWidth: 2
-          }]
-        },
-        options: {
-          plugins: { legend: { display: false } },
-          scales: { x: { ticks: { maxTicksLimit: 9 } } }
-        }
-      });
-    }
-
-    var productsCtx = document.getElementById("chart-products");
-    if (productsCtx) {
-      new Chart(productsCtx, {
-        type: "bar",
-        data: {
-          labels: data.products.labels,
-          datasets: [{ label: "Orders", data: data.products.values, backgroundColor: rose }]
-        },
-        options: { indexAxis: "y", plugins: { legend: { display: false } } }
-      });
-    }
+    var plum = "#7A2E62";
 
     var signupsCtx = document.getElementById("chart-signups");
-    if (signupsCtx) {
+    if (signupsCtx && data.signups) {
       new Chart(signupsCtx, {
         type: "line",
         data: {
           labels: data.signups.labels,
           datasets: [
-            { label: "Accounts", data: data.signups.users, borderColor: plum, tension: 0.3, borderWidth: 2 },
-            { label: "Subscribers", data: data.signups.subscribers, borderColor: rose, tension: 0.3, borderWidth: 2 }
+            { label: "Accounts", data: data.signups.users, borderColor: plum, tension: 0.3, borderWidth: 2 }
           ]
-        }
+        },
+        options: { plugins: { legend: { display: false } } }
       });
     }
   }

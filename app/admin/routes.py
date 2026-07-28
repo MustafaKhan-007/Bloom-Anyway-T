@@ -96,28 +96,13 @@ def _spotlight_candidates():
 @bp.route("/")
 @admin_required
 def dashboard():
-    product_id = None
-    raw = request.args.get("product", "")
-    if raw.isdigit():
-        product_id = int(raw)
-    selected_product = db.session.get(Product, product_id) if product_id else None
-    if product_id and selected_product is None:
-        product_id = None
-
     today = date.today()
     return render_template(
         "admin/dashboard.html",
         today_quote=quotes_service.quote_for(today),
         tomorrow_quote=quotes_service.quote_for(today + timedelta(days=1)),
-        products=Product.query.order_by(Product.title).all(),
-        selected_product=selected_product,
-        cards=stats.dashboard_cards(product_id),
-        lifetime=stats.lifetime_totals(product_id),
-        chart_revenue=stats.revenue_by_day(90, product_id),
-        chart_products=stats.orders_by_product(90),
+        cards=stats.dashboard_cards(),
         chart_signups=stats.signups_by_week(12),
-        recent_orders=stats.recent_orders(10, product_id),
-        top_products=stats.top_products(5),
         most_visited=stats.most_visited(7),
         memberships=stats.membership_breakdown(),
         video_count=stats.video_count(),
@@ -422,93 +407,31 @@ def page_edit(slug):
 
 
 # ============================= SUBSCRIBERS ===================================
+# Email list / checkout analytics live in Lemon Squeezy — Studio no longer mirrors them.
 
 @bp.route("/subscribers")
-@admin_required
-def subscribers():
-    items = Subscriber.query.order_by(Subscriber.created_at.desc()).all()
-    return render_template("admin/subscribers.html", items=items)
-
-
 @bp.route("/subscribers/export.csv")
 @admin_required
-def subscribers_export():
-    def generate():
-        buffer = io.StringIO()
-        writer = csv.writer(buffer)
-        writer.writerow(["email", "subscribed_at"])
-        yield buffer.getvalue()
-        for sub in Subscriber.query.order_by(Subscriber.created_at).yield_per(200):
-            buffer.seek(0)
-            buffer.truncate()
-            writer.writerow([sub.email, sub.created_at.isoformat()])
-            yield buffer.getvalue()
-    return Response(stream_with_context(generate()), mimetype="text/csv",
-                    headers={"Content-Disposition": "attachment; filename=subscribers.csv"})
+def subscribers():
+    flash("Subscriber lists and sales live in Lemon Squeezy.", "info")
+    return redirect(url_for("admin.dashboard"))
 
 
 @bp.route("/subscribers/<int:sub_id>/delete", methods=["POST"])
 @admin_required
 def subscriber_delete(sub_id):
-    sub = db.session.get(Subscriber, sub_id) or abort(404)
-    db.session.delete(sub)
-    db.session.commit()
-    flash("Subscriber removed.", "success")
-    return redirect(url_for("admin.subscribers"))
+    return redirect(url_for("admin.dashboard"))
 
 
 # ================================ ORDERS =====================================
-
-def _orders_query():
-    query = Order.query
-    product_id = request.args.get("product")
-    if product_id and product_id.isdigit():
-        query = query.filter(Order.product_id == int(product_id))
-    for arg, op in (("from", ">="), ("to", "<=")):
-        raw = request.args.get(arg)
-        if raw:
-            try:
-                day = date.fromisoformat(raw)
-                if op == ">=":
-                    query = query.filter(Order.created_at >= datetime.combine(day, datetime.min.time()))
-                else:
-                    query = query.filter(Order.created_at <= datetime.combine(day, datetime.max.time()))
-            except ValueError:
-                pass
-    return query
-
+# Order history lives in Lemon Squeezy — Studio no longer mirrors the sales list.
 
 @bp.route("/orders")
-@admin_required
-def orders():
-    items = (_orders_query().options(joinedload(Order.product))
-             .order_by(Order.created_at.desc()).limit(500).all())
-    products = Product.query.order_by(Product.title).all()
-    return render_template("admin/orders.html", items=items, products=products)
-
-
 @bp.route("/orders/export.csv")
 @admin_required
-def orders_export():
-    query = _orders_query().order_by(Order.created_at)
-
-    def generate():
-        buffer = io.StringIO()
-        writer = csv.writer(buffer)
-        writer.writerow(["date", "ls_order_id", "product", "buyer_email", "total", "currency", "status"])
-        yield buffer.getvalue()
-        for order in query.yield_per(200):
-            buffer.seek(0)
-            buffer.truncate()
-            writer.writerow([
-                order.created_at.isoformat(), order.ls_order_id,
-                order.product.title if order.product else "",
-                order.buyer_email, f"{order.total_cents / 100:.2f}",
-                order.currency, order.status,
-            ])
-            yield buffer.getvalue()
-    return Response(stream_with_context(generate()), mimetype="text/csv",
-                    headers={"Content-Disposition": "attachment; filename=orders.csv"})
+def orders():
+    flash("Orders and revenue live in Lemon Squeezy.", "info")
+    return redirect(url_for("admin.dashboard"))
 
 
 # =============================== SETTINGS ====================================
