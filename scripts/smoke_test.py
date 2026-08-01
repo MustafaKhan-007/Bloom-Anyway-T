@@ -1442,4 +1442,162 @@ with boot2.app_context():
     from app.services.settings import all_settings
     ok("Secret key never leaks into public settings", "_secret_key" not in all_settings())
 
+# --- 9. feedback inbox, content reports, legal, privacy hardening -----------
+from app.models import Notification, PageView, SiteFeedback
+from app.services.content_reports import review_text, submit_report
+from app.services.privacy import close_account
+
+css = client.get("/static/css/main.css").get_data(as_text=True)
+ok("Quote card forces centered quote text",
+   ".quote-text" in css and "text-align: center" in css)
+ok("Quote mini archive cards are centered",
+   ".quote-mini" in css and "align-items: center" in css)
+
+for path, needle in (("/privacy", "What we collect"),
+                     ("/terms", "Memberships"),
+                     ("/refunds", "14 days")):
+    rr = client.get(path)
+    body = rr.get_data(as_text=True)
+    ok(f"Legal page {path} renders", rr.status_code == 200)
+    ok(f"Legal page {path} has real copy",
+       needle in body and "TODO: legal review" not in body)
+
+r = client.get("/")
+ok("Feedback widget on public pages",
+   b"data-feedback-open" in r.data and b"feedback-dialog" in r.data)
+
+r = client.post("/feedback", data={
+    "kind": "feedback", "stars": "4", "body": "Loving the daily quotes.",
+    "page_path": "/", "next": "/",
+}, follow_redirects=True)
+ok("Star feedback accepted", r.status_code == 200)
+with app.app_context():
+    fb = SiteFeedback.query.filter_by(kind="feedback").order_by(SiteFeedback.id.desc()).first()
+    ok("Feedback stored with stars",
+       fb is not None and fb.stars == 4 and "Loving" in fb.body)
+
+r = client.post("/feedback", data={
+    "kind": "complaint", "body": "Checkout felt confusing on mobile.",
+    "page_path": "/membership", "next": "/",
+}, follow_redirects=True)
+ok("Complaint accepted", r.status_code == 200)
+
+with app.app_context():
+    err_before = SiteFeedback.query.filter_by(kind="error").count()
+r = client.post("/feedback", data={
+    "kind": "error", "body": "bot noise",
+    "page_path": "/videos", "website": "http://bots.example",
+    "next": "/",
+}, follow_redirects=True)
+with app.app_context():
+    err_after_hp = SiteFeedback.query.filter_by(kind="error").count()
+ok("Feedback honeypot ignored", r.status_code == 200 and err_after_hp == err_before)
+
+r = client.post("/feedback", data={
+    "kind": "error", "body": "Saw a 500 after uploading a huge video.",
+    "page_path": "/videos", "next": "/",
+}, follow_redirects=True)
+with app.app_context():
+    err = SiteFeedback.query.filter_by(kind="error").order_by(SiteFeedback.id.desc()).first()
+ok("Error report stored for studio", err is not None and "500" in err.body)
+
+ok("Auto-mod flags blocked language",
+   review_text("what the fuck is this") == "Blocked language")
+ok("Auto-mod passes clean text",
+   review_text("Thanks for the gentle advice today.") is None)
+ok("Auto-mod flags hostile phrase",
+   review_text("you should just kill yourself") == "Hostile or threatening language")
+
+with app.app_context():
+    healing_cat = ForumCategory.query.filter_by(slug="healing").first()
+    ok("Healing forum exists for report tests", healing_cat is not None)
+    author = User(email="reporter-author@example.com", display_name="Author",
+                  membership="healing", email_verified_at=utcnow())
+    author.set_password(USER_PW)
+    reporter = User(email="reporter-user@example.com", display_name="Reporter",
+                    membership="healing", email_verified_at=utcnow())
+    reporter.set_password(USER_PW)
+    db.session.add_all([author, reporter])
+    db.session.flush()
+    clean = ForumPost(category_id=healing_cat.id, user_id=author.id,
+                      title="Soft morning", body="Just checking in with kindness.",
+                      anonymous=False)
+    toxic = ForumPost(category_id=healing_cat.id, user_id=author.id,
+                      title="Bad day", body="go kill yourself already",
+                      anonymous=False)
+    db.session.add_all([clean, toxic])
+    db.session.commit()
+    clean_id, toxic_id = clean.id, toxic.id
+    author_id, reporter_id = author.id, reporter.id
+    healing_cat_id = healing_cat.id
+
+    rep_open, _msg = submit_report(reporter=reporter, target_type="post",
+                                   target_id=clean_id, note="feels off")
+    clean_after = db.session.get(ForumPost, clean_id)
+    ok("Clean reported post stays visible",
+       rep_open is not None and rep_open.status == "open" and not clean_after.hidden)
+
+    rep_auto, _msg = submit_report(reporter=reporter, target_type="post",
+                                   target_id=toxic_id, note="threat")
+    toxic_after = db.session.get(ForumPost, toxic_id)
+    note = Notification.query.filter_by(user_id=author_id, kind="moderation").first()
+    ok("Toxic reported post auto-hidden",
+       rep_auto is not None and rep_auto.status == "resolved" and toxic_after.hidden
+       and bool(rep_auto.auto_reason))
+    ok("Author notified on auto take-down", note is not None)
+
+# refresh admin session for inbox checks
+admin.post("/login", data={"email": "owner@example.com", "password": ADMIN_PW})
+r = admin.get("/admin/inbox")
+ok("Studio inbox loads", r.status_code == 200 and b"Inbox" in r.data)
+r = admin.get("/admin/inbox?filter=feedback")
+ok("Studio inbox feedback filter", r.status_code == 200 and b"Loving the daily" in r.data)
+r = admin.get("/admin/inbox?filter=complaint")
+ok("Studio inbox complaint filter", r.status_code == 200 and b"Checkout felt" in r.data)
+r = admin.get("/admin/inbox?filter=error")
+ok("Studio inbox error filter", r.status_code == 200 and b"huge video" in r.data)
+r = admin.get("/admin/inbox?filter=open")
+ok("Studio inbox open content reports", r.status_code == 200 and b"Soft morning" in r.data)
+r = admin.get("/admin/inbox?filter=resolved")
+ok("Studio inbox resolved shows auto reason",
+   r.status_code == 200 and (b"Hostile" in r.data or b"Blocked" in r.data
+                             or b"auto-hidden" in r.data))
+
+rep_client = app.test_client()
+rep_client.post("/login", data={"email": "reporter-user@example.com", "password": USER_PW})
+r = rep_client.get(f"/forums/p/{clean_id}")
+ok("Report control on posts", b"Report" in r.data and b"/report" in r.data)
+
+with app.app_context():
+    doomed = User(email="doomed@example.com", display_name="Doomed Soul",
+                  username="doomedx", bio="secret bio", membership="healing",
+                  email_verified_at=utcnow(),
+                  avatar_data=b"fakepng", avatar_mime="image/png")
+    doomed.set_password(USER_PW)
+    db.session.add(doomed)
+    db.session.flush()
+    doomed_post = ForumPost(category_id=healing_cat_id, user_id=doomed.id,
+                            title="Will vanish", body="please hide me",
+                            anonymous=False)
+    db.session.add(doomed_post)
+    db.session.commit()
+    doomed_id, doomed_post_id = doomed.id, doomed_post.id
+    close_account(doomed)
+    doomed = db.session.get(User, doomed_id)
+    doomed_post = db.session.get(ForumPost, doomed_post_id)
+    ok("Closed account email scrubbed",
+       doomed.deleted_at is not None and doomed.email.startswith("deleted+"))
+    ok("Closed account profile scrubbed",
+       doomed.display_name == "Former member" and doomed.username is None
+       and doomed.bio is None and doomed.avatar_data is None
+       and doomed.password_hash is None)
+    ok("Closed account posts hidden", doomed_post.hidden is True)
+
+ok("PageView has no IP field",
+   not hasattr(PageView, "ip") and not hasattr(PageView, "ip_address"))
+
+r = client.get("/this-page-does-not-exist-xyz")
+ok("404 offers problem report", r.status_code == 404 and b"Report this problem" in r.data)
+
 print(f"\nAll {PASS} checks passed.")
+

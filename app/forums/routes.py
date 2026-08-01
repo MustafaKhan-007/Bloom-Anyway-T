@@ -331,6 +331,40 @@ def like_comment(comment_id):
                     or url_for("forums.post", post_id=comment.post_id) + "#comments")
 
 
+@bp.route("/p/<int:post_id>/report", methods=["POST"])
+@login_required
+@limiter.limit("20 per hour")
+def report_post(post_id):
+    from ..services.content_reports import submit_report
+    note = (request.form.get("note") or "").strip()
+    _report, msg = submit_report(reporter=current_user, target_type="post",
+                                 target_id=post_id, note=note)
+    flash(msg, "success" if _report else "error")
+    # If auto-hidden, send them back to the category
+    post = db.session.get(ForumPost, post_id)
+    if post is None or post.hidden:
+        return redirect(url_for("forums.index"))
+    return redirect(url_for("forums.post", post_id=post_id))
+
+
+@bp.route("/comment/<int:comment_id>/report", methods=["POST"])
+@login_required
+@limiter.limit("20 per hour")
+def report_comment(comment_id):
+    from ..services.content_reports import submit_report
+    note = (request.form.get("note") or "").strip()
+    comment = db.session.get(ForumComment, comment_id)
+    post_id = comment.post_id if comment else None
+    _report, msg = submit_report(reporter=current_user, target_type="comment",
+                                 target_id=comment_id, note=note)
+    flash(msg, "success" if _report else "error")
+    if post_id:
+        post = db.session.get(ForumPost, post_id)
+        if post and not post.hidden:
+            return redirect(url_for("forums.post", post_id=post_id) + "#comments")
+    return redirect(url_for("forums.index"))
+
+
 def _liked_ids(post_ids, comment_ids):
     """Sets of post/comment ids the current member has liked (empty if anon)."""
     if not current_user.is_authenticated:

@@ -18,10 +18,10 @@ from sqlalchemy import func
 from sqlalchemy.orm import joinedload
 
 from ..extensions import db
-from ..models import (Announcement, CoachingRequest, FaqItem, ForumComment,
-                      ForumPost, MEMBERSHIPS, MarketplaceListing, MembershipPlan,
-                      Page, Product, Quote,
-                      QuoteFavorite, QuotePin, ReelReview, ReelReviewApplication,
+from ..models import (Announcement, CoachingRequest, ContentReport, FaqItem,
+                      ForumComment, ForumPost, MEMBERSHIPS, MarketplaceListing,
+                      MembershipPlan, Page, Product, Quote, QuoteFavorite,
+                      QuotePin, ReelReview, ReelReviewApplication, SiteFeedback,
                       Testimonial, User, Video, QUOTE_CATEGORIES)
 from ..services import badges as badges_service
 from ..services import quotes as quotes_service
@@ -810,6 +810,100 @@ def badges():
     return render_template("admin/badges.html",
                            overview=badges_service.all_badges_overview(),
                            owner_badge=badges_service.OWNER_BADGE)
+
+
+# ============================ FEEDBACK INBOX =================================
+
+@bp.route("/inbox")
+@admin_required
+def inbox():
+    """Unified inbox: star feedback, complaints, error reports, content reports."""
+    filt = (request.args.get("filter") or "all").strip().lower()
+    allowed = {"all", "feedback", "complaint", "error", "reports", "open", "resolved"}
+    if filt not in allowed:
+        filt = "all"
+
+    feedback_q = (SiteFeedback.query.options(joinedload(SiteFeedback.author))
+                  .order_by(SiteFeedback.created_at.desc()))
+    reports_q = (ContentReport.query.options(joinedload(ContentReport.reporter))
+                 .order_by(ContentReport.created_at.desc()))
+
+    show_feedback = filt in ("all", "feedback", "complaint", "error")
+    show_reports = filt in ("all", "reports", "open", "resolved")
+
+    feedback_rows = []
+    if show_feedback:
+        q = feedback_q
+        if filt in ("feedback", "complaint", "error"):
+            q = q.filter_by(kind=filt)
+        feedback_rows = q.limit(100).all()
+
+    report_rows = []
+    if show_reports:
+        q = reports_q
+        if filt == "open":
+            q = q.filter_by(status="open")
+        elif filt == "resolved":
+            q = q.filter(ContentReport.status.in_(("resolved", "dismissed")))
+        report_rows = q.limit(100).all()
+
+    # Attach target snippets for studio display
+    enriched = []
+    for r in report_rows:
+        target = None
+        snippet = ""
+        if r.target_type == "post":
+            target = db.session.get(ForumPost, r.target_id)
+            if target:
+                snippet = f"{target.title}: {(target.body or '')[:160]}"
+        else:
+            target = db.session.get(ForumComment, r.target_id)
+            if target:
+                snippet = (target.body or "")[:200]
+        enriched.append({"report": r, "target": target, "snippet": snippet})
+
+    counts = {
+        "feedback": SiteFeedback.query.filter_by(kind="feedback").count(),
+        "complaint": SiteFeedback.query.filter_by(kind="complaint").count(),
+        "error": SiteFeedback.query.filter_by(kind="error").count(),
+        "reports_open": ContentReport.query.filter_by(status="open").count(),
+        "reports_resolved": ContentReport.query.filter(
+            ContentReport.status.in_(("resolved", "dismissed"))).count(),
+    }
+    return render_template(
+        "admin/inbox.html", filter=filt, feedback_rows=feedback_rows,
+        report_rows=enriched, counts=counts,
+    )
+
+
+@bp.route("/inbox/feedback/<int:item_id>/reviewed", methods=["POST"])
+@admin_required
+def inbox_feedback_reviewed(item_id):
+    from ..services.feedback import mark_reviewed
+    row = db.session.get(SiteFeedback, item_id) or abort(404)
+    mark_reviewed(row)
+    flash("Marked reviewed.", "success")
+    return redirect(url_for("admin.inbox", filter=request.form.get("filter") or "all"))
+
+
+@bp.route("/inbox/reports/<int:report_id>/hide", methods=["POST"])
+@admin_required
+def inbox_report_hide(report_id):
+    from ..services.content_reports import hide_target
+    report = db.session.get(ContentReport, report_id) or abort(404)
+    hide_target(report, owner_note=request.form.get("owner_note") or "")
+    flash("Content hidden and reporter case resolved.", "success")
+    return redirect(url_for("admin.inbox", filter=request.form.get("filter") or "reports"))
+
+
+@bp.route("/inbox/reports/<int:report_id>/dismiss", methods=["POST"])
+@admin_required
+def inbox_report_dismiss(report_id):
+    from ..services.content_reports import dismiss_report
+    report = db.session.get(ContentReport, report_id) or abort(404)
+    dismiss_report(report, owner_note=request.form.get("owner_note") or "")
+    flash("Report dismissed — no take-down.", "success")
+    return redirect(url_for("admin.inbox", filter=request.form.get("filter") or "reports"))
 
 
 # =============================== COMMUNITY ===================================

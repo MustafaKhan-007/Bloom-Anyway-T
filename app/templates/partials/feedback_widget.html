@@ -1,0 +1,56 @@
+{# Floating feedback + complaint entry. Error pages set data-feedback-kind="error". #}
+<button type="button" class="feedback-fab" data-feedback-open aria-haspopup="dialog"
+        aria-controls="feedback-dialog">Feedback</button>
+
+<dialog class="feedback-dialog" id="feedback-dialog" aria-labelledby="feedback-dialog-title">
+  <form method="post" action="{{ url_for('main.feedback_submit') }}" class="feedback-dialog__panel">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="page_path" value="{{ request.path }}">
+    <input type="hidden" name="next" value="{{ request.path }}">
+    <input type="text" name="website" value="" tabindex="-1" autocomplete="off"
+           class="hp-field" aria-hidden="true">
+
+    <div class="feedback-dialog__head">
+      <h2 id="feedback-dialog-title">Tell us how it's going</h2>
+      <button type="button" class="feedback-dialog__close" data-feedback-close aria-label="Close">&times;</button>
+    </div>
+
+    <div class="feedback-tabs" role="tablist">
+      <button type="button" class="feedback-tabs__btn is-active" data-feedback-tab="feedback">Stars</button>
+      <button type="button" class="feedback-tabs__btn" data-feedback-tab="complaint">Complaint</button>
+      <button type="button" class="feedback-tabs__btn" data-feedback-tab="error">Something broke</button>
+    </div>
+    <input type="hidden" name="kind" value="feedback" data-feedback-kind-input>
+
+    <div class="field" data-feedback-stars>
+      <span class="feedback-stars" role="radiogroup" aria-label="Star rating">
+        {% for n in range(1, 6) %}
+        <label class="feedback-stars__star">
+          <input type="radio" name="stars" value="{{ n }}" {{ 'checked' if n == 5 }}>
+          <span aria-hidden="true">★</span>
+          <span class="sr-only">{{ n }} star{{ '' if n == 1 else 's' }}</span>
+        </label>
+        {% endfor %}
+      </span>
+    </div>
+
+    <div class="field">
+      <label for="feedback-body">Your note</label>
+      <textarea id="feedback-body" name="body" rows="4" required maxlength="4000"
+                placeholder="What should we know?"></textarea>
+    </div>
+
+    {% if not current_user.is_authenticated %}
+    <div class="field">
+      <label for="feedback-email">Email (optional)</label>
+      <input type="email" id="feedback-email" name="contact_email" maxlength="255"
+             placeholder="If you'd like a reply">
+    </div>
+    {% endif %}
+
+    <div class="feedback-dialog__actions">
+      <button type="button" class="btn btn--secondary btn--sm" data-feedback-close>Cancel</button>
+      <button type="submit" class="btn btn--primary btn--sm">Send</button>
+    </div>
+  </form>
+</dialog>

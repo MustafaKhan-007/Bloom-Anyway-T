@@ -1010,3 +1010,47 @@ class CoachingRequest(db.Model):
     created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
 
     author = db.relationship("User")
+
+
+# --- site feedback, complaints, error reports, content reports ---------------
+
+FEEDBACK_KINDS = ("feedback", "complaint", "error")
+FEEDBACK_STATUSES = ("new", "reviewed")
+CONTENT_REPORT_STATUSES = ("open", "resolved", "dismissed")
+CONTENT_REPORT_TARGETS = ("post", "comment")
+
+
+class SiteFeedback(db.Model):
+    """Star ratings, complaints, and error reports from members / visitors."""
+    __tablename__ = "site_feedback"
+
+    id = db.Column(db.Integer, primary_key=True)
+    kind = db.Column(db.String(20), nullable=False, index=True)  # feedback / complaint / error
+    stars = db.Column(db.Integer)  # 1–5 for kind=feedback
+    body = db.Column(db.Text, nullable=False, default="")
+    page_path = db.Column(db.String(300))
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), index=True)
+    contact_email = db.Column(db.String(255))  # optional guest contact
+    status = db.Column(db.String(20), nullable=False, default="new", index=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
+
+    author = db.relationship("User")
+
+
+class ContentReport(db.Model):
+    """Member report of a forum post or comment; may auto-hide on light checks."""
+    __tablename__ = "content_reports"
+
+    id = db.Column(db.Integer, primary_key=True)
+    target_type = db.Column(db.String(20), nullable=False)  # post / comment
+    target_id = db.Column(db.Integer, nullable=False, index=True)
+    reporter_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    note = db.Column(db.String(500), nullable=False, default="")
+    status = db.Column(db.String(20), nullable=False, default="open", index=True)
+    auto_hidden = db.Column(db.Boolean, nullable=False, default=False)
+    auto_reason = db.Column(db.String(240))
+    owner_note = db.Column(db.String(500))
+    created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
+    resolved_at = db.Column(db.DateTime)
+
+    reporter = db.relationship("User")

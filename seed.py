@@ -17,6 +17,9 @@ from app import create_app
 from app.extensions import db
 from app.models import (FaqItem, ForumCategory, ForumTag, MembershipPlan, Page,
                         Quote)
+from app.services.legal_copy import PRIVACY as _PRIVACY
+from app.services.legal_copy import REFUNDS as _REFUNDS
+from app.services.legal_copy import TERMS as _TERMS
 
 SEED_FILE = Path(__file__).parent / "data" / "quotes_seed.json"
 
@@ -62,17 +65,9 @@ MEMBERSHIP_PLANS = [
 ]
 
 LEGAL_STUBS = {
-    "privacy": ("Privacy Policy",
-                "*TODO: legal review.*\n\nWe collect the minimum needed to run this site: "
-                "your email if you create an account or join the letter, and order records "
-                "delivered by our payment provider (Lemon Squeezy), who is the merchant of "
-                "record. We never see or store card details. No tracking cookies, no ad pixels."),
-    "terms": ("Terms of Service",
-              "*TODO: legal review.*\n\nDigital products are licensed for personal use. "
-              "Payments, taxes and delivery are handled by Lemon Squeezy as merchant of record."),
-    "refunds": ("Refund Policy",
-                "*TODO: legal review.*\n\nIf something isn't working for you, reply to your "
-                "receipt email within 14 days and we'll make it right."),
+    "privacy": ("Privacy Policy", _PRIVACY),
+    "terms": ("Terms of Service", _TERMS),
+    "refunds": ("Refund Policy", _REFUNDS),
 }
 
 
@@ -99,11 +94,16 @@ def seed():
                 db.session.add(FaqItem(question=question, answer_md=answer, sort_order=order))
             print(f"Added {len(STARTER_FAQS)} starter FAQ items")
 
-        # 3. legal page stubs
+        # 3. legal pages (create, or refresh if still marked TODO)
         for slug, (title, body) in LEGAL_STUBS.items():
-            if Page.query.filter_by(slug=slug).first() is None:
+            page = Page.query.filter_by(slug=slug).first()
+            if page is None:
                 db.session.add(Page(slug=slug, title=title, body_md=body))
-                print(f"Created page stub: {slug}")
+                print(f"Created page: {slug}")
+            elif page.body_md and "*TODO: legal review.*" in page.body_md:
+                page.title = title
+                page.body_md = body
+                print(f"Refreshed legal page: {slug}")
 
         # 4. forums + topic tags (idempotent). Retire the old single-topic
         #    categories once they're empty — they live on as tags now.

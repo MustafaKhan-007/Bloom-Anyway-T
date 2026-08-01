@@ -768,4 +768,50 @@
       if (!menu.hidden && active) placeMenu(active);
     });
   })();
+
+  /* ---- site feedback dialog (stars / complaint / error) ---- */
+  (function () {
+    var dialog = document.getElementById("feedback-dialog");
+    if (!dialog) return;
+    var kindInput = dialog.querySelector("[data-feedback-kind-input]");
+    var starsBox = dialog.querySelector("[data-feedback-stars]");
+    var tabs = dialog.querySelectorAll("[data-feedback-tab]");
+
+    function setKind(kind) {
+      if (kindInput) kindInput.value = kind;
+      tabs.forEach(function (btn) {
+        btn.classList.toggle("is-active", btn.getAttribute("data-feedback-tab") === kind);
+      });
+      if (starsBox) {
+        if (kind === "feedback") starsBox.removeAttribute("hidden");
+        else starsBox.setAttribute("hidden", "");
+      }
+    }
+
+    function openDialog(pref) {
+      setKind(pref || "feedback");
+      if (typeof dialog.showModal === "function") dialog.showModal();
+      else dialog.setAttribute("open", "");
+    }
+
+    function closeDialog() {
+      if (typeof dialog.close === "function") dialog.close();
+      else dialog.removeAttribute("open");
+    }
+
+    document.querySelectorAll("[data-feedback-open]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        openDialog(btn.getAttribute("data-feedback-pref") || "feedback");
+      });
+    });
+    dialog.querySelectorAll("[data-feedback-close]").forEach(function (btn) {
+      btn.addEventListener("click", closeDialog);
+    });
+    tabs.forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        setKind(btn.getAttribute("data-feedback-tab") || "feedback");
+      });
+    });
+    setKind("feedback");
+  })();
 })();

@@ -103,6 +103,10 @@
     </div>
   </footer>
 
+  {% if not request.path.startswith('/admin') %}
+  {% include "partials/feedback_widget.html" %}
+  {% endif %}
+
   <script src="{{ url_for('static', filename='js/file-pick.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/main.js') }}" defer></script>
   {% block scripts %}{% endblock %}

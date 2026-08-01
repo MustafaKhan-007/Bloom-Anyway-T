@@ -1130,12 +1130,37 @@ def delete_account():
     if request.form.get("confirm") != "yes":
         flash("Account not deleted \u2014 the confirmation box wasn't ticked.", "error")
         return redirect(url_for("main.account"))
-    current_user.deleted_at = utcnow()
-    db.session.commit()
+    if current_user.is_admin:
+        flash("The owner account can't be closed from here.", "error")
+        return redirect(url_for("main.settings"))
+    from ..services.privacy import close_account
+    close_account(current_user)
     from flask_login import logout_user
     logout_user()
     flash("Your account is closed. Thank you for the time you spent here.", "success")
     return redirect(url_for("main.index"))
+
+
+@bp.route("/feedback", methods=["POST"])
+@limiter.limit("8 per hour")
+def feedback_submit():
+    from ..services.feedback import submit_feedback
+    kind = request.form.get("kind") or "feedback"
+    body = request.form.get("body") or ""
+    stars = request.form.get("stars")
+    page_path = request.form.get("page_path") or request.referrer or ""
+    if page_path.startswith(request.host_url):
+        page_path = "/" + page_path[len(request.host_url):]
+    contact = request.form.get("contact_email") or ""
+    if request.form.get("website"):  # honeypot
+        return redirect(request.referrer or url_for("main.index"))
+    _row, msg = submit_feedback(kind=kind, body=body, stars=stars,
+                                page_path=page_path, contact_email=contact)
+    flash(msg, "success" if _row else "error")
+    nxt = request.form.get("next") or request.referrer or url_for("main.index")
+    if not nxt.startswith("/") or nxt.startswith("//"):
+        nxt = url_for("main.index")
+    return redirect(nxt)
 
 
 @bp.route("/subscribe", methods=["POST"])
@@ -1198,5 +1223,18 @@ def refunds():
 
 
 def _legal_page(slug, title):
+    from ..services import legal_copy
     page = Page.query.filter_by(slug=slug).first()
+    # Prefer stored Studio copy; fall back to canonical text if missing / still TODO.
+    if page is None or not (page.body_md or "").strip() \
+            or "*TODO: legal review.*" in (page.body_md or ""):
+        body = {"privacy": legal_copy.PRIVACY, "terms": legal_copy.TERMS,
+                "refunds": legal_copy.REFUNDS}.get(slug)
+        if body:
+            class _Tmp:
+                pass
+            tmp = _Tmp()
+            tmp.title = title
+            tmp.body_md = body
+            page = tmp
     return render_template("main/page.html", page=page, fallback_title=title)
