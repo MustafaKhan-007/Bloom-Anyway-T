@@ -82,10 +82,7 @@ class Config:
     )
     TURNSTILE_SECRET_KEY = TURNSTILE_SECRET  # legacy alias
 
-    # Lemon Squeezy (both optional: the storefront works before payments are
-    # wired. Webhooks are rejected until the secret is set; the "Sync" button
-    # needs the API key.)
-    LEMONSQUEEZY_API_KEY = os.environ.get("LEMONSQUEEZY_API_KEY", "")
+    # Lemon Squeezy webhook secret (optional until payments are wired).
     LEMONSQUEEZY_WEBHOOK_SECRET = os.environ.get("LEMONSQUEEZY_WEBHOOK_SECRET", "")
     # External Courses & Guides storefront (Lemon-hosted)
     SHOP_URL = (os.environ.get("SHOP_URL") or "https://shop.bloomanyway.online").rstrip("/")

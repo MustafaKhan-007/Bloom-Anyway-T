@@ -1,44 +1,13 @@
-"""Lemon Squeezy REST API reconciliation (dashboard "Sync" button).
+"""Lemon Squeezy order helpers used by the webhook.
 
-Webhooks are the primary data source; this repairs drift by fetching recent
-orders and upserting by `ls_order_id`.
+Webhooks are the source of truth for purchases and membership grants.
 """
 import logging
-
-import requests
-from flask import current_app
 
 from ..extensions import db
 from ..models import Order, Product
 
 log = logging.getLogger(__name__)
-
-
-def _shop_from_order_attrs(item_id, attrs):
-    """Mirror API sync into ShopPurchase (same rules as the webhook)."""
-    from .shop_purchases import upsert_shop_purchase
-    first_item = attrs.get("first_order_item") or {}
-    urls = attrs.get("urls") or {}
-    product_name = (
-        first_item.get("product_name")
-        or first_item.get("variant_name")
-        or "Shop purchase"
-    )
-    status = attrs.get("status") or "paid"
-    upsert_shop_purchase(
-        lemon_squeezy_order_id=item_id,
-        customer_email=attrs.get("user_email") or "",
-        product_name=product_name,
-        product_id=first_item.get("product_id"),
-        variant_id=first_item.get("variant_id"),
-        download_url=urls.get("receipt") or None,
-        refunded=(status == "refunded"),
-    )
-
-API_BASE = "https://api.lemonsqueezy.com/v1"
-MAX_PAGES = 5
-PAGE_SIZE = 50
-TIMEOUT = 15
 
 
 def _product_for_variant(variant_id: str | None) -> Product | None:
@@ -78,54 +47,10 @@ def upsert_order(ls_order_id: str, ls_variant_id: str | None, buyer_email: str,
         if product:
             order.product_id = product.id
         else:
-            log.warning("webhook/sync: no product with ls_variant_id=%s "
+            log.warning("webhook: no product with ls_variant_id=%s "
                         "(order %s won't appear in My space until it's set)",
                         order.ls_variant_id, order.ls_order_id)
     # grant/revoke membership when the purchased variant is a membership plan
     from .memberships import apply_from_order
     apply_from_order(order)
     return order
-
-
-def sync_recent_orders() -> dict:
-    """Fetch recent orders from the LS API and upsert. Returns a summary."""
-    api_key = current_app.config["LEMONSQUEEZY_API_KEY"]
-    if not api_key:
-        return {"ok": False, "error": "LEMONSQUEEZY_API_KEY is not configured."}
-
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Accept": "application/vnd.api+json",
-    }
-    url = f"{API_BASE}/orders"
-    params = {"page[size]": PAGE_SIZE, "sort": "-createdAt"}
-
-    seen = 0
-    try:
-        for _ in range(MAX_PAGES):
-            resp = requests.get(url, headers=headers, params=params, timeout=TIMEOUT)
-            resp.raise_for_status()
-            payload = resp.json()
-            for item in payload.get("data", []):
-                attrs = item.get("attributes", {})
-                first_item = attrs.get("first_order_item") or {}
-                upsert_order(
-                    ls_order_id=item.get("id"),
-                    ls_variant_id=first_item.get("variant_id"),
-                    buyer_email=attrs.get("user_email") or "",
-                    total_cents=int(attrs.get("total") or 0),
-                    currency=attrs.get("currency") or "USD",
-                    status=attrs.get("status") or "paid",
-                )
-                _shop_from_order_attrs(item.get("id"), attrs)
-                seen += 1
-            next_url = (payload.get("links") or {}).get("next")
-            if not next_url:
-                break
-            url, params = next_url, {}
-        db.session.commit()
-        return {"ok": True, "synced": seen}
-    except requests.RequestException as exc:
-        db.session.rollback()
-        log.exception("Lemon Squeezy sync failed")
-        return {"ok": False, "error": f"Lemon Squeezy API error: {exc}"}

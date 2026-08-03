@@ -41,10 +41,8 @@ services:
         value: 0x4AAAAAAEAGFowmHgyFM5Kf
       - key: TURNSTILE_SECRET
         sync: false
-      # Lemon Squeezy (optional: set when you wire up payments).
+      # Lemon Squeezy webhook (optional: set when you wire up payments).
       - key: LEMONSQUEEZY_WEBHOOK_SECRET
-        sync: false
-      - key: LEMONSQUEEZY_API_KEY
         sync: false
       # Optional self-hosted shop download files (default: instance/shop_files).
       # Prefer the media disk, e.g. /var/media/shop_files

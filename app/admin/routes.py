@@ -27,7 +27,6 @@ from ..services import badges as badges_service
 from ..services import quotes as quotes_service
 from ..services import reel_reviews as reel_svc
 from ..services import stats
-from ..services.lemonsqueezy import sync_recent_orders
 from ..services.mailer import last_send_error, send_email
 from ..services.settings import DEFAULTS as SETTING_DEFAULTS
 from ..services.settings import all_settings, set_setting
@@ -105,17 +104,6 @@ def dashboard():
         video_count=stats.video_count(),
         marketplace=stats.marketplace_counts(),
     )
-
-
-@bp.route("/sync", methods=["POST"])
-@admin_required
-def sync():
-    result = sync_recent_orders()
-    if result.get("ok"):
-        flash(f"Synced {result['synced']} orders from Lemon Squeezy.", "success")
-    else:
-        flash(result.get("error", "Sync failed."), "error")
-    return redirect(url_for("admin.dashboard"))
 
 
 # =============================== PRODUCTS ====================================
