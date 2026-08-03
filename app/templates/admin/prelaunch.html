@@ -1,0 +1,65 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Prelaunch access{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <h1>Prelaunch access</h1>
+</div>
+
+<p class="field-help" style="margin-top: 0; max-width: 62ch;">
+  {% if lock_on %}
+  <strong>Lock is ON</strong> for this environment.
+  {% else %}
+  <strong>Lock is OFF</strong> here (typical for local/dev). Production defaults to ON.
+  {% endif %}
+  Only your owner account and the emails below can browse past sign-in when the
+  lock is active. Everyone else sees &ldquo;Under construction&rdquo; even if they
+  type a URL by hand.
+</p>
+<p class="field-help" style="max-width: 62ch;">
+  <strong>At launch:</strong> set <code>PRELAUNCH_LOCK=0</code> in Render (or remove
+  the prelaunch gate). This Studio page can go away then too.
+</p>
+
+<div class="admin-panel" style="margin-top: 20px;">
+  <h2>Always allowed</h2>
+  <ul>
+    {% for email in owner_emails %}
+    <li><code>{{ email }}</code> <span class="field-help">(owner)</span></li>
+    {% endfor %}
+    <li class="field-help">Any Studio admin account</li>
+  </ul>
+</div>
+
+<div class="admin-panel" style="margin-top: 20px;">
+  <h2>Invite list</h2>
+  <form method="post" action="{{ url_for('admin.prelaunch_add') }}" class="member-search" style="margin-bottom: 18px;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="email" name="email" required maxlength="255" placeholder="friend@example.com">
+    <button class="btn btn--primary btn--sm" type="submit">Grant access</button>
+  </form>
+
+  <table class="admin-table">
+    <thead>
+      <tr><th>Email</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for email in emails %}
+      <tr>
+        <td><code>{{ email }}</code></td>
+        <td>
+          <form method="post" action="{{ url_for('admin.prelaunch_remove') }}" class="inline-form"
+                data-confirm="Remove access for {{ email }}?">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="email" value="{{ email }}">
+            <button class="btn btn--secondary btn--sm" type="submit">Remove</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="2">No invited emails yet — only the owner can browse.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

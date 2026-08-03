@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Under construction — Bloom Anyway</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;1,9..144,400&family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+  <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" type="image/svg+xml">
+</head>
+<body>
+  <main class="error-page">
+    <div class="sun-disc" aria-hidden="true"></div>
+    <h1>Under construction</h1>
+    <p style="margin: 0 auto 28px; max-width: 36ch;">
+      Bloom Anyway isn't open to the public just yet. If you've been invited,
+      sign in with the email we have on the list.
+    </p>
+    <div style="display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;">
+      <a class="btn btn--primary" href="{{ url_for('auth.login') }}">Sign in</a>
+      <a class="btn btn--secondary" href="{{ url_for('auth.register') }}">Create account</a>
+    </div>
+    {% if current_user.is_authenticated %}
+    <form method="post" action="{{ url_for('auth.logout') }}" style="margin-top: 20px;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="btn--quiet" type="submit">Sign out</button>
+    </form>
+    {% endif %}
+  </main>
+</body>
+</html>
