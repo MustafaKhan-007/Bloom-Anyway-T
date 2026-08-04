@@ -1238,8 +1238,8 @@ r = admin.get("/admin/subscribers/export.csv", follow_redirects=True)
 ok("Admin subscribers redirects away from local list",
    r.status_code == 200 and "Lemon Squeezy" in r.get_data(as_text=True))
 
-# --- 7b. reel reviews, coaching, nav order ---------------------------------
-from app.models import CoachingRequest, ReelReview, ReelReviewApplication
+# --- 7b. reel reviews, nav order -------------------------------------------
+from app.models import ReelReview, ReelReviewApplication
 from app.services import reel_reviews as reel_svc
 
 nav = client.get("/").get_data(as_text=True)
@@ -1340,41 +1340,44 @@ r = app.test_client().get("/")
 ok("Sunflower favicon is linked in the tab",
    "favicon.svg" in r.get_data(as_text=True))
 
-# coaching request (Creator only)
-admin.post("/admin/settings", data={
-    "site_title": "Bloom Anyway", "instagram_url": "", "hero_image_url": "",
-    "portrait_url": "", "contact_email": "", "announcement_text": "",
-    "announcement_expires": "", "creator_name": "", "creator_instagram": "",
-    "creator_image_url": "", "creator_blurb": "", "reel_url": "",
-    "reel_description": "",
-    "coaching_checkout_url": "https://store.lemonsqueezy.com/buy/coach100",
-}, follow_redirects=True)
+# coaching feature removed
 r = client.get("/account")
 abody = r.get_data(as_text=True)
-ok("Creator sees coaching fold on My space",
-   "1-on-1 coaching" in abody and "data-coaching-toggle" in abody
-   and "datetime-local" in abody and "$100" in abody)
-ok("My Journey and coaching sit at the bottom of My space",
-   "myspace-tabs" in abody
-   and abody.find("My Journey") < abody.find("1-on-1 coaching"))
-r = client.post("/account/coaching", data={
-    "message": "Help me plan a month of reels.",
-    "preferred_times": "2026-08-01T15:30",
-}, follow_redirects=False)
-ok("Creator coaching request redirects to Lemon checkout",
-   r.status_code == 302 and "coach100" in (r.headers.get("Location") or ""))
-with app.app_context():
-    creq = CoachingRequest.query.filter_by(message="Help me plan a month of reels.").first()
-ok("Coaching request stores the chosen date/time",
-   creq is not None and creq.status == "pending"
-   and creq.preferred_times and "2026" in creq.preferred_times)
+ok("My space has no coaching UI",
+   "1-on-1 coaching" not in abody and "data-coaching-toggle" not in abody)
 r = admin.get("/admin/coaching")
-ok("Studio lists coaching requests",
-   r.status_code == 200 and "Help me plan a month of reels" in r.get_data(as_text=True))
-r = admin.get("/account")
-ok("Owner My space shows coaching request notification",
-   "New coaching requests" in r.get_data(as_text=True)
-   and "Help me plan a month of reels" in r.get_data(as_text=True))
+ok("Studio coaching page is gone", r.status_code == 404)
+ok("Membership matrix has no coaching row",
+   "1-on-1 coaching" not in app.test_client().get("/membership").get_data(as_text=True))
+
+# site image uploads (hero / story teaser)
+from io import BytesIO
+from PIL import Image as _PILImage
+_buf = BytesIO()
+_PILImage.new("RGB", (120, 80), (122, 46, 98)).save(_buf, format="JPEG")
+_buf.seek(0)
+r = admin.post(
+    "/admin/settings",
+    data={
+        "site_title": "Bloom Anyway", "instagram_url": "",
+        "hero_image_url": "", "portrait_url": "", "contact_email": "",
+        "announcement_text": "", "announcement_expires": "",
+        "creator_name": "", "creator_instagram": "", "creator_image_url": "",
+        "creator_blurb": "", "reel_url": "", "reel_description": "",
+        "portrait_file": (_buf, "portrait.jpg"),
+    },
+    content_type="multipart/form-data",
+    follow_redirects=True,
+)
+ok("Studio accepts portrait image upload", r.status_code == 200)
+r = app.test_client().get("/media/site/portrait")
+ok("Uploaded portrait is served",
+   r.status_code == 200 and r.mimetype.startswith("image/")
+   and r.data[:3] == b"\xff\xd8\xff")
+with app.app_context():
+    from app.services.settings import get_setting
+    ok("Portrait setting points at media route",
+       get_setting("portrait_url") == "/media/site/portrait")
 
 # Content Hub: video library appears before reel reviews
 r = client.get("/watch")

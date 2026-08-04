@@ -104,9 +104,6 @@ Access may be revoked when a refund is issued.
 ## Memberships
 Membership billing and cancellation are managed through Lemon Squeezy. Cancelling stops future renewal according to their checkout terms. Refunds for unused time are handled case by case via your receipt email or Lemon Squeezy's customer portal — especially if you were charged in error or could not access paid features due to a fault on our side.
 
-## Coaching
-1-on-1 coaching payments follow the checkout terms shown at purchase. If a session cannot be delivered, contact us promptly via your receipt or the Contact page so we can reschedule or refund as appropriate.
-
 ## How to ask
 1. Find your Lemon Squeezy receipt email, or  
 2. Message us through [Contact](/contact) with the order email and approximate date.

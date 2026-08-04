@@ -23,7 +23,7 @@ QUOTE_CATEGORIES = ("comfort", "determination", "renewal")
 
 #: membership tiers. "none" = free (full community browse + weekly post/reply
 #: quotas + shop); "healing" = unlimited community post/reply + links + journey;
-#: "creator" = healing perks + videos, reel reviews, coaching, showcase.
+#: "creator" = healing perks + videos, reel reviews, showcase.
 MEMBERSHIPS = ("none", "healing", "creator")
 MEMBERSHIP_LABELS = {"none": "Free", "healing": "Healing", "creator": "Creator"}
 #: ordering so we can compare / take the "highest" tier a member holds
@@ -996,20 +996,19 @@ class ReelReview(db.Model):
     created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
 
 
-# --- 1:1 coaching requests --------------------------------------------------
+# --- site-branded images (hero / story teaser uploads) ----------------------
 
-class CoachingRequest(db.Model):
-    """A Creator member's request for a $100 1-on-1 coaching session."""
-    __tablename__ = "coaching_requests"
+SITE_IMAGE_KEYS = ("portrait", "hero")
 
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
-    message = db.Column(db.Text, nullable=False, default="")
-    preferred_times = db.Column(db.String(300))
-    status = db.Column(db.String(20), nullable=False, default="pending")  # pending/booked/done/cancelled
-    created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
 
-    author = db.relationship("User")
+class SiteImage(db.Model):
+    """Owner-uploaded site images stored in the DB (survive ephemeral disks)."""
+    __tablename__ = "site_images"
+
+    key = db.Column(db.String(40), primary_key=True)
+    data = db.Column(db.LargeBinary, nullable=False)
+    mime = db.Column(db.String(40), nullable=False, default="image/jpeg")
+    updated_at = db.Column(db.DateTime, nullable=False, default=utcnow)
 
 
 # --- site feedback, complaints, error reports, content reports ---------------

@@ -23,8 +23,6 @@ DEFAULTS = {
     "creator_blurb": "",
     "reel_url": "",
     "reel_description": "",
-    # Lemon Squeezy checkout for $100 1-on-1 coaching sessions
-    "coaching_checkout_url": "",
 }
 
 #: old brand names that should be rewritten to the current default on boot/seed

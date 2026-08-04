@@ -11,7 +11,7 @@ from ..extensions import db, limiter
 
 from ..models import (JOURNAL_PROMPTS, MARKETPLACE_KINDS, MARKETPLACE_KIND_LABELS,
                       MARKETPLACE_TAG_MAX, MARKETPLACE_TAGS,
-                      CoachingRequest, ContactMessage, FaqItem, JournalEntry,
+                      ContactMessage, FaqItem, JournalEntry,
                       ListingImage, MarketplaceListing, MembershipPlan,
                       Notification, Order, Page, Quote, QuoteFavorite,
                       ReelReview, ReelReviewApplication, ShopPurchase,
@@ -160,7 +160,6 @@ MEMBERSHIP_MATRIX = [
     ("Browse the Content Hub", True, True, True),
     ("Watch Content Hub videos", "Free picks", "Free picks", True),
     ("Request a weekly reel review", False, False, True),
-    ("1-on-1 coaching sessions", False, False, True),
     ("Profile links", False, True, True),
     ("My Journey keepsake export", False, True, True),
     ("Showcase listings", False, "1 active", "Unlimited"),
@@ -537,16 +536,6 @@ def account():
     favorites = (db.session.query(Quote).join(QuoteFavorite)
                  .filter(QuoteFavorite.user_id == current_user.id)
                  .order_by(QuoteFavorite.created_at.desc()).all())
-    coaching_url = settings_service.get_setting("coaching_checkout_url") or ""
-    coaching_checkout = _checkout_url(coaching_url) if coaching_url else ""
-    my_coaching = (CoachingRequest.query.filter_by(user_id=current_user.id)
-                   .order_by(CoachingRequest.created_at.desc()).limit(5).all())
-    owner_coaching = []
-    if current_user.is_admin:
-        owner_coaching = (CoachingRequest.query
-                          .filter(CoachingRequest.status == "pending")
-                          .order_by(CoachingRequest.created_at.desc())
-                          .limit(20).all())
     journal = (JournalEntry.query.filter_by(user_id=current_user.id)
                .order_by(JournalEntry.day.desc()).limit(60).all())
     notes = (Notification.query.filter_by(user_id=current_user.id)
@@ -564,9 +553,6 @@ def account():
         favorites=favorites,
         shop_purchases=linked_purchases_for(current_user),
         premium=is_premium(current_user),
-        coaching_checkout=coaching_checkout,
-        my_coaching=my_coaching,
-        owner_coaching=owner_coaching,
         active_tab=tab,
         journal_entries=journal,
         today_prompt=random_journal_prompt(),
@@ -616,37 +602,16 @@ def shop_download(purchase_id):
     return send_file(path, as_attachment=True, download_name=key)
 
 
-@bp.route("/account/coaching", methods=["POST"])
-@login_required
-def request_coaching():
-    if not current_user.is_creator():
-        flash("1-on-1 coaching is a Creator membership perk.", "info")
-        return redirect(url_for("main.membership"))
-    message = (request.form.get("message") or "").strip()[:2000]
-    preferred = (request.form.get("preferred_times") or "").strip()[:300]
-    if len(message) < 10:
-        flash("Tell us a little about what you'd like help with (a sentence or two).",
-              "error")
-        return redirect(url_for("main.account") + "#coaching")
-    if not preferred:
-        flash("Pick a date and time for your session.", "error")
-        return redirect(url_for("main.account") + "#coaching")
-    # datetime-local is "YYYY-MM-DDTHH:MM" — store a readable version
-    try:
-        when = datetime.fromisoformat(preferred)
-        preferred_display = when.strftime("%a %b %d, %Y at %I:%M %p").replace(" 0", " ")
-    except ValueError:
-        preferred_display = preferred
-    db.session.add(CoachingRequest(
-        user_id=current_user.id, message=message,
-        preferred_times=preferred_display[:300]))
-    db.session.commit()
-    flash("Coaching request sent — check out below to book your $100 session.",
-          "success")
-    checkout = settings_service.get_setting("coaching_checkout_url") or ""
-    if checkout:
-        return redirect(_checkout_url(checkout))
-    return redirect(url_for("main.account") + "#coaching")
+@bp.route("/media/site/<key>")
+def site_image(key):
+    """Serve an owner-uploaded site image (hero / story teaser)."""
+    from ..services.site_images import get as get_site_image
+    row = get_site_image(key)
+    if row is None or not row.data:
+        abort(404)
+    resp = Response(row.data, mimetype=row.mime or "image/jpeg")
+    resp.headers["Cache-Control"] = "public, max-age=86400"
+    return resp
 
 
 @bp.route("/account/journey.pdf")

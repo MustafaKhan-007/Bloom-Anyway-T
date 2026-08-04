@@ -16,7 +16,7 @@
   </form>
 </div>
 
-<form method="post">
+<form method="post" enctype="multipart/form-data">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <div class="admin-panel">
     <div class="form-row">
@@ -31,12 +31,38 @@
     </div>
     <div class="form-row">
       <div class="field">
-        <label for="portrait_url">Portrait image URL (home hero)</label>
-        <input type="url" id="portrait_url" name="portrait_url" value="{{ values.portrait_url }}" placeholder="https://...">
+        <label for="portrait_file">Portrait image (home hero)</label>
+        {% if values.portrait_url %}
+        <p class="field-help" style="margin-top: 0;">
+          Current:
+          <a href="{{ values.portrait_url }}" target="_blank" rel="noopener">view</a>
+        </p>
+        <img src="{{ values.portrait_url }}" alt="" style="max-width: 160px; border-radius: 12px; margin-bottom: 8px;">
+        {% endif %}
+        <input type="file" id="portrait_file" name="portrait_file" accept="image/*">
+        <label class="checkline checkline--sm" style="margin-top: 8px;">
+          <input type="checkbox" name="clear_portrait" value="1"> Remove current portrait
+        </label>
+        <p class="field-help">Upload a photo (JPEG/PNG/WebP, up to 8&nbsp;MB). Optional URL fallback below.</p>
+        <input type="url" id="portrait_url" name="portrait_url" value="{{ values.portrait_url }}"
+               placeholder="Or paste an image URL">
       </div>
       <div class="field">
-        <label for="hero_image_url">Story teaser image URL</label>
-        <input type="url" id="hero_image_url" name="hero_image_url" value="{{ values.hero_image_url }}" placeholder="https://...">
+        <label for="hero_file">Story teaser image</label>
+        {% if values.hero_image_url %}
+        <p class="field-help" style="margin-top: 0;">
+          Current:
+          <a href="{{ values.hero_image_url }}" target="_blank" rel="noopener">view</a>
+        </p>
+        <img src="{{ values.hero_image_url }}" alt="" style="max-width: 160px; border-radius: 12px; margin-bottom: 8px;">
+        {% endif %}
+        <input type="file" id="hero_file" name="hero_file" accept="image/*">
+        <label class="checkline checkline--sm" style="margin-top: 8px;">
+          <input type="checkbox" name="clear_hero" value="1"> Remove current teaser image
+        </label>
+        <p class="field-help">Upload a photo (JPEG/PNG/WebP, up to 8&nbsp;MB). Optional URL fallback below.</p>
+        <input type="url" id="hero_image_url" name="hero_image_url" value="{{ values.hero_image_url }}"
+               placeholder="Or paste an image URL">
       </div>
     </div>
     <div class="field">
@@ -118,20 +144,6 @@
       </ul>
     </div>
     {% endif %}
-  </div>
-
-  <h2 style="margin-top: 32px;">1-on-1 coaching</h2>
-  <div class="admin-panel">
-    <p class="field-help" style="margin-top: 0;">
-      Creator members request sessions from My space ($100 each). Paste your Lemon Squeezy
-      checkout URL for the coaching product here.
-    </p>
-    <div class="field">
-      <label for="coaching_checkout_url">Coaching checkout URL</label>
-      <input type="url" id="coaching_checkout_url" name="coaching_checkout_url"
-             value="{{ values.coaching_checkout_url }}"
-             placeholder="https://store.lemonsqueezy.com/buy/…">
-    </div>
   </div>
 
   <button class="btn btn--primary" type="submit">Save settings</button>

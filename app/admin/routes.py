@@ -18,11 +18,11 @@ from sqlalchemy import func
 from sqlalchemy.orm import joinedload
 
 from ..extensions import db
-from ..models import (Announcement, CoachingRequest, ContentReport, FaqItem,
-                      ForumComment, ForumPost, MEMBERSHIPS, MarketplaceListing,
-                      MembershipPlan, Page, Product, Quote, QuoteFavorite,
-                      QuotePin, ReelReview, ReelReviewApplication, SiteFeedback,
-                      Testimonial, User, Video, QUOTE_CATEGORIES)
+from ..models import (Announcement, ContentReport, FaqItem, ForumComment,
+                      ForumPost, MEMBERSHIPS, MarketplaceListing, MembershipPlan,
+                      Page, Product, Quote, QuoteFavorite, QuotePin, ReelReview,
+                      ReelReviewApplication, SiteFeedback, Testimonial, User,
+                      Video, QUOTE_CATEGORIES)
 from ..services import badges as badges_service
 from ..services import quotes as quotes_service
 from ..services import reel_reviews as reel_svc
@@ -497,6 +497,25 @@ def settings():
                 values["creator_image_url"] = preview["image"]
             if preview.get("blurb") and not values.get("creator_blurb"):
                 values["creator_blurb"] = preview["blurb"]
+        # Site images: upload preferred; clear flags; URL fields still work.
+        from ..services.site_images import (SiteImageError, clear as clear_site_image,
+                                            process_and_save)
+        try:
+            if request.form.get("clear_portrait"):
+                clear_site_image("portrait")
+                values["portrait_url"] = ""
+            portrait = request.files.get("portrait_file")
+            if portrait and portrait.filename:
+                values["portrait_url"] = process_and_save("portrait", portrait)
+            if request.form.get("clear_hero"):
+                clear_site_image("hero")
+                values["hero_image_url"] = ""
+            hero = request.files.get("hero_file")
+            if hero and hero.filename:
+                values["hero_image_url"] = process_and_save("hero", hero)
+        except SiteImageError as exc:
+            flash(str(exc), "error")
+            return redirect(url_for("admin.settings"))
         # quick announcement: blank expiry defaults to tomorrow
         if values.get("announcement_text") and not values.get("announcement_expires"):
             values["announcement_expires"] = (date.today() + timedelta(days=1)).isoformat()
@@ -1102,26 +1121,3 @@ def reel_reviews_unpublish(review_id):
     flash("Review hidden from the Content Hub.", "success")
     return redirect(url_for("admin.reel_reviews"))
 
-
-# =============================== COACHING ====================================
-
-@bp.route("/coaching")
-@admin_required
-def coaching():
-    rows = (CoachingRequest.query.options(joinedload(CoachingRequest.author))
-            .order_by(CoachingRequest.created_at.desc()).limit(100).all())
-    return render_template("admin/coaching.html", requests=rows)
-
-
-@bp.route("/coaching/<int:req_id>/status", methods=["POST"])
-@admin_required
-def coaching_status(req_id):
-    row = db.session.get(CoachingRequest, req_id) or abort(404)
-    status = (request.form.get("status") or "").strip()
-    if status not in ("pending", "booked", "done", "cancelled"):
-        flash("Unknown status.", "error")
-    else:
-        row.status = status
-        db.session.commit()
-        flash("Coaching request updated.", "success")
-    return redirect(url_for("admin.coaching"))
