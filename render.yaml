@@ -48,6 +48,9 @@ services:
       # Prefer the media disk, e.g. /var/media/shop_files
       - key: SHOP_FILES_DIR
         value: /var/media/shop_files
+      # Optional: shared secret for /cron/support-groups (24h reminders).
+      - key: CRON_SECRET
+        sync: false
 
 databases:
   - name: first-light-db

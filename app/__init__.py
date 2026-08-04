@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from flask import (Flask, flash, redirect, render_template,  # noqa: E402
+from flask import (Flask, abort, flash, redirect, render_template,  # noqa: E402
                    request, url_for)
 from flask_login import current_user  # noqa: E402
 from sqlalchemy import text  # noqa: E402
@@ -152,6 +152,19 @@ def create_app(config_class=None):
             return None
         return render_template("errors/under_construction.html"), 503
 
+    # Opportunistic support-group 24h reminders (also hit /cron/support-groups).
+    @app.before_request
+    def _support_group_reminders():
+        path = request.path or ""
+        if path.startswith(("/static/", "/healthz", "/cron/")):
+            return None
+        try:
+            from .services import support_groups as sg_svc
+            sg_svc.maybe_sweep_reminders()
+        except Exception:
+            pass
+        return None
+
     # --- template globals / filters ------------------------------------------
     from markupsafe import Markup, escape
 
@@ -206,6 +219,25 @@ def create_app(config_class=None):
     def healthz():
         db.session.execute(text("SELECT 1"))
         return {"status": "ok"}, 200
+
+    # --- cron (shared secret) -------------------------------------------------
+    @app.route("/cron/support-groups")
+    @app.route("/cron/support-groups/remind")
+    def cron_support_group_reminders():
+        secret = (app.config.get("CRON_SECRET") or "").strip()
+        if not secret:
+            abort(404)
+        auth = (request.headers.get("Authorization") or "").strip()
+        token = ""
+        if auth.lower().startswith("bearer "):
+            token = auth[7:].strip()
+        if not token:
+            token = (request.args.get("key") or "").strip()
+        if token != secret:
+            abort(404)
+        from .services import support_groups as sg_svc
+        n = sg_svc.dispatch_due_reminders()
+        return {"ok": True, "reminders": n}, 200
 
     # --- lightweight page-view counter (no cookies, no IPs) --------------------
     from .models import PageView

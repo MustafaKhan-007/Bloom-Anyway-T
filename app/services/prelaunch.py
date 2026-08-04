@@ -28,7 +28,7 @@ _PUBLIC_EXACT = frozenset({
     "/login", "/register", "/setup", "/verify-email",
     "/forgot-password", "/reset-password", "/logout", "/healthz",
 })
-_PUBLIC_PREFIXES = ("/static/", "/webhooks/", "/media/site/")
+_PUBLIC_PREFIXES = ("/static/", "/webhooks/", "/media/site/", "/cron/")
 
 
 def enabled() -> bool:

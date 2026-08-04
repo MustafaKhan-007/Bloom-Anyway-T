@@ -1127,3 +1127,95 @@ def reel_reviews_unpublish(review_id):
     flash("Review hidden from the Content Hub.", "success")
     return redirect(url_for("admin.reel_reviews"))
 
+
+# --- support / coaching groups ----------------------------------------------
+
+@bp.route("/support-groups")
+@admin_required
+def support_groups():
+    from ..services import support_groups as sg_svc
+    sg_svc.maybe_sweep_reminders(force=True)
+    pending = sg_svc.pending_queue()
+    open_rows = sg_svc.open_meetings()
+    past = sg_svc.recent_meetings()
+    seat_map = {m.id: sg_svc.meeting_seats(m) for m in open_rows + past}
+    owner_tz = (current_user.timezone or "UTC").strip() or "UTC"
+    return render_template(
+        "admin/support_groups.html",
+        pending=pending,
+        open_meetings=open_rows,
+        past_meetings=past,
+        seat_map=seat_map,
+        owner_tz=owner_tz,
+    )
+
+
+@bp.route("/support-groups/form", methods=["POST"])
+@admin_required
+def support_groups_form():
+    from ..services import support_groups as sg_svc
+    capacity = request.form.get("capacity") or "6"
+    meeting, err = sg_svc.form_next_meeting(capacity)
+    if err:
+        flash(err, "error")
+    else:
+        n = sg_svc.meeting_seats(meeting)
+        flash(
+            f"Seated {len(n)} earliest applicant{'s' if len(n) != 1 else ''} "
+            f"(capacity {meeting.capacity}). Set the date and Zoom link below.",
+            "success",
+        )
+    return redirect(url_for("admin.support_groups"))
+
+
+@bp.route("/support-groups/<int:meeting_id>/schedule", methods=["POST"])
+@admin_required
+def support_groups_schedule(meeting_id):
+    from ..models import SupportGroupMeeting
+    from ..services import support_groups as sg_svc
+    meeting = db.session.get(SupportGroupMeeting, meeting_id) or abort(404)
+    if meeting.status not in ("draft", "scheduled"):
+        flash("That meeting can no longer be scheduled.", "error")
+        return redirect(url_for("admin.support_groups"))
+    tz = (request.form.get("timezone") or current_user.timezone or "UTC").strip()
+    when = sg_svc.parse_owner_local(request.form.get("scheduled_at") or "", tz)
+    err = sg_svc.schedule_meeting(
+        meeting,
+        scheduled_at=when,
+        zoom_url=request.form.get("zoom_url") or "",
+        owner=current_user,
+    )
+    if err:
+        flash(err, "error")
+    else:
+        flash("Meeting scheduled — members were emailed and notified.", "success")
+    return redirect(url_for("admin.support_groups"))
+
+
+@bp.route("/support-groups/<int:meeting_id>/complete", methods=["POST"])
+@admin_required
+def support_groups_complete(meeting_id):
+    from ..models import SupportGroupMeeting
+    from ..services import support_groups as sg_svc
+    meeting = db.session.get(SupportGroupMeeting, meeting_id) or abort(404)
+    if meeting.status != "scheduled":
+        flash("Only scheduled meetings can be marked complete.", "error")
+    else:
+        sg_svc.complete_meeting(meeting)
+        flash("Marked complete.", "success")
+    return redirect(url_for("admin.support_groups"))
+
+
+@bp.route("/support-groups/<int:meeting_id>/cancel", methods=["POST"])
+@admin_required
+def support_groups_cancel(meeting_id):
+    from ..models import SupportGroupMeeting
+    from ..services import support_groups as sg_svc
+    meeting = db.session.get(SupportGroupMeeting, meeting_id) or abort(404)
+    if meeting.status not in ("draft", "scheduled"):
+        flash("That meeting is already closed.", "error")
+    else:
+        sg_svc.cancel_meeting(meeting, owner=current_user)
+        flash("Meeting cancelled.", "success")
+    return redirect(url_for("admin.support_groups"))
+

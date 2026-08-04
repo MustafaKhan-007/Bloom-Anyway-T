@@ -164,6 +164,7 @@ MEMBERSHIP_MATRIX = [
     ("My Journey keepsake export", False, True, True),
     ("Showcase listings", False, "1 active", "Unlimited"),
     ("Home-page spotlight eligibility", False, False, True),
+    ("Coaching / support groups", False, True, True),
 ]
 
 
@@ -547,7 +548,16 @@ def account():
                 n.read_at = utcnow()
         db.session.commit()
     from ..services.social_graph import follow_counts, unread_notification_count
+    from ..services import support_groups as sg_svc
     followers_n, following_n = follow_counts(current_user)
+    my_support = []
+    active_support = None
+    owner_support_pending = 0
+    if current_user.is_member():
+        my_support = sg_svc.applications_for(current_user.id)
+        active_support = sg_svc.active_application(current_user.id)
+    if current_user.is_admin:
+        owner_support_pending = sg_svc.pending_count()
     return render_template(
         "main/account.html", greeting=greeting, orders=orders,
         favorites=favorites,
@@ -560,6 +570,9 @@ def account():
         unread_notes=unread_notification_count(current_user),
         followers_n=followers_n,
         following_n=following_n,
+        my_support=my_support,
+        active_support=active_support,
+        owner_support_pending=owner_support_pending,
     )
 
 
@@ -1170,6 +1183,33 @@ def contact():
         flash("Got it. I read everything \u2014 you'll hear back soon.", "success")
         return redirect(url_for("main.contact"))
     return render_template("main/contact.html", form={})
+
+
+@bp.route("/account/support-groups", methods=["POST"])
+@login_required
+def request_support_group():
+    from ..services import support_groups as sg_svc
+    if not current_user.is_member():
+        flash("Support groups are for Healing and Creator members.", "error")
+        return redirect(url_for("main.membership", next=url_for("main.account")))
+    _, err = sg_svc.apply(current_user, request.form.get("message") or "")
+    if err:
+        flash(err, "error")
+    else:
+        flash("You're on the list. We'll email and notify you when a circle opens.", "success")
+    return redirect(url_for("main.account") + "#support-groups")
+
+
+@bp.route("/account/support-groups/<int:app_id>/withdraw", methods=["POST"])
+@login_required
+def withdraw_support_group(app_id):
+    from ..services import support_groups as sg_svc
+    err = sg_svc.withdraw(current_user, app_id)
+    if err:
+        flash(err, "error")
+    else:
+        flash("Application withdrawn.", "success")
+    return redirect(url_for("main.account") + "#support-groups")
 
 
 @bp.route("/privacy")

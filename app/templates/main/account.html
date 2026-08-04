@@ -51,6 +51,29 @@
   </div>
 </section>
 
+{% if current_user.is_admin and owner_support_pending and active_tab == 'profile' %}
+<section class="section section--tight" id="support-inbox">
+  <div class="container">
+    <div class="owner-notice">
+      <div class="owner-notice__head">
+        <span class="owner-notice__icon" aria-hidden="true">&#128101;</span>
+        <div>
+          <p class="eyebrow">Support group queue</p>
+          <h2 style="margin: 0; font-size: 22px;">
+            {{ owner_support_pending }} waiting
+            applicant{{ '' if owner_support_pending == 1 else 's' }}
+          </h2>
+        </div>
+      </div>
+      <p class="field-help" style="margin: 0 0 10px;">
+        Seat the earliest applicants, pick a time, and paste the Zoom link in Studio.
+      </p>
+      <a class="btn btn--primary btn--sm" href="{{ url_for('admin.support_groups') }}">Open in Studio &rarr;</a>
+    </div>
+  </div>
+</section>
+{% endif %}
+
 {% if active_tab == 'profile' %}
 <section class="section section--tight">
   <div class="container">
@@ -111,6 +134,85 @@
       </div>
       <div class="journey-card__mark" aria-hidden="true">&#10022;</div>
     </div>
+
+    {% if current_user.is_member() %}
+    <div class="journey-card coaching-card" id="support-groups">
+      <div class="journey-card__body" style="width: 100%;">
+        <p class="eyebrow">Coaching &amp; support groups</p>
+        <button type="button" class="coaching-fold__toggle" data-coaching-toggle
+                aria-expanded="false" aria-controls="support-panel">
+          <span>Join a small Zoom circle</span>
+          <span class="coaching-fold__arrow" aria-hidden="true">&#9662;</span>
+        </button>
+        <div class="coaching-fold__panel" id="support-panel" aria-hidden="true">
+          <p>Healing &amp; Creator members can apply for the next support group.
+            Seats go to the earliest applicants. When you're booked, you'll get an
+            email and a Bloom Anyway notification with the time in your timezone —
+            plus a reminder 24 hours before with the Zoom link.</p>
+
+          {% if active_support and active_support.status == 'selected' and active_support.meeting %}
+          {% set m = active_support.meeting %}
+          <div class="sg-booked">
+            {% if m.scheduled_at and m.zoom_url %}
+            <p class="sg-booked__label">You're booked</p>
+            <p class="sg-booked__when">{{ m.scheduled_at|localtime('%A, %b %d, %Y at %I:%M %p') }}
+              <span class="field-help">({{ current_user.timezone or 'UTC' }})</span></p>
+            <a class="btn btn--primary btn--sm" href="{{ m.zoom_url }}" target="_blank" rel="noopener">Open Zoom</a>
+            {% else %}
+            <p class="sg-booked__label">You're seated</p>
+            <p>You're in for the next circle. We'll email and notify you once the date and Zoom link are set.</p>
+            {% endif %}
+          </div>
+          {% elif active_support and active_support.status == 'pending' %}
+          <p class="sg-pending">You're on the waiting list
+            (applied {{ active_support.created_at|localtime('%b %d, %Y') }}).</p>
+          <form method="post" action="{{ url_for('main.withdraw_support_group', app_id=active_support.id) }}"
+                style="margin-top: 10px;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="btn btn--secondary btn--sm" type="submit">Withdraw</button>
+          </form>
+          {% else %}
+          <form method="post" action="{{ url_for('main.request_support_group') }}"
+                class="stack-form coaching-form" style="margin-top: 14px; max-width: 480px;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <label>Anything you'd like the circle to hold space for?
+              <span class="field-help">Optional</span>
+              <textarea name="message" rows="3" maxlength="2000"
+                        placeholder="e.g. Boundaries with family, showing up online…"></textarea>
+            </label>
+            <button class="btn btn--primary" type="submit">Apply for the next group</button>
+          </form>
+          {% endif %}
+
+          {% if my_support %}
+          <ul class="spotlight-list" style="margin-top: 18px;">
+            {% for c in my_support[:6] %}
+            <li>
+              <strong>{{ c.status|capitalize }}</strong>
+              &mdash; {{ c.created_at|localtime('%b %d, %Y') }}
+              {% if c.meeting and c.meeting.scheduled_at %}
+              <br><span>{{ c.meeting.scheduled_at|localtime('%b %d · %I:%M %p') }}</span>
+              {% endif %}
+            </li>
+            {% endfor %}
+          </ul>
+          {% endif %}
+        </div>
+      </div>
+      <div class="journey-card__mark" aria-hidden="true">&#128101;</div>
+    </div>
+    {% else %}
+    <div class="journey-card coaching-card journey-card--locked" id="support-groups" style="margin-top: 16px;">
+      <div class="journey-card__body">
+        <p class="eyebrow">Coaching &amp; support groups</p>
+        <h3 style="margin: 4px 0 10px;">Small Zoom circles</h3>
+        <p>Healing &amp; Creator members can apply for facilitated support groups.</p>
+        <a class="btn btn--secondary journey-card__cta"
+           href="{{ url_for('main.membership', next=url_for('main.account')) }}">See memberships</a>
+      </div>
+      <div class="journey-card__mark" aria-hidden="true">&#128101;</div>
+    </div>
+    {% endif %}
 
   </div>
 </section>

@@ -1053,3 +1053,48 @@ class ContentReport(db.Model):
     resolved_at = db.Column(db.DateTime)
 
     reporter = db.relationship("User")
+
+
+# --- support / coaching groups (Zoom circles) --------------------------------
+
+SUPPORT_APP_STATUSES = ("pending", "selected", "cancelled", "attended")
+SUPPORT_MEETING_STATUSES = ("draft", "scheduled", "completed", "cancelled")
+
+
+class SupportGroupMeeting(db.Model):
+    """A Zoom support-group session with a fixed seat count."""
+    __tablename__ = "support_group_meetings"
+
+    id = db.Column(db.Integer, primary_key=True)
+    capacity = db.Column(db.Integer, nullable=False, default=6)
+    scheduled_at = db.Column(db.DateTime)  # stored UTC (naive)
+    zoom_url = db.Column(db.String(500))
+    status = db.Column(db.String(20), nullable=False, default="draft", index=True)
+    booked_notified_at = db.Column(db.DateTime)
+    reminded_at = db.Column(db.DateTime)
+    notes = db.Column(db.String(500))
+    created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
+
+    applications = db.relationship(
+        "SupportGroupApplication", back_populates="meeting", lazy="dynamic",
+    )
+
+    def is_bookable(self) -> bool:
+        return bool(self.scheduled_at and (self.zoom_url or "").strip())
+
+
+class SupportGroupApplication(db.Model):
+    """Healing/Creator request to join the next support-group circle."""
+    __tablename__ = "support_group_applications"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    meeting_id = db.Column(
+        db.Integer, db.ForeignKey("support_group_meetings.id"), index=True,
+    )
+    message = db.Column(db.Text, nullable=False, default="")
+    status = db.Column(db.String(20), nullable=False, default="pending", index=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
+
+    author = db.relationship("User")
+    meeting = db.relationship("SupportGroupMeeting", back_populates="applications")

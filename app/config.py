@@ -84,6 +84,8 @@ class Config:
 
     # Lemon Squeezy webhook secret (optional until payments are wired).
     LEMONSQUEEZY_WEBHOOK_SECRET = os.environ.get("LEMONSQUEEZY_WEBHOOK_SECRET", "")
+    # Optional shared secret for /cron/* jobs (e.g. support-group reminders).
+    CRON_SECRET = os.environ.get("CRON_SECRET", "").strip()
     # External Courses & Guides storefront (Lemon-hosted)
     SHOP_URL = (os.environ.get("SHOP_URL") or "https://shop.bloomanyway.online").rstrip("/")
     # Optional self-hosted digital files for ShopPurchase.file_key

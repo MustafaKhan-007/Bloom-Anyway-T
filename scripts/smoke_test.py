@@ -1340,15 +1340,80 @@ r = app.test_client().get("/")
 ok("Sunflower favicon is linked in the tab",
    "favicon.svg" in r.get_data(as_text=True))
 
-# coaching feature removed
+# support / coaching groups
+from app.models import Notification, SupportGroupApplication, SupportGroupMeeting
+from app.services import support_groups as sg_svc
+
+_sent_mail = []
+sg_svc.send_email = (
+    lambda to, subject, text_body, html_body=None:
+    _sent_mail.append({"to": to, "subject": subject, "text": text_body}) or True
+)
+
+r = free_client.post("/account/support-groups", data={"message": "hi"},
+                     follow_redirects=True)
+ok("Free members cannot apply for support groups",
+   "Healing and Creator" in r.get_data(as_text=True)
+   or free_client.get("/membership").status_code == 200)
+
+r = stranger_client.post("/account/support-groups",
+                         data={"message": "Need a gentle circle"},
+                         follow_redirects=True)
+ok("Healing member can apply for a support group",
+   "on the list" in r.get_data(as_text=True).lower())
+r = client.post("/account/support-groups",
+                data={"message": "Creator joining too"},
+                follow_redirects=True)
+ok("Creator member can apply for a support group",
+   "on the list" in r.get_data(as_text=True).lower())
+
 r = client.get("/account")
-abody = r.get_data(as_text=True)
-ok("My space has no coaching UI",
-   "1-on-1 coaching" not in abody and "data-coaching-toggle" not in abody)
-r = admin.get("/admin/coaching")
-ok("Studio coaching page is gone", r.status_code == 404)
-ok("Membership matrix has no coaching row",
-   "1-on-1 coaching" not in app.test_client().get("/membership").get_data(as_text=True))
+ok("My space shows support-group fold",
+   "support-groups" in r.get_data(as_text=True)
+   and "data-coaching-toggle" in r.get_data(as_text=True))
+ok("Membership matrix lists support groups",
+   "Coaching / support groups" in app.test_client().get("/membership").get_data(as_text=True))
+
+r = admin.get("/admin/support-groups")
+ok("Studio support-groups page loads",
+   r.status_code == 200 and "Waiting list" in r.get_data(as_text=True))
+r = admin.post("/admin/support-groups/form", data={"capacity": "2"},
+               follow_redirects=True)
+ok("Owner can seat earliest applicants",
+   "Seated 2" in r.get_data(as_text=True),
+   r.get_data(as_text=True)[:500])
+with app.app_context():
+    meeting = SupportGroupMeeting.query.filter_by(status="draft").first()
+    ok("Draft meeting exists after seating", meeting is not None)
+    mid = meeting.id
+    seated = SupportGroupApplication.query.filter_by(
+        meeting_id=mid, status="selected").count()
+    ok("Exactly two applicants were seated", seated == 2)
+
+# Schedule ~36h out so booking notify fires, then backdate into the 24h window
+when_local = (datetime.utcnow() + timedelta(hours=36)).strftime("%Y-%m-%dT%H:%M")
+r = admin.post(f"/admin/support-groups/{mid}/schedule", data={
+    "scheduled_at": when_local,
+    "timezone": "UTC",
+    "zoom_url": "https://zoom.us/j/123456789",
+}, follow_redirects=True)
+ok("Owner can schedule Zoom meeting and notify seats",
+   "Meeting scheduled" in r.get_data(as_text=True),
+   r.get_data(as_text=True)[:500])
+ok("Booking emails were sent to seated members",
+   len([m for m in _sent_mail if "booked" in m["subject"].lower()]) >= 2)
+with app.app_context():
+    notes = Notification.query.filter_by(kind="support_group").count()
+    ok("Booking created in-app notifications", notes >= 2)
+    meeting = db.session.get(SupportGroupMeeting, mid)
+    meeting.scheduled_at = utcnow() + timedelta(hours=20)
+    meeting.reminded_at = None
+    db.session.commit()
+    n = sg_svc.dispatch_due_reminders()
+    ok("24h reminder dispatch runs", n == 1)
+ok("Reminder email includes Zoom link",
+   any("zoom.us/j/123456789" in (m.get("text") or "")
+       and "reminder" in m["subject"].lower() for m in _sent_mail))
 
 # site image uploads (hero / story teaser)
 from io import BytesIO

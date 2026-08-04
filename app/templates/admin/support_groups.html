@@ -1,0 +1,170 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Support groups{% endblock %}
+
+{% block content %}
+<div class="sg-studio">
+  <header class="sg-studio__hero">
+    <p class="eyebrow">Coaching circles</p>
+    <h1>Support groups</h1>
+    <p class="field-help" style="margin: 8px 0 0; max-width: 58ch;">
+      Healing &amp; Creator members apply from My space. Seat the earliest applicants,
+      pick a time in your timezone, paste the Zoom link — they get an email and an
+      in-app note, plus a 24-hour reminder with the link.
+    </p>
+  </header>
+
+  <div class="sg-studio__grid">
+    <section class="admin-panel sg-panel">
+      <div class="sg-panel__head">
+        <h2 style="margin:0;">Waiting list</h2>
+        <span class="sg-count">{{ pending|length }}</span>
+      </div>
+      <p class="field-help" style="margin-top: 6px;">Earliest applications first.</p>
+
+      <form method="post" action="{{ url_for('admin.support_groups_form') }}"
+            class="sg-seat-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <label class="sg-seat-form__label">
+          Seats for next meeting
+          <input type="number" name="capacity" min="2" max="40" value="6" required>
+        </label>
+        <button class="btn btn--primary" type="submit"
+                {% if not pending %}disabled{% endif %}>
+          Seat earliest applicants
+        </button>
+      </form>
+
+      {% if pending %}
+      <ol class="sg-queue">
+        {% for a in pending %}
+        <li>
+          <div class="sg-queue__who">
+            <strong>{{ a.author.public_name() }}</strong>
+            <span class="field-help">{{ a.author.email }}
+              · {{ a.author.membership_label() }}
+              · applied {{ a.created_at|localtime('%b %d, %Y · %I:%M %p') }}</span>
+          </div>
+          {% if a.message %}
+          <p class="sg-queue__note">{{ a.message|truncate(220) }}</p>
+          {% endif %}
+        </li>
+        {% endfor %}
+      </ol>
+      {% else %}
+      <p class="sg-empty">No one is waiting right now.</p>
+      {% endif %}
+    </section>
+
+    <section class="admin-panel sg-panel">
+      <div class="sg-panel__head">
+        <h2 style="margin:0;">Open meetings</h2>
+        <span class="sg-count">{{ open_meetings|length }}</span>
+      </div>
+      <p class="field-help" style="margin-top: 6px;">
+        Times below use your timezone
+        (<strong>{{ owner_tz }}</strong>). Members see it in theirs.
+      </p>
+
+      {% if open_meetings %}
+      <div class="sg-meetings">
+        {% for m in open_meetings %}
+        {% set seats = seat_map.get(m.id, []) %}
+        <article class="sg-meeting {% if m.status == 'scheduled' %}sg-meeting--live{% else %}sg-meeting--draft{% endif %}">
+          <div class="sg-meeting__top">
+            <div>
+              <span class="sg-pill sg-pill--{{ m.status }}">{{ m.status }}</span>
+              <h3 style="margin: 8px 0 4px;">
+                {{ seats|length }} of {{ m.capacity }} seated
+              </h3>
+              {% if m.scheduled_at %}
+              <p class="field-help" style="margin:0;">
+                {{ m.scheduled_at|localtime('%A, %b %d · %I:%M %p') }}
+                {% if m.zoom_url %}
+                · <a href="{{ m.zoom_url }}" target="_blank" rel="noopener">Zoom link</a>
+                {% endif %}
+              </p>
+              {% else %}
+              <p class="field-help" style="margin:0;">Needs a date, time, and Zoom link.</p>
+              {% endif %}
+            </div>
+            <form method="post" action="{{ url_for('admin.support_groups_cancel', meeting_id=m.id) }}"
+                  onsubmit="return confirm('Cancel this meeting?');">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button class="btn btn--secondary btn--sm" type="submit">Cancel</button>
+            </form>
+          </div>
+
+          <ul class="sg-seats">
+            {% for s in seats %}
+            <li>
+              <strong>{{ s.author.public_name() }}</strong>
+              <span class="field-help">{{ s.author.email }}</span>
+            </li>
+            {% endfor %}
+          </ul>
+
+          <form method="post" action="{{ url_for('admin.support_groups_schedule', meeting_id=m.id) }}"
+                class="stack-form sg-schedule">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="timezone" value="{{ owner_tz }}">
+            <div class="form-row form-row--announce">
+              <div class="field">
+                <label for="when-{{ m.id }}">Date &amp; time ({{ owner_tz }})</label>
+                <input type="datetime-local" id="when-{{ m.id }}" name="scheduled_at" required
+                       value="{% if m.scheduled_at %}{{ m.scheduled_at|localtime('%Y-%m-%dT%H:%M', owner_tz) }}{% endif %}">
+              </div>
+              <div class="field">
+                <label for="zoom-{{ m.id }}">Zoom meeting link</label>
+                <input type="url" id="zoom-{{ m.id }}" name="zoom_url" required
+                       placeholder="https://zoom.us/j/…"
+                       value="{{ m.zoom_url or '' }}">
+              </div>
+            </div>
+            <div class="sg-schedule__actions">
+              <button class="btn btn--primary" type="submit">
+                {% if m.status == 'scheduled' %}Update &amp; notify{% else %}Schedule &amp; notify{% endif %}
+              </button>
+              {% if m.status == 'scheduled' %}
+              <button class="btn btn--secondary" type="submit"
+                      formaction="{{ url_for('admin.support_groups_complete', meeting_id=m.id) }}">
+                Mark complete
+              </button>
+              {% endif %}
+            </div>
+          </form>
+        </article>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="sg-empty">Seat people from the waiting list to open a meeting.</p>
+      {% endif %}
+    </section>
+  </div>
+
+  {% if past_meetings %}
+  <section class="admin-panel sg-panel" style="margin-top: 24px;">
+    <h2 style="margin-top:0;">Recent</h2>
+    <table class="admin-table">
+      <thead>
+        <tr><th>When</th><th>Seats</th><th>Status</th></tr>
+      </thead>
+      <tbody>
+        {% for m in past_meetings %}
+        <tr>
+          <td>
+            {% if m.scheduled_at %}
+            {{ m.scheduled_at|localtime('%b %d, %Y · %I:%M %p') }}
+            {% else %}
+            —
+            {% endif %}
+          </td>
+          <td>{{ seat_map.get(m.id, [])|length }} / {{ m.capacity }}</td>
+          <td>{{ m.status }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+  {% endif %}
+</div>
+{% endblock %}
