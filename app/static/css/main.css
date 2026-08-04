@@ -800,8 +800,18 @@ details.faq-item[open] > summary { border-bottom: 1px solid var(--ivory-deep); }
 details.faq-item[open] > summary .faq-item__hint::after { content: " \2212"; }
 details.faq-item:not([open]) > summary .faq-item__hint::after { content: " +"; }
 details.faq-item > form { padding: 0 20px 20px; }
-.form-row { display: grid; gap: 16px; }
+.form-row { display: grid; gap: 16px; align-items: start; }
 @media (min-width: 640px) { .form-row { grid-template-columns: 1fr 1fr; } }
+.form-row--announce { align-items: start; }
+@media (min-width: 640px) {
+  .form-row--announce {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) auto;
+  }
+  .form-row--announce__action {
+    /* sit beside the inputs, under an invisible label height */
+    padding-top: calc(1em + 8px);
+  }
+}
 .cover-preview { max-width: 160px; border-radius: 10px; margin-top: 10px; aspect-ratio: 4/5; object-fit: cover; }
 .page-head { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; margin-bottom: 24px; }
 

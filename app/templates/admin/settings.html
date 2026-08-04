@@ -174,10 +174,10 @@
   <h2>More announcements</h2>
   <p class="field-help">Run several at once &mdash; they stack tidily on the home page. Each can have its own expiry.</p>
 
-  <form method="post" class="form-row" style="align-items: flex-end;">
+  <form method="post" class="form-row form-row--announce">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <input type="hidden" name="add_announcement" value="1">
-    <div class="field" style="flex: 2;">
+    <div class="field form-row--announce__body">
       <label for="ann_body">Announcement</label>
       <input type="text" id="ann_body" name="ann_body" maxlength="300" placeholder="e.g. New reel this week ☀">
     </div>
@@ -186,7 +186,10 @@
       <input type="date" id="ann_expires" name="ann_expires" value="{{ default_expires }}">
       <p class="field-help">Defaults to one day from now.</p>
     </div>
-    <button class="btn btn--primary btn--sm" type="submit">Add</button>
+    <div class="field form-row--announce__action">
+      <label class="sr-only" for="ann-add">Add announcement</label>
+      <button class="btn btn--primary btn--sm" id="ann-add" type="submit">Add</button>
+    </div>
   </form>
 
   {% if announcements %}
