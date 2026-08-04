@@ -998,7 +998,7 @@ class ReelReview(db.Model):
 
 # --- site-branded images (hero / story teaser uploads) ----------------------
 
-SITE_IMAGE_KEYS = ("portrait", "hero")
+SITE_IMAGE_KEYS = ("portrait", "hero", "creator")
 
 
 class SiteImage(db.Model):

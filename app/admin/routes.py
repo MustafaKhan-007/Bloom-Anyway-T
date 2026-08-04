@@ -489,14 +489,6 @@ def settings():
         # store a clean Instagram handle (never a share-link with ?igsh=…)
         handle = instagram_handle(values.get("creator_instagram") or "")
         values["creator_instagram"] = handle
-        # if photo/bio were left blank, try a public Instagram preview
-        if handle and (not values.get("creator_image_url")
-                       or not values.get("creator_blurb")):
-            preview = fetch_instagram_preview(handle)
-            if preview.get("image") and not values.get("creator_image_url"):
-                values["creator_image_url"] = preview["image"]
-            if preview.get("blurb") and not values.get("creator_blurb"):
-                values["creator_blurb"] = preview["blurb"]
         # Site images: upload preferred; clear flags; URL fields still work.
         from ..services.site_images import (SiteImageError, clear as clear_site_image,
                                             process_and_save)
@@ -513,9 +505,23 @@ def settings():
             hero = request.files.get("hero_file")
             if hero and hero.filename:
                 values["hero_image_url"] = process_and_save("hero", hero)
+            if request.form.get("clear_creator"):
+                clear_site_image("creator")
+                values["creator_image_url"] = ""
+            creator = request.files.get("creator_file")
+            if creator and creator.filename:
+                values["creator_image_url"] = process_and_save("creator", creator)
         except SiteImageError as exc:
             flash(str(exc), "error")
             return redirect(url_for("admin.settings"))
+        # if photo/bio were left blank, try a public Instagram preview
+        if handle and (not values.get("creator_image_url")
+                       or not values.get("creator_blurb")):
+            preview = fetch_instagram_preview(handle)
+            if preview.get("image") and not values.get("creator_image_url"):
+                values["creator_image_url"] = preview["image"]
+            if preview.get("blurb") and not values.get("creator_blurb"):
+                values["creator_blurb"] = preview["blurb"]
         # quick announcement: blank expiry defaults to tomorrow
         if values.get("announcement_text") and not values.get("announcement_expires"):
             values["announcement_expires"] = (date.today() + timedelta(days=1)).isoformat()

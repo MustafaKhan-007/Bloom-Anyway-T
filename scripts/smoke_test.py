@@ -1379,6 +1379,33 @@ with app.app_context():
     ok("Portrait setting points at media route",
        get_setting("portrait_url") == "/media/site/portrait")
 
+_buf2 = BytesIO()
+_PILImage.new("RGB", (100, 100), (239, 167, 51)).save(_buf2, format="JPEG")
+_buf2.seek(0)
+with app.app_context():
+    _portrait_url = get_setting("portrait_url")
+r = admin.post(
+    "/admin/settings",
+    data={
+        "site_title": "Bloom Anyway", "instagram_url": "",
+        "hero_image_url": "", "portrait_url": _portrait_url,
+        "contact_email": "", "announcement_text": "", "announcement_expires": "",
+        "creator_name": "Featured", "creator_instagram": "",
+        "creator_image_url": "", "creator_blurb": "Hello",
+        "reel_url": "", "reel_description": "",
+        "creator_file": (_buf2, "creator.jpg"),
+    },
+    content_type="multipart/form-data",
+    follow_redirects=True,
+)
+ok("Studio accepts creator-of-the-month photo upload", r.status_code == 200)
+r = app.test_client().get("/media/site/creator")
+ok("Uploaded creator photo is served",
+   r.status_code == 200 and r.data[:3] == b"\xff\xd8\xff")
+with app.app_context():
+    ok("Creator photo setting points at media route",
+       get_setting("creator_image_url") == "/media/site/creator")
+
 # Content Hub: video library appears before reel reviews
 r = client.get("/watch")
 hub = r.get_data(as_text=True)

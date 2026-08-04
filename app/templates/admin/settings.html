@@ -103,9 +103,21 @@
         </div>
       </div>
       <div class="field">
-        <label for="creator_image_url">Profile photo URL (optional)</label>
-        <input type="url" id="creator_image_url" name="creator_image_url" value="{{ values.creator_image_url }}" placeholder="https://...">
-        <p class="field-help">Leave blank and we'll try to pull their Instagram photo when you save. Paste a direct image URL if that fails.</p>
+        <label for="creator_file">Profile photo (optional)</label>
+        {% if values.creator_image_url %}
+        <p class="field-help" style="margin-top: 0;">
+          Current:
+          <a href="{{ values.creator_image_url }}" target="_blank" rel="noopener">view</a>
+        </p>
+        <img src="{{ values.creator_image_url }}" alt="" style="max-width: 120px; border-radius: 50%; margin-bottom: 8px;">
+        {% endif %}
+        <input type="file" id="creator_file" name="creator_file" accept="image/*">
+        <label class="checkline checkline--sm" style="margin-top: 8px;">
+          <input type="checkbox" name="clear_creator" value="1"> Remove current photo
+        </label>
+        <p class="field-help">Upload a photo (up to 8&nbsp;MB). Leave blank to try their Instagram photo on save, or paste a URL below.</p>
+        <input type="url" id="creator_image_url" name="creator_image_url" value="{{ values.creator_image_url }}"
+               placeholder="Or paste an image URL">
       </div>
       <div class="field">
         <label for="creator_blurb">Their bio</label>
