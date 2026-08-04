@@ -712,6 +712,8 @@ details.faq-item .answer { padding: 0 22px 20px; }
 
 /* ------------------------------- utilities -------------------------------- */
 .text-center { text-align: center; }
+/* Center the block itself — `p` has max-width, so text-align alone leaves it left-biased. */
+p.text-center { margin-left: auto; margin-right: auto; }
 .mt-0 { margin-top: 0; }
 .stack-sm > * + * { margin-top: 12px; }
 .visually-hidden {
