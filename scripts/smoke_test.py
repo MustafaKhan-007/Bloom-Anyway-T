@@ -914,6 +914,58 @@ with app.app_context():
     new_tier = User.query.filter_by(email="free@example.com").first().membership
 ok("Owner can grant a membership", new_tier == "healing", f"got {new_tier}")
 
+# co-owner invites
+from app.services import owners as owners_svc
+r = admin.get("/admin/owners")
+ok("Studio Owners page loads",
+   r.status_code == 200 and "Invite another owner" in r.get_data(as_text=True))
+r = admin.post("/admin/owners/invite",
+               data={"email": "partner-owner@example.com"}, follow_redirects=True)
+ok("Owner can invite a co-owner by email",
+   "Invite saved" in r.get_data(as_text=True)
+   or "now an owner" in r.get_data(as_text=True))
+with app.app_context():
+    ok("Pending co-owner invite is stored",
+       "partner-owner@example.com" in owners_svc.invite_list())
+sent_codes.clear()
+partner = app.test_client()
+partner.post("/register", data={
+    "email": "partner-owner@example.com", "password": USER_PW,
+    "password_confirm": USER_PW,
+})
+pcode = sent_codes[-1][1]
+r = partner.post("/verify-email",
+                 data={"email": "partner-owner@example.com", "code": pcode},
+                 follow_redirects=False)
+ok("Invited partner lands in Studio after confirming email",
+   r.status_code == 302 and "/admin" in (r.headers.get("Location") or ""))
+with app.app_context():
+    partner_u = User.query.filter_by(email="partner-owner@example.com").first()
+    ok("Invited partner is an owner",
+       partner_u is not None and partner_u.is_admin is True)
+    ok("Invite is consumed after promotion",
+       "partner-owner@example.com" not in owners_svc.invite_list())
+with app.app_context():
+    co_exist = User(email="coexist@example.com", username="coexist_one",
+                    membership="healing", email_verified_at=utcnow())
+    co_exist.set_password(USER_PW)
+    db.session.add(co_exist)
+    db.session.commit()
+r = admin.post("/admin/owners/invite",
+               data={"email": "coexist@example.com"}, follow_redirects=True)
+ok("Existing member can be promoted to owner immediately",
+   "now an owner" in r.get_data(as_text=True).lower())
+with app.app_context():
+    co_u = User.query.filter_by(email="coexist@example.com").first()
+    ok("Existing member was promoted to owner", co_u.is_admin is True)
+r = admin.post("/admin/owners/remove",
+               data={"email": "coexist@example.com"}, follow_redirects=True)
+ok("Owner can remove a co-owner",
+   "removed" in r.get_data(as_text=True).lower())
+with app.app_context():
+    co_u = User.query.filter_by(email="coexist@example.com").first()
+    ok("Removed co-owner no longer has admin", co_u.is_admin is False)
+
 # --- 5f. purchasable memberships (sold on their own, not as products) -------
 plan_form = {
     "healing_name": "Healing membership", "healing_period": "month",

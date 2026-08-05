@@ -138,7 +138,10 @@ def _log_in(user: User, remember: bool = True):
     reconcile_user(user)
     # attach shop.bloomanyway.online purchases bought before this account existed
     from ..services.shop_purchases import link_pending_purchases
+    from ..services import owners as owners_svc
     link_pending_purchases(user)
+    # Pending co-owner invites: promote on login / email confirm.
+    owners_svc.apply_pending_invite(user)
     # owner always holds Creator perks in the DB too — some older rows still
     # have membership="none" from before tiers existed
     if user.is_admin and user.membership != "creator":
@@ -304,7 +307,11 @@ def verify_email():
     session.pop("pending_verify_email", None)
     next_path = session.pop("auth_next", "")
     flash("Welcome in. Your account is confirmed.", "success")
-    return redirect(_safe_next(next_path or None))
+    if next_path:
+        return redirect(_safe_next(next_path))
+    if user.is_admin:
+        return redirect(url_for("admin.dashboard"))
+    return redirect(url_for("main.account"))
 
 
 # ================================= LOGIN =====================================

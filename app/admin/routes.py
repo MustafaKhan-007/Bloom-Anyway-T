@@ -742,6 +742,38 @@ def set_membership(user_id):
     return redirect(request.form.get("next") or url_for("admin.members"))
 
 
+# =============================== OWNERS ======================================
+
+@bp.route("/owners")
+@admin_required
+def owners():
+    from ..services import owners as owners_svc
+    return render_template(
+        "admin/owners.html",
+        owners=owners_svc.current_owners(),
+        invites=owners_svc.invite_list(),
+        me_email=(current_user.email or "").strip().lower(),
+    )
+
+
+@bp.route("/owners/invite", methods=["POST"])
+@admin_required
+def owners_invite():
+    from ..services import owners as owners_svc
+    ok, msg = owners_svc.invite(request.form.get("email") or "", actor=current_user)
+    flash(msg, "success" if ok else "error")
+    return redirect(url_for("admin.owners"))
+
+
+@bp.route("/owners/remove", methods=["POST"])
+@admin_required
+def owners_remove():
+    from ..services import owners as owners_svc
+    ok, msg = owners_svc.remove(request.form.get("email") or "", actor=current_user)
+    flash(msg, "success" if ok else "error")
+    return redirect(url_for("admin.owners"))
+
+
 # ============================ MEMBERSHIP PLANS ===============================
 
 _PLAN_DEFAULTS = {
