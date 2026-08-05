@@ -12,6 +12,13 @@ MAX_UPLOAD_BYTES = 8 * 1024 * 1024
 MAX_EDGE = 1600
 OUTPUT_MIME = "image/jpeg"
 
+#: Display aspect ratios on the home page (width, height). Studio crop matches these.
+ASPECT_RATIOS = {
+    "portrait": (4, 5),   # home hero portrait
+    "hero": (1, 1),       # story teaser
+    "creator": (1, 1),    # creator-of-the-month photo
+}
+
 
 class SiteImageError(ValueError):
     pass
@@ -21,8 +28,26 @@ def public_path(key: str) -> str:
     return f"/media/site/{key}"
 
 
+def _cover_crop(img: Image.Image, aw: int, ah: int) -> Image.Image:
+    """Center-crop to aspect ``aw:ah`` (no-op when already matching)."""
+    tw, th = img.size
+    if tw < 1 or th < 1 or aw < 1 or ah < 1:
+        return img
+    target = aw / ah
+    current = tw / th
+    if abs(current - target) < 0.02:
+        return img
+    if current > target:
+        nw = max(1, int(round(th * target)))
+        left = max(0, (tw - nw) // 2)
+        return img.crop((left, 0, left + nw, th))
+    nh = max(1, int(round(tw / target)))
+    top = max(0, (th - nh) // 2)
+    return img.crop((0, top, tw, top + nh))
+
+
 def process_and_save(key: str, file_storage) -> str:
-    """Validate, resize, store. Returns the public path to use as the setting URL."""
+    """Validate, crop to slot aspect, resize, store. Returns the public path."""
     if key not in SITE_IMAGE_KEYS:
         raise SiteImageError("Unknown image slot.")
     if not file_storage or not getattr(file_storage, "filename", None):
@@ -40,6 +65,9 @@ def process_and_save(key: str, file_storage) -> str:
         raise SiteImageError("That doesn't look like a usable image.") from exc
 
     img = img.convert("RGB")
+    ratio = ASPECT_RATIOS.get(key)
+    if ratio:
+        img = _cover_crop(img, ratio[0], ratio[1])
     img.thumbnail((MAX_EDGE, MAX_EDGE), Image.LANCZOS)
     out = io.BytesIO()
     img.save(out, format="JPEG", quality=88, optimize=True)

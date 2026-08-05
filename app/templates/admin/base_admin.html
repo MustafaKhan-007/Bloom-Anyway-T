@@ -50,6 +50,8 @@
   </div>
   {% block scripts_pre %}{% endblock %}
   <script src="{{ url_for('static', filename='js/file-pick.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='js/image-crop.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/admin.js') }}" defer></script>
+  {% block scripts %}{% endblock %}
 </body>
 </html>

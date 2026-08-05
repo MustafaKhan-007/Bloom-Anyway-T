@@ -32,35 +32,51 @@
     <div class="form-row">
       <div class="field">
         <label for="portrait_file">Portrait image (home hero)</label>
-        {% if values.portrait_url %}
-        <p class="field-help" style="margin-top: 0;">
-          Current:
-          <a href="{{ values.portrait_url }}" target="_blank" rel="noopener">view</a>
-        </p>
-        <img src="{{ values.portrait_url }}" alt="" style="max-width: 160px; border-radius: 12px; margin-bottom: 8px;">
-        {% endif %}
-        <input type="file" id="portrait_file" name="portrait_file" accept="image/*">
+        <div class="site-image-pick site-image-pick--portrait" data-crop-preview-wrap{% if not values.portrait_url %} data-empty{% endif %}>
+          <img id="portrait-preview" class="site-image-pick__preview"
+               src="{{ values.portrait_url or '' }}" alt=""
+               {% if not values.portrait_url %}hidden{% endif %}>
+          <span class="site-image-pick__ph" aria-hidden="true">4∶5</span>
+        </div>
+        <input type="file" id="portrait_file" name="portrait_file"
+               accept="image/png,image/jpeg,image/webp"
+               data-site-crop
+               data-crop-aspect="4:5"
+               data-crop-shape="rect"
+               data-crop-size="1200"
+               data-crop-filename="portrait.jpg"
+               data-crop-preview="#portrait-preview"
+               data-crop-title="Crop hero portrait"
+               data-clear-checkbox="clear_portrait">
         <label class="checkline checkline--sm" style="margin-top: 8px;">
           <input type="checkbox" name="clear_portrait" value="1"> Remove current portrait
         </label>
-        <p class="field-help">Upload a photo (JPEG/PNG/WebP, up to 8&nbsp;MB). Optional URL fallback below.</p>
+        <p class="field-help">Upload a photo (up to 8&nbsp;MB). You'll crop it to the home hero frame (4∶5) and can drag to fine-tune. Optional URL fallback below.</p>
         <input type="url" id="portrait_url" name="portrait_url" value="{{ values.portrait_url }}"
                placeholder="Or paste an image URL">
       </div>
       <div class="field">
         <label for="hero_file">Story teaser image</label>
-        {% if values.hero_image_url %}
-        <p class="field-help" style="margin-top: 0;">
-          Current:
-          <a href="{{ values.hero_image_url }}" target="_blank" rel="noopener">view</a>
-        </p>
-        <img src="{{ values.hero_image_url }}" alt="" style="max-width: 160px; border-radius: 12px; margin-bottom: 8px;">
-        {% endif %}
-        <input type="file" id="hero_file" name="hero_file" accept="image/*">
+        <div class="site-image-pick site-image-pick--teaser" data-crop-preview-wrap{% if not values.hero_image_url %} data-empty{% endif %}>
+          <img id="hero-preview" class="site-image-pick__preview"
+               src="{{ values.hero_image_url or '' }}" alt=""
+               {% if not values.hero_image_url %}hidden{% endif %}>
+          <span class="site-image-pick__ph" aria-hidden="true">1∶1</span>
+        </div>
+        <input type="file" id="hero_file" name="hero_file"
+               accept="image/png,image/jpeg,image/webp"
+               data-site-crop
+               data-crop-aspect="1:1"
+               data-crop-shape="rect"
+               data-crop-size="1200"
+               data-crop-filename="story-teaser.jpg"
+               data-crop-preview="#hero-preview"
+               data-crop-title="Crop story teaser"
+               data-clear-checkbox="clear_hero">
         <label class="checkline checkline--sm" style="margin-top: 8px;">
           <input type="checkbox" name="clear_hero" value="1"> Remove current teaser image
         </label>
-        <p class="field-help">Upload a photo (JPEG/PNG/WebP, up to 8&nbsp;MB). Optional URL fallback below.</p>
+        <p class="field-help">Upload a photo (up to 8&nbsp;MB). You'll crop it to the story teaser frame (square) and can drag to fine-tune. Optional URL fallback below.</p>
         <input type="url" id="hero_image_url" name="hero_image_url" value="{{ values.hero_image_url }}"
                placeholder="Or paste an image URL">
       </div>
@@ -230,4 +246,23 @@
   </table>
   {% endif %}
 </div>
+
+<dialog class="avatar-crop" id="site-image-crop" aria-labelledby="site-image-crop-title">
+  <div class="avatar-crop__panel">
+    <h2 id="site-image-crop-title" data-crop-title>Crop image</h2>
+    <p class="field-help" data-crop-help>Drag to reposition. Use the slider to zoom. The frame is exactly what visitors will see.</p>
+    <div class="avatar-crop__stage avatar-crop__stage--rect" data-crop-stage>
+      <img data-crop-image alt="" draggable="false">
+      <div class="avatar-crop__mask" aria-hidden="true"></div>
+    </div>
+    <label class="avatar-crop__zoom">
+      Zoom
+      <input type="range" min="100" max="300" value="100" data-crop-zoom>
+    </label>
+    <div class="avatar-crop__actions">
+      <button type="button" class="btn btn--secondary btn--sm" data-crop-cancel>Cancel</button>
+      <button type="button" class="btn btn--primary btn--sm" data-crop-apply>Use this crop</button>
+    </div>
+  </div>
+</dialog>
 {% endblock %}

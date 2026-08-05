@@ -1452,14 +1452,51 @@ r = admin.post(
     follow_redirects=True,
 )
 ok("Studio accepts portrait image upload", r.status_code == 200)
+r = admin.get("/admin/settings")
+ok("Studio offers crop UI for hero and story teaser uploads",
+   'data-site-crop' in r.get_data(as_text=True)
+   and 'data-crop-aspect="4:5"' in r.get_data(as_text=True)
+   and 'data-crop-aspect="1:1"' in r.get_data(as_text=True)
+   and 'id="site-image-crop"' in r.get_data(as_text=True))
 r = app.test_client().get("/media/site/portrait")
 ok("Uploaded portrait is served",
    r.status_code == 200 and r.mimetype.startswith("image/")
    and r.data[:3] == b"\xff\xd8\xff")
+from app.services.settings import get_setting
+from app.services import site_images as site_img_svc
 with app.app_context():
-    from app.services.settings import get_setting
     ok("Portrait setting points at media route",
        get_setting("portrait_url") == "/media/site/portrait")
+    _prow = site_img_svc.get("portrait")
+    _pim = _PILImage.open(BytesIO(_prow.data))
+    _pr = _pim.size[0] / _pim.size[1]
+    ok("Portrait upload is cropped to 4:5 hero aspect",
+       abs(_pr - 0.8) < 0.03, f"ratio={_pr:.3f} size={_pim.size}")
+_buf_teaser = BytesIO()
+_PILImage.new("RGB", (300, 180), (239, 167, 51)).save(_buf_teaser, format="JPEG")
+_buf_teaser.seek(0)
+admin.post(
+    "/admin/settings",
+    data={
+        "site_title": "Bloom Anyway", "instagram_url": "",
+        "hero_image_url": "", "portrait_url": "/media/site/portrait",
+        "contact_email": "", "announcement_text": "", "announcement_expires": "",
+        "creator_name": "", "creator_instagram": "", "creator_image_url": "",
+        "creator_blurb": "", "reel_url": "", "reel_description": "",
+        "hero_file": (_buf_teaser, "teaser.jpg"),
+    },
+    content_type="multipart/form-data",
+    follow_redirects=True,
+)
+with app.app_context():
+    _hrow = site_img_svc.get("hero")
+    _him = _PILImage.open(BytesIO(_hrow.data))
+    _hr = _him.size[0] / _him.size[1]
+    ok("Story teaser upload is cropped to 1:1 aspect",
+       abs(_hr - 1.0) < 0.03, f"ratio={_hr:.3f} size={_him.size}")
+r = app.test_client().get("/")
+ok("Home story teaser uses fixed square frame class",
+   "story-teaser-image" in r.get_data(as_text=True))
 
 _buf2 = BytesIO()
 _PILImage.new("RGB", (100, 100), (239, 167, 51)).save(_buf2, format="JPEG")
