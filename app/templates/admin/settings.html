@@ -86,7 +86,7 @@
 
   <h2 style="margin-top: 32px;">Home spotlight</h2>
   <div class="admin-panel">
-    <p class="field-help" style="margin-top: 0;">These show on the home page. Leave the name / reel blank to hide a spotlight.</p>
+    <p class="field-help" style="margin-top: 0;">These show on the home page. Use Clear to hide a card completely, or leave the name / reel blank when saving.</p>
     <fieldset class="spotlight-fieldset">
       <legend>Creator of the month</legend>
       <div class="form-row">
@@ -125,6 +125,14 @@
                   placeholder="Paste their Instagram bio (or write a short intro). This fills the card.">{{ values.creator_blurb }}</textarea>
         <p class="field-help">Instagram rarely shares bios publicly &mdash; pasting it here is the reliable way to fill the card.</p>
       </div>
+      <div class="spotlight-clear">
+        <button class="btn btn--secondary btn--sm" type="submit" name="clear_spotlight_creator" value="1"
+                {% if not (values.creator_name or values.creator_instagram or values.creator_image_url or values.creator_blurb) %}disabled{% endif %}
+                onclick="return confirm('Clear Creator of the month from the home page?');">
+          Clear Creator of the month
+        </button>
+        <span class="field-help">Removes name, handle, photo, and bio.</span>
+      </div>
     </fieldset>
     <fieldset class="spotlight-fieldset">
       <legend>Reel of the week</legend>
@@ -136,6 +144,14 @@
       <div class="field">
         <label for="reel_description">Why you love it (optional)</label>
         <input type="text" id="reel_description" name="reel_description" value="{{ values.reel_description }}">
+      </div>
+      <div class="spotlight-clear">
+        <button class="btn btn--secondary btn--sm" type="submit" name="clear_spotlight_reel" value="1"
+                {% if not (values.reel_url or values.reel_description) %}disabled{% endif %}
+                onclick="return confirm('Clear Reel of the week from the home page?');">
+          Clear Reel of the week
+        </button>
+        <span class="field-help">Removes the reel URL and description.</span>
       </div>
     </fieldset>
 

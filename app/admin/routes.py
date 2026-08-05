@@ -452,6 +452,19 @@ def settings():
             set_setting("announcement_expires", "")
             flash("Announcement removed.", "success")
             return redirect(url_for("admin.settings"))
+        if request.form.get("clear_spotlight_creator"):
+            for key in ("creator_name", "creator_instagram", "creator_image_url",
+                        "creator_blurb"):
+                set_setting(key, "")
+            from ..services.site_images import clear as clear_site_image
+            clear_site_image("creator")
+            flash("Creator of the month cleared from the home page.", "success")
+            return redirect(url_for("admin.settings"))
+        if request.form.get("clear_spotlight_reel"):
+            set_setting("reel_url", "")
+            set_setting("reel_description", "")
+            flash("Reel of the week cleared from the home page.", "success")
+            return redirect(url_for("admin.settings"))
         if request.form.get("add_announcement"):
             body = (request.form.get("ann_body") or "").strip()[:300]
             if body:

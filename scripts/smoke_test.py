@@ -886,6 +886,23 @@ ok("Creator of the month shows the flower mark (no broken photo circle)",
 ok("Reel of the week embeds + links out",
    "instagram.com/reel/ABC123xyz/embed" in hbody and "Watch on Instagram" in hbody)
 
+r = admin.get("/admin/settings")
+sbody = r.get_data(as_text=True)
+ok("Studio has separate clear buttons for spotlight cards",
+   'name="clear_spotlight_creator"' in sbody
+   and 'name="clear_spotlight_reel"' in sbody)
+admin.post("/admin/settings", data={"clear_spotlight_reel": "1"}, follow_redirects=True)
+r = client.get("/")
+hbody = r.get_data(as_text=True)
+ok("Clear reel removes Reel of the week only",
+   "Maya R." in hbody and "Watch on Instagram" not in hbody
+   and "instagram.com/reel/ABC123xyz" not in hbody)
+admin.post("/admin/settings", data={"clear_spotlight_creator": "1"}, follow_redirects=True)
+r = client.get("/")
+hbody = r.get_data(as_text=True)
+ok("Clear creator removes Creator of the month",
+   "Maya R." not in hbody and "In the spotlight" not in hbody)
+
 # studio: members management
 r = admin.get("/admin/members")
 ok("Members page lists memberships", r.status_code == 200 and "Creator" in r.get_data(as_text=True))
