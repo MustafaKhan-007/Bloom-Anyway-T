@@ -7,15 +7,18 @@
 </div>
 
 <p class="field-help" style="margin-top: 0; max-width: 62ch;">
-  <strong>Lock gate is temporarily commented out</strong> in code
-  (<code>app/__init__.py</code>) so the whole site is open. Config says
-  {% if lock_on %}<strong>ON</strong>{% else %}<strong>OFF</strong>{% endif %}
-  &mdash; it only matters after you uncomment the gate again.
+  {% if lock_on %}
+  <strong>Lock is ON</strong> for this environment.
+  {% else %}
+  <strong>Lock is OFF</strong> here (typical for local/dev). Production defaults to ON.
+  {% endif %}
+  Only your owner account and the emails below can browse past sign-in when the
+  lock is active. Everyone else sees &ldquo;Under construction&rdquo; even if they
+  type a URL by hand.
 </p>
 <p class="field-help" style="max-width: 62ch;">
-  Keep this allowlist ready. To lock again: uncomment the prelaunch
-  <code>before_request</code> block in <code>app/__init__.py</code>, then set
-  <code>PRELAUNCH_LOCK=1</code> on Render if needed.
+  <strong>At launch:</strong> set <code>PRELAUNCH_LOCK=0</code> in Render (or remove
+  the prelaunch gate). This Studio page can go away then too.
 </p>
 
 <div class="admin-panel" style="margin-top: 20px;">

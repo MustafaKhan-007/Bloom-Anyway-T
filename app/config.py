@@ -144,10 +144,8 @@ class ProdConfig(Config):
     PREFERRED_URL_SCHEME = "https"
     SESSION_COOKIE_SECURE = True
     REMEMBER_COOKIE_SECURE = True
-    # TEMPORARILY OFF — gate is also commented out in app/__init__.py.
-    # To lock again: restore the before_request gate, then flip this back to
-    # default "1" (or set PRELAUNCH_LOCK=1 on Render).
-    PRELAUNCH_LOCK = os.environ.get("PRELAUNCH_LOCK", "0").strip().lower() not in (
+    # Prelaunch default ON — set PRELAUNCH_LOCK=0 (or false) to open at launch.
+    PRELAUNCH_LOCK = os.environ.get("PRELAUNCH_LOCK", "1").strip().lower() not in (
         "0", "false", "no", "off", "",
     )
 
