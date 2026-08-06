@@ -1497,7 +1497,23 @@ ok("Reminder email includes Zoom link",
    any(auto_zoom in (m.get("text") or "")
        and "reminder" in m["subject"].lower() for m in _sent_mail))
 
+# Someone applies while the booked circle is still open — they should sit
+# behind the cancelled booked members once those return to the queue.
 with app.app_context():
+    late = User(email="sg-late@example.com", username="sglate",
+                membership="healing", email_verified_at=utcnow())
+    late.set_password(USER_PW)
+    db.session.add(late)
+    db.session.commit()
+    late_app, _ = sg_svc.apply(late, "applied after seating")
+    late_id = late.id
+    late_created = late_app.created_at
+    booked_apps = SupportGroupApplication.query.filter_by(
+        meeting_id=mid, status="selected").all()
+    booked_user_ids = [a.user_id for a in booked_apps]
+    for a in booked_apps:
+        ok("Booked applicants applied before the late joiner",
+           a.created_at < late_created)
     notes_before_cancel = Notification.query.filter_by(kind="support_group").count()
 r = admin.post(f"/admin/support-groups/{mid}/cancel", follow_redirects=True)
 ok("Owner can cancel a scheduled support group",
@@ -1508,6 +1524,19 @@ with app.app_context():
     notes_after = Notification.query.filter_by(kind="support_group").count()
     ok("Cancel creates in-app notifications for selected members",
        notes_after >= notes_before_cancel + 2)
+    restored = SupportGroupApplication.query.filter(
+        SupportGroupApplication.user_id.in_(booked_user_ids),
+        SupportGroupApplication.status == "pending",
+        SupportGroupApplication.meeting_id.is_(None),
+    ).count()
+    ok("Booked cancel returns members to the waiting list", restored == 2)
+    queue = sg_svc.pending_queue()
+    queue_ids = [a.user_id for a in queue]
+    ok("Cancelled booked members keep priority over later applicants",
+       all(uid in queue_ids for uid in booked_user_ids)
+       and late_id in queue_ids
+       and max(queue_ids.index(uid) for uid in booked_user_ids)
+       < queue_ids.index(late_id))
 
 # Draft circle cancel (seated, not yet scheduled) also notifies
 with app.app_context():
