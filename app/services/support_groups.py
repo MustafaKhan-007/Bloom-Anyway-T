@@ -178,6 +178,17 @@ def parse_owner_local(dt_local: str, tz_name: str | None) -> datetime | None:
     return aware.astimezone(timezone.utc).replace(tzinfo=None)
 
 
+def parse_owner_parts(date_s: str, time_s: str, tz_name: str | None) -> datetime | None:
+    """Parse separate date + time fields (``YYYY-MM-DD`` + ``HH:MM``) → UTC naive."""
+    d = (date_s or "").strip()
+    t = (time_s or "").strip()
+    if not d or not t:
+        return None
+    if len(t) == 5:
+        t = t + ":00"
+    return parse_owner_local(f"{d}T{t[:8]}", tz_name)
+
+
 def schedule_meeting(meeting: SupportGroupMeeting, *, scheduled_at: datetime,
                      zoom_url: str, owner: User | None = None
                      ) -> str | None:

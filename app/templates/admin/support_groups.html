@@ -107,15 +107,31 @@
                 class="stack-form sg-schedule">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="timezone" value="{{ owner_tz }}">
-            <div class="form-row form-row--announce">
-              <div class="field">
-                <label for="when-{{ m.id }}">Date &amp; time ({{ owner_tz }})</label>
-                <input type="datetime-local" id="when-{{ m.id }}" name="scheduled_at" required
-                       value="{% if m.scheduled_at %}{{ m.scheduled_at|localtime('%Y-%m-%dT%H:%M', owner_tz) }}{% endif %}">
+            <div class="sg-schedule__stack">
+              <div class="field sg-schedule__when">
+                <label>Date &amp; time
+                  <span class="sg-schedule__tz">{{ owner_tz }}</span>
+                </label>
+                <div class="sg-schedule__when-row">
+                  <div class="sg-schedule__part">
+                    <span class="sg-schedule__part-label" id="date-label-{{ m.id }}">Date</span>
+                    <input type="date" id="date-{{ m.id }}" name="meeting_date" required
+                           aria-labelledby="date-label-{{ m.id }}"
+                           value="{% if m.scheduled_at %}{{ m.scheduled_at|localtime('%Y-%m-%d', owner_tz) }}{% endif %}">
+                  </div>
+                  <div class="sg-schedule__part">
+                    <span class="sg-schedule__part-label" id="time-label-{{ m.id }}">Time</span>
+                    <input type="time" id="time-{{ m.id }}" name="meeting_time" required
+                           aria-labelledby="time-label-{{ m.id }}"
+                           value="{% if m.scheduled_at %}{{ m.scheduled_at|localtime('%H:%M', owner_tz) }}{% endif %}">
+                  </div>
+                </div>
+                <p class="field-help">Pick the day, then the clock time in your timezone. Members see it in theirs.</p>
               </div>
               <div class="field">
                 <label for="zoom-{{ m.id }}">Zoom meeting link</label>
                 <input type="url" id="zoom-{{ m.id }}" name="zoom_url" required
+                       class="sg-schedule__zoom"
                        placeholder="https://zoom.us/j/…"
                        value="{{ m.zoom_url or '' }}">
               </div>

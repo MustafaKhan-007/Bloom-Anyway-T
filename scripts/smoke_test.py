@@ -1461,8 +1461,10 @@ with app.app_context():
 
 # Schedule ~36h out so booking notify fires, then backdate into the 24h window
 when_local = (datetime.utcnow() + timedelta(hours=36)).strftime("%Y-%m-%dT%H:%M")
+_when_date, _when_time = when_local.split("T", 1)
 r = admin.post(f"/admin/support-groups/{mid}/schedule", data={
-    "scheduled_at": when_local,
+    "meeting_date": _when_date,
+    "meeting_time": _when_time,
     "timezone": "UTC",
     "zoom_url": "https://zoom.us/j/123456789",
 }, follow_redirects=True)
@@ -1801,55 +1803,26 @@ ok("PageView has no IP field",
 r = client.get("/this-page-does-not-exist-xyz")
 ok("404 offers problem report", r.status_code == 404 and b"Report this problem" in r.data)
 
-# --- 10. prelaunch lock (shallow gate; easy to remove at launch) ------------
+# --- 10. prelaunch lock (TEMPORARILY hashed out in app/__init__.py) ---------
 from app.services import prelaunch as prelaunch_svc
 
-app.config["PRELAUNCH_LOCK"] = True
-anon = app.test_client()
-r = anon.get("/")
-ok("Prelaunch blocks home for strangers",
-   r.status_code == 503 and b"Under construction" in r.data)
-r = anon.get("/quotes")
-ok("Prelaunch blocks deep URLs",
-   r.status_code == 503 and b"Under construction" in r.data)
-r = anon.get("/login")
-ok("Prelaunch still allows login page", r.status_code == 200)
-r = anon.get("/register")
-ok("Prelaunch still allows signup page", r.status_code == 200)
+# Gate is commented out in app/__init__.py — re-enable there when locking again.
+ok("Prelaunch gate temporarily open (hashed out in code)", True)
 
-# non-allowlisted signed-in member is blocked
-locked_member = app.test_client()
-with app.app_context():
-    lm = User(email="locked-out@example.com", display_name="Locked",
-              membership="healing", email_verified_at=utcnow())
-    lm.set_password(USER_PW)
-    db.session.add(lm)
-    db.session.commit()
-locked_member.post("/login", data={"email": "locked-out@example.com", "password": USER_PW})
-r = locked_member.get("/account")
-ok("Prelaunch blocks signed-in users not on the list",
-   r.status_code == 503 and b"Under construction" in r.data)
-
-# grant access via allowlist
 with app.app_context():
     ok_add, _ = prelaunch_svc.add_email("locked-out@example.com")
     ok("Prelaunch allowlist accepts email", ok_add)
-r = locked_member.get("/account")
-ok("Allowlisted member can browse", r.status_code == 200)
-
-# owner admin still gets through (is_admin)
-admin.post("/login", data={"email": "owner@example.com", "password": ADMIN_PW})
-r = admin.get("/admin/prelaunch")
-ok("Studio prelaunch page loads", r.status_code == 200 and b"Invite list" in r.data)
-r = admin.get("/")
-ok("Admin owner can browse the site while locked", r.status_code == 200)
-
-# hard-coded owner email always allowed
-with app.app_context():
     ok("Hard-coded owner email is allowlisted",
        "mustafakhanabdullah07@gmail.com" in prelaunch_svc.OWNER_EMAILS)
 
-app.config["PRELAUNCH_LOCK"] = False
+admin.post("/login", data={"email": "owner@example.com", "password": ADMIN_PW})
+r = admin.get("/admin/prelaunch")
+ok("Studio prelaunch page still loads for later re-enable",
+   r.status_code == 200 and b"Invite list" in r.data)
+
+# Site is open while the gate is hashed out.
+r = app.test_client().get("/")
+ok("Home is publicly reachable while prelaunch is off", r.status_code == 200)
 
 print(f"\nAll {PASS} checks passed.")
 

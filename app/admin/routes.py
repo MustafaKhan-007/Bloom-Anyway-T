@@ -1223,7 +1223,14 @@ def support_groups_schedule(meeting_id):
         flash("That meeting can no longer be scheduled.", "error")
         return redirect(url_for("admin.support_groups"))
     tz = (request.form.get("timezone") or current_user.timezone or "UTC").strip()
-    when = sg_svc.parse_owner_local(request.form.get("scheduled_at") or "", tz)
+    # Prefer separate date + time fields; fall back to legacy datetime-local.
+    when = sg_svc.parse_owner_parts(
+        request.form.get("meeting_date") or "",
+        request.form.get("meeting_time") or "",
+        tz,
+    )
+    if when is None:
+        when = sg_svc.parse_owner_local(request.form.get("scheduled_at") or "", tz)
     err = sg_svc.schedule_meeting(
         meeting,
         scheduled_at=when,

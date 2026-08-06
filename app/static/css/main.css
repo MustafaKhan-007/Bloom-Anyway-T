@@ -2010,6 +2010,47 @@ img.avatar.avatar--photo {
   display: flex; flex-direction: column; gap: 2px;
 }
 .sg-schedule { margin-top: 8px; }
+.sg-schedule__stack { display: flex; flex-direction: column; gap: 4px; }
+.sg-schedule__tz {
+  display: inline-block; margin-left: 8px; padding: 2px 10px; border-radius: 999px;
+  font-size: 12px; font-weight: 700; letter-spacing: 0.02em;
+  background: rgba(122, 46, 98, 0.1); color: var(--plum); vertical-align: middle;
+}
+.sg-schedule__when-row {
+  display: grid; grid-template-columns: 1.2fr 1fr; gap: 12px;
+}
+@media (max-width: 640px) {
+  .sg-schedule__when-row { grid-template-columns: 1fr; }
+}
+.sg-schedule__part-label {
+  display: block; font-size: 12px; font-weight: 700; letter-spacing: 0.04em;
+  text-transform: uppercase; color: var(--ink-soft); margin-bottom: 6px;
+}
+.sg-schedule input[type="date"],
+.sg-schedule input[type="time"],
+.sg-schedule__zoom {
+  width: 100%;
+  min-height: 48px;
+  padding: 12px 14px;
+  font-size: 16px;
+  font-weight: 600;
+  border: 1.5px solid rgba(122, 46, 98, 0.28);
+  border-radius: 12px;
+  background: #fff;
+  color: var(--ink);
+  color-scheme: light;
+}
+.sg-schedule input[type="date"]:focus,
+.sg-schedule input[type="time"]:focus,
+.sg-schedule__zoom:focus {
+  border-color: var(--plum);
+  outline: 2px solid rgba(122, 46, 98, 0.18);
+  outline-offset: 1px;
+}
+.sg-schedule input[type="date"]::-webkit-calendar-picker-indicator,
+.sg-schedule input[type="time"]::-webkit-calendar-picker-indicator {
+  cursor: pointer; opacity: 0.75;
+}
 .sg-schedule__actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 
 /* ============================ content library lock ======================= */
