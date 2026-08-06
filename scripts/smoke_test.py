@@ -1493,6 +1493,50 @@ ok("Reminder email includes Zoom link",
    any("zoom.us/j/123456789" in (m.get("text") or "")
        and "reminder" in m["subject"].lower() for m in _sent_mail))
 
+with app.app_context():
+    notes_before_cancel = Notification.query.filter_by(kind="support_group").count()
+r = admin.post(f"/admin/support-groups/{mid}/cancel", follow_redirects=True)
+ok("Owner can cancel a scheduled support group",
+   "cancelled" in r.get_data(as_text=True).lower())
+ok("Cancel emails were sent to selected members",
+   len([m for m in _sent_mail if "cancelled" in m["subject"].lower()]) >= 2)
+with app.app_context():
+    notes_after = Notification.query.filter_by(kind="support_group").count()
+    ok("Cancel creates in-app notifications for selected members",
+       notes_after >= notes_before_cancel + 2)
+
+# Draft circle cancel (seated, not yet scheduled) also notifies
+with app.app_context():
+    d1 = User(email="sg-draft1@example.com", username="sgdraft1",
+              membership="healing", email_verified_at=utcnow())
+    d1.set_password(USER_PW)
+    d2 = User(email="sg-draft2@example.com", username="sgdraft2",
+              membership="creator", email_verified_at=utcnow())
+    d2.set_password(USER_PW)
+    db.session.add_all([d1, d2])
+    db.session.commit()
+    sg_svc.apply(d1, "draft one")
+    sg_svc.apply(d2, "draft two")
+    draft, derr = sg_svc.form_next_meeting(2)
+    ok("Draft seating for cancel test", draft is not None and not derr)
+    draft_id = draft.id
+    notes_before_draft = Notification.query.filter_by(kind="support_group").count()
+r = admin.post(f"/admin/support-groups/{draft_id}/cancel", follow_redirects=True)
+ok("Owner can cancel a draft support group",
+   "cancelled" in r.get_data(as_text=True).lower())
+with app.app_context():
+    notes_after_draft = Notification.query.filter_by(kind="support_group").count()
+    ok("Draft cancel notifies seated applicants",
+       notes_after_draft >= notes_before_draft + 2)
+    pending_again = SupportGroupApplication.query.filter(
+        SupportGroupApplication.user_id.in_(
+            [User.query.filter_by(email="sg-draft1@example.com").first().id,
+             User.query.filter_by(email="sg-draft2@example.com").first().id]
+        ),
+        SupportGroupApplication.status == "pending",
+    ).count()
+    ok("Draft cancel returns applicants to the waiting list", pending_again == 2)
+
 # site image uploads (hero / story teaser)
 from io import BytesIO
 from PIL import Image as _PILImage

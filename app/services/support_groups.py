@@ -215,7 +215,7 @@ def schedule_meeting(meeting: SupportGroupMeeting, *, scheduled_at: datetime,
 def cancel_meeting(meeting: SupportGroupMeeting, *, owner: User | None = None,
                    return_to_queue: bool = True) -> None:
     seats = meeting_seats(meeting)
-    was_live = meeting.status == "scheduled" and meeting.booked_notified_at
+    was_live = meeting.status == "scheduled" and bool(meeting.booked_notified_at)
     meeting.status = "cancelled"
     for row in seats:
         if return_to_queue and not was_live:
@@ -224,9 +224,14 @@ def cancel_meeting(meeting: SupportGroupMeeting, *, owner: User | None = None,
         else:
             row.status = "cancelled"
     db.session.commit()
-    if was_live:
-        _notify_seats(meeting, kind="cancelled", actor_id=getattr(owner, "id", None),
-                      seats=seats)
+    # Always tell selected members — booked or only seated for a draft circle.
+    if seats:
+        _notify_seats(
+            meeting,
+            kind="cancelled" if was_live else "cancelled_draft",
+            actor_id=getattr(owner, "id", None),
+            seats=seats,
+        )
 
 
 def complete_meeting(meeting: SupportGroupMeeting) -> None:
@@ -304,6 +309,20 @@ def _notify_seats(meeting: SupportGroupMeeting, *, kind: str,
                 f"Hi {user.first_name() or user.public_name()},\n\n"
                 f"The support group you were booked for has been cancelled.\n"
                 f"You're welcome to apply again from My space whenever you're ready.\n\n"
+                f"— Bloom Anyway\n"
+            )
+            html = None
+        elif kind == "cancelled_draft":
+            note = (
+                "The support group circle you were seated for was cancelled. "
+                "You're back on the waiting list."
+            )
+            subject = "Support group cancelled"
+            text = (
+                f"Hi {user.first_name() or user.public_name()},\n\n"
+                f"The next support group circle you were seated for has been cancelled "
+                f"before a date was set.\n"
+                f"You're back on the waiting list for the next one — no need to re-apply.\n\n"
                 f"— Bloom Anyway\n"
             )
             html = None
