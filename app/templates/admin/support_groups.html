@@ -37,15 +37,29 @@
       {% if pending %}
       <ol class="sg-queue">
         {% for a in pending %}
-        <li>
-          <div class="sg-queue__who">
-            <strong>{{ a.author.public_name() }}</strong>
-            <span class="field-help">{{ a.author.email }}
-              · {{ a.author.membership_label() }}
-              · applied {{ a.created_at|localtime('%b %d, %Y · %I:%M %p') }}</span>
-          </div>
+        <li class="sg-queue__card">
+          <header class="sg-queue__head">
+            <div class="sg-queue__identity">
+              <strong class="sg-queue__name">{{ a.author.public_name() }}</strong>
+              <span class="sg-queue__tier">{{ a.author.membership_label() }}</span>
+            </div>
+            <span class="sg-queue__place" aria-label="Queue position">#{{ loop.index }}</span>
+          </header>
+          <dl class="sg-queue__meta">
+            <div>
+              <dt>Email</dt>
+              <dd>{{ a.author.email }}</dd>
+            </div>
+            <div>
+              <dt>Applied</dt>
+              <dd>{{ a.created_at|localtime('%b %d, %Y · %I:%M %p') }}</dd>
+            </div>
+          </dl>
           {% if a.message %}
-          <p class="sg-queue__note">{{ a.message|truncate(220) }}</p>
+          <div class="sg-queue__note">
+            <span class="sg-queue__note-label">Note</span>
+            <p>{{ a.message|truncate(220) }}</p>
+          </div>
           {% endif %}
         </li>
         {% endfor %}
