@@ -1470,7 +1470,6 @@ r = admin.post(f"/admin/support-groups/{mid}/schedule", data={
     "meeting_date": _when_date,
     "meeting_time": _when_time,
     "timezone": "UTC",
-    "zoom_url": "https://zoom.us/j/123456789",
 }, follow_redirects=True)
 ok("Owner can schedule Zoom meeting and notify seats",
    "Meeting scheduled" in r.get_data(as_text=True),
@@ -1484,13 +1483,18 @@ with app.app_context():
     ok("Support-group notifications are not hyperlinks",
        sample is not None and sample.href() is None)
     meeting = db.session.get(SupportGroupMeeting, mid)
+    ok("Schedule auto-created a Zoom join URL",
+       meeting is not None
+       and (meeting.zoom_url or "").startswith("https://zoom.us/j/")
+       and bool(meeting.zoom_meeting_id))
+    auto_zoom = meeting.zoom_url
     meeting.scheduled_at = utcnow() + timedelta(hours=20)
     meeting.reminded_at = None
     db.session.commit()
     n = sg_svc.dispatch_due_reminders()
     ok("24h reminder dispatch runs", n == 1)
 ok("Reminder email includes Zoom link",
-   any("zoom.us/j/123456789" in (m.get("text") or "")
+   any(auto_zoom in (m.get("text") or "")
        and "reminder" in m["subject"].lower() for m in _sent_mail))
 
 with app.app_context():

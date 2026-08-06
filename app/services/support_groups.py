@@ -2,11 +2,9 @@
 from __future__ import annotations
 
 import logging
-import re
 import time
 from datetime import datetime, timedelta, timezone
 from html import escape
-from urllib.parse import urlparse
 
 from sqlalchemy.orm import joinedload
 
@@ -15,11 +13,9 @@ from ..models import SupportGroupApplication, SupportGroupMeeting, User, utcnow
 from .mailer import send_email
 from .social_graph import notify
 from .timefmt import format_local, normalize_timezone
+from . import zoom as zoom_svc
 
 log = logging.getLogger(__name__)
-
-ZOOM_HOSTS = ("zoom.us", "www.zoom.us", "us02web.zoom.us", "us04web.zoom.us",
-              "us05web.zoom.us", "us06web.zoom.us")
 
 # Throttle lazy reminder sweeps across workers/requests.
 _last_sweep_mono = 0.0
@@ -138,27 +134,6 @@ def form_next_meeting(capacity: int) -> tuple[SupportGroupMeeting | None, str | 
     return meeting, None
 
 
-def _valid_zoom_url(raw: str) -> str | None:
-    url = (raw or "").strip()
-    if not url or len(url) > 500:
-        return None
-    if not re.match(r"^https?://", url, re.I):
-        url = "https://" + url
-    try:
-        parsed = urlparse(url)
-    except ValueError:
-        return None
-    host = (parsed.hostname or "").lower()
-    if not host:
-        return None
-    if host in ZOOM_HOSTS or host.endswith(".zoom.us"):
-        return url
-    # Allow other https meeting hosts the owner pastes (Meet, etc.)
-    if parsed.scheme in ("http", "https") and "." in host:
-        return url
-    return None
-
-
 def parse_owner_local(dt_local: str, tz_name: str | None) -> datetime | None:
     """Parse ``YYYY-MM-DDTHH:MM`` from the owner's calendar in their timezone → UTC naive."""
     raw = (dt_local or "").strip()
@@ -189,18 +164,37 @@ def parse_owner_parts(date_s: str, time_s: str, tz_name: str | None) -> datetime
 
 
 def schedule_meeting(meeting: SupportGroupMeeting, *, scheduled_at: datetime,
-                     zoom_url: str, owner: User | None = None
-                     ) -> str | None:
-    zoom = _valid_zoom_url(zoom_url)
-    if not zoom:
-        return "Paste a valid Zoom (or meeting) link."
+                     owner: User | None = None) -> str | None:
     if scheduled_at is None:
         return "Pick a date and time."
     if scheduled_at <= utcnow():
         return "Choose a time in the future."
+
+    topic = "Bloom Anyway support group"
+    try:
+        if meeting.zoom_meeting_id:
+            updated = zoom_svc.update_meeting(
+                meeting.zoom_meeting_id, topic=topic, scheduled_at=scheduled_at,
+            )
+            if updated is None:
+                # Meeting vanished on Zoom — create a fresh one.
+                info = zoom_svc.create_meeting(topic=topic, scheduled_at=scheduled_at)
+                meeting.zoom_meeting_id = info.meeting_id
+                meeting.zoom_url = info.join_url
+            elif updated.join_url:
+                meeting.zoom_url = updated.join_url
+        else:
+            info = zoom_svc.create_meeting(topic=topic, scheduled_at=scheduled_at)
+            meeting.zoom_meeting_id = info.meeting_id
+            meeting.zoom_url = info.join_url
+    except zoom_svc.ZoomError as exc:
+        return str(exc)
+
+    if not (meeting.zoom_url or "").strip():
+        return "Zoom did not return a join link."
+
     was_scheduled = meeting.status == "scheduled" and meeting.booked_notified_at
     meeting.scheduled_at = scheduled_at
-    meeting.zoom_url = zoom
     meeting.status = "scheduled"
     db.session.commit()
     if was_scheduled:
@@ -216,6 +210,7 @@ def cancel_meeting(meeting: SupportGroupMeeting, *, owner: User | None = None,
                    return_to_queue: bool = True) -> None:
     seats = meeting_seats(meeting)
     was_live = meeting.status == "scheduled" and bool(meeting.booked_notified_at)
+    zoom_id = (meeting.zoom_meeting_id or "").strip()
     meeting.status = "cancelled"
     for row in seats:
         if return_to_queue and not was_live:
@@ -224,6 +219,11 @@ def cancel_meeting(meeting: SupportGroupMeeting, *, owner: User | None = None,
         else:
             row.status = "cancelled"
     db.session.commit()
+    if zoom_id:
+        try:
+            zoom_svc.delete_meeting(zoom_id)
+        except Exception:
+            log.exception("Failed to delete Zoom meeting %s", zoom_id)
     # Always tell selected members — booked or only seated for a draft circle.
     if seats:
         _notify_seats(

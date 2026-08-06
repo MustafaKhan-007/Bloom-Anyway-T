@@ -1072,6 +1072,7 @@ class SupportGroupMeeting(db.Model):
     capacity = db.Column(db.Integer, nullable=False, default=6)
     scheduled_at = db.Column(db.DateTime)  # stored UTC (naive)
     zoom_url = db.Column(db.String(500))
+    zoom_meeting_id = db.Column(db.String(64))  # Zoom meeting id for API update/delete
     status = db.Column(db.String(20), nullable=False, default="draft", index=True)
     booked_notified_at = db.Column(db.DateTime)
     reminded_at = db.Column(db.DateTime)

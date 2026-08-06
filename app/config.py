@@ -91,6 +91,20 @@ class Config:
     # Optional self-hosted digital files for ShopPurchase.file_key
     SHOP_FILES_DIR = os.environ.get("SHOP_FILES_DIR", "").strip()
 
+    # Zoom Server-to-Server OAuth (auto-create support-group meetings).
+    # Create an app at https://marketplace.zoom.us/ → Develop → Server-to-Server OAuth.
+    ZOOM_ACCOUNT_ID = os.environ.get("ZOOM_ACCOUNT_ID", "").strip()
+    ZOOM_CLIENT_ID = os.environ.get("ZOOM_CLIENT_ID", "").strip()
+    ZOOM_CLIENT_SECRET = os.environ.get("ZOOM_CLIENT_SECRET", "").strip()
+    # Licensed Zoom user email that will host the meetings (S2S cannot use "me").
+    ZOOM_HOST_EMAIL = os.environ.get("ZOOM_HOST_EMAIL", "").strip()
+    ZOOM_MEETING_DURATION = int(os.environ.get("ZOOM_MEETING_DURATION", "90") or 90)
+    # Force stub join links without calling Zoom (tests); auto-on when TESTING
+    # and Zoom env vars are unset.
+    ZOOM_STUB = os.environ.get("ZOOM_STUB", "").strip().lower() in (
+        "1", "true", "yes", "on",
+    )
+
     # Flask-Limiter: in-memory storage. Fine at this scale; counters reset on
     # deploy/restart (noted in README).
     RATELIMIT_STORAGE_URI = "memory://"
@@ -115,6 +129,10 @@ Config.MAIL_FROM = _strip_config_quotes(Config.MAIL_FROM)
 Config.TURNSTILE_SITE_KEY = _strip_config_quotes(Config.TURNSTILE_SITE_KEY)
 Config.TURNSTILE_SECRET = _strip_config_quotes(Config.TURNSTILE_SECRET)
 Config.TURNSTILE_SECRET_KEY = Config.TURNSTILE_SECRET
+Config.ZOOM_ACCOUNT_ID = _strip_config_quotes(Config.ZOOM_ACCOUNT_ID)
+Config.ZOOM_CLIENT_ID = _strip_config_quotes(Config.ZOOM_CLIENT_ID)
+Config.ZOOM_CLIENT_SECRET = _strip_config_quotes(Config.ZOOM_CLIENT_SECRET)
+Config.ZOOM_HOST_EMAIL = _strip_config_quotes(Config.ZOOM_HOST_EMAIL)
 
 
 class DevConfig(Config):

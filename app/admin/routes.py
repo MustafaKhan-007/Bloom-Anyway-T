@@ -1207,7 +1207,8 @@ def support_groups_form():
         n = sg_svc.meeting_seats(meeting)
         flash(
             f"Seated {len(n)} earliest applicant{'s' if len(n) != 1 else ''} "
-            f"(capacity {meeting.capacity}). Set the date and Zoom link below.",
+            f"(capacity {meeting.capacity}). Pick a date and time below — "
+            f"Zoom is created automatically.",
             "success",
         )
     return redirect(url_for("admin.support_groups"))
@@ -1234,13 +1235,15 @@ def support_groups_schedule(meeting_id):
     err = sg_svc.schedule_meeting(
         meeting,
         scheduled_at=when,
-        zoom_url=request.form.get("zoom_url") or "",
         owner=current_user,
     )
     if err:
         flash(err, "error")
     else:
-        flash("Meeting scheduled — members were emailed and notified.", "success")
+        flash(
+            "Meeting scheduled — Zoom link created; members were emailed and notified.",
+            "success",
+        )
     return redirect(url_for("admin.support_groups"))
 
 
