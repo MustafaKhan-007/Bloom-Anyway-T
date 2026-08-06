@@ -1408,6 +1408,10 @@ ok("New draw entries are blocked once the week's review is published",
 r = app.test_client().get("/")
 ok("Sunflower favicon is linked in the tab",
    "favicon.svg" in r.get_data(as_text=True))
+ok("Page loader uses the sunflower favicon",
+   'id="page-loader"' in r.get_data(as_text=True)
+   and "page-loader.js" in r.get_data(as_text=True)
+   and "page-loader__sun" in r.get_data(as_text=True))
 
 # support / coaching groups
 from app.models import Notification, SupportGroupApplication, SupportGroupMeeting
@@ -1476,6 +1480,9 @@ ok("Booking emails were sent to seated members",
 with app.app_context():
     notes = Notification.query.filter_by(kind="support_group").count()
     ok("Booking created in-app notifications", notes >= 2)
+    sample = Notification.query.filter_by(kind="support_group").first()
+    ok("Support-group notifications are not hyperlinks",
+       sample is not None and sample.href() is None)
     meeting = db.session.get(SupportGroupMeeting, mid)
     meeting.scheduled_at = utcnow() + timedelta(hours=20)
     meeting.reminded_at = None

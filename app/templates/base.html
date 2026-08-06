@@ -14,6 +14,7 @@
   {% block head %}{% endblock %}
 </head>
 <body{% if current_user.is_authenticated %} data-mention-suggest="{{ url_for('main.mention_suggest') }}" data-tz-sync="{{ url_for('main.save_timezone') }}" data-csrf="{{ csrf_token() }}"{% endif %}>
+  {% include "partials/page_loader.html" %}
   {% include "partials/badge_defs.html" %}
   <header class="site-header">
     <nav class="nav" aria-label="Main">
@@ -107,6 +108,7 @@
   {% include "partials/feedback_widget.html" %}
   {% endif %}
 
+  <script src="{{ url_for('static', filename='js/page-loader.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/file-pick.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/main.js') }}" defer></script>
   {% block scripts %}{% endblock %}

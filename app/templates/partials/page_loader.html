@@ -1,0 +1,5 @@
+{# Spinning sunflower while a page or form is loading. #}
+<div id="page-loader" class="page-loader" hidden aria-hidden="true" role="status">
+  <img class="page-loader__sun" src="{{ url_for('static', filename='favicon.svg') }}" alt="" width="56" height="56" decoding="async">
+  <span class="sr-only">Loading</span>
+</div>

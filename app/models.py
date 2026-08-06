@@ -539,6 +539,9 @@ class Notification(db.Model):
 
     def href(self) -> str | None:
         """Best link for this notification."""
+        # Support-group notices are informational (time is in the body).
+        if self.kind == "support_group":
+            return None
         if self.url:
             return self.url
         if self.post_id:

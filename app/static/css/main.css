@@ -942,8 +942,33 @@ img.avatar.avatar--photo {
 }
 .note-bell__item a { color: var(--ink); text-decoration: none; font-weight: 600; font-size: 14px; }
 .note-bell__item a:hover { color: var(--plum); }
+.note-bell__item > span { color: var(--ink); font-weight: 600; font-size: 14px; }
+.note-bell__item.is-unread > span { color: var(--plum); }
 .note-bell__item time { font-size: 12px; color: var(--ink-soft); }
 .note-bell__item.is-unread a { color: var(--plum); }
+
+/* Spinning sunflower page loader */
+.page-loader {
+  position: fixed; inset: 0; z-index: 4000;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(250, 245, 238, 0.55);
+  backdrop-filter: blur(2px);
+  pointer-events: all;
+}
+.page-loader[hidden] { display: none !important; }
+.page-loader__sun {
+  width: 56px; height: 56px;
+  animation: page-loader-spin 2.8s linear infinite;
+  filter: drop-shadow(0 6px 18px rgba(87, 31, 70, 0.18));
+}
+@keyframes page-loader-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .page-loader__sun { animation: none; }
+}
+html.is-page-loading { cursor: progress; }
 .note-bell__all {
   display: block; text-align: center; margin-top: 8px; padding-top: 10px;
   border-top: 1px solid var(--ivory-deep);

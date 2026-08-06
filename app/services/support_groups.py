@@ -8,7 +8,6 @@ from datetime import datetime, timedelta, timezone
 from html import escape
 from urllib.parse import urlparse
 
-from flask import url_for
 from sqlalchemy.orm import joinedload
 
 from ..extensions import db
@@ -243,20 +242,12 @@ def _when_for(user: User, dt: datetime | None) -> str:
     return f"{stamp} ({tz})" if stamp else "the scheduled time"
 
 
-def _account_url() -> str:
-    try:
-        return url_for("main.account", _external=True) + "#support-groups"
-    except RuntimeError:
-        return "/account#support-groups"
-
-
 def _notify_seats(meeting: SupportGroupMeeting, *, kind: str,
                   actor_id: int | None = None,
                   seats: list[SupportGroupApplication] | None = None) -> None:
     seats = seats if seats is not None else meeting_seats(meeting)
     others = max(0, len(seats) - 1)
     zoom = (meeting.zoom_url or "").strip()
-    href = _account_url()
 
     for row in seats:
         user = row.author
@@ -340,7 +331,7 @@ def _notify_seats(meeting: SupportGroupMeeting, *, kind: str,
             continue
 
         notify(user.id, kind="support_group", body=note[:300],
-               actor_id=actor_id, url=href)
+               actor_id=actor_id)
         try:
             send_email(user.email, subject, text, html_body=html)
         except Exception:
