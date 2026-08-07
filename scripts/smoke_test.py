@@ -393,7 +393,13 @@ with app.app_context():
     vent_tag_id = t_vent.id
 
 r = client.get("/forums/")
-ok("Forums index renders", r.status_code == 200 and "Healing" in r.get_data(as_text=True))
+comm_body = r.get_data(as_text=True)
+ok("Forums index renders", r.status_code == 200 and "The Community" in comm_body)
+ok("Community page shows healing / building hubs",
+   "Healing community" in comm_body
+   and "Building community" in comm_body
+   and "Join the Healing Community" in comm_body
+   and "get full access" in comm_body.lower())
 
 # category page shows topic filter chips
 r = client.get("/forums/c/healing")

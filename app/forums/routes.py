@@ -62,11 +62,10 @@ def _guard_content(*texts) -> bool:
 @bp.route("/")
 def index():
     cats = ForumCategory.query.order_by(ForumCategory.sort_order, ForumCategory.name).all()
-    counts = dict(
-        db.session.query(ForumPost.category_id, func.count(ForumPost.id))
-        .filter(ForumPost.hidden.is_(False)).group_by(ForumPost.category_id).all()
+    return render_template(
+        "forums/index.html",
+        cats_by_slug={c.slug: c for c in cats},
     )
-    return render_template("forums/index.html", categories=cats, counts=counts)
 
 
 @bp.route("/c/<slug>")
