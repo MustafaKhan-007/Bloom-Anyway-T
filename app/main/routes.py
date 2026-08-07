@@ -15,7 +15,7 @@ from ..models import (JOURNAL_PROMPTS, MARKETPLACE_KINDS, MARKETPLACE_KIND_LABEL
                       ListingImage, MarketplaceListing, MembershipPlan,
                       Notification, Order, Page, Quote, QuoteFavorite,
                       ReelReview, ReelReviewApplication, ShopPurchase,
-                      Subscriber, Testimonial, User, Video, utcnow,
+                      Subscriber, User, Video, utcnow,
                       random_journal_prompt)
 from ..services import quotes as quotes_service
 from ..services import reel_reviews as reel_svc
@@ -70,24 +70,6 @@ def _valid_badge_choices(keys):
             break
     return out
 
-SEED_TESTIMONIALS = [
-    {"quote": "I bought the notebook the week everything fell apart. It didn't fix my life \u2014 it gave me somewhere to stand while I fixed it.", "first_name": "Dana"},
-    {"quote": "The course felt like a friend who's been through it, not a guru shouting at me. I finished it. I never finish things.", "first_name": "Priya"},
-    {"quote": "Small daily pages. That's it. Three months later I barely recognize my mornings.", "first_name": "Leah"},
-]
-
-
-def _quote_context():
-    """Everything the daily quote card needs."""
-    today = date.today()
-    quote = quotes_service.quote_for(today, count_view=True)
-    ctx = {"today_quote": quote, "today": today, "quote_favorited": False}
-    if current_user.is_authenticated and quote:
-        ctx["quote_favorited"] = QuoteFavorite.query.filter_by(
-            user_id=current_user.id, quote_id=quote.id).first() is not None
-    return ctx
-
-
 def _spotlight_context():
     """Creator of the Month + Reel of the Week, straight from site settings."""
     site = settings_service.all_settings()
@@ -130,15 +112,10 @@ def _video_notice():
 
 @bp.route("/")
 def index():
-    testimonials = (Testimonial.query.filter_by(show_on_home=True)
-                    .order_by(Testimonial.sort_order).limit(3).all())
     return render_template(
         "main/index.html",
-        testimonials=testimonials or SEED_TESTIMONIALS,
-        testimonials_are_models=bool(testimonials),
         latest_video=_video_notice(),
         **_spotlight_context(),
-        **_quote_context(),
     )
 
 

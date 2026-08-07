@@ -1,6 +1,9 @@
 {% extends "base.html" %}
 
+{% block meta_description %}A space for women who are healing, building, or both — community, courses, and creator spotlight.{% endblock %}
+
 {% block content %}
+<div class="home">
 {% if announcements or latest_video %}
 <div class="announce-strip">
   <div class="container">
@@ -20,51 +23,115 @@
 </div>
 {% endif %}
 
-<!-- 1. Hero -->
-<section class="hero">
-  <div class="container hero-grid">
-    <div>
-      <p class="eyebrow" data-rise="1">A new chapter starts quietly</p>
-      <h1 data-rise="2">Wherever you're starting from &mdash; even here &mdash; this is where it turns.</h1>
-      <hr class="horizon-rule" data-rise="3">
-      <p class="subline" data-rise="4">Courses and guided notebooks for rebuilding, one honest day at a time.</p>
-      <div class="hero-actions" data-rise="5">
-        <a class="btn btn--primary" href="{{ shop_url }}" target="_blank" rel="noopener">Browse the courses</a>
-        <a class="btn btn--secondary" href="{{ url_for('main.about') }}">Read my story</a>
-      </div>
-    </div>
-    {% if site.portrait_url %}
-    <div class="hero-image-wrap" data-rise="6">
-      <img class="hero-image" src="{{ site.portrait_url }}" alt="Portrait of {{ site.site_title }}">
-    </div>
-    {% endif %}
+<section class="home-hero" aria-label="Healing and building">
+  <p class="home-hero__strap">
+    <span class="home-hero__strap-line" aria-hidden="true"></span>
+    <span class="home-hero__strap-text">A space for women who are healing, building, or both</span>
+    <span class="home-hero__strap-line" aria-hidden="true"></span>
+  </p>
+
+  <div class="home-hero__split">
+    <article class="home-panel home-panel--heal">
+      <p class="home-panel__eyebrow">Healing</p>
+      <span class="home-panel__icon" aria-hidden="true">
+        <svg viewBox="0 0 40 40" width="36" height="36" fill="none" stroke="currentColor" stroke-width="1.6">
+          <circle cx="20" cy="22" r="6"/>
+          <path d="M20 6c2 4 2 7 0 10-2-3-2-6 0-10zM20 34c-2-4-2-7 0-10 2 3 2 6 0 10zM6 20c4-2 7-2 10 0-3 2-6 2-10 0zM34 20c-4 2-7 2-10 0 3-2 6-2 10 0z"/>
+        </svg>
+      </span>
+      <h1 class="home-panel__title">You don't have to carry this alone.</h1>
+      <hr class="home-panel__rule">
+      <p class="home-panel__body">
+        A judgment-free community for women navigating divorce, custody battles,
+        heartbreak, and hard seasons. Talk, connect, and heal — at your own pace.
+      </p>
+      <ul class="home-panel__tags">
+        <li>Support Groups</li>
+        <li>Forums</li>
+        <li>Divorce &amp; Custody</li>
+        <li>Healing Courses</li>
+      </ul>
+      <a class="btn home-panel__cta home-panel__cta--heal" href="{{ url_for('forums.index') }}">Find Your Community</a>
+    </article>
+
+    <div class="home-hero__both" aria-hidden="true"><span>or both</span></div>
+
+    <article class="home-panel home-panel--build">
+      <p class="home-panel__eyebrow home-panel__eyebrow--build">Building</p>
+      <span class="home-panel__icon home-panel__icon--build" aria-hidden="true">
+        <svg viewBox="0 0 40 40" width="36" height="36" fill="currentColor">
+          <path d="M20 6l2.4 7.4H30l-6 4.4 2.3 7.2L20 20.6l-6.3 4.4 2.3-7.2-6-4.4h7.6z"/>
+          <path d="M30 22l1.2 3.6H35l-2.9 2.1 1.1 3.5L30 29.1l-3.2 2.1 1.1-3.5-2.9-2.1h3.8z" opacity=".75"/>
+        </svg>
+      </span>
+      <h2 class="home-panel__title">Ready to build something that's yours?</h2>
+      <hr class="home-panel__rule home-panel__rule--build">
+      <p class="home-panel__body">
+        Learn to grow your business, become a content creator, and create digital products.
+        Built for women who are done waiting and ready to start.
+      </p>
+      <ul class="home-panel__tags home-panel__tags--build">
+        <li>Business Growth</li>
+        <li>Content Creation</li>
+        <li>Digital Products</li>
+        <li>Showcase</li>
+      </ul>
+      <a class="btn home-panel__cta home-panel__cta--build" href="{{ url_for('main.membership') }}">Start Building</a>
+    </article>
+  </div>
+
+  <div class="home-ticker" role="presentation">
+    <span>Judgment-free community</span>
+    <span aria-hidden="true">|</span>
+    <span>Courses for healing &amp; growth</span>
+    <span aria-hidden="true">|</span>
+    <span>Showcase your business</span>
+    <span aria-hidden="true">|</span>
+    <span>Women supporting women</span>
   </div>
 </section>
 
-<!-- 2. Daily quote -->
-<section class="section" style="padding-top: 0;">
+<section class="home-section home-featured" aria-labelledby="featured-heading">
   <div class="container">
-    {% include "partials/quote_card.html" %}
+    <header class="home-section__head">
+      <p class="home-eyebrow"><span></span> Featured today <span></span></p>
+      <h2 id="featured-heading">Digital Product of the Day</h2>
+      <p class="home-section__lede">
+        Curated from our Creator Membership community — scroll to discover the top products of the past 30 days
+      </p>
+    </header>
+    <div class="home-soon home-soon--feature reveal">
+      <p class="home-soon__badge">★ Featured today</p>
+      <p class="home-soon__title">Coming soon</p>
+      <p class="home-soon__copy">
+        Creator members will be able to submit digital products for a chance to be featured here.
+      </p>
+    </div>
   </div>
 </section>
 
-<!-- 3. Shop CTA -->
-<section class="section section--band">
-  <div class="container" style="text-align: center;">
-    <h2>Start where you are</h2>
-    <p style="color: var(--ink-soft); max-width: 40ch; margin: 0 auto 20px;">
-      Courses and guided notebooks live in the shop &mdash; buy once, and they show up in My space with a download link.
-    </p>
-    <a class="btn btn--primary" href="{{ shop_url }}" target="_blank" rel="noopener">Open the shop</a>
+<section class="home-section home-products" aria-labelledby="products-heading">
+  <div class="container">
+    <header class="home-products__head">
+      <h2 id="products-heading">Top products — last 30 days</h2>
+    </header>
+    <div class="home-soon home-soon--row reveal">
+      <p class="home-soon__title">Coming soon</p>
+      <p class="home-soon__copy">A rotating gallery of community favourites will live here.</p>
+    </div>
   </div>
 </section>
 
-<!-- 3b. Spotlight: Creator of the Month + Reel of the Week -->
 {% if creator_of_month or reel_of_week %}
-<section class="section">
+<section class="home-section home-spotlight" aria-labelledby="spotlight-heading">
   <div class="container">
-    <p class="eyebrow text-center">In the spotlight</p>
-    <h2 class="text-center">Faces &amp; moments we love</h2>
+    <header class="home-section__head">
+      <p class="home-eyebrow"><span></span> In the spotlight <span></span></p>
+      <h2 id="spotlight-heading" class="text-center">Faces &amp; moments we love</h2>
+      <p class="home-section__lede">
+        Exclusive to Creator Members — apply through your membership dashboard
+      </p>
+    </header>
     <div class="spotlight-grid{% if not (creator_of_month and reel_of_week) %} spotlight-grid--solo{% endif %}">
       {% if creator_of_month %}
       <article class="spotlight-card spotlight-card--creator reveal">
@@ -82,13 +149,14 @@
           <a class="btn btn--primary btn--sm spotlight-creator__cta"
              href="{{ creator_of_month.instagram }}" target="_blank" rel="noopener">View their Instagram &rarr;</a>
           {% endif %}
+          <p class="spotlight-card__foot">★ Creator Member</p>
         </div>
       </article>
       {% endif %}
 
       {% if reel_of_week %}
       <article class="spotlight-card spotlight-card--reel reveal">
-        <span class="spotlight-tag">Reel of the week</span>
+        <span class="spotlight-tag spotlight-tag--gold">Reel of the week</span>
         {% if reel_of_week.embed %}
         <div class="reel-embed">
           <iframe src="{{ reel_of_week.embed }}" title="Reel of the week" allowfullscreen loading="lazy"
@@ -97,6 +165,7 @@
         {% endif %}
         {% if reel_of_week.description %}<p>{{ reel_of_week.description }}</p>{% endif %}
         <a class="btn btn--secondary btn--sm" href="{{ reel_of_week.url }}" target="_blank" rel="noopener">Watch on Instagram &rarr;</a>
+        <p class="spotlight-card__foot">★ Creator Member</p>
       </article>
       {% endif %}
     </div>
@@ -104,57 +173,19 @@
 </section>
 {% endif %}
 
-<!-- 4. Story teaser -->
-<section class="section">
-  <div class="container grid grid--2" style="align-items: center;">
-    {% if site.hero_image_url %}
-      <img class="story-teaser-image reveal" src="{{ site.hero_image_url }}" alt="" loading="lazy">
-    {% endif %}
-    <div class="reveal">
-      <p class="eyebrow">Her story</p>
-      <h2>I didn't rebuild my life in one brave leap.</h2>
-      <p>I rebuilt it in small, unglamorous mornings &mdash; a single mother with a notebook, a kitchen table, and fifteen quiet minutes before the day started asking things of me. What I learned in those mornings became everything I make now.</p>
-      <a class="btn--quiet" href="{{ url_for('main.about') }}">Read the whole story &rarr;</a>
-    </div>
-  </div>
-</section>
-
-<!-- 5. Testimonials -->
-<section class="section section--rose">
+<section class="home-section home-cta-wrap">
   <div class="container">
-    <h2>Words from people who started</h2>
-    <div class="grid grid--3">
-      {% for t in testimonials %}
-      <div class="testimonial-card reveal">
-        <div class="stars" aria-label="5 out of 5 stars">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
-        <blockquote>&ldquo;{{ t.quote }}&rdquo;</blockquote>
-        <cite>{{ t.first_name }}</cite>
+    <div class="home-cta reveal">
+      <div class="home-cta__copy">
+        <p class="home-cta__eyebrow">Creator Membership</p>
+        <p class="home-cta__title">Want your product featured, or a shot at Creator of the Month? Join the Creator Membership.</p>
       </div>
-      {% endfor %}
+      <div class="home-cta__action">
+        <a class="btn home-cta__btn" href="{{ url_for('main.membership') }}">Join Creator Membership</a>
+        <p class="home-cta__note">All spotlight features are exclusive to members</p>
+      </div>
     </div>
   </div>
 </section>
-
-<!-- 6. Email capture -->
-<section class="section" id="letter">
-  <div class="container text-center">
-    <h2>One small step, every Sunday</h2>
-    <p style="margin: 0 auto 28px;">A short letter with one idea worth keeping and one thing to try. No noise, ever.</p>
-    {% with subscribe_messages = get_flashed_messages(with_categories=true, category_filter=['subscribe-success', 'subscribe-error']) %}
-      {% for category, message in subscribe_messages %}
-        <div class="flash flash--{{ category }}" role="status" style="max-width: 480px; margin: 0 auto 16px;">{{ message }}</div>
-      {% endfor %}
-    {% endwith %}
-    <form class="subscribe-row" method="post" action="{{ url_for('main.subscribe') }}">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <div class="honeypot" aria-hidden="true">
-        <label for="website">Leave this empty</label>
-        <input type="text" id="website" name="website" tabindex="-1" autocomplete="off">
-      </div>
-      <label class="visually-hidden" for="subscribe-email">Email address</label>
-      <input type="email" id="subscribe-email" name="email" placeholder="you@example.com" required>
-      <button class="btn btn--primary" type="submit">Join the letter</button>
-    </form>
-  </div>
-</section>
+</div>
 {% endblock %}

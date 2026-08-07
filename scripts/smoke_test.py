@@ -79,22 +79,27 @@ ok("Seed has 150+ quotes", n_quotes >= 150, f"got {n_quotes}")
 
 client = app.test_client()
 
-# --- 1. home + deterministic daily quote -------------------------------------
+# --- 1. home hero + daily quote rotation (quotes live on /quotes) -------------
 r1 = client.get("/")
 ok("Home page renders", r1.status_code == 200, str(r1.status_code))
-quote_re = re.compile(r'class="quote-text">&ldquo;(.+?)&rdquo;', re.S)
-q1 = quote_re.search(r1.get_data(as_text=True))
+home1 = r1.get_data(as_text=True)
+ok("Home shows healing / building hero",
+   "You don't have to carry this alone" in home1
+   and "Ready to build something that's yours" in home1
+   and "Find Your Community" in home1
+   and "Start Building" in home1)
+ok("Home product sections are coming soon",
+   home1.count("Coming soon") >= 2
+   and "Digital Product of the Day" in home1)
 r2 = client.get("/")
-q2 = quote_re.search(r2.get_data(as_text=True))
-ok("Daily quote shown on home", q1 is not None)
-ok("Quote identical across refreshes", q1.group(1) == q2.group(1))
+ok("Home still renders on refresh", r2.status_code == 200)
 
 with app.app_context():
     from app.services.quotes import quote_for
     today_q = quote_for(date.today())
     tomorrow_q = quote_for(date.today() + timedelta(days=1))
     day_after = quote_for(date.today() + timedelta(days=2))
-ok("Rotation changes across days (some day differs)",
+ok("Quote rotation changes across days (some day differs)",
    today_q.id != tomorrow_q.id or today_q.id != day_after.id)
 
 # --- 2a. first-run owner setup ----------------------------------------------------
@@ -224,7 +229,8 @@ ok("/courses redirects to the Lemon shop",
    r.status_code == 302 and "shop.bloomanyway.online" in r.headers.get("Location", ""))
 r = client.get("/")
 home = r.get_data(as_text=True)
-ok("Home links out to the shop", "shop.bloomanyway.online" in home and "Open the shop" in home)
+ok("Home includes creator membership CTA",
+   "Join Creator Membership" in home and "Creator of the Month" in home)
 ok("Nav Courses & Guides points at the shop", "shop.bloomanyway.online" in home)
 
 # historical Product row kept for dashboard filters / order matching
@@ -1633,8 +1639,10 @@ with app.app_context():
     ok("Story teaser upload is cropped to 1:1 aspect",
        abs(_hr - 1.0) < 0.03, f"ratio={_hr:.3f} size={_him.size}")
 r = app.test_client().get("/")
-ok("Home story teaser uses fixed square frame class",
-   "story-teaser-image" in r.get_data(as_text=True))
+ok("Home uses the split healing / building hero",
+   "home-hero" in r.get_data(as_text=True)
+   and "home-panel--heal" in r.get_data(as_text=True)
+   and "home-panel--build" in r.get_data(as_text=True))
 
 _buf2 = BytesIO()
 _PILImage.new("RGB", (100, 100), (239, 167, 51)).save(_buf2, format="JPEG")

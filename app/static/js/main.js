@@ -4,16 +4,6 @@
 
   var reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-  /* ---- hero load-in (one page-load moment only) ---- */
-  var hero = document.querySelector(".hero");
-  if (hero) {
-    if (reducedMotion) {
-      hero.classList.add("loaded");
-    } else {
-      requestAnimationFrame(function () { hero.classList.add("loaded"); });
-    }
-  }
-
   /* ---- scroll-triggered reveal ---- */
   var revealEls = document.querySelectorAll(".reveal");
   if (revealEls.length && !reducedMotion && "IntersectionObserver" in window) {
