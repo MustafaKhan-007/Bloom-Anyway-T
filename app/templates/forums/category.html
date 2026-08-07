@@ -2,17 +2,54 @@
 {% from "partials/badges.html" import byline_badge %}
 {% block title %}{{ category.name }} — Community — {{ site.site_title }}{% endblock %}
 
-{% block content %}
-<section class="section">
-  <div class="container">
-    <p class="eyebrow"><a href="{{ url_for('forums.index') }}">&larr; Community</a></p>
-    <h1>{{ category.name }}</h1>
-    <p class="forum-lead">{{ category.description }}</p>
+{% set is_build = category.slug == "building" %}
+{% set is_paid = current_user.is_authenticated and current_user.is_member() %}
+{% set membership_url = url_for('main.membership', next=request.path) %}
 
-    <div class="forum-filters">
+{% block content %}
+<div class="fc {% if is_build %}fc--build{% else %}fc--heal{% endif %}">
+  <div class="container fc__layout">
+    <aside class="fc-side" aria-label="Access and filters">
+      {% if not is_paid %}
+      <div class="fc-trial">
+        <p class="fc-trial__eyebrow">Free trial</p>
+        <p class="fc-trial__title">Try full membership free for 2 weeks</p>
+        <p class="fc-trial__copy">
+          Unlimited posts &amp; replies, support groups, and everything in both communities.
+          No card required to look around first.
+        </p>
+        <a class="btn fc-trial__btn" href="{{ membership_url }}">Start Free Trial &rarr;</a>
+      </div>
+      {% endif %}
+
+      <div class="fc-access">
+        <h2 class="fc-access__title">Your current access</h2>
+        <ul class="fc-access__list">
+          {% if is_paid %}
+          <li class="is-yes">Read all posts</li>
+          <li class="is-yes">Like posts</li>
+          <li class="is-yes">Start conversations</li>
+          <li class="is-yes">Unlimited replies</li>
+          <li class="is-yes">Private support groups</li>
+          <li class="is-yes">{% if is_build %}Accountability groups{% else %}Member coaching circles{% endif %}</li>
+          {% else %}
+          <li class="is-yes">Read all posts</li>
+          <li class="is-yes">Like posts</li>
+          <li class="is-yes">1 conversation a week</li>
+          <li class="is-yes">5 replies a week</li>
+          <li class="is-lock">Unlimited posting</li>
+          <li class="is-lock">Private support groups</li>
+          <li class="is-lock">Private messaging</li>
+          {% endif %}
+        </ul>
+        {% if not is_paid %}
+        <a class="btn fc-access__btn" href="{{ membership_url }}">Unlock Full Access</a>
+        {% endif %}
+      </div>
+
       {% if tags %}
-      <div class="forum-filter">
-        <p class="forum-filter__label">Topic</p>
+      <div class="fc-filters">
+        <p class="fc-filters__label">Topics</p>
         <div class="tag-filter" role="group" aria-label="Filter by topic">
           <a class="tag-chip {{ 'on' if not active_tag }}" href="{{ filter_url(tag=none) }}">All topics</a>
           {% for tag in tags %}
@@ -23,8 +60,8 @@
       </div>
       {% endif %}
 
-      <div class="forum-filter">
-        <p class="forum-filter__label">Looking for</p>
+      <div class="fc-filters">
+        <p class="fc-filters__label">Looking for</p>
         <div class="tag-filter" role="group" aria-label="Filter by what people are looking for">
           <a class="tag-chip tag-chip--looking {{ 'on' if not active_looking }}"
              href="{{ filter_url(looking=none) }}">Anything</a>
@@ -34,111 +71,174 @@
           {% endfor %}
         </div>
       </div>
-    </div>
+    </aside>
 
-    {% if can_participate and not current_user.forum_banned %}
-      {% if can_post %}
-      <details class="new-post" {% if request.args.get('compose') %}open{% endif %}>
-        <summary class="btn btn--primary btn--sm">Start a conversation</summary>
-        <form method="post" action="{{ url_for('forums.create_post', slug=category.slug) }}" class="new-post__form">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <div class="field">
-            <label for="title">Title</label>
-            <input type="text" id="title" name="title" required maxlength="160" placeholder="Say it in a line">
-          </div>
+    <div class="fc-main">
+      <p class="fc-crumb">
+        <a href="{{ url_for('forums.index') }}">&larr; Community</a>
+      </p>
+      <h1>{{ category.name }}</h1>
+      <p class="fc-lead">
+        {% if category.description %}
+          {{ category.description }}
+        {% elif is_build %}
+          Growth, goals, and the brave work of creating a life and a business on your own terms.
+          No idea is too big here. No start is too small.
+        {% else %}
+          A judgment-free space to process, grieve, vent, and find your footing again —
+          at your own pace, with people who get it.
+        {% endif %}
+      </p>
 
-          {% if tags %}
-          <div class="field">
-            <label for="tag_id">Topic</label>
-            <select id="tag_id" name="tag_id">
-              <option value="">General</option>
-              {% for tag in tags %}
-              <option value="{{ tag.id }}" {{ 'selected' if active_tag and active_tag.id == tag.id }}>{{ tag.name }}</option>
-              {% endfor %}
-            </select>
-            <p class="field-help">Where this fits in the forum.</p>
-          </div>
-          {% endif %}
+      <div class="fc-welcome">
+        {% if is_build %}
+        <h2>Welcome to the Building community</h2>
+        <p>
+          This is where ambition gets company. Share the messy middle, the first sale, the stalled
+          launch — and the next brave step. We celebrate progress over polish.
+        </p>
+        <ul>
+          <li>Cheer each other on — wins of every size count</li>
+          <li>No gatekeeping — share what worked for you</li>
+          <li>Keep it kind — feedback without tearing down</li>
+          <li>Free members: 1 new conversation and 5 replies each week</li>
+        </ul>
+        {% else %}
+        <h2>Welcome to the Healing community</h2>
+        <p>
+          You don't have to perform strength here. Come as you are — mid-divorce, mid-grief,
+          mid-rebuild. We'll hold space with you.
+        </p>
+        <ul>
+          <li>We lead with kindness</li>
+          <li>No judgment for hard feelings</li>
+          <li>What is shared here, stays here</li>
+          <li>Free members: 1 new conversation and 5 replies each week</li>
+        </ul>
+        {% endif %}
+      </div>
 
-          <fieldset class="looking-picker">
-            <legend>Looking for</legend>
-            <p class="field-help">Optional — helps people know how to show up for you.</p>
-            <div class="looking-picker__grid">
-              <label class="looking-option">
-                <input type="radio" name="looking_for" value="" checked>
-                <span>Not sure yet</span>
-              </label>
-              {% for slug, label in looking_for_options %}
-              <label class="looking-option">
-                <input type="radio" name="looking_for" value="{{ slug }}"
-                       {{ 'checked' if active_looking == slug }}>
-                <span>{{ label }}</span>
-              </label>
-              {% endfor %}
+      {% if can_participate and not current_user.forum_banned %}
+        {% if can_post %}
+        <details class="new-post fc-compose" {% if request.args.get('compose') %}open{% endif %}>
+          <summary class="btn btn--primary btn--sm">Start a conversation</summary>
+          <form method="post" action="{{ url_for('forums.create_post', slug=category.slug) }}" class="new-post__form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="field">
+              <label for="title">Title</label>
+              <input type="text" id="title" name="title" required maxlength="160" placeholder="Say it in a line">
             </div>
-          </fieldset>
 
-          <div class="field">
-            <label for="body">What's on your mind?</label>
-            <textarea id="body" name="body" rows="6" required maxlength="8000" data-mentions
-                      placeholder="Share what's on your mind. Type @ to tag someone."></textarea>
-          </div>
-          <label class="checkline checkline--compose">
-            <input type="checkbox" name="anonymous" value="1" {{ 'checked' if anon_default }}>
-            Post anonymously
-          </label>
-          <button class="btn btn--primary" type="submit">Post</button>
-        </form>
-      </details>
+            {% if tags %}
+            <div class="field">
+              <label for="tag_id">Topic</label>
+              <select id="tag_id" name="tag_id">
+                <option value="">General</option>
+                {% for tag in tags %}
+                <option value="{{ tag.id }}" {{ 'selected' if active_tag and active_tag.id == tag.id }}>{{ tag.name }}</option>
+                {% endfor %}
+              </select>
+              <p class="field-help">Where this fits in the forum.</p>
+            </div>
+            {% endif %}
+
+            <fieldset class="looking-picker">
+              <legend>Looking for</legend>
+              <p class="field-help">Optional — helps people know how to show up for you.</p>
+              <div class="looking-picker__grid">
+                <label class="looking-option">
+                  <input type="radio" name="looking_for" value="" checked>
+                  <span>Not sure yet</span>
+                </label>
+                {% for slug, label in looking_for_options %}
+                <label class="looking-option">
+                  <input type="radio" name="looking_for" value="{{ slug }}"
+                         {{ 'checked' if active_looking == slug }}>
+                  <span>{{ label }}</span>
+                </label>
+                {% endfor %}
+              </div>
+            </fieldset>
+
+            <div class="field">
+              <label for="body">What's on your mind?</label>
+              <textarea id="body" name="body" rows="6" required maxlength="8000" data-mentions
+                        placeholder="Share what's on your mind. Type @ to tag someone."></textarea>
+            </div>
+            <label class="checkline checkline--compose">
+              <input type="checkbox" name="anonymous" value="1" {{ 'checked' if anon_default }}>
+              Post anonymously
+            </label>
+            <button class="btn btn--primary" type="submit">Post</button>
+          </form>
+        </details>
+        {% else %}
+        <div class="quota-locked" role="status">
+          <p class="quota-locked__title">This week's free post is used</p>
+          <p>{{ post_quota_msg }}</p>
+          <a class="btn btn--secondary btn--sm" href="{{ membership_url }}">See memberships</a>
+        </div>
+        {% endif %}
+      {% elif current_user.is_authenticated and current_user.forum_banned %}
+      <div class="flash flash--error">Posting is paused for your account. You can still read along.</div>
       {% else %}
-      <div class="quota-locked" role="status">
-        <p class="quota-locked__title">This week's free post is used</p>
-        <p>{{ post_quota_msg }}</p>
-        <a class="btn btn--secondary btn--sm" href="{{ url_for('main.membership', next=request.path) }}">See memberships</a>
+      <div class="fc-lockbar">
+        <div class="fc-lockbar__text">
+          <span class="fc-lockbar__icon" aria-hidden="true">&#128274;</span>
+          <div>
+            <strong>Start a conversation</strong>
+            <span>Sign in to join — free members get one conversation and five replies a week</span>
+          </div>
+        </div>
+        <a class="btn fc-lockbar__btn" href="{{ url_for('auth.login', next=request.path) }}">Sign in</a>
       </div>
       {% endif %}
-    {% elif current_user.is_authenticated and current_user.forum_banned %}
-    <div class="flash flash--error">Posting is paused for your account. You can still read along.</div>
-    {% elif current_user.is_authenticated %}
-    <div class="member-gate">
-      <p>Join Healing or Creator for unlimited posts and replies — Free members get one post and five replies each week.</p>
-      <a class="btn btn--primary btn--sm" href="{{ url_for('main.membership') }}">See memberships</a>
-    </div>
-    {% else %}
-    <p><a href="{{ url_for('auth.login', next=request.path) }}">Sign in</a> to join the conversation.</p>
-    {% endif %}
 
-    <div class="post-list post-list--list">
-      {% for post in posts %}
-      {% set comment_n = post.comments.filter_by(hidden=False).count() %}
-      <a class="post-row" href="{{ url_for('forums.post', post_id=post.id) }}">
-        <div class="post-row__votes" aria-label="{{ post.like_count() }} likes">
-          <span class="post-row__heart" aria-hidden="true">&#9829;</span>
-          <span>{{ post.like_count() }}</span>
-        </div>
-        <div class="post-row__main">
-          <h3>{{ post.title }}</h3>
-          <div class="post-row__meta">
-            {% if post.tag %}<span class="tag-chip tag-chip--mini">{{ post.tag.name }}</span>{% endif %}
-            {% if post.looking_for_label() %}
-            <span class="tag-chip tag-chip--mini tag-chip--looking">Looking for {{ post.looking_for_label()|lower }}</span>
-            {% endif %}
-            <span class="post-row__author">
-              {% if post.anonymous %}Anonymous{% elif post.author.username %}<span class="at-handle">@{{ post.author.username }}</span>{% else %}{{ post.display_author() }}{% endif %}{{ byline_badge(post.author, post.anonymous) }}
-            </span>
+      {% if current_user.is_authenticated and not is_paid %}
+      <div class="fc-strip">
+        <span>
+          Free access: you can start one conversation and leave five replies each week, and like any post.
+        </span>
+        <a href="{{ membership_url }}">Start free trial</a>
+      </div>
+      {% endif %}
+
+      <h2 class="fc-feed-label">Recent conversations</h2>
+      <div class="post-list post-list--list">
+        {% for post in posts %}
+        {% set comment_n = post.comments.filter_by(hidden=False).count() %}
+        <a class="post-row" href="{{ url_for('forums.post', post_id=post.id) }}">
+          <div class="post-row__votes" aria-label="{{ post.like_count() }} likes">
+            <span class="post-row__heart" aria-hidden="true">&#9825;</span>
+            <span>{{ post.like_count() }}</span>
           </div>
-        </div>
-        <div class="post-row__aside">
-          <time datetime="{{ post.created_at.isoformat() }}">{{ post.created_at|localtime('%b %d · %I:%M %p') }}</time>
-          <span>{{ comment_n }} comment{{ '' if comment_n == 1 else 's' }}</span>
-        </div>
-      </a>
-      {% else %}
-      <p class="forum-empty">No posts here yet
-        {%- if active_tag or active_looking %} for this filter{%- endif %}
-        &mdash; be the first gentle voice.</p>
-      {% endfor %}
+          <div class="post-row__main">
+            <h3>{{ post.title }}</h3>
+            <div class="post-row__meta">
+              {% if post.tag %}<span class="tag-chip tag-chip--mini">{{ post.tag.name }}</span>{% endif %}
+              {% if post.looking_for_label() %}
+              <span class="tag-chip tag-chip--mini tag-chip--looking">Looking for {{ post.looking_for_label()|lower }}</span>
+              {% endif %}
+              <span class="post-row__author">
+                {% if post.anonymous %}Anonymous{% elif post.author.username %}<span class="at-handle">@{{ post.author.username }}</span>{% else %}{{ post.display_author() }}{% endif %}{{ byline_badge(post.author, post.anonymous) }}
+              </span>
+            </div>
+            {% if post.body %}
+            <p class="post-row__snippet">{{ post.body|striptags|truncate(160) }}</p>
+            {% endif %}
+          </div>
+          <div class="post-row__aside">
+            <time datetime="{{ post.created_at.isoformat() }}">{{ post.created_at|localtime('%b %d · %I:%M %p') }}</time>
+            <span>{{ comment_n }} {{ 'reply' if comment_n == 1 else 'replies' }}</span>
+          </div>
+        </a>
+        {% else %}
+        <p class="forum-empty">No posts here yet
+          {%- if active_tag or active_looking %} for this filter{%- endif %}
+          &mdash; be the first gentle voice.</p>
+        {% endfor %}
+      </div>
     </div>
   </div>
-</section>
+</div>
 {% endblock %}
