@@ -2,8 +2,9 @@
 {% block title %}Daily quotes — {{ site.site_title }}{% endblock %}
 
 {% block content %}
-<section class="section">
+<section class="section page-remaster">
   <div class="container">
+    <p class="eyebrow">A line for today</p>
     <h1>Daily quotes</h1>
     {% if current_user.is_authenticated %}
     <p>Every day since you joined, gathered in one place. Today's is gold.</p>

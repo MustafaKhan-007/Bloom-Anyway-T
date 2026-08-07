@@ -4,6 +4,7 @@
 {% block title %}My space — {{ site.site_title }}{% endblock %}
 
 {% block content %}
+<div class="ms-page">
 <section class="section section--tight">
   <div class="container">
     <div class="account-head">
@@ -23,6 +24,9 @@
           <p class="field-help" style="margin: 8px 0 0;">
             {{ followers_n }} follower{{ '' if followers_n == 1 else 's' }}
             &middot; {{ following_n }} following
+            {% if current_user.created_at %}
+            &middot; Member since {{ current_user.created_at|localtime('%B %Y') }}
+            {% endif %}
           </p>
         </div>
       </div>
@@ -36,15 +40,17 @@
 
     <nav class="myspace-tabs" aria-label="My space sections">
       <a class="myspace-tabs__tab {{ 'is-active' if active_tab == 'profile' }}"
-         href="{{ url_for('main.account', tab='profile') }}">Profile</a>
-      <a class="myspace-tabs__tab {{ 'is-active' if active_tab == 'saved' }}"
-         href="{{ url_for('main.account', tab='saved') }}">Saved</a>
+         href="{{ url_for('main.account', tab='profile') }}">Overview</a>
       <a class="myspace-tabs__tab {{ 'is-active' if active_tab == 'journal' }}"
          href="{{ url_for('main.account', tab='journal') }}">Journal</a>
       <a class="myspace-tabs__tab {{ 'is-active' if active_tab == 'activity' }}"
          href="{{ url_for('main.account', tab='activity') }}">
         Activity{% if unread_notes %} <span class="myspace-tabs__dot">{{ unread_notes }}</span>{% endif %}
       </a>
+      <a class="myspace-tabs__tab {{ 'is-active' if active_tab == 'saved' }}"
+         href="{{ url_for('main.account', tab='saved') }}">Courses</a>
+      <a class="myspace-tabs__tab"
+         href="{{ url_for('main.my_listings') }}">Showcase</a>
       <a class="myspace-tabs__tab"
          href="{{ url_for('main.settings') }}">Settings</a>
     </nav>
@@ -66,7 +72,7 @@
         </div>
       </div>
       <p class="field-help" style="margin: 0 0 10px;">
-        Seat the earliest applicants, pick a time, and paste the Zoom link in Studio.
+        Seat the earliest applicants and pick a time in Studio — Zoom is created automatically.
       </p>
       <a class="btn btn--primary btn--sm" href="{{ url_for('admin.support_groups') }}">Open in Studio &rarr;</a>
     </div>
@@ -295,36 +301,60 @@
 
 {% if active_tab == 'journal' %}
 <section class="section section--tight">
-  <div class="container" style="max-width: 680px;">
-    <h2>Your journal</h2>
-    <p style="color: var(--ink-soft); margin-top: -6px;">Private notes from the days you showed up. Only you can see these.</p>
+  <div class="container ms-journal">
+    <div class="ms-journal__main">
+      <h2>Your journal</h2>
+      <p class="field-help" style="margin-top: -6px;">Private notes from the days you showed up. Only you can see these.</p>
 
-    {% if not current_user.checked_in_today() %}
-    <form method="post" action="{{ url_for('main.checkin') }}" class="checkin-journal" style="margin: 24px 0;">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <input type="hidden" name="next" value="{{ url_for('main.account', tab='journal') }}">
-      <input type="hidden" name="prompt" value="{{ today_prompt[0] }}">
-      <p class="checkin-journal__q">{{ today_prompt[1] }}</p>
-      <textarea name="journal" rows="4" maxlength="4000"
-                placeholder="Write as much or as little as you like."
-                aria-label="{{ today_prompt[1] }}"></textarea>
-      <button class="btn btn--primary" type="submit">I showed up today</button>
-    </form>
-    {% endif %}
+      {% if not current_user.checked_in_today() %}
+      <form method="post" action="{{ url_for('main.checkin') }}" class="checkin-journal ms-journal__today">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="next" value="{{ url_for('main.account', tab='journal') }}">
+        <input type="hidden" name="prompt" value="{{ today_prompt[0] }}">
+        <p class="checkin-journal__q">{{ today_prompt[1] }}</p>
+        <textarea name="journal" rows="6" maxlength="4000"
+                  placeholder="Write as much or as little as you like."
+                  aria-label="{{ today_prompt[1] }}"></textarea>
+        <button class="btn btn--primary" type="submit">I showed up today &#10003;</button>
+      </form>
+      {% else %}
+      <div class="ms-journal__done">
+        <span class="streak-done">&#10003; You showed up today</span>
+        <p class="field-help">Come back tomorrow — or keep reading past entries below.</p>
+      </div>
+      {% endif %}
 
-    {% if journal_entries %}
-    <div class="journal-list">
-      {% for entry in journal_entries %}
-      <article class="journal-card">
-        <p class="eyebrow">{{ entry.day.strftime('%b %d, %Y') }}</p>
-        <h3>{{ entry.prompt_label or 'Note' }}</h3>
-        <div class="forum-body">{{ entry.body|nl2br }}</div>
-      </article>
-      {% endfor %}
+      <h3 class="ms-journal__prev-title">Previous entries</h3>
+      {% if journal_entries %}
+      <div class="journal-list">
+        {% for entry in journal_entries %}
+        <article class="journal-card">
+          <p class="eyebrow">{{ entry.day.strftime('%A, %b %d') }}</p>
+          <h3>{{ entry.prompt_label or 'Note' }}</h3>
+          <div class="forum-body">{{ entry.body|nl2br }}</div>
+        </article>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p style="margin-top: 12px;">No journal pages yet — check in above whenever you're ready.</p>
+      {% endif %}
     </div>
-    {% else %}
-    <p style="margin-top: 20px;">No journal pages yet — check in above whenever you're ready.</p>
-    {% endif %}
+    <aside class="ms-journal__side">
+      <div class="ms-side-card">
+        <p class="eyebrow">Journal streak</p>
+        <p class="ms-side-card__stat"><strong>{{ current_user.streak_display() }}</strong> days in a row</p>
+        <p class="field-help">One small return, every day.</p>
+      </div>
+      <div class="ms-side-card">
+        <p class="eyebrow">Need a prompt?</p>
+        <ul class="ms-prompt-list">
+          <li>What is one thing you did today that took courage?</li>
+          <li>Where did you make space for yourself?</li>
+          <li>What would you tell a friend in your shoes?</li>
+          <li>What are you ready to put down for tonight?</li>
+        </ul>
+      </div>
+    </aside>
   </div>
 </section>
 {% endif %}
@@ -357,4 +387,5 @@
   </div>
 </section>
 {% endif %}
+</div>
 {% endblock %}

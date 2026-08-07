@@ -863,7 +863,7 @@ class Announcement(db.Model):
 MARKETPLACE_KINDS = ("product", "service")
 MARKETPLACE_KIND_LABELS = {"product": "Digital product", "service": "Service"}
 #: how many active listings each tier may run at once (creator = unlimited)
-MARKETPLACE_LIMITS = {"none": 0, "healing": 1, "creator": None}
+MARKETPLACE_LIMITS = {"none": 0, "healing": 1, "creator": 5}
 #: how many tags a single listing may carry
 MARKETPLACE_TAG_MAX = 24
 #: curated tag catalogue (authors pick from these; filters use the same list)

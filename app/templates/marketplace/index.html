@@ -9,117 +9,168 @@
 {%- endmacro %}
 
 {% block content %}
-<section class="section">
-  <div class="container">
-    <div class="market-head">
-      <div>
-        <p class="eyebrow">By the community</p>
-        <h1>Showcase</h1>
-        <p class="subline">Products and services from our members. We point you to the maker &mdash; you buy on their own site.</p>
+<div class="show-page">
+  <header class="show-page__hero">
+    <div class="container">
+      <div class="show-page__head">
+        <div>
+          <p class="show-page__eyebrow">By the community</p>
+          <h1>Showcase</h1>
+          <p class="show-page__subline">Products and services from our members. We point you to the maker &mdash; you buy on their own site.</p>
+        </div>
+        {% if current_user.is_authenticated and current_user.is_member() %}
+        <a class="btn btn--primary" href="{{ url_for('main.my_listings') }}">Your listings</a>
+        {% endif %}
       </div>
-      {% if current_user.is_authenticated and current_user.is_member() %}
-      <a class="btn btn--primary" href="{{ url_for('main.my_listings') }}">Your listings</a>
+      <div class="show-page__notice" role="note">
+        <strong>Visibility notice:</strong> Listings are public to browse. Only Healing &amp; Creator members can publish;
+        purchases happen on each maker's own website.
+      </div>
+    </div>
+  </header>
+
+  <section class="show-page__tiers">
+    <div class="container">
+      <div class="show-page__tier-grid">
+        <article class="show-page__tier">
+          <h2>Free</h2>
+          <p>Browse every listing, discover makers, and save favorites for later.</p>
+        </article>
+        <article class="show-page__tier show-page__tier--heal">
+          <h2>Healing</h2>
+          <p>Publish <strong>1 active listing</strong> for your product or service.</p>
+        </article>
+        <article class="show-page__tier show-page__tier--creator">
+          <h2>Creator</h2>
+          <p>Publish up to <strong>5 active listings</strong> and get spotlight eligibility.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="show-page__browse">
+    <div class="container">
+      <!-- category tabs -->
+      <div class="filter-tabs">
+        <a href="{{ qs({'kind': none}) }}" class="{{ 'active' if not kind }}">Everything</a>
+        <a href="{{ qs({'kind': 'product'}) }}" class="{{ 'active' if kind == 'product' }}">Digital products</a>
+        <a href="{{ qs({'kind': 'service'}) }}" class="{{ 'active' if kind == 'service' }}">Services</a>
+      </div>
+
+      <!-- filters row -->
+      <form class="market-filters" method="get" action="{{ url_for('main.showcase') }}">
+        {% if kind %}<input type="hidden" name="kind" value="{{ kind }}">{% endif %}
+        {% if tag %}<input type="hidden" name="tag" value="{{ tag }}">{% endif %}
+        <input type="hidden" name="view" value="{{ view }}">
+        <input type="search" name="q" value="{{ q }}" placeholder="Search listings">
+        {% if kind != 'product' %}
+        <input type="text" name="location" value="{{ location }}"
+               placeholder="Filter by location" aria-label="Filter by location">
+        {% endif %}
+        <select name="sort" data-autosubmit>
+          {% for key, label in sorts.items() %}
+          <option value="{{ key }}" {{ 'selected' if sort == key }}>{{ label }}</option>
+          {% endfor %}
+        </select>
+        <button class="btn btn--secondary btn--sm" type="submit">Filter</button>
+        <span class="view-toggle">
+          <a href="{{ qs({'view': 'tiles'}) }}" class="{{ 'active' if view != 'list' }}" title="Tiles" aria-label="Tile view">&#9638;</a>
+          <a href="{{ qs({'view': 'list'}) }}" class="{{ 'active' if view == 'list' }}" title="List" aria-label="List view">&#9776;</a>
+        </span>
+      </form>
+
+      {% if kind != 'product' and locations %}
+      <div class="loc-cloud" role="group" aria-label="Filter by location">
+        <a href="{{ qs({'location': none}) }}" class="tag-chip {{ 'active' if not location }}">All locations</a>
+        {% for loc in locations %}
+        <a href="{{ qs({'location': loc, 'kind': kind or 'service'}) }}"
+           class="tag-chip {{ 'active' if location == loc }}">{{ loc }}</a>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      {% if all_tags %}
+      <details class="tag-fold" {% if tag %}open{% endif %}>
+        <summary class="tag-fold__summary">
+          <span>{% if tag %}Tag: {{ tag }}{% else %}Browse tags{% endif %}</span>
+          <span class="tag-fold__arrow" aria-hidden="true">&#9662;</span>
+        </summary>
+        <div class="tag-cloud">
+          <a href="{{ qs({'tag': none}) }}" class="tag-chip {{ 'active' if not tag }}">All tags</a>
+          {% for t in all_tags %}
+          <a href="{{ qs({'tag': t}) }}" class="tag-chip {{ 'active' if tag == t }}">{{ t }}</a>
+          {% endfor %}
+        </div>
+      </details>
+      {% endif %}
+
+      {% if not listings %}
+      <div class="empty-state"><p>Nothing here yet. {% if current_user.is_authenticated and current_user.is_member() %}<a href="{{ url_for('main.listing_form') }}">Be the first to list something.</a>{% else %}Check back soon.{% endif %}</p></div>
+      {% elif view == 'list' %}
+      <div class="market-list">
+        {% for ln in listings %}
+        <article class="market-row">
+          <a class="market-row__thumb" href="{{ url_for('main.listing_detail', listing_id=ln.id) }}">
+            {% if ln.thumb() %}<img src="{{ url_for('main.listing_image', image_id=ln.thumb().id) }}" alt="{{ ln.title }}" loading="lazy">
+            {% else %}<span class="market-row__ph">{{ '&#128230;'|safe if ln.kind == 'product' else '&#128736;'|safe }}</span>{% endif %}
+          </a>
+          <div class="market-row__body">
+            <span class="type-pill">{{ ln.kind_label() }}</span>
+            <h3><a href="{{ url_for('main.listing_detail', listing_id=ln.id) }}">{{ ln.title }}</a></h3>
+            <p>{{ ln.description|truncate(140) }}</p>
+            <div class="market-row__meta">
+              {% if ln.location %}<span class="market-loc">{{ ln.location }}</span>{% endif %}
+              {% if ln.price %}<span class="market-price">{{ ln.price }}</span>{% endif %}
+              {{ author_name(ln.author, false) }}
+            </div>
+          </div>
+        </article>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="market-grid">
+        {% for ln in listings %}
+        <article class="market-card">
+          <a class="market-card__thumb" href="{{ url_for('main.listing_detail', listing_id=ln.id) }}">
+            {% if ln.thumb() %}<img src="{{ url_for('main.listing_image', image_id=ln.thumb().id) }}" alt="{{ ln.title }}" loading="lazy">
+            {% else %}<span class="market-card__ph">{{ '&#128230;'|safe if ln.kind == 'product' else '&#128736;'|safe }}</span>{% endif %}
+            <span class="market-card__pill">{{ ln.kind_label() }}</span>
+          </a>
+          <div class="market-card__body">
+            <h3><a href="{{ url_for('main.listing_detail', listing_id=ln.id) }}">{{ ln.title }}</a></h3>
+            <p>{{ ln.description|truncate(96) }}</p>
+            <div class="market-card__meta">
+              {% if ln.location %}<span class="market-loc">{{ ln.location }}</span>{% endif %}
+              {% if ln.price %}<span class="market-price">{{ ln.price }}</span>{% endif %}
+            </div>
+          </div>
+        </article>
+        {% endfor %}
+      </div>
       {% endif %}
     </div>
+  </section>
 
-    <!-- category tabs -->
-    <div class="filter-tabs">
-      <a href="{{ qs({'kind': none}) }}" class="{{ 'active' if not kind }}">Everything</a>
-      <a href="{{ qs({'kind': 'product'}) }}" class="{{ 'active' if kind == 'product' }}">Digital products</a>
-      <a href="{{ qs({'kind': 'service'}) }}" class="{{ 'active' if kind == 'service' }}">Services</a>
-    </div>
-
-    <!-- filters row -->
-    <form class="market-filters" method="get" action="{{ url_for('main.showcase') }}">
-      {% if kind %}<input type="hidden" name="kind" value="{{ kind }}">{% endif %}
-      {% if tag %}<input type="hidden" name="tag" value="{{ tag }}">{% endif %}
-      <input type="hidden" name="view" value="{{ view }}">
-      <input type="search" name="q" value="{{ q }}" placeholder="Search listings">
-      {% if kind != 'product' %}
-      <input type="text" name="location" value="{{ location }}"
-             placeholder="Filter by location" aria-label="Filter by location">
-      {% endif %}
-      <select name="sort" data-autosubmit>
-        {% for key, label in sorts.items() %}
-        <option value="{{ key }}" {{ 'selected' if sort == key }}>{{ label }}</option>
-        {% endfor %}
-      </select>
-      <button class="btn btn--secondary btn--sm" type="submit">Filter</button>
-      <span class="view-toggle">
-        <a href="{{ qs({'view': 'tiles'}) }}" class="{{ 'active' if view != 'list' }}" title="Tiles" aria-label="Tile view">&#9638;</a>
-        <a href="{{ qs({'view': 'list'}) }}" class="{{ 'active' if view == 'list' }}" title="List" aria-label="List view">&#9776;</a>
-      </span>
-    </form>
-
-    {% if kind != 'product' and locations %}
-    <div class="loc-cloud" role="group" aria-label="Filter by location">
-      <a href="{{ qs({'location': none}) }}" class="tag-chip {{ 'active' if not location }}">All locations</a>
-      {% for loc in locations %}
-      <a href="{{ qs({'location': loc, 'kind': kind or 'service'}) }}"
-         class="tag-chip {{ 'active' if location == loc }}">{{ loc }}</a>
-      {% endfor %}
-    </div>
-    {% endif %}
-
-    {% if all_tags %}
-    <details class="tag-fold" {% if tag %}open{% endif %}>
-      <summary class="tag-fold__summary">
-        <span>{% if tag %}Tag: {{ tag }}{% else %}Browse tags{% endif %}</span>
-        <span class="tag-fold__arrow" aria-hidden="true">&#9662;</span>
-      </summary>
-      <div class="tag-cloud">
-        <a href="{{ qs({'tag': none}) }}" class="tag-chip {{ 'active' if not tag }}">All tags</a>
-        {% for t in all_tags %}
-        <a href="{{ qs({'tag': t}) }}" class="tag-chip {{ 'active' if tag == t }}">{{ t }}</a>
-        {% endfor %}
+  <section class="show-page__cta">
+    <div class="container">
+      <div class="show-page__cta-inner">
+        <div>
+          <h2>Have something to share?</h2>
+          <p>Healing &amp; Creator members can list products and services for the community to discover.</p>
+        </div>
+        {% if current_user.is_authenticated and current_user.is_member() %}
+        <a class="btn btn--gold" href="{{ url_for('main.listing_form') }}">Submit a listing</a>
+        {% else %}
+        <a class="btn btn--gold" href="{{ url_for('main.membership', next=url_for('main.showcase')) }}">Get membership to list</a>
+        {% endif %}
       </div>
-    </details>
-    {% endif %}
+    </div>
+  </section>
 
-    {% if not listings %}
-    <div class="empty-state"><p>Nothing here yet. {% if current_user.is_authenticated and current_user.is_member() %}<a href="{{ url_for('main.listing_form') }}">Be the first to list something.</a>{% else %}Check back soon.{% endif %}</p></div>
-    {% elif view == 'list' %}
-    <div class="market-list">
-      {% for ln in listings %}
-      <article class="market-row">
-        <a class="market-row__thumb" href="{{ url_for('main.listing_detail', listing_id=ln.id) }}">
-          {% if ln.thumb() %}<img src="{{ url_for('main.listing_image', image_id=ln.thumb().id) }}" alt="{{ ln.title }}" loading="lazy">
-          {% else %}<span class="market-row__ph">{{ '&#128230;'|safe if ln.kind == 'product' else '&#128736;'|safe }}</span>{% endif %}
-        </a>
-        <div class="market-row__body">
-          <span class="type-pill">{{ ln.kind_label() }}</span>
-          <h3><a href="{{ url_for('main.listing_detail', listing_id=ln.id) }}">{{ ln.title }}</a></h3>
-          <p>{{ ln.description|truncate(140) }}</p>
-          <div class="market-row__meta">
-            {% if ln.location %}<span class="market-loc">{{ ln.location }}</span>{% endif %}
-            {% if ln.price %}<span class="market-price">{{ ln.price }}</span>{% endif %}
-            {{ author_name(ln.author, false) }}
-          </div>
-        </div>
-      </article>
-      {% endfor %}
+  <footer class="show-page__footer">
+    <div class="container">
+      <p>Bloom Anyway does not process Showcase purchases. Each listing links to the maker's own checkout or contact page.</p>
     </div>
-    {% else %}
-    <div class="market-grid">
-      {% for ln in listings %}
-      <article class="market-card">
-        <a class="market-card__thumb" href="{{ url_for('main.listing_detail', listing_id=ln.id) }}">
-          {% if ln.thumb() %}<img src="{{ url_for('main.listing_image', image_id=ln.thumb().id) }}" alt="{{ ln.title }}" loading="lazy">
-          {% else %}<span class="market-card__ph">{{ '&#128230;'|safe if ln.kind == 'product' else '&#128736;'|safe }}</span>{% endif %}
-          <span class="market-card__pill">{{ ln.kind_label() }}</span>
-        </a>
-        <div class="market-card__body">
-          <h3><a href="{{ url_for('main.listing_detail', listing_id=ln.id) }}">{{ ln.title }}</a></h3>
-          <p>{{ ln.description|truncate(96) }}</p>
-          <div class="market-card__meta">
-            {% if ln.location %}<span class="market-loc">{{ ln.location }}</span>{% endif %}
-            {% if ln.price %}<span class="market-price">{{ ln.price }}</span>{% endif %}
-          </div>
-        </div>
-      </article>
-      {% endfor %}
-    </div>
-    {% endif %}
-  </div>
-</section>
+  </footer>
+</div>
 {% endblock %}

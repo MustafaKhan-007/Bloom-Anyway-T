@@ -2,8 +2,9 @@
 {% block title %}Contact — {{ site.site_title }}{% endblock %}
 
 {% block content %}
-<section class="section">
+<section class="section page-remaster">
   <div class="container" style="max-width: 560px;">
+    <p class="eyebrow">Write to us</p>
     <h1>Say hello</h1>
     <p>A question, a story, a stuck place &mdash; all welcome here.</p>
     <form method="post" action="{{ url_for('main.contact') }}" style="margin-top: 32px;">

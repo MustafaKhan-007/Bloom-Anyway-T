@@ -139,9 +139,9 @@ MEMBERSHIP_MATRIX = [
     ("Request a weekly reel review", False, False, True),
     ("Profile links", False, True, True),
     ("My Journey keepsake export", False, True, True),
-    ("Showcase listings", False, "1 active", "Unlimited"),
+    ("Showcase listings", False, "1 active", "5 active"),
     ("Home-page spotlight eligibility", False, False, True),
-    ("Coaching / support groups", False, True, True),
+    ("Support groups & 1:1 coaching", False, True, True),
 ]
 
 
@@ -389,7 +389,7 @@ def listing_form(listing_id=None):
             lim = listing_limit(current_user)
             errors.append(
                 f"Your plan allows {lim} active listing{'s' if lim != 1 else ''}. "
-                "Upgrade to Creator for unlimited, or remove one first.")
+                "Upgrade to Creator for up to 5 listings, or remove one first.")
 
         new_images = []
         if not errors:
@@ -1160,6 +1160,11 @@ def contact():
         flash("Got it. I read everything \u2014 you'll hear back soon.", "success")
         return redirect(url_for("main.contact"))
     return render_template("main/contact.html", form={})
+
+
+@bp.route("/support-groups")
+def support_groups_page():
+    return render_template("main/support_groups.html")
 
 
 @bp.route("/account/support-groups", methods=["POST"])

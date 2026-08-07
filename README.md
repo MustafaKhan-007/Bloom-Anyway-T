@@ -19,7 +19,7 @@ What's inside:
   Settings, auto-granted on a paid order (revoked on refund)
 - **Marketplace** (`/marketplace`): members advertise digital products & services
   (two categories), we redirect buyers to the seller's own site — Healing runs one
-  active listing, Creator unlimited, cancelled members' listings are auto-hidden;
+  active listing, Creator 5, cancelled members' listings are auto-hidden;
   filters (search, tags, location), popularity sort, and a list/tile view toggle
 - Owner-uploaded **Content Library** (`/watch`): Healing members browse titles,
   thumbnails & descriptions but hit a lock icon on play; Creator members watch
@@ -332,8 +332,8 @@ PY
   Listings carry title, description, price (free text), website URL, up to 5
   images (first = thumbnail, stored in the DB like avatars) and up to 12 tags.
   We never sell here; the CTA counts an outbound click and redirects to the
-  seller's site. Tier caps (`MARKETPLACE_LIMITS`): Healing 1 active, Creator
-  unlimited; `enforce_listing_limits` hides overflow when a tier drops. Studio →
+  seller's site. Tier caps (`MARKETPLACE_LIMITS`): Healing 1 active, Creator 5;
+  `enforce_listing_limits` hides overflow when a tier drops. Studio →
   Marketplace lets the owner hide/restore/delete any listing.
 - **Home spotlight** (Studio → Settings): *Creator of the Month* now shows the
   chosen creator's **photo, name, @handle and bio** (less dead space), and *Reel

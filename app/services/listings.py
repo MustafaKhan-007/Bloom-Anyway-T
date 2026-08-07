@@ -2,7 +2,7 @@
 
 Listing images are re-encoded to safe JPEGs and stored in the database (like
 avatars) so they survive deploys. Healing members may run one active listing;
-Creator members are unlimited; free/none run none.
+Creator members may run five; free/none run none.
 """
 import io
 
@@ -42,9 +42,9 @@ def process_listing_image(file_storage) -> tuple[bytes, str]:
 
 
 def listing_limit(user) -> int | None:
-    """Max active listings for a user's tier (None = unlimited). Owner/Creator
-    are unlimited; Healing gets 1; free gets 0."""
-    if getattr(user, "is_creator", lambda: False)():
+    """Max active listings for a user's tier (None = unlimited). Owners are
+    unlimited; Creator gets 5; Healing gets 1; free gets 0."""
+    if getattr(user, "is_admin", False):
         return None
     tier = (user.effective_membership() if hasattr(user, "effective_membership")
             else getattr(user, "membership", None) or "none")

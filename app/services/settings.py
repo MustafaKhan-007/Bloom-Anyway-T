@@ -23,6 +23,11 @@ DEFAULTS = {
     "creator_blurb": "",
     "reel_url": "",
     "reel_description": "",
+    # 1:1 coaching + facilitator booking (external calendars)
+    "ayesha_booking_url": "",
+    "saman_booking_url": "",
+    "facilitator_booking_url": "",
+    "founder_price_ends": "",  # ISO date for founder-pricing banner
 }
 
 #: old brand names that should be rewritten to the current default on boot/seed

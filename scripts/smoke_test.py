@@ -1187,7 +1187,7 @@ with app.app_context():
     cu = User.query.filter_by(email="newperson@example.com").first()
     ccount = MarketplaceListing.query.filter_by(user_id=cu.id, active=True).count()
     svc = MarketplaceListing.query.filter_by(title="Coaching").first()
-ok("Creator member has unlimited listings", ccount >= 2, f"got {ccount}")
+ok("Creator member can run multiple Showcase listings (cap 5)", ccount >= 2, f"got {ccount}")
 ok("Service listing stores its location",
    svc is not None and svc.location == "Remote")
 
@@ -1334,14 +1334,17 @@ nav = client.get("/").get_data(as_text=True)
 nav_block = nav.split('class="nav-links"', 1)[-1].split("</div>", 1)[0]
 i_courses = nav_block.find("Courses &amp; Guides")
 i_community = nav_block.find(">Community<")
-i_showcase = nav_block.find(">Showcase<")
 i_hub = nav_block.find(">Content Hub<")
-i_quotes = nav_block.find(">Daily quotes<")
+i_showcase = nav_block.find(">Showcase<")
+i_sg = nav_block.find(">Support Groups<")
 i_space = nav_block.find(">My space<")
-ok("Nav order is Courses, Community, Showcase, Content Hub, Quotes, My space",
-   -1 not in (i_courses, i_community, i_showcase, i_hub, i_quotes, i_space)
-   and i_courses < i_community < i_showcase < i_hub < i_quotes < i_space,
-   f"idx={(i_courses, i_community, i_showcase, i_hub, i_quotes, i_space)}")
+ok("Nav order is Courses, Community, Content Hub, Showcase, Support Groups, My space",
+   -1 not in (i_courses, i_community, i_hub, i_showcase, i_sg, i_space)
+   and i_courses < i_community < i_hub < i_showcase < i_sg < i_space,
+   f"idx={(i_courses, i_community, i_hub, i_showcase, i_sg, i_space)}")
+ok("Daily quotes stays in the footer (not main nav)",
+   ">Daily quotes<" not in nav_block
+   and "Daily quotes" in nav)
 
 r = admin.get("/admin/discounts", follow_redirects=False)
 ok("Site discount-codes feature is removed", r.status_code == 404)
@@ -1463,7 +1466,7 @@ ok("My space shows support-group fold",
    "support-groups" in r.get_data(as_text=True)
    and "data-coaching-toggle" in r.get_data(as_text=True))
 ok("Membership matrix lists support groups",
-   "Coaching / support groups" in app.test_client().get("/membership").get_data(as_text=True))
+   "Support groups" in app.test_client().get("/membership").get_data(as_text=True))
 
 r = admin.get("/admin/support-groups")
 ok("Studio support-groups page loads",

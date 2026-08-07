@@ -190,6 +190,42 @@
     {% endif %}
   </div>
 
+  <h2 style="margin-top: 32px;">1:1 coaching &amp; facilitator booking</h2>
+  <div class="admin-panel">
+    <p class="field-help" style="margin-top: 0;">
+      External calendar links shown on Support Groups and Membership add-ons.
+      Leave blank to hide the book button until you're ready.
+    </p>
+    <div class="form-row">
+      <div class="field">
+        <label for="ayesha_booking_url">Ayesha (Healing) booking URL</label>
+        <input type="url" id="ayesha_booking_url" name="ayesha_booking_url"
+               value="{{ values.ayesha_booking_url }}"
+               placeholder="https://cal.com/…">
+      </div>
+      <div class="field">
+        <label for="saman_booking_url">Saman (Building) booking URL</label>
+        <input type="url" id="saman_booking_url" name="saman_booking_url"
+               value="{{ values.saman_booking_url }}"
+               placeholder="https://cal.com/…">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="field">
+        <label for="facilitator_booking_url">Facilitator session booking URL</label>
+        <input type="url" id="facilitator_booking_url" name="facilitator_booking_url"
+               value="{{ values.facilitator_booking_url }}"
+               placeholder="https://…">
+      </div>
+      <div class="field">
+        <label for="founder_price_ends">Founder pricing ends (optional)</label>
+        <input type="date" id="founder_price_ends" name="founder_price_ends"
+               value="{{ values.founder_price_ends }}">
+        <p class="field-help">Shows the countdown banner on Membership when set.</p>
+      </div>
+    </div>
+  </div>
+
   <button class="btn btn--primary" type="submit">Save settings</button>
 </form>
 
