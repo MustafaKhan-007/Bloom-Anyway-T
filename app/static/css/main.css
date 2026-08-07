@@ -2563,12 +2563,15 @@ a.at-handle:hover { text-decoration: underline; }
 }
 .home-panel__icon--build { color: var(--hp-gold); }
 .home-panel__title {
-  margin: 0; max-width: 16ch;
+  margin: 0; max-width: 16ch; min-height: 2.3em;
   font-family: var(--font-display); font-weight: 600;
   font-size: clamp(28px, 4vw, 42px); line-height: 1.15; letter-spacing: -0.02em;
   color: var(--hp-plum);
 }
-.home-panel--build .home-panel__title { color: #4a3a28; }
+.home-panel--build .home-panel__title {
+  color: #4a3a28;
+  max-width: 22ch;
+}
 .home-panel__rule {
   width: 48px; height: 2px; border: 0; margin: 18px 0 20px; background: var(--hp-plum);
 }
@@ -2601,13 +2604,16 @@ a.at-handle:hover { text-decoration: underline; }
   box-shadow: 0 10px 24px rgba(194, 152, 69, 0.35);
 }
 .home-hero__both {
-  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
-  z-index: 2; width: 72px; height: 72px; border-radius: 50%;
+  /* Center on the split: fixed half-width offset so anims can't knock it off-axis */
+  position: absolute; left: 50%; top: 36%;
+  z-index: 2; width: 72px; height: 72px; margin-left: -36px;
+  border-radius: 50%;
   background: #fff; border: 1px solid rgba(61, 20, 49, 0.08);
   box-shadow: 0 8px 28px rgba(61, 20, 49, 0.12);
   display: none; align-items: center; justify-content: center;
   font-family: var(--font-display); font-style: italic; font-size: 14px;
   color: #7a6e6e;
+  transform: translateY(-50%);
 }
 @media (min-width: 860px) {
   .home-hero__both { display: flex; }
@@ -2692,9 +2698,16 @@ a.at-handle:hover { text-decoration: underline; }
     animation: home-rise 700ms ease forwards; }
   .home-panel--heal { animation-delay: 60ms; }
   .home-panel--build { animation-delay: 160ms; }
-  .home-hero__both { animation: home-rise 700ms ease 280ms forwards; opacity: 0; }
+  .home-hero__both {
+    opacity: 0;
+    animation: home-both-rise 700ms ease 280ms forwards;
+  }
   .home-ticker { opacity: 0; animation: home-rise 600ms ease 320ms forwards; }
 }
 @keyframes home-rise {
   to { opacity: 1; transform: none; }
+}
+@keyframes home-both-rise {
+  from { opacity: 0; transform: translateY(calc(-50% + 14px)); }
+  to { opacity: 1; transform: translateY(-50%); }
 }
