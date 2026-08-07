@@ -85,9 +85,15 @@ ok("Home page renders", r1.status_code == 200, str(r1.status_code))
 home1 = r1.get_data(as_text=True)
 ok("Home shows healing / building hero",
    "You don't have to carry this alone" in home1
-   and "Ready to build something that's yours" in home1
+   and "Ready to build something" in home1
+   and "that's yours?" in home1
    and "Find Your Community" in home1
    and "Start Building" in home1)
+ok("Home shows Their Story with reserved photo space",
+   "Their story" in home1
+   and "Society told us to suffer quietly" in home1
+   and "home-story__ph" in home1
+   and "Ayesha &amp; Saman" in home1)
 ok("Home product sections are coming soon",
    home1.count("Coming soon") >= 2
    and "Digital Product of the Day" in home1)

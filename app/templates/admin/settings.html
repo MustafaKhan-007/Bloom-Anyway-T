@@ -31,7 +31,7 @@
     </div>
     <div class="form-row">
       <div class="field">
-        <label for="portrait_file">Portrait image (home hero)</label>
+        <label for="portrait_file">Their Story photo</label>
         <div class="site-image-pick site-image-pick--portrait" data-crop-preview-wrap{% if not values.portrait_url %} data-empty{% endif %}>
           <img id="portrait-preview" class="site-image-pick__preview"
                src="{{ values.portrait_url or '' }}" alt=""
@@ -46,12 +46,12 @@
                data-crop-size="1200"
                data-crop-filename="portrait.jpg"
                data-crop-preview="#portrait-preview"
-               data-crop-title="Crop hero portrait"
+               data-crop-title="Crop Their Story photo"
                data-clear-checkbox="clear_portrait">
         <label class="checkline checkline--sm" style="margin-top: 8px;">
-          <input type="checkbox" name="clear_portrait" value="1"> Remove current portrait
+          <input type="checkbox" name="clear_portrait" value="1"> Remove current photo
         </label>
-        <p class="field-help">Upload a photo (up to 8&nbsp;MB). You'll crop it to the home hero frame (4∶5) and can drag to fine-tune. Optional URL fallback below.</p>
+        <p class="field-help">Home “Their Story” photo (up to 8&nbsp;MB). Crop to 4∶5, then drag to fine-tune. Optional URL fallback below.</p>
         <input type="url" id="portrait_url" name="portrait_url" value="{{ values.portrait_url }}"
                placeholder="Or paste an image URL">
       </div>

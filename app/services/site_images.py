@@ -14,8 +14,8 @@ OUTPUT_MIME = "image/jpeg"
 
 #: Display aspect ratios on the home page (width, height). Studio crop matches these.
 ASPECT_RATIOS = {
-    "portrait": (4, 5),   # home hero portrait
-    "hero": (1, 1),       # story teaser
+    "portrait": (4, 5),   # home Their Story photo
+    "hero": (1, 1),       # optional square site image
     "creator": (1, 1),    # creator-of-the-month photo
 }
 
