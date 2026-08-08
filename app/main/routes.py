@@ -31,8 +31,9 @@ from ..services.listings import (ListingError, can_add_listing, listing_limit,
                                  process_listing_image)
 from ..services.shop_purchases import linked_purchases_for
 from ..services.social import (ALLOWED_LABELS, clean_social_links,
-                               instagram_embed_url, instagram_handle,
-                               instagram_profile_url)
+                               instagram_embed_url, instagram_from_links,
+                               instagram_handle, instagram_profile_url,
+                               upsert_instagram_link)
 from ..services.videos import VideoError, delete_stored, process_video
 from . import bp
 
@@ -736,11 +737,13 @@ def journey_pdf():
 @bp.route("/account/settings")
 @login_required
 def settings():
+    links = current_user.links()
     return render_template("main/settings.html", intents=INTENTS,
                            user_goals=set(current_user.goals()),
-                           links=current_user.links(),
+                           links=links,
                            link_max=PROFILE_LINK_MAX,
                            can_link=current_user.is_member(),
+                           creator_instagram=instagram_from_links(links),
                            badge_progress=category_progress(current_user),
                            chosen_badges=set(current_user.displayed_badges()))
 
@@ -758,7 +761,7 @@ def cancel_membership():
     from ..services.listings import enforce_listing_limits
     enforce_listing_limits(current_user)
     db.session.commit()
-    flash("Your membership is cancelled. If you were billed through Lemon Squeezy, "
+    flash("Your membership is cancelled. If you were billed through Dodo Payments, "
           "also cancel the subscription there so you're not charged again.", "success")
     return redirect(url_for("main.settings"))
 
@@ -875,7 +878,15 @@ def update_profile():
     current_user.set_goals(valid_intent_keys(request.form.getlist("goals")))
     # profile links are a members' perk (Healing+); any link is allowed
     if current_user.is_member():
-        current_user.set_links(_collect_profile_links(request.form))
+        links = _collect_profile_links(request.form)
+        # Creator-of-the-Month Instagram field (Creators + owners). Only touch
+        # it when the dedicated input was submitted, so other profile saves
+        # don't wipe a handle set earlier.
+        if current_user.is_creator() and "creator_instagram" in request.form:
+            links = upsert_instagram_link(
+                links, request.form.get("creator_instagram") or "",
+                limit=PROFILE_LINK_MAX)
+        current_user.set_links(links)
     current_user.set_displayed_badges(_valid_badge_choices(request.form.getlist("badges_display")))
 
     if request.form.get("remove_avatar") == "1":

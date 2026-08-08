@@ -59,23 +59,26 @@ def admin_required(f):
         # slide the window forward on every admin action
         session.permanent = True
         session["admin_seen_at"] = now.isoformat()
-        # keep the owner's stored tier at Creator so member-gated pages match
-        if current_user.membership != "creator":
-            current_user.membership = "creator"
-            db.session.commit()
+        # Owner perks use effective_membership() (always Creator). Do not write
+        # membership=creator here — that left demoted co-owners stuck on Creator.
         return f(*args, **kwargs)
     return wrapper
 
 
 def _spotlight_candidates():
-    """Creator members (and the owner) with an Instagram link — pick-list for
-    Creator of the Month / Reel of the Week."""
+    """Current Creator-tier members (and owners) for Creator of the Month."""
     creators = (User.query.filter(
                     User.deleted_at.is_(None),
                     db.or_(User.membership == "creator", User.is_admin.is_(True)))
                 .order_by(User.display_name).all())
     out = []
     for u in creators:
+        # Skip demoted accounts that somehow still have a stale Creator column
+        # without admin rights or a real Creator tier.
+        if not u.is_admin and not u.is_creator():
+            continue
+        if not u.is_admin and u.membership != "creator":
+            continue
         handle = None
         for link in u.links():
             if platform_for(link["url"]) == "Instagram":

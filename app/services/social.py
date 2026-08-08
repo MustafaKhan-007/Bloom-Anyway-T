@@ -99,6 +99,28 @@ def instagram_profile_url(handle: str) -> str:
     return f"https://www.instagram.com/{h}/" if h else ""
 
 
+def instagram_from_links(links) -> str:
+    """Return a clean Instagram handle from a profile links list, or ''."""
+    for link in links or []:
+        url = (link.get("url") if isinstance(link, dict) else "") or ""
+        if platform_for(url) == "Instagram":
+            return instagram_handle(url)
+    return ""
+
+
+def upsert_instagram_link(links, raw: str, *, limit: int = 6) -> list:
+    """Set or clear the Instagram entry in a links list. Returns a new list."""
+    existing = [ln for ln in (links or [])
+                if isinstance(ln, dict) and platform_for(ln.get("url") or "") != "Instagram"]
+    handle = instagram_handle(raw or "")
+    if handle:
+        existing.insert(0, {
+            "label": "Instagram",
+            "url": instagram_profile_url(handle)[:300],
+        })
+    return existing[:limit]
+
+
 def fetch_instagram_preview(handle: str) -> dict:
     """Best-effort public preview for a profile (photo + a short blurb).
 

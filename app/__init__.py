@@ -65,6 +65,16 @@ def _ensure_brand(app):
             db.session.rollback()
 
 
+def _heal_stale_tiers(app):
+    """Drop Creator tier left on demoted co-owners (one-time)."""
+    with app.app_context():
+        try:
+            from .services.owners import heal_stale_owner_creator_tiers
+            heal_stale_owner_creator_tiers()
+        except Exception:
+            db.session.rollback()
+
+
 def create_app(config_class=None):
     app = Flask(__name__)
     app.config.from_object(config_class or get_config())
@@ -109,6 +119,7 @@ def create_app(config_class=None):
     migrate.init_app(app, db)
     _ensure_secret_key(app)
     _ensure_brand(app)
+    _heal_stale_tiers(app)
     csrf.init_app(app)
     limiter.init_app(app)
 

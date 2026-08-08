@@ -626,16 +626,25 @@ ok("Change-password subpage renders",
    and 'name="current_password"' in r.get_data(as_text=True)
    and 'name="new_password_confirm"' in r.get_data(as_text=True))
 
-# profile links + public profile page
+# profile links + Creator-of-the-Month Instagram + public profile page
+r = client.get("/account/settings")
+ok("Creator settings show Creator of the Month Instagram field",
+   r.status_code == 200
+   and "Instagram for Creator of the Month" in r.get_data(as_text=True)
+   and 'name="creator_instagram"' in r.get_data(as_text=True))
 client.post("/account/profile", data={
     "display_name": "New Person",
-    "link_label_0": "Instagram", "link_url_0": "instagram.com/newperson",
+    "creator_instagram": "@newperson",
+    "link_label_0": "Site", "link_url_0": "https://newperson.example",
     "link_label_1": "", "link_url_1": "",
 }, follow_redirects=True)
 with app.app_context():
     saved_links = User.query.filter_by(email="newperson@example.com").first().links()
-ok("Profile link saved and url normalised to https",
-   bool(saved_links) and saved_links[0]["url"] == "https://instagram.com/newperson")
+    ig_urls = [ln["url"] for ln in saved_links if "instagram.com" in ln["url"]]
+ok("Creator-of-the-Month Instagram saved onto profile links",
+   bool(ig_urls) and "instagram.com/newperson" in ig_urls[0])
+ok("Other profile links still save",
+   any("newperson.example" in ln["url"] for ln in saved_links))
 
 r = client.get(f"/u/{av_uid}")
 pbody = r.get_data(as_text=True)
@@ -1006,6 +1015,8 @@ ok("Owner can remove a co-owner",
 with app.app_context():
     co_u = User.query.filter_by(email="coexist@example.com").first()
     ok("Removed co-owner no longer has admin", co_u.is_admin is False)
+    ok("Removed co-owner keeps prior Healing tier (not stuck on Creator)",
+       co_u.membership == "healing")
 
 # --- 5f. purchasable memberships (sold on their own, not as products) -------
 plan_form = {
@@ -1083,11 +1094,13 @@ with app.app_context():
     olinks = User.query.filter_by(is_admin=True).first().links()
 ok("Owner can save profile links",
    any("owner.example" in ln["url"] for ln in olinks))
-# visiting Studio upgrades the stored column too
+# visiting Studio must not force-write membership=creator (that stuck demoted owners)
 admin.get("/admin/")
 with app.app_context():
-    otier = User.query.filter_by(is_admin=True).first().membership
-ok("Studio visit persists Creator membership for the owner", otier == "creator")
+    owner_row = User.query.filter_by(is_admin=True).first()
+ok("Studio visit keeps owner Creator perks without rewriting membership column",
+   owner_row.effective_membership() == "creator"
+   and owner_row.membership == "none")
 
 # --- 5h. healing perks, content library lock, marketplace, gifting ----------
 # banclient is signed in as rude@example.com (a Healing member)

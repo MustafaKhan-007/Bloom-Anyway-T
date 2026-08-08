@@ -79,20 +79,54 @@ def admin_count() -> int:
             .count())
 
 
+def heal_stale_owner_creator_tiers() -> int:
+    """One-time: drop Creator on non-owners who only had it from past owner access.
+
+    Skips anyone with a paid Creator order. Manually granted Creators without a
+    purchase are also reset — re-grant them under Studio → Members if needed.
+    Returns how many users were changed.
+    """
+    from .memberships import purchased_tier, reconcile_user
+    from .settings import get_setting, set_setting
+
+    if (get_setting("_healed_stale_owner_creator_tiers") or "").strip() == "1":
+        return 0
+    changed = 0
+    rows = (User.query
+            .filter(User.deleted_at.is_(None),
+                    User.is_admin.is_(False),
+                    User.membership == "creator")
+            .all())
+    for user in rows:
+        if purchased_tier(user.email) == "creator":
+            continue
+        if reconcile_user(user, downgrade=True):
+            changed += 1
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        return 0
+    set_setting("_healed_stale_owner_creator_tiers", "1")
+    if changed:
+        log.info("owners: healed %s stale Creator tier(s) after demotion", changed)
+    return changed
+
+
 def promote(user: User) -> bool:
-    """Make ``user`` an owner. Returns True if anything changed."""
+    """Make ``user`` an owner. Returns True if anything changed.
+
+    Does not rewrite ``membership`` — owners already get Creator perks via
+    ``User.effective_membership()``. Writing the column used to leave demoted
+    co-owners stuck on Creator forever.
+    """
     if not user or user.deleted_at is not None:
         return False
-    changed = False
-    if not user.is_admin:
-        user.is_admin = True
-        changed = True
-    if user.membership != "creator":
-        user.membership = "creator"
-        changed = True
-    if changed:
-        db.session.commit()
-    return changed
+    if user.is_admin:
+        return False
+    user.is_admin = True
+    db.session.commit()
+    return True
 
 
 def apply_pending_invite(user: User) -> bool:
@@ -159,8 +193,20 @@ def remove(email: str, *, actor: User | None = None) -> tuple[bool, str]:
         if admin_count() <= 1:
             return False, "You can't remove the last owner."
         user.is_admin = False
+        # Only clear a leftover Creator column from old promote/Studio-visit
+        # behaviour. Do not touch Healing (or other) tiers that were already set.
+        if user.membership == "creator":
+            from .memberships import reconcile_user
+            reconcile_user(user, downgrade=True)
         db.session.commit()
         return True, f"Owner access removed for {email}."
+
+    if user and not user.is_admin and user.membership == "creator":
+        # Already demoted earlier — still clear a stuck Creator column.
+        from .memberships import reconcile_user
+        if reconcile_user(user, downgrade=True):
+            db.session.commit()
+            return True, f"Membership synced for {email} (owner access was already removed)."
 
     if removed_invite:
         return True, f"Invite removed for {email}."
