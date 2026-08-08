@@ -157,9 +157,23 @@
       </details>
       {% endif %}
 
-      <div class="show-view-toggle" style="margin: 12px 0 18px;">
-        <a href="{{ qs({'view': 'tiles'}) }}" class="{{ 'is-active' if view != 'list' }}">Tiles</a>
-        <a href="{{ qs({'view': 'list'}) }}" class="{{ 'is-active' if view == 'list' }}">List</a>
+      <div class="show-view-toggle" role="group" aria-label="Listing layout">
+        <a href="{{ qs({'view': 'tiles'}) }}"
+           class="show-view-toggle__btn {{ 'is-active' if view != 'list' }}"
+           {% if view != 'list' %}aria-current="true"{% endif %}>
+          <span class="show-view-toggle__icon" aria-hidden="true">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><rect x="0" y="0" width="6" height="6" rx="1.2"/><rect x="8" y="0" width="6" height="6" rx="1.2"/><rect x="0" y="8" width="6" height="6" rx="1.2"/><rect x="8" y="8" width="6" height="6" rx="1.2"/></svg>
+          </span>
+          Tiles
+        </a>
+        <a href="{{ qs({'view': 'list'}) }}"
+           class="show-view-toggle__btn {{ 'is-active' if view == 'list' }}"
+           {% if view == 'list' %}aria-current="true"{% endif %}>
+          <span class="show-view-toggle__icon" aria-hidden="true">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><rect x="0" y="1" width="14" height="2.2" rx="1"/><rect x="0" y="6" width="14" height="2.2" rx="1"/><rect x="0" y="11" width="14" height="2.2" rx="1"/></svg>
+          </span>
+          List
+        </a>
       </div>
 
       {% if not listings %}
