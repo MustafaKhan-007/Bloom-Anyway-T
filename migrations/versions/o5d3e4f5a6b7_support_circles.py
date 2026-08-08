@@ -40,22 +40,40 @@ _SEED = (
 )
 
 
+def _has_table(name: str) -> bool:
+    bind = op.get_bind()
+    return sa.inspect(bind).has_table(name)
+
+
+def _has_column(table: str, column: str) -> bool:
+    bind = op.get_bind()
+    cols = {c["name"] for c in sa.inspect(bind).get_columns(table)}
+    return column in cols
+
+
 def upgrade():
-    op.create_table(
-        "support_group_circles",
-        sa.Column("id", sa.Integer(), primary_key=True),
-        sa.Column("slug", sa.String(length=60), nullable=False),
-        sa.Column("track", sa.String(length=20), nullable=False),
-        sa.Column("title", sa.String(length=120), nullable=False),
-        sa.Column("blurb", sa.String(length=400), nullable=False),
-        sa.Column("capacity", sa.Integer(), nullable=False),
-        sa.Column("meets_label", sa.String(length=80), nullable=False),
-        sa.Column("icon", sa.String(length=40), nullable=False),
-        sa.Column("sort_order", sa.Integer(), nullable=False),
-        sa.Column("active", sa.Boolean(), nullable=False, server_default=sa.text("1")),
-    )
-    op.create_index("ix_support_group_circles_slug", "support_group_circles", ["slug"], unique=True)
-    op.create_index("ix_support_group_circles_track", "support_group_circles", ["track"])
+    # Postgres rejects boolean DEFAULT 1 — use sa.true() (portable).
+    if not _has_table("support_group_circles"):
+        op.create_table(
+            "support_group_circles",
+            sa.Column("id", sa.Integer(), primary_key=True),
+            sa.Column("slug", sa.String(length=60), nullable=False),
+            sa.Column("track", sa.String(length=20), nullable=False),
+            sa.Column("title", sa.String(length=120), nullable=False),
+            sa.Column("blurb", sa.String(length=400), nullable=False),
+            sa.Column("capacity", sa.Integer(), nullable=False),
+            sa.Column("meets_label", sa.String(length=80), nullable=False),
+            sa.Column("icon", sa.String(length=40), nullable=False),
+            sa.Column("sort_order", sa.Integer(), nullable=False),
+            sa.Column("active", sa.Boolean(), nullable=False, server_default=sa.true()),
+        )
+        op.create_index(
+            "ix_support_group_circles_slug", "support_group_circles", ["slug"],
+            unique=True,
+        )
+        op.create_index(
+            "ix_support_group_circles_track", "support_group_circles", ["track"],
+        )
 
     circles = sa.table(
         "support_group_circles",
@@ -69,43 +87,64 @@ def upgrade():
         sa.column("sort_order", sa.Integer),
         sa.column("active", sa.Boolean),
     )
-    op.bulk_insert(circles, [
+    conn = op.get_bind()
+    existing = {
+        row[0]
+        for row in conn.execute(sa.text("SELECT slug FROM support_group_circles")).fetchall()
+    }
+    rows = [
         {
             "slug": s, "track": t, "title": title, "blurb": blurb,
             "capacity": cap, "meets_label": meets, "icon": icon,
             "sort_order": order, "active": True,
         }
         for s, t, title, blurb, cap, meets, icon, order in _SEED
-    ])
+        if s not in existing
+    ]
+    if rows:
+        op.bulk_insert(circles, rows)
 
-    with op.batch_alter_table("support_group_applications") as batch:
-        batch.add_column(sa.Column("circle_id", sa.Integer(), nullable=True))
-        batch.create_index("ix_support_group_applications_circle_id", ["circle_id"])
-        batch.create_foreign_key(
-            "fk_sg_app_circle", "support_group_circles", ["circle_id"], ["id"],
-        )
+    if _has_table("support_group_applications") and not _has_column(
+            "support_group_applications", "circle_id"):
+        with op.batch_alter_table("support_group_applications") as batch:
+            batch.add_column(sa.Column("circle_id", sa.Integer(), nullable=True))
+            batch.create_index(
+                "ix_support_group_applications_circle_id", ["circle_id"],
+            )
+            batch.create_foreign_key(
+                "fk_sg_app_circle", "support_group_circles",
+                ["circle_id"], ["id"],
+            )
 
-    with op.batch_alter_table("support_group_meetings") as batch:
-        batch.add_column(sa.Column("circle_id", sa.Integer(), nullable=True))
-        batch.create_index("ix_support_group_meetings_circle_id", ["circle_id"])
-        batch.create_foreign_key(
-            "fk_sg_meeting_circle", "support_group_circles", ["circle_id"], ["id"],
-        )
+    if _has_table("support_group_meetings") and not _has_column(
+            "support_group_meetings", "circle_id"):
+        with op.batch_alter_table("support_group_meetings") as batch:
+            batch.add_column(sa.Column("circle_id", sa.Integer(), nullable=True))
+            batch.create_index(
+                "ix_support_group_meetings_circle_id", ["circle_id"],
+            )
+            batch.create_foreign_key(
+                "fk_sg_meeting_circle", "support_group_circles",
+                ["circle_id"], ["id"],
+            )
 
     # Attach legacy rows to the first healing circle so nothing is orphaned.
-    conn = op.get_bind()
     first = conn.execute(
         sa.text("SELECT id FROM support_group_circles ORDER BY sort_order ASC LIMIT 1")
     ).scalar()
     if first is not None:
         conn.execute(
-            sa.text("UPDATE support_group_applications SET circle_id = :cid "
-                    "WHERE circle_id IS NULL"),
+            sa.text(
+                "UPDATE support_group_applications SET circle_id = :cid "
+                "WHERE circle_id IS NULL"
+            ),
             {"cid": first},
         )
         conn.execute(
-            sa.text("UPDATE support_group_meetings SET circle_id = :cid "
-                    "WHERE circle_id IS NULL"),
+            sa.text(
+                "UPDATE support_group_meetings SET circle_id = :cid "
+                "WHERE circle_id IS NULL"
+            ),
             {"cid": first},
         )
 
