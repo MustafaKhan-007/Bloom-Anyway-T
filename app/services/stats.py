@@ -125,20 +125,12 @@ def member_activity(limit: int = 12) -> list[dict]:
             last_label = f"{(now - last).days}d ago"
         else:
             last_label = "—"
-        if streak >= 7 or posts >= 3:
-            status, tone = "Active", "ok"
-        elif streak >= 1:
-            status, tone = "Cooling", "warn"
-        else:
-            status, tone = "At risk", "bad"
         out.append({
             "name": u.public_name(),
             "plan": u.membership_label(),
             "last_active": last_label,
             "posts": posts,
             "streak": streak,
-            "status": status,
-            "tone": tone,
         })
     return out
 

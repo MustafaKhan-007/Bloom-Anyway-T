@@ -4930,16 +4930,6 @@ a.at-handle:hover { text-decoration: underline; }
   font-family: var(--font-display, "Fraunces", Georgia, serif);
   font-size: 1.6rem; color: #f0d59a;
 }
-.studio-dash-exact__tone {
-  display: inline-flex; align-items: center; gap: 6px;
-  font-size: 13px; font-weight: 700; color: #3d1431;
-}
-.studio-dash-exact__tone i {
-  width: 8px; height: 8px; border-radius: 50%; background: #8a7a86;
-}
-.studio-dash-exact__tone--ok i { background: #2f5d3a; }
-.studio-dash-exact__tone--warn i { background: #c79a41; }
-.studio-dash-exact__tone--bad i { background: #a33a3a; }
 .studio-dash-exact__pair { margin: 0 !important; }
 .studio-dash-exact__pair-head {
   display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;

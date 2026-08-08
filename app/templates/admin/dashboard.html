@@ -79,7 +79,6 @@
           <th>Last active</th>
           <th>Posts</th>
           <th>Streak</th>
-          <th>Status</th>
         </tr>
       </thead>
       <tbody>
@@ -90,11 +89,6 @@
           <td>{{ row.last_active }}</td>
           <td>{{ row.posts }}</td>
           <td>{{ row.streak }}</td>
-          <td>
-            <span class="studio-dash-exact__tone studio-dash-exact__tone--{{ row.tone }}">
-              <i aria-hidden="true"></i>{{ row.status }}
-            </span>
-          </td>
         </tr>
         {% endfor %}
       </tbody>
