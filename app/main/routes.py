@@ -13,7 +13,7 @@ from ..models import (JOURNAL_PROMPTS, MARKETPLACE_KINDS, MARKETPLACE_KIND_LABEL
                       MARKETPLACE_TAG_MAX, MARKETPLACE_TAGS,
                       ContactMessage, FaqItem, JournalEntry,
                       ListingImage, MarketplaceListing, MembershipPlan,
-                      Notification, Order, Page, Quote, QuoteFavorite,
+                      Notification, Order, Page, Product, Quote, QuoteFavorite,
                       ReelReview, ReelReviewApplication, ShopPurchase,
                       Subscriber, User, Video, utcnow,
                       random_journal_prompt)
@@ -22,7 +22,8 @@ from ..services import reel_reviews as reel_svc
 from ..services import settings as settings_service
 from ..services.avatars import AvatarError, process_avatar
 from ..services.badges import CATEGORIES, category_progress, earned_badges
-from ..services.checkout import with_success_redirect
+from ..services.catalog import ensure_catalog
+from ..services import dodo as dodo_svc
 from ..services.journey import build_journey_pdf
 from ..services.mailer import send_contact_notification
 from ..services.recommend import INTENTS, valid_intent_keys
@@ -119,11 +120,128 @@ def index():
     )
 
 
+HEALING_FILTERS = [
+    ("all", "All"),
+    ("workbook", "Workbooks"),
+    ("course", "Courses"),
+    ("audio", "Audio Guides"),
+]
+BUILDING_FILTERS = [
+    ("all", "All"),
+    ("guide", "Guides"),
+    ("course", "Courses"),
+    ("template", "Templates"),
+]
+
+
+def _courses_lane(track: str, type_filter: str, sort: str):
+    q = (Product.query.filter_by(status="published", track=track)
+         .filter(Product.type != "bundle"))
+    if type_filter and type_filter != "all":
+        q = q.filter(Product.type == type_filter)
+    rows = q.all()
+    if sort == "price_asc":
+        rows.sort(key=lambda p: (p.price_cents is None, p.price_cents or 0, p.sort_order, p.id))
+    elif sort == "price_desc":
+        rows.sort(key=lambda p: (p.price_cents is None, -(p.price_cents or 0), p.sort_order, p.id))
+    else:
+        rows.sort(key=lambda p: (p.sort_order, -(p.created_at.timestamp() if p.created_at else 0), p.id))
+    return rows
+
+
 @bp.route("/courses")
-@bp.route("/courses/<path:_rest>")
-def courses(_rest=None):
-    """Courses & Guides live on the Lemon storefront now."""
-    return redirect(current_app.config["SHOP_URL"], code=302)
+def courses():
+    """On-site Courses & Guides catalogue (two founder lanes)."""
+    try:
+        ensure_catalog()
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+
+    h_filter = (request.args.get("h") or "all").strip().lower()
+    b_filter = (request.args.get("b") or "all").strip().lower()
+    if h_filter not in {k for k, _ in HEALING_FILTERS}:
+        h_filter = "all"
+    if b_filter not in {k for k, _ in BUILDING_FILTERS}:
+        b_filter = "all"
+    sort = (request.args.get("sort") or "newest").strip().lower()
+    if sort not in ("newest", "price_asc", "price_desc"):
+        sort = "newest"
+
+    healing = _courses_lane("healing", h_filter, sort)
+    building = _courses_lane("building", b_filter, sort)
+    bundles = {
+        "healing": Product.query.filter_by(
+            status="published", track="healing", type="bundle").first(),
+        "building": Product.query.filter_by(
+            status="published", track="building", type="bundle").first(),
+    }
+    return render_template(
+        "main/courses.html",
+        healing=healing,
+        building=building,
+        bundles=bundles,
+        healing_filters=HEALING_FILTERS,
+        building_filters=BUILDING_FILTERS,
+        h_filter=h_filter,
+        b_filter=b_filter,
+        sort=sort,
+    )
+
+
+@bp.route("/checkout/product/<slug>", methods=["GET", "POST"])
+@limiter.limit("20 per minute")
+def checkout_product(slug):
+    product = Product.query.filter_by(slug=slug, status="published").first_or_404()
+    pid = (product.dodo_product_id or "").strip()
+    if not pid:
+        flash("Checkout for this guide isn’t live yet — check back soon.", "info")
+        return redirect(url_for("main.courses"))
+    if not dodo_svc.configured():
+        flash("Payments aren’t configured yet. Please try again later.", "error")
+        return redirect(url_for("main.courses"))
+    email = current_user.email if current_user.is_authenticated else None
+    name = current_user.public_name() if current_user.is_authenticated else None
+    try:
+        url = dodo_svc.create_checkout_session(
+            product_id=pid,
+            return_url=url_for("main.account", tab="saved", _external=True),
+            customer_email=email,
+            customer_name=name,
+            metadata={"slug": product.slug, "kind": "product"},
+        )
+    except dodo_svc.DodoError as exc:
+        flash(str(exc), "error")
+        return redirect(url_for("main.courses"))
+    return redirect(url)
+
+
+@bp.route("/checkout/membership/<tier>", methods=["GET", "POST"])
+@limiter.limit("20 per minute")
+def checkout_membership(tier):
+    if tier not in ("healing", "creator"):
+        abort(404)
+    plan = MembershipPlan.query.filter_by(tier=tier, active=True).first()
+    if plan is None or not plan.is_buyable():
+        flash("That membership isn’t available for checkout yet.", "info")
+        return redirect(url_for("main.membership"))
+    if not dodo_svc.configured():
+        flash("Payments aren’t configured yet. Please try again later.", "error")
+        return redirect(url_for("main.membership"))
+    email = current_user.email if current_user.is_authenticated else None
+    name = current_user.public_name() if current_user.is_authenticated else None
+    try:
+        url = dodo_svc.create_checkout_session(
+            product_id=plan.dodo_product_id,
+            return_url=url_for("main.account", _external=True),
+            customer_email=email,
+            customer_name=name,
+            metadata={"tier": tier, "kind": "membership"},
+        )
+    except dodo_svc.DodoError as exc:
+        flash(str(exc), "error")
+        return redirect(url_for("main.membership"))
+    return redirect(url)
 
 
 #: the comparison matrix shown on /membership. Each row: (label, free, healing, creator)
@@ -143,17 +261,6 @@ MEMBERSHIP_MATRIX = [
     ("Home-page spotlight eligibility", False, False, True),
     ("Support groups & 1:1 coaching", False, True, True),
 ]
-
-
-def _checkout_url(url):
-    """Send buyers back to My space after Lemon checkout."""
-    out = url or ""
-    try:
-        success = url_for("main.account", _external=True)
-        out = with_success_redirect(out, success)
-    except RuntimeError:
-        pass  # no request context (e.g. some tests)
-    return out
 
 
 def _safe_back_url(raw: str | None):
@@ -181,7 +288,10 @@ def membership():
                if current_user.is_authenticated else None)
     checkout = {}
     for tier, plan in plans.items():
-        checkout[tier] = _checkout_url(plan.ls_checkout_url) if plan else None
+        if plan and plan.is_buyable():
+            checkout[tier] = url_for("main.checkout_membership", tier=tier)
+        else:
+            checkout[tier] = None
     back_url = (_safe_back_url(request.args.get("next"))
                 or _safe_back_url(request.referrer)
                 or url_for("main.index"))

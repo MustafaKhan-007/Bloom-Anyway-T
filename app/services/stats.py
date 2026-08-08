@@ -5,13 +5,51 @@ from sqlalchemy import func
 from sqlalchemy.orm import joinedload
 
 from ..extensions import db
-from ..models import (ForumPost, MarketplaceListing, PageView, SiteFeedback,
-                      User, Video)
+from ..models import (ForumPost, MarketplaceListing, Order, PageView, Product,
+                      SiteFeedback, User, Video, VisitEvent)
 from . import support_groups as sg_svc
 
 
 def _dt(day: date) -> datetime:
     return datetime.combine(day, time.min)
+
+
+def _money(cents: int, currency: str = "USD") -> str:
+    symbol = {"USD": "$", "EUR": "\u20ac", "GBP": "\u00a3"}.get(currency, currency + " ")
+    return f"{symbol}{(cents or 0) / 100:,.0f}"
+
+
+def payment_insights(days: int = 30) -> dict:
+    """Main payment numbers for Studio (not a full ledger)."""
+    start = _dt(date.today() - timedelta(days=days - 1))
+    paid = Order.query.filter(Order.status == "paid", Order.created_at >= start).all()
+    revenue = sum(o.total_cents or 0 for o in paid)
+    count = len(paid)
+    # Top products by order count in window
+    top_rows = (
+        db.session.query(Product.title, func.count(Order.id))
+        .join(Order, Order.product_id == Product.id)
+        .filter(Order.status == "paid", Order.created_at >= start)
+        .group_by(Product.title)
+        .order_by(func.count(Order.id).desc())
+        .limit(3)
+        .all()
+    )
+    sources = (
+        db.session.query(VisitEvent.source, func.count(VisitEvent.id))
+        .filter(VisitEvent.created_at >= start)
+        .group_by(VisitEvent.source)
+        .order_by(func.count(VisitEvent.id).desc())
+        .limit(5)
+        .all()
+    )
+    return {
+        "revenue": _money(revenue) if count else None,
+        "revenue_note": f"{count} paid order{'s' if count != 1 else ''} in {days} days",
+        "orders_30d": count,
+        "top_products": [{"title": t, "orders": n} for t, n in top_rows],
+        "traffic_sources": [{"source": s, "count": n} for s, n in sources],
+    }
 
 
 def dashboard_cards() -> dict:
@@ -46,6 +84,7 @@ def dashboard_cards() -> dict:
         User.deleted_at.is_(None),
         User.created_at >= _dt(today - timedelta(days=7)),
     ).scalar() or 0
+    pay = payment_insights(30)
     return {
         "forum_posts": posts_30d,
         "forum_posts_24h": posts_24h,
@@ -53,6 +92,11 @@ def dashboard_cards() -> dict:
         "posters_week": posters_week,
         "avg_streak": round(float(avg_streak or 0), 1),
         "new_members_week": new_week,
+        "revenue": pay["revenue"],
+        "revenue_note": pay["revenue_note"],
+        "orders_30d": pay["orders_30d"],
+        "top_products": pay["top_products"],
+        "traffic_sources": pay["traffic_sources"],
     }
 
 
@@ -102,14 +146,43 @@ def most_visited(days: int = 7, limit: int = 10):
 
 
 def member_activity(limit: int = 12) -> list[dict]:
-    """Recent members with plan + streak for the intelligence table."""
+    """Recent signups + traffic arrivals for the Studio activity feed."""
+    out: list[dict] = []
+    now = datetime.utcnow()
+
+    visits = (VisitEvent.query
+              .order_by(VisitEvent.created_at.desc())
+              .limit(max(6, limit // 2))
+              .all())
+    for v in visits:
+        who = "Someone"
+        if v.user_id and v.user:
+            who = v.user.public_name()
+        path = v.path or "/"
+        if path == "/":
+            place = "the home page"
+        elif path.startswith("/courses"):
+            place = "Courses & Guides"
+        elif path.startswith("/membership"):
+            place = "Membership"
+        else:
+            place = path
+        out.append({
+            "kind": "visit",
+            "when": v.created_at,
+            "name": who,
+            "plan": v.source,
+            "last_active": _relative(v.created_at, now),
+            "posts": "—",
+            "streak": "—",
+            "summary": f"Viewed {place} — arrived via {v.source}",
+        })
+
     rows = (User.query
             .filter(User.deleted_at.is_(None))
             .order_by(User.created_at.desc())
             .limit(limit)
             .all())
-    out = []
-    now = datetime.utcnow()
     for u in rows:
         streak = int(getattr(u, "current_streak", 0) or 0)
         posts = ForumPost.query.filter_by(user_id=u.id).count()
@@ -117,22 +190,33 @@ def member_activity(limit: int = 12) -> list[dict]:
         if isinstance(last, date) and not isinstance(last, datetime):
             last = datetime.combine(last, time.min)
         last = last or u.created_at
-        if last and (now - last).days == 0:
-            last_label = "Today"
-        elif last and (now - last).days == 1:
-            last_label = "Yesterday"
-        elif last:
-            last_label = f"{(now - last).days}d ago"
-        else:
-            last_label = "—"
         out.append({
+            "kind": "member",
+            "when": u.created_at,
             "name": u.public_name(),
             "plan": u.membership_label(),
-            "last_active": last_label,
+            "last_active": _relative(last, now),
             "posts": posts,
             "streak": streak,
+            "summary": f"Joined as {u.membership_label()}",
         })
-    return out
+
+    out.sort(key=lambda r: r.get("when") or now, reverse=True)
+    return out[:limit]
+
+
+def _relative(when, now=None) -> str:
+    now = now or datetime.utcnow()
+    if not when:
+        return "—"
+    if isinstance(when, date) and not isinstance(when, datetime):
+        when = datetime.combine(when, time.min)
+    days = (now - when).days
+    if days <= 0:
+        return "Today"
+    if days == 1:
+        return "Yesterday"
+    return f"{days}d ago"
 
 
 def showcase_performance(limit: int = 8) -> list[dict]:

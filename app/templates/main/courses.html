@@ -1,0 +1,215 @@
+{% extends "base.html" %}
+{% block title %}Courses &amp; Guides — {{ site.site_title }}{% endblock %}
+{% block meta_description %}Courses and guided notebooks from Ayesha and Saman — healing and creator tracks, open to everyone.{% endblock %}
+
+{% macro cta_label(product) -%}
+  {%- if product.type == 'course' -%}Get this course
+  {%- elif product.type == 'bundle' -%}Get the bundle
+  {%- else -%}Get this guide
+  {%- endif -%}
+{%- endmacro %}
+
+{% macro product_card(product, lane) %}
+<article class="cg-card cg-card--{{ lane }}">
+  <div class="cg-card__art">
+    {% if product.badge %}
+    <span class="cg-card__tag cg-card__tag--badge">{{ product.badge }}</span>
+    {% endif %}
+    <span class="cg-card__tag cg-card__tag--type">{{ product.type_pill() }}</span>
+    <h3 class="cg-card__art-title">{{ product.promise or product.title }}</h3>
+  </div>
+  <div class="cg-card__body">
+    {% if product.category_label %}
+    <p class="cg-card__cat">{{ product.category_label }}</p>
+    {% endif %}
+    <h3 class="cg-card__title">{{ product.title }}</h3>
+    {% if product.promise and product.promise != product.title %}
+    <p class="cg-card__promise">{{ product.promise }}</p>
+    {% endif %}
+    {% if product.meta_line %}
+    <p class="cg-card__meta">{{ product.meta_line }}</p>
+    {% endif %}
+    <div class="cg-card__foot">
+      <span class="cg-card__price">{{ product.price_display() or '—' }}</span>
+      {% if product.dodo_product_id %}
+      <a class="btn cg-card__btn" href="{{ url_for('main.checkout_product', slug=product.slug) }}">{{ cta_label(product) }} &rarr;</a>
+      {% else %}
+      <a class="btn cg-card__btn" href="{{ url_for('main.checkout_product', slug=product.slug) }}">{{ cta_label(product) }} &rarr;</a>
+      {% endif %}
+    </div>
+  </div>
+</article>
+{% endmacro %}
+
+{% block content %}
+<div class="cg-page">
+  <section class="cg-hero">
+    <div class="container">
+      <p class="cg-hero__eyebrow">Resources &bull; Open to everyone</p>
+      <h1>Courses &amp; Guides</h1>
+      <p class="cg-hero__lede">
+        Educational resources by the founders — organised into two tracks
+        (healing and building). No membership required to browse or buy.
+      </p>
+      <p class="cg-hero__pill"><span class="cg-hero__dot" aria-hidden="true"></span>
+        Open to the public — no account needed to browse or buy.</p>
+    </div>
+  </section>
+
+  <section class="cg-lanes">
+    <div class="container cg-lanes__grid">
+      {# -------- Healing / Ayesha -------- #}
+      <div class="cg-lane cg-lane--healing">
+        <header class="cg-founder cg-founder--healing">
+          <span class="cg-founder__avatar" aria-hidden="true">A</span>
+          <div>
+            <p class="cg-founder__kicker">Healing resources by
+              <strong>Ayesha</strong>
+              <span class="cg-founder__role">Co-Founder &bull; Healing Track</span>
+            </p>
+            <p class="cg-founder__bio">Courses and guided notebooks for women navigating divorce, custody, grief, and the long work of rebuilding.</p>
+          </div>
+        </header>
+
+        <form class="cg-filters" method="get" action="{{ url_for('main.courses') }}">
+          <input type="hidden" name="b" value="{{ b_filter }}">
+          <div class="cg-filters__pills" role="group" aria-label="Healing filters">
+            {% for key, label in healing_filters %}
+            <button type="submit" name="h" value="{{ key }}"
+                    class="cg-pill {{ 'is-active' if h_filter == key }}">{{ label }}</button>
+            {% endfor %}
+          </div>
+          <label class="cg-filters__sort">
+            <span class="visually-hidden">Sort</span>
+            <select name="sort" onchange="this.form.submit()">
+              <option value="newest" {{ 'selected' if sort == 'newest' }}>Newest first</option>
+              <option value="price_asc" {{ 'selected' if sort == 'price_asc' }}>Price: low to high</option>
+              <option value="price_desc" {{ 'selected' if sort == 'price_desc' }}>Price: high to low</option>
+            </select>
+          </label>
+        </form>
+
+        <div class="cg-lane__list">
+          {% for product in healing %}
+            {{ product_card(product, 'healing') }}
+          {% else %}
+            <p class="cg-empty">No healing resources in this filter yet.</p>
+          {% endfor %}
+        </div>
+
+        <div class="cg-soon cg-soon--healing">
+          <span class="cg-soon__icon" aria-hidden="true">&#128214;</span>
+          <div>
+            <p class="cg-soon__title">More from Ayesha is on the way</p>
+            <p class="cg-soon__text">New workbooks and audio guides land here first.</p>
+          </div>
+          <a class="btn cg-soon__btn" href="{{ url_for('main.contact') }}?topic=notify-healing">Notify me &rarr;</a>
+        </div>
+      </div>
+
+      {# -------- Building / Saman -------- #}
+      <div class="cg-lane cg-lane--building">
+        <header class="cg-founder cg-founder--building">
+          <span class="cg-founder__avatar" aria-hidden="true">S</span>
+          <div>
+            <p class="cg-founder__kicker">Creator resources by
+              <strong>Saman</strong>
+              <span class="cg-founder__role">Co-Founder &bull; Building Track</span>
+            </p>
+            <p class="cg-founder__bio">Practical courses and guides for women building a digital business, growing on social, and shipping their first products.</p>
+          </div>
+        </header>
+
+        <form class="cg-filters" method="get" action="{{ url_for('main.courses') }}">
+          <input type="hidden" name="h" value="{{ h_filter }}">
+          <div class="cg-filters__pills" role="group" aria-label="Building filters">
+            {% for key, label in building_filters %}
+            <button type="submit" name="b" value="{{ key }}"
+                    class="cg-pill cg-pill--gold {{ 'is-active' if b_filter == key }}">{{ label }}</button>
+            {% endfor %}
+          </div>
+          <label class="cg-filters__sort">
+            <span class="visually-hidden">Sort</span>
+            <select name="sort" onchange="this.form.submit()">
+              <option value="newest" {{ 'selected' if sort == 'newest' }}>Newest first</option>
+              <option value="price_asc" {{ 'selected' if sort == 'price_asc' }}>Price: low to high</option>
+              <option value="price_desc" {{ 'selected' if sort == 'price_desc' }}>Price: high to low</option>
+            </select>
+          </label>
+        </form>
+
+        <div class="cg-lane__list">
+          {% for product in building %}
+            {{ product_card(product, 'building') }}
+          {% else %}
+            <p class="cg-empty">No creator resources in this filter yet.</p>
+          {% endfor %}
+        </div>
+
+        <div class="cg-soon cg-soon--building">
+          <span class="cg-soon__icon" aria-hidden="true">&#10022;</span>
+          <div>
+            <p class="cg-soon__title">More from Saman is on the way</p>
+            <p class="cg-soon__text">New guides, courses, and templates land here first.</p>
+          </div>
+          <a class="btn cg-soon__btn cg-soon__btn--gold" href="{{ url_for('main.contact') }}?topic=notify-building">Notify me &rarr;</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="cg-bundles">
+    <div class="container">
+      <h2>Get everything at once</h2>
+      <p class="cg-bundles__lede">Save when you buy all resources in a track.</p>
+      <div class="cg-bundles__grid">
+        {% set hb = bundles.healing %}
+        <article class="cg-bundle cg-bundle--healing">
+          <h3>Healing Bundle</h3>
+          <p class="cg-bundle__items">
+            {% if hb and hb.description_md %}{{ hb.description_md }}{% else %}
+            The Rebuild Workbook / Custody with Confidence / Boundaries Blueprint / All future healing resources added free.
+            {% endif %}
+          </p>
+          <div class="cg-bundle__foot">
+            <p class="cg-bundle__price">
+              <strong>{{ hb.price_display() if hb else '$79' }}</strong>
+              {% if hb and hb.compare_at_display() %}
+              <s>{{ hb.compare_at_display() }}</s>
+              {% else %}<s>$103</s>{% endif %}
+            </p>
+            {% if hb %}
+            <a class="btn cg-bundle__btn" href="{{ url_for('main.checkout_product', slug=hb.slug) }}">Get the Healing Bundle &rarr;</a>
+            {% else %}
+            <span class="btn cg-bundle__btn is-disabled">Coming soon</span>
+            {% endif %}
+          </div>
+        </article>
+
+        {% set cb = bundles.building %}
+        <article class="cg-bundle cg-bundle--building">
+          <h3>Creator Bundle</h3>
+          <p class="cg-bundle__items">
+            {% if cb and cb.description_md %}{{ cb.description_md }}{% else %}
+            50 Hooks / 0 to 10k / Your First Digital Product / All future creator resources added free.
+            {% endif %}
+          </p>
+          <div class="cg-bundle__foot">
+            <p class="cg-bundle__price">
+              <strong>{{ cb.price_display() if cb else '$89' }}</strong>
+              {% if cb and cb.compare_at_display() %}
+              <s>{{ cb.compare_at_display() }}</s>
+              {% else %}<s>$106</s>{% endif %}
+            </p>
+            {% if cb %}
+            <a class="btn cg-bundle__btn cg-bundle__btn--gold" href="{{ url_for('main.checkout_product', slug=cb.slug) }}">Get the Creator Bundle &rarr;</a>
+            {% else %}
+            <span class="btn cg-bundle__btn is-disabled">Coming soon</span>
+            {% endif %}
+          </div>
+        </article>
+      </div>
+    </div>
+  </section>
+</div>
+{% endblock %}

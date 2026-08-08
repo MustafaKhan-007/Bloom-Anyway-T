@@ -82,12 +82,18 @@ class Config:
     )
     TURNSTILE_SECRET_KEY = TURNSTILE_SECRET  # legacy alias
 
-    # Lemon Squeezy webhook secret (optional until payments are wired).
+    # Dodo Payments (courses, guides, memberships).
+    DODO_PAYMENTS_API_KEY = os.environ.get("DODO_PAYMENTS_API_KEY", "").strip()
+    DODO_PAYMENTS_WEBHOOK_SECRET = (
+        os.environ.get("DODO_PAYMENTS_WEBHOOK_SECRET", "").strip()
+        or os.environ.get("DODO_WEBHOOK_SECRET", "").strip()
+    )
+    # test | live
+    DODO_PAYMENTS_MODE = (os.environ.get("DODO_PAYMENTS_MODE") or "test").strip().lower()
+    # Legacy Lemon env (ignored; kept so old Render vars don't crash imports).
     LEMONSQUEEZY_WEBHOOK_SECRET = os.environ.get("LEMONSQUEEZY_WEBHOOK_SECRET", "")
     # Optional shared secret for /cron/* jobs (e.g. support-group reminders).
     CRON_SECRET = os.environ.get("CRON_SECRET", "").strip()
-    # External Courses & Guides storefront (Lemon-hosted)
-    SHOP_URL = (os.environ.get("SHOP_URL") or "https://shop.bloomanyway.online").rstrip("/")
     # Optional self-hosted digital files for ShopPurchase.file_key
     SHOP_FILES_DIR = os.environ.get("SHOP_FILES_DIR", "").strip()
 

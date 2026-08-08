@@ -18,17 +18,17 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name
 
 CSP = (
     "default-src 'self'; "
-    "script-src 'self' https://assets.lemonsqueezy.com https://cdn.jsdelivr.net "
-    "https://challenges.cloudflare.com; "
+    "script-src 'self' https://cdn.jsdelivr.net https://challenges.cloudflare.com; "
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
     "font-src 'self' https://fonts.gstatic.com; "
     "img-src 'self' https: data: blob:; "
     "media-src 'self' blob:; "
-    "frame-src 'self' https://*.lemonsqueezy.com https://app.lemonsqueezy.com "
-    "https://www.instagram.com https://instagram.com "
-    "https://challenges.cloudflare.com; "
-    "connect-src 'self' https://*.lemonsqueezy.com https://challenges.cloudflare.com; "
-    "base-uri 'self'; form-action 'self' https://*.lemonsqueezy.com; "
+    "frame-src 'self' https://www.instagram.com https://instagram.com "
+    "https://challenges.cloudflare.com "
+    "https://*.dodopayments.com https://checkout.dodopayments.com; "
+    "connect-src 'self' https://challenges.cloudflare.com "
+    "https://*.dodopayments.com; "
+    "base-uri 'self'; form-action 'self' https://*.dodopayments.com; "
     "frame-ancestors 'none'"
 )
 
@@ -209,7 +209,6 @@ def create_app(config_class=None):
         return {"site": all_settings(),
                 "announcements": active_announcements(),
                 "current_year": date.today().year,
-                "shop_url": app.config.get("SHOP_URL") or "https://shop.bloomanyway.online",
                 "unread_notes": unread,
                 "nav_notifications": nav_notes,
                 "turnstile_site_key": app.config.get("TURNSTILE_SITE_KEY") or ""}
@@ -275,6 +274,12 @@ def create_app(config_class=None):
                 )
                 db.session.execute(stmt)
                 db.session.commit()
+                try:
+                    from .services.attribution import maybe_record_visit
+                    if maybe_record_visit() is not None:
+                        db.session.commit()
+                except Exception:
+                    db.session.rollback()
         except Exception:
             db.session.rollback()
         return response

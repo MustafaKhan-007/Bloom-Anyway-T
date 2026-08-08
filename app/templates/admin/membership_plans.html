@@ -8,10 +8,10 @@
       <p class="eyebrow">Billing</p>
       <h1>Membership plans</h1>
       <p class="field-help" style="margin: 6px 0 0; max-width: 640px;">
-        These sell on their own at <a href="{{ url_for('main.membership') }}" target="_blank">/membership</a>
-        &mdash; they're not products in the catalogue. Set a price and paste the Lemon Squeezy
-        checkout link for each tier, then flip it <strong>Live</strong>. When someone buys,
-        their account is upgraded automatically (a refund removes it). The owner is always Creator.
+        These sell on their own at <a href="{{ url_for('main.membership') }}" target="_blank">/membership</a>.
+        Set a price and paste the <strong>Dodo Payments product ID</strong> for each tier, then flip it
+        <strong>Live</strong>. When someone buys, their account is upgraded automatically
+        (a refund removes it). The owner is always Creator.
       </p>
     </div>
   </div>
@@ -54,16 +54,10 @@
         </div>
       </div>
       <div class="field">
-        <label for="{{ plan.tier }}_checkout">Lemon Squeezy checkout URL</label>
-        <input type="url" id="{{ plan.tier }}_checkout" name="{{ plan.tier }}_checkout"
-               placeholder="https://yourstore.lemonsqueezy.com/checkout/..." value="{{ plan.ls_checkout_url or '' }}">
-        <p class="field-help">The "Buy" button links here. Leave blank until it's ready.</p>
-      </div>
-      <div class="field">
-        <label for="{{ plan.tier }}_variant">Lemon Squeezy variant ID</label>
-        <input type="text" id="{{ plan.tier }}_variant" name="{{ plan.tier }}_variant"
-               placeholder="e.g. 123456" value="{{ plan.ls_variant_id or '' }}">
-        <p class="field-help">Purchases of this variant grant the {{ plan.label() }} tier. Find it in your Lemon Squeezy product's variant.</p>
+        <label for="{{ plan.tier }}_dodo">Dodo Payments product ID</label>
+        <input type="text" id="{{ plan.tier }}_dodo" name="{{ plan.tier }}_dodo"
+               placeholder="prod_…" value="{{ plan.dodo_product_id or '' }}">
+        <p class="field-help">Create the product in Dodo, then paste its ID here. Checkout uses this.</p>
       </div>
       <div class="field">
         <label class="checkline checkline--sm">

@@ -1,48 +1,24 @@
 # Bloom Anyway
 
-A warm, mobile-first storefront for digital courses and notebook guides, built to
-replace Gumroad. Flask + PostgreSQL, with **Lemon Squeezy hosted checkout** as the
-merchant of record (payments, tax, and file delivery all happen on their side —
-this site never touches card data and stores no files). The brand mark is an inline
-SVG wordmark with two minimalist sunflowers standing in for the "o"s in *bloom*.
+A warm, mobile-first home for digital courses, notebook guides, and community.
+Flask + PostgreSQL, with **Dodo Payments** as the merchant of record (hosted
+checkout — this site never touches card data). The brand mark is an inline SVG
+wordmark with two minimalist sunflowers standing in for the "o"s in *bloom*.
 
 What's inside:
 
-- Full catalog with filterable shop (by type **and** subject tabs), rich product
-  pages, and overlay checkout
-- **Gift a course/guide** to a friend at checkout: the recipient's account email
-  rides along as Lemon Squeezy custom data and is granted access on payment
-- On-site reader for purchased courses & guides: owners upload PDF/Word files,
-  buyers read them online (PDFs embedded, .docx rendered inline) with no download
-- Purchasable membership tiers (Free / Healing / Creator) — sold on their own at
-  `/membership`, chosen from the signup page and managed (change/cancel) from
-  Settings, auto-granted on a paid order (revoked on refund)
-- **Marketplace** (`/marketplace`): members advertise digital products & services
-  (two categories), we redirect buyers to the seller's own site — Healing runs one
-  active listing, Creator 5, cancelled members' listings are auto-hidden;
-  filters (search, tags, location), popularity sort, and a list/tile view toggle
-- Owner-uploaded **Content Library** (`/watch`): Healing members browse titles,
-  thumbnails & descriptions but hit a lock icon on play; Creator members watch
-  (range-streamed, no downloads)
-- Home-page spotlight: **Creator of the Month** (links to Instagram) and an
-  embedded **Reel of the Week** with an owner note and a watch-on-Instagram link
-- Daily motivational quote with deterministic rotation and pinning
-- Daily "I showed up today" streaks and evolving SVG achievement badges
-  (shown on profiles and next to names in the community)
-- "My Journey" premium PDF keepsake: a member's streaks, check-ins, and
-  favorite quotes, beautifully laid out to keep and share
-- Email + password accounts with 6-digit email confirmation codes on
-  registration, plus code-based password reset
-- Personalized onboarding ("what brings you here?") that quietly matches members
-  to courses via hidden, admin-only product tags
-- Member profiles: display name, uploaded avatar (stored in DB), short bio,
-  default-anonymous toggle
-- Two community forums (Building & Healing) with per-forum topic tags (readers
-  filter, authors label), posts, comments with one level of replies, and likes;
-  a kindness guard blocks profanity, warns twice, then pauses posting
-- Admin studio: dashboard with revenue charts, product/quote/testimonial/FAQ/page
-  management, community moderation, subscriber & order CSV exports, site settings
-- Lemon Squeezy webhook receiver (signed, idempotent) + manual API reconciliation
+- On-site **Courses & Guides** (`/courses`) — two founder lanes (Healing / Building)
+  with filters, bundles, and Dodo checkout
+- Purchasable membership tiers (Free / Healing / Creator) at `/membership`,
+  auto-granted on a paid Dodo order (revoked on refund)
+- **Marketplace** / Showcase: members advertise digital products & services
+- Owner-uploaded **Content Hub** (`/watch`)
+- Home-page spotlight, daily quotes, streaks & badges, My Journey PDF
+- Two community forums (Building & Healing)
+- Admin studio: community health, main payment insights, traffic sources,
+  quotes/content/membership management
+- Dodo Payments webhook receiver (Standard Webhooks, signed, idempotent)
+- First-touch traffic attribution (UTM / referrer → Facebook, Instagram, search, …)
 
 ---
 
@@ -106,42 +82,19 @@ Everything else is optional or auto-managed:
 
 ---
 
-## 2. Lemon Squeezy setup
+## 2. Dodo Payments setup
 
-1. **API key** — LS dashboard → *Settings → API* → create a key →
-   `LEMONSQUEEZY_API_KEY`. Used only by the dashboard "Sync with Lemon Squeezy"
-   button (drift repair); day-to-day order data arrives via webhooks.
-2. **Webhook** — *Settings → Webhooks → "+"*:
-   - Callback URL: `https://<your-app>.onrender.com/webhooks/lemonsqueezy`
-   - Signing secret: any long random string → also set it as
-     `LEMONSQUEEZY_WEBHOOK_SECRET` on the server
-   - Subscribe to: `order_created` and `order_refunded`
-3. **Courses & guides** sell on the Lemon-hosted storefront
-   (`https://shop.bloomanyway.online`). The site nav and `/courses` redirect
-   there. Paid `order_created` webhooks create a `ShopPurchase` row; My space
-   shows linked purchases with a Download button (Lemon receipt URL when the
-   webhook includes `urls.receipt`, or a protected route when `file_key` is set
-   under `SHOP_FILES_DIR`). Membership variants stay on the membership path and
-   do not create shop rows.
-4. **PayPal** — enable it once in LS *Settings → Payment methods*; it appears
-   at checkout automatically, no code change.
-
-To test the webhook locally, send a signed request:
-
-```bash
-python - <<'PY'
-import hmac, hashlib, json, urllib.request
-secret = b"change-me-too"   # your LEMONSQUEEZY_WEBHOOK_SECRET
-body = json.dumps({"meta": {"event_name": "order_created"},
-  "data": {"id": "1001", "attributes": {"user_email": "buyer@example.com",
-  "total": 2900, "currency": "USD", "status": "paid",
-  "first_order_item": {"variant_id": 123456}}}}).encode()
-sig = hmac.new(secret, body, hashlib.sha256).hexdigest()
-req = urllib.request.Request("http://localhost:5000/webhooks/lemonsqueezy",
-  data=body, headers={"Content-Type": "application/json", "X-Signature": sig})
-print(urllib.request.urlopen(req).read())
-PY
-```
+1. **API key** — Dodo dashboard → API keys → set `DODO_PAYMENTS_API_KEY`.
+   Use `DODO_PAYMENTS_MODE=test` locally and `live` in production.
+2. **Webhook** — Developer → Webhooks:
+   - URL: `https://<your-app>.onrender.com/webhooks/dodo`
+   - Signing secret → `DODO_PAYMENTS_WEBHOOK_SECRET`
+   - Subscribe to at least: `payment.succeeded`, `refund.succeeded`
+3. **Products** — create each course/guide/membership in Dodo, then paste the
+   product IDs in Studio → Courses & Guides / Plans.
+4. Paid webhooks create `Order` (+ `ShopPurchase` for non-membership products).
+   My space lists linked purchases; set `file_key` under `SHOP_FILES_DIR` for
+   self-hosted downloads.
 
 ---
 
@@ -168,7 +121,7 @@ PY
 5. Visit `https://<your-app>.onrender.com/setup` right after the first deploy
    and claim the owner account (email + password, chosen in the browser).
    The page locks itself once the owner has signed in — do this promptly.
-6. Point the Lemon Squeezy webhook (section 2) at your Render URL.
+6. Point the Dodo Payments webhook (section 2) at your Render URL.
 
 ### Things to know about Render
 

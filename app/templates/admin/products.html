@@ -1,0 +1,71 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Courses &amp; Guides{% endblock %}
+
+{% block content %}
+<div class="studio-page">
+  <div class="page-head">
+    <div>
+      <p class="eyebrow">Catalogue</p>
+      <h1>Courses &amp; Guides</h1>
+      <p class="field-help" style="margin: 6px 0 0; max-width: 640px;">
+        Public page: <a href="{{ url_for('main.courses') }}" target="_blank">/courses</a>.
+        Paste each item’s <strong>Dodo product ID</strong> so checkout can open.
+        Catalogue copy is seeded to match the site design — edit prices and IDs here.
+      </p>
+    </div>
+  </div>
+
+  <form method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    {% for p in items %}
+    <section class="admin-panel studio-card">
+      <h2 style="margin-top:0;">{{ p.title }}</h2>
+      <p class="field-help" style="margin-top:0;">{{ p.slug }} · {{ p.track or '—' }} · {{ p.type }}</p>
+      <div class="form-row">
+        <div class="field">
+          <label for="p{{ p.id }}_dodo">Dodo product ID</label>
+          <input type="text" id="p{{ p.id }}_dodo" name="p{{ p.id }}_dodo"
+                 value="{{ p.dodo_product_id or '' }}" placeholder="prod_…">
+        </div>
+        <div class="field">
+          <label for="p{{ p.id }}_price">Price (USD)</label>
+          <input type="text" id="p{{ p.id }}_price" name="p{{ p.id }}_price"
+                 value="{{ '%.2f'|format(p.price_cents / 100) if p.price_cents is not none else '' }}">
+        </div>
+        <div class="field">
+          <label for="p{{ p.id }}_track">Track</label>
+          <select id="p{{ p.id }}_track" name="p{{ p.id }}_track">
+            <option value="healing" {{ 'selected' if p.track == 'healing' }}>Healing</option>
+            <option value="building" {{ 'selected' if p.track == 'building' }}>Building</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="p{{ p.id }}_type">Type</label>
+          <select id="p{{ p.id }}_type" name="p{{ p.id }}_type">
+            {% for t in ['workbook','course','guide','audio','template','bundle'] %}
+            <option value="{{ t }}" {{ 'selected' if p.type == t }}>{{ t }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="field">
+          <label for="p{{ p.id }}_badge">Badge</label>
+          <input type="text" id="p{{ p.id }}_badge" name="p{{ p.id }}_badge"
+                 value="{{ p.badge or '' }}" placeholder="NEW">
+        </div>
+        <div class="field" style="padding-top: 28px;">
+          <label class="checkline checkline--sm">
+            <input type="checkbox" name="p{{ p.id }}_live" value="1" {{ 'checked' if p.status == 'published' }}>
+            Live on /courses
+          </label>
+        </div>
+      </div>
+    </section>
+    {% else %}
+    <p class="field-help">No catalogue rows yet — reload after seed.</p>
+    {% endfor %}
+    <button class="btn btn--primary" type="submit">Save catalogue</button>
+  </form>
+</div>
+{% endblock %}

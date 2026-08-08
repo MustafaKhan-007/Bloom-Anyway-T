@@ -40,9 +40,8 @@ RETIRED_CATEGORY_SLUGS = ["venting", "divorce-custody", "content-creation",
 
 STARTER_FAQS = [
     ("How do I get my files after buying?",
-     "The moment your payment goes through, Lemon Squeezy emails you a receipt "
-     "with your download links. Check spam if it's shy. You can always re-send "
-     "them from [your orders page](https://app.lemonsqueezy.com/my-orders).", 0),
+     "When payment clears, Dodo Payments emails you a receipt. Purchases linked "
+     "to your account email also appear under My space → Courses & guides.", 0),
     ("Do I need an account here to buy?",
      "No. Checkout works without one. An account just adds saved quotes, the "
      "community forums, and course picks made for you \u2014 it's free.", 1),
@@ -55,7 +54,7 @@ STARTER_FAQS = [
      "local helpline first. This will be here after.", 3),
 ]
 
-# Membership plans, created inactive. Set a price + Lemon Squeezy checkout link
+# Membership plans, created inactive. Set a price + Dodo product ID
 # in Studio -> Plans, then flip them Live. Buying one auto-upgrades the buyer.
 MEMBERSHIP_PLANS = [
     {"tier": "healing", "name": "Healing membership",
@@ -136,7 +135,7 @@ def seed():
         if cat_added or tag_added:
             print(f"Forums: added {cat_added} categories, {tag_added} tags")
 
-        # 5. membership plans (inactive; owner sets a price + LS link, then goes Live)
+        # 5. membership plans (inactive; owner sets a price + Dodo id, then goes Live)
         mem_added = 0
         for m in MEMBERSHIP_PLANS:
             if MembershipPlan.query.filter_by(tier=m["tier"]).first() is None:
@@ -147,7 +146,13 @@ def seed():
         if mem_added:
             print(f"Added {mem_added} membership plans")
 
-        # 6. brand rename (First Light → Bloom Anyway) if the stored title
+        # 6. Courses & Guides catalogue (idempotent)
+        from app.services.catalog import ensure_catalog
+        cat_added = ensure_catalog()
+        if cat_added:
+            print(f"Added {cat_added} catalogue products")
+
+        # 7. brand rename (First Light → Bloom Anyway) if the stored title
         #    is still a legacy name. Custom titles the owner set are left alone.
         from app.services.settings import ensure_brand_title
         if ensure_brand_title():

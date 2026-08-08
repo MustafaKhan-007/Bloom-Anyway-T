@@ -41,9 +41,13 @@ services:
         value: 0x4AAAAAAEAGFowmHgyFM5Kf
       - key: TURNSTILE_SECRET
         sync: false
-      # Lemon Squeezy webhook (optional: set when you wire up payments).
-      - key: LEMONSQUEEZY_WEBHOOK_SECRET
+      # Dodo Payments (courses, guides, memberships).
+      - key: DODO_PAYMENTS_API_KEY
         sync: false
+      - key: DODO_PAYMENTS_WEBHOOK_SECRET
+        sync: false
+      - key: DODO_PAYMENTS_MODE
+        value: live
       # Optional self-hosted shop download files (default: instance/shop_files).
       # Prefer the media disk, e.g. /var/media/shop_files
       - key: SHOP_FILES_DIR

@@ -1,7 +1,7 @@
-"""External shop (shop.bloomanyway.online) purchase fulfillment for My Space."""
+"""Digital purchase fulfillment for My Space (Dodo Payments)."""
 from datetime import datetime
 
-from sqlalchemy import func
+from sqlalchemy import func, or_
 
 from ..extensions import db
 from ..models import MembershipPlan, ShopPurchase, User, utcnow
@@ -12,13 +12,16 @@ def _norm_email(email: str) -> str:
 
 
 def is_membership_variant(variant_id) -> bool:
-    """True when this Lemon variant is a membership plan (not a shop product)."""
+    """True when this product id is a membership plan (not a course/guide)."""
     if variant_id is None:
         return False
     key = str(variant_id).strip()
     if not key:
         return False
-    return MembershipPlan.query.filter_by(ls_variant_id=key).first() is not None
+    return (MembershipPlan.query
+            .filter(or_(MembershipPlan.dodo_product_id == key,
+                        MembershipPlan.ls_variant_id == key))
+            .first()) is not None
 
 
 def upsert_shop_purchase(

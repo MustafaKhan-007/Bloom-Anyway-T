@@ -258,8 +258,13 @@ class Product(db.Model):
     price_cents = db.Column(db.Integer)
     compare_at_cents = db.Column(db.Integer)
     currency = db.Column(db.String(3), nullable=False, default="USD")
-    ls_checkout_url = db.Column(db.String(500))
-    ls_variant_id = db.Column(db.String(40), index=True)
+    ls_checkout_url = db.Column(db.String(500))  # legacy Lemon; unused
+    ls_variant_id = db.Column(db.String(40), index=True)  # legacy Lemon; unused
+    dodo_product_id = db.Column(db.String(80), index=True)
+    # healing | building — Courses & Guides lanes
+    track = db.Column(db.String(20), index=True)
+    meta_line = db.Column(db.String(200))  # e.g. "80 daily pages • PDF + printable"
+    category_label = db.Column(db.String(80))  # e.g. "DIVORCE RECOVERY"
 
     meta_title = db.Column(db.String(160))
     meta_description = db.Column(db.String(200))
@@ -315,12 +320,19 @@ class Product(db.Model):
             missing.append("a cover image URL")
         if self.price_cents is None:
             missing.append("a price")
-        if not (self.ls_checkout_url or "").strip():
-            missing.append("the Lemon Squeezy buy link")
-        # Without the variant ID, webhooks can't put the purchase into My space.
-        if not (self.ls_variant_id or "").strip():
-            missing.append("the Lemon Squeezy variant ID")
+        if not (self.dodo_product_id or "").strip():
+            missing.append("the Dodo Payments product ID")
         return missing
+
+    def type_pill(self) -> str:
+        return {
+            "course": "COURSE",
+            "workbook": "WORKBOOK",
+            "guide": "GUIDE",
+            "audio": "AUDIO GUIDE",
+            "template": "TEMPLATE",
+            "bundle": "BUNDLE",
+        }.get((self.type or "").lower(), (self.type or "GUIDE").upper())
 
 
 class ProductAsset(db.Model):
@@ -352,9 +364,8 @@ class ProductAsset(db.Model):
 
 
 class MembershipPlan(db.Model):
-    """A sellable membership (Healing / Creator). Sold on its own — not a
-    product/course. Buying one (matched by Lemon Squeezy variant id on the
-    order) upgrades the buyer's `users.membership` tier."""
+    """A sellable membership (Healing / Creator). Buying one (matched by Dodo
+    product id on the payment) upgrades the buyer's ``users.membership`` tier."""
     __tablename__ = "membership_plans"
 
     id = db.Column(db.Integer, primary_key=True)
@@ -364,8 +375,9 @@ class MembershipPlan(db.Model):
     price_cents = db.Column(db.Integer)
     currency = db.Column(db.String(3), nullable=False, default="USD")
     period = db.Column(db.String(20), nullable=False, default="month")  # month / year / once
-    ls_variant_id = db.Column(db.String(40), index=True)
-    ls_checkout_url = db.Column(db.String(500))
+    ls_variant_id = db.Column(db.String(40), index=True)  # legacy
+    ls_checkout_url = db.Column(db.String(500))  # legacy
+    dodo_product_id = db.Column(db.String(80), index=True)
     active = db.Column(db.Boolean, nullable=False, default=False)
     sort_order = db.Column(db.Integer, nullable=False, default=0)
 
@@ -383,7 +395,10 @@ class MembershipPlan(db.Model):
         return {"month": "/ month", "year": "/ year", "once": "one-time"}.get(self.period, "")
 
     def is_buyable(self):
-        return bool(self.active and self.ls_checkout_url)
+        return bool(self.active and (self.dodo_product_id or "").strip())
+
+    def payment_product_id(self) -> str | None:
+        return (self.dodo_product_id or self.ls_variant_id or "").strip() or None
 
 
 class Quote(db.Model):
@@ -700,6 +715,24 @@ class PageView(db.Model):
     path = db.Column(db.String(300), nullable=False)
     date = db.Column(db.Date, nullable=False)
     count = db.Column(db.Integer, nullable=False, default=0)
+
+
+class VisitEvent(db.Model):
+    """Where a visitor arrived from (UTM / referrer) for Studio insights."""
+    __tablename__ = "visit_events"
+
+    id = db.Column(db.Integer, primary_key=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=utcnow, index=True)
+    path = db.Column(db.String(300), nullable=False)
+    source = db.Column(db.String(80), nullable=False, index=True)  # Facebook, Instagram, …
+    referrer = db.Column(db.String(500))
+    utm_source = db.Column(db.String(120))
+    utm_medium = db.Column(db.String(120))
+    utm_campaign = db.Column(db.String(160))
+    session_key = db.Column(db.String(64), index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), index=True)
+
+    user = db.relationship("User")
 
 
 class ContactMessage(db.Model):

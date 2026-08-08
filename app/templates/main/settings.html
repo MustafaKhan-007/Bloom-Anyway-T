@@ -172,7 +172,7 @@
 
     <div class="settings-block">
       <h3>Leaving?</h3>
-      <p class="field-help">Closing your account scrubs your profile details, removes your login, and hides your forum posts and comments. Purchases stay with Lemon Squeezy.</p>
+      <p class="field-help">Closing your account scrubs your profile details, removes your login, and hides your forum posts and comments. Purchase records may remain with Dodo Payments.</p>
       <form method="post" action="{{ url_for('main.delete_account') }}"
             data-confirm="Close your account? This can't be undone from here.">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

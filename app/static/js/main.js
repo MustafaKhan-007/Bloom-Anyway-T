@@ -449,17 +449,6 @@
     syncTags();
   }
 
-  /* ---- Lemon Squeezy overlay (re-init if lemon.js loaded after us) ---- */
-  if (window.createLemonSqueezy) {
-    window.createLemonSqueezy();
-  } else {
-    document.querySelectorAll("script[src*='lemon.js']").forEach(function (s) {
-      s.addEventListener("load", function () {
-        if (window.createLemonSqueezy) window.createLemonSqueezy();
-      });
-    });
-  }
-
   /* ---- notification bell: click-outside, Escape, mark-as-read ---- */
   document.querySelectorAll("details.note-bell").forEach(function (bell) {
     var marked = false;

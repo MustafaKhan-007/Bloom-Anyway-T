@@ -7,9 +7,8 @@
     <div>
       <h1>Dashboard</h1>
       <p class="field-help" style="margin: 6px 0 0; max-width: 62ch;">
-        Sales and checkout live in
-        <a href="https://app.lemonsqueezy.com" target="_blank" rel="noopener">Lemon Squeezy</a>.
-        This studio is for the community, quotes, and content you run here.
+        Checkout runs through Dodo Payments. Below: community health, main payment
+        totals, and where visitors arrive from.
       </p>
     </div>
     <span class="studio-pill">Owner access only</span>
@@ -40,15 +39,29 @@
 
   <div class="studio-dash-exact__money">
     <div class="admin-panel studio-card studio-dash-exact__revenue">
-      <h2>Revenue</h2>
+      <h2>Payments (30 days)</h2>
       {% if cards.revenue %}
       <p class="studio-card__metric">{{ cards.revenue }}</p>
-      {% if cards.revenue_note %}<p class="field-help">{{ cards.revenue_note }}</p>{% endif %}
       {% else %}
-      <p class="studio-card__metric">—</p>
-      <p class="field-help">Tracked in Lemon Squeezy. Open the dashboard for live totals.</p>
+      <p class="studio-card__metric">$0</p>
       {% endif %}
-      <a class="btn btn--secondary btn--sm" href="https://app.lemonsqueezy.com" target="_blank" rel="noopener">Open Lemon Squeezy</a>
+      {% if cards.revenue_note %}<p class="field-help">{{ cards.revenue_note }}</p>{% endif %}
+      {% if cards.top_products %}
+      <ul class="field-help" style="margin: 10px 0 0; padding-left: 18px;">
+        {% for row in cards.top_products %}
+        <li>{{ row.title }} — {{ row.orders }} sale{{ '' if row.orders == 1 else 's' }}</li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+      {% if cards.traffic_sources %}
+      <p class="field-help" style="margin-top: 12px;"><strong>Traffic sources</strong></p>
+      <ul class="field-help" style="margin: 4px 0 0; padding-left: 18px;">
+        {% for row in cards.traffic_sources %}
+        <li>{{ row.source }} — {{ row.count }}</li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+      <a class="btn btn--secondary btn--sm" href="{{ url_for('main.courses') }}" style="margin-top:12px;">Open Courses &amp; Guides</a>
     </div>
     <div class="admin-panel studio-card studio-dash-exact__founder">
       <h2>Founder pricing</h2>
@@ -74,9 +87,9 @@
     <table class="admin-table">
       <thead>
         <tr>
-          <th>Member</th>
-          <th>Plan</th>
-          <th>Last active</th>
+          <th>Who</th>
+          <th>Detail</th>
+          <th>When</th>
           <th>Posts</th>
           <th>Streak</th>
         </tr>
@@ -85,7 +98,7 @@
         {% for row in member_activity %}
         <tr>
           <td>{{ row.name }}</td>
-          <td>{{ row.plan }}</td>
+          <td>{{ row.summary or row.plan }}</td>
           <td>{{ row.last_active }}</td>
           <td>{{ row.posts }}</td>
           <td>{{ row.streak }}</td>
@@ -95,7 +108,7 @@
     </table>
     {% else %}
     <p class="field-help" style="margin:0;">
-      Recent member actions will show here. For now, use
+      Recent visits and signups will show here. For now, use
       <a href="{{ url_for('admin.members') }}">Members</a> and
       <a href="{{ url_for('admin.community') }}">Community</a>.
     </p>

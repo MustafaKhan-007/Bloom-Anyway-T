@@ -112,20 +112,41 @@ def dashboard():
 
 
 # =============================== PRODUCTS ====================================
-# Courses & guides are sold on shop.bloomanyway.online. The Product / ProductAsset
-# tables remain for historical orders, testimonials, and dashboard filters — but
-# Studio no longer publishes an on-site catalog.
 
-@bp.route("/products")
+@bp.route("/products", methods=["GET", "POST"])
+@admin_required
+def products():
+    from ..services.catalog import ensure_catalog
+    ensure_catalog()
+    db.session.commit()
+    items = (Product.query
+             .order_by(Product.track, Product.sort_order, Product.id).all())
+    if request.method == "POST":
+        for p in items:
+            prefix = f"p{p.id}_"
+            p.dodo_product_id = (request.form.get(prefix + "dodo") or "").strip() or None
+            p.track = (request.form.get(prefix + "track") or p.track or "").strip() or None
+            p.type = (request.form.get(prefix + "type") or p.type or "guide").strip()
+            p.status = "published" if request.form.get(prefix + "live") else "draft"
+            p.badge = (request.form.get(prefix + "badge") or "").strip() or None
+            raw = (request.form.get(prefix + "price") or "").strip().replace(",", "")
+            try:
+                p.price_cents = round(float(raw) * 100) if raw else p.price_cents
+            except ValueError:
+                pass
+        db.session.commit()
+        flash("Courses & guides saved.", "success")
+        return redirect(url_for("admin.products"))
+    return render_template("admin/products.html", items=items)
+
+
 @bp.route("/products/new")
 @bp.route("/products/<int:product_id>/edit")
 @bp.route("/products/<int:product_id>/delete", methods=["POST"])
 @bp.route("/products/reorder", methods=["POST"])
 @admin_required
-def products(product_id=None):
-    flash("Courses & guides are managed on the Lemon Squeezy shop "
-          "(shop.bloomanyway.online), not in Studio.", "info")
-    return redirect(url_for("admin.dashboard"))
+def products_legacy(product_id=None):
+    return redirect(url_for("admin.products"))
 
 
 # ================================ QUOTES =====================================
@@ -397,13 +418,13 @@ def page_edit(slug):
 
 
 # ============================= SUBSCRIBERS ===================================
-# Email list / checkout analytics live in Lemon Squeezy — Studio no longer mirrors them.
+# Email list / full checkout analytics live in Dodo — Studio shows main totals only.
 
 @bp.route("/subscribers")
 @bp.route("/subscribers/export.csv")
 @admin_required
 def subscribers():
-    flash("Subscriber lists and sales live in Lemon Squeezy.", "info")
+    flash("Main payment totals are on the Dashboard. Full history is in Dodo Payments.", "info")
     return redirect(url_for("admin.dashboard"))
 
 
@@ -420,7 +441,7 @@ def subscriber_delete(sub_id):
 @bp.route("/orders/export.csv")
 @admin_required
 def orders():
-    flash("Orders and revenue live in Lemon Squeezy.", "info")
+    flash("Payment totals are on the Dashboard. Full history is in Dodo Payments.", "info")
     return redirect(url_for("admin.dashboard"))
 
 
@@ -816,8 +837,7 @@ def membership_plans():
             plan.tagline = (request.form.get(f"{p}_tagline") or "").strip() or None
             plan.currency = (request.form.get(f"{p}_currency") or "USD").strip().upper()[:3]
             plan.period = request.form.get(f"{p}_period") or "month"
-            plan.ls_variant_id = (request.form.get(f"{p}_variant") or "").strip() or None
-            plan.ls_checkout_url = (request.form.get(f"{p}_checkout") or "").strip() or None
+            plan.dodo_product_id = (request.form.get(f"{p}_dodo") or "").strip() or None
             plan.active = bool(request.form.get(f"{p}_active"))
             raw = (request.form.get(f"{p}_price") or "").strip().replace(",", "")
             try:

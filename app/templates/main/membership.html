@@ -18,8 +18,8 @@
 {% set saman_url = site.saman_booking_url or url_for('main.contact') %}
 {% set healing = plans.get('healing') %}
 {% set creator = plans.get('creator') %}
-{% set healing_checkout = checkout.get('healing') or (healing.ls_checkout_url if healing else none) %}
-{% set creator_checkout = checkout.get('creator') or (creator.ls_checkout_url if creator else none) %}
+{% set healing_checkout = checkout.get('healing') %}
+{% set creator_checkout = checkout.get('creator') %}
 {% set healing_price = healing.price_display() if healing and healing.price_cents is not none else '$9' %}
 {% set creator_price = creator.price_display() if creator and creator.price_cents is not none else '$15' %}
 {% set ends = site.founder_price_ends %}
@@ -114,7 +114,7 @@
           {% if current == 'healing' %}
           <span class="btn btn--secondary btn--block is-disabled">Your current plan</span>
           {% elif healing and healing.is_buyable() and healing_checkout %}
-          <a class="btn btn--primary btn--block lemonsqueezy-button" href="{{ healing_checkout }}">Start 2-week free trial &rarr;</a>
+          <a class="btn btn--primary btn--block" href="{{ healing_checkout }}">Start 2-week free trial &rarr;</a>
           {% else %}
           <span class="btn btn--secondary btn--block is-disabled">Coming soon</span>
           {% endif %}
@@ -156,7 +156,7 @@
           {% if current == 'creator' %}
           <span class="btn btn--secondary btn--block is-disabled">Your current plan</span>
           {% elif creator and creator.is_buyable() and creator_checkout %}
-          <a class="btn btn--gold btn--block lemonsqueezy-button" href="{{ creator_checkout }}">Become a Creator &mdash; start free trial &rarr;</a>
+          <a class="btn btn--gold btn--block" href="{{ creator_checkout }}">Become a Creator &mdash; start free trial &rarr;</a>
           {% else %}
           <span class="btn btn--secondary btn--block is-disabled">Coming soon</span>
           {% endif %}
@@ -170,16 +170,16 @@
       <div>
         <p class="mem-page__annual-eyebrow">Annual plans &mdash; best value</p>
         <h2>Pay once a year and save</h2>
-        <p>Healing $75/year &middot; Creator $150/year. Same Lemon checkout when annual links are live.</p>
+        <p>Healing $75/year &middot; Creator $150/year. Same secure checkout when annual products are live in Dodo.</p>
       </div>
       <div class="mem-page__annual-actions">
         {% if healing and healing.is_buyable() and healing_checkout %}
-        <a class="btn btn--primary lemonsqueezy-button" href="{{ healing_checkout }}">Healing &mdash; $75/yr</a>
+        <a class="btn btn--primary" href="{{ healing_checkout }}">Healing &mdash; $75/yr</a>
         {% else %}
         <span class="btn btn--secondary is-disabled">Healing &mdash; $75/yr</span>
         {% endif %}
         {% if creator and creator.is_buyable() and creator_checkout %}
-        <a class="btn btn--gold lemonsqueezy-button" href="{{ creator_checkout }}">Creator &mdash; $150/yr</a>
+        <a class="btn btn--gold" href="{{ creator_checkout }}">Creator &mdash; $150/yr</a>
         {% else %}
         <span class="btn btn--secondary is-disabled">Creator &mdash; $150/yr</span>
         {% endif %}
@@ -229,12 +229,12 @@
         <div class="mem-trust__item">
           <span class="mem-trust__icon" aria-hidden="true">&#128274;</span>
           <h3>Secure checkout</h3>
-          <p>Prices &amp; billing handled by Lemon Squeezy. No hidden fees.</p>
+          <p>Prices &amp; billing handled by Dodo Payments. No hidden fees.</p>
         </div>
         <div class="mem-trust__item">
           <span class="mem-trust__icon" aria-hidden="true">&#10005;</span>
           <h3>Cancel any time</h3>
-          <p>No drama &mdash; cancel in two clicks from My space or Lemon.</p>
+          <p>No drama &mdash; cancel from My space or your Dodo receipt email.</p>
         </div>
         <div class="mem-trust__item">
           <span class="mem-trust__icon" aria-hidden="true">&#9733;</span>
@@ -276,7 +276,7 @@
         </table>
       </div>
       <p class="field-help mem-page__legal">
-        Prices &amp; checkout are handled securely by Lemon Squeezy. The site owner always holds Creator access.
+        Prices &amp; checkout are handled securely by Dodo Payments. The site owner always holds Creator access.
         Memberships are subject to our
         <a href="{{ url_for('main.terms') }}">Terms</a> and
         <a href="{{ url_for('main.refunds') }}">Refund Policy</a>.
@@ -287,7 +287,6 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="https://assets.lemonsqueezy.com/lemon.js" defer></script>
 <script>
 (function () {
   var root = document.querySelector("[data-billing-toggle]");

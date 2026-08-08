@@ -16,7 +16,15 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-os.environ["LEMONSQUEEZY_WEBHOOK_SECRET"] = "test-secret"
+import base64
+import time as _time
+
+_DODO_SECRET_RAW = b"test-secret"
+os.environ["DODO_PAYMENTS_WEBHOOK_SECRET"] = (
+    "whsec_" + base64.b64encode(_DODO_SECRET_RAW).decode()
+)
+os.environ["DODO_PAYMENTS_API_KEY"] = "test-dodo-key"
+os.environ["DODO_PAYMENTS_MODE"] = "test"
 
 from app import create_app
 from app.config import DevConfig
@@ -25,6 +33,39 @@ from app.models import (ForumCategory, ForumComment, ForumPost, ForumTag,
                         Order, Product, Quote, QuotePin, ShopPurchase,
                         Subscriber, User, Video, utcnow)
 from app.services import captcha as captcha_service
+from app.services import dodo as dodo_svc
+
+
+def _dodo_headers(body: bytes) -> dict:
+    msg_id = "msg_test_" + hashlib.sha1(body).hexdigest()[:10]
+    ts = str(int(_time.time()))
+    sig = dodo_svc.sign_webhook(
+        os.environ["DODO_PAYMENTS_WEBHOOK_SECRET"], msg_id, ts, body)
+    return {
+        "Content-Type": "application/json",
+        "webhook-id": msg_id,
+        "webhook-timestamp": ts,
+        "webhook-signature": sig,
+    }
+
+
+def _payment_payload(payment_id, email, product_id, *,
+                     event="payment.succeeded", amount=4900,
+                     product_name=None, gift_to=None):
+    data = {
+        "payload_type": "Payment",
+        "payment_id": str(payment_id),
+        "total_amount": amount,
+        "currency": "USD",
+        "customer": {"email": email},
+        "product_cart": [{"product_id": str(product_id), "quantity": 1}],
+        "metadata": {},
+    }
+    if product_name:
+        data["metadata"]["product_name"] = product_name
+    if gift_to:
+        data["metadata"]["gift_to"] = gift_to
+    return json.dumps({"type": event, "data": data}).encode()
 
 # Smoke tests don't call Cloudflare; always pass the captcha check.
 captcha_service.verify_captcha = lambda token=None: True
@@ -226,64 +267,58 @@ with admin.session_transaction() as sess:
 r = admin.get("/admin/", follow_redirects=False)
 ok("Active admin stays signed in (sliding window)", r.status_code == 200)
 
-# Studio products UI is retired; courses live on the external shop
+# Studio catalogue editor is live; /courses is on-site
 r = admin.get("/admin/products", follow_redirects=True)
-ok("Studio products UI redirects away",
-   r.status_code == 200 and "shop.bloomanyway.online" in r.get_data(as_text=True))
+_pbody = r.get_data(as_text=True)
+ok("Studio products UI loads",
+   r.status_code == 200 and ("Dodo product ID" in _pbody or "Courses" in _pbody))
 r = client.get("/courses", follow_redirects=False)
-ok("/courses redirects to the Lemon shop",
-   r.status_code == 302 and "shop.bloomanyway.online" in r.headers.get("Location", ""))
+cbody = r.get_data(as_text=True)
+ok("/courses renders on-site catalogue",
+   r.status_code == 200 and "Courses &amp; Guides" in cbody
+   and "Healing Bundle" in cbody and "Creator Bundle" in cbody)
 r = client.get("/")
 home = r.get_data(as_text=True)
 ok("Home includes creator membership CTA",
    "Join Creator Membership" in home and "Creator of the Month" in home)
-ok("Nav Courses & Guides points at the shop", "shop.bloomanyway.online" in home)
+ok("Nav Courses & Guides points on-site",
+   '/courses"' in home or "/courses'" in home)
 
-# historical Product row kept for dashboard filters / order matching
+# Product row for order matching
 with app.app_context():
     hist = Product(
         title="Begin Again", slug="begin-again", type="course", status="published",
         promise="A 4-week path from stuck to started.",
         cover_url="https://example.com/cover.jpg", price_cents=4900,
-        currency="USD", ls_checkout_url="https://store.lemonsqueezy.com/buy/abc123",
-        ls_variant_id="123456", featured=True)
+        currency="USD", dodo_product_id="prod_begin_again",
+        track="healing", featured=True)
     db.session.add(hist)
     db.session.commit()
     hist_id = hist.id
 
-# --- 4. webhook: signature + idempotency + ShopPurchase -----------------------
-payload = json.dumps({
-    "meta": {"event_name": "order_created"},
-    "data": {"id": "9001", "attributes": {
-        "user_email": "Buyer@Example.com", "total": 4900, "currency": "USD",
-        "status": "paid",
-        "urls": {"receipt": "https://app.lemonsqueezy.com/my-orders/9001"},
-        "first_order_item": {
-            "variant_id": 123456, "product_id": 55,
-            "product_name": "Begin Again"}}},
-}).encode()
-sig = hmac.new(b"test-secret", payload, hashlib.sha256).hexdigest()
+# --- 4. Dodo webhook: signature + idempotency + ShopPurchase -----------------------
+payload = _payment_payload(
+    "9001", "Buyer@Example.com", "prod_begin_again",
+    product_name="Begin Again")
 
-r = client.post("/webhooks/lemonsqueezy", data=payload,
-                headers={"Content-Type": "application/json", "X-Signature": "bad"})
-ok("Wrong HMAC rejected 401", r.status_code == 401)
+r = client.post("/webhooks/dodo", data=payload,
+                headers={"Content-Type": "application/json",
+                         "webhook-id": "bad", "webhook-timestamp": "1",
+                         "webhook-signature": "v1,bad"})
+ok("Wrong webhook signature rejected 401", r.status_code == 401)
 
-r = client.post("/webhooks/lemonsqueezy", data=payload,
-                headers={"Content-Type": "application/json", "X-Signature": sig})
-r2 = client.post("/webhooks/lemonsqueezy", data=payload,
-                 headers={"Content-Type": "application/json", "X-Signature": sig})
+r = client.post("/webhooks/dodo", data=payload, headers=_dodo_headers(payload))
+r2 = client.post("/webhooks/dodo", data=payload, headers=_dodo_headers(payload))
 with app.app_context():
     orders = Order.query.filter_by(ls_order_id="9001").all()
     shops = ShopPurchase.query.filter_by(lemon_squeezy_order_id="9001").all()
 ok("Webhook accepted (200)", r.status_code == 200 and r2.status_code == 200)
 ok("Replayed webhook creates exactly one order", len(orders) == 1, f"got {len(orders)}")
 ok("Replayed webhook creates exactly one ShopPurchase", len(shops) == 1, f"got {len(shops)}")
-ok("Order matched to product via variant id", orders[0].product_id is not None)
+ok("Order matched to product via Dodo product id", orders[0].product_id is not None)
 ok("Buyer email lowercased", orders[0].buyer_email == "buyer@example.com")
 ok("Unknown-email shop purchase is pending_link",
    shops[0].status == "pending_link" and shops[0].user_id is None)
-ok("Shop purchase stores receipt download_url",
-   shops[0].download_url == "https://app.lemonsqueezy.com/my-orders/9001")
 ok("Shop purchase product name from webhook", shops[0].product_name == "Begin Again")
 
 # purchase auto-links when that email signs up / logs in
@@ -301,25 +336,17 @@ ok("Pending shop purchase links on login",
    linked.status == "linked" and linked.user_id is not None)
 r = buyer_client.get("/account?tab=saved")
 abody = r.get_data(as_text=True)
-ok("Linked shop purchase appears in My space with Download",
-   r.status_code == 200 and "Begin Again" in abody and "Download" in abody
-   and "Courses" in abody)
+ok("Linked shop purchase appears in My space",
+   r.status_code == 200 and "Begin Again" in abody and "Courses" in abody)
 
 # purchase for an email that already has an account links immediately
 with app.app_context():
     known = User.query.filter_by(email="newperson@example.com").first()
     known_id = known.id
-payload_known = json.dumps({
-    "meta": {"event_name": "order_created"},
-    "data": {"id": "9002", "attributes": {
-        "user_email": "newperson@example.com", "total": 1900, "currency": "USD",
-        "status": "paid",
-        "urls": {"receipt": "https://app.lemonsqueezy.com/my-orders/9002"},
-        "first_order_item": {"variant_id": 999, "product_name": "Quiet Mornings"}}},
-}).encode()
-sig_k = hmac.new(b"test-secret", payload_known, hashlib.sha256).hexdigest()
-r = client.post("/webhooks/lemonsqueezy", data=payload_known,
-                headers={"Content-Type": "application/json", "X-Signature": sig_k})
+payload_known = _payment_payload(
+    "9002", "newperson@example.com", "prod_quiet",
+    amount=1900, product_name="Quiet Mornings")
+r = client.post("/webhooks/dodo", data=payload_known, headers=_dodo_headers(payload_known))
 with app.app_context():
     sp2 = ShopPurchase.query.filter_by(lemon_squeezy_order_id="9002").first()
 ok("Existing-account shop purchase links immediately",
@@ -327,15 +354,10 @@ ok("Existing-account shop purchase links immediately",
    and sp2.status == "linked" and sp2.user_id == known_id)
 
 # refund hides from My space
-payload_ref = json.dumps({
-    "meta": {"event_name": "order_refunded"},
-    "data": {"id": "9002", "attributes": {
-        "user_email": "newperson@example.com", "total": 1900, "currency": "USD",
-        "status": "refunded", "first_order_item": {"variant_id": 999}}},
-}).encode()
-sig_r = hmac.new(b"test-secret", payload_ref, hashlib.sha256).hexdigest()
-client.post("/webhooks/lemonsqueezy", data=payload_ref,
-            headers={"Content-Type": "application/json", "X-Signature": sig_r})
+payload_ref = _payment_payload(
+    "9002", "newperson@example.com", "prod_quiet",
+    event="refund.succeeded", amount=1900, product_name="Quiet Mornings")
+client.post("/webhooks/dodo", data=payload_ref, headers=_dodo_headers(payload_ref))
 with app.app_context():
     sp2 = ShopPurchase.query.filter_by(lemon_squeezy_order_id="9002").first()
 ok("Refunded shop purchase marked refunded", sp2.status == "refunded")
@@ -368,9 +390,10 @@ r = buyer_client.get(f"/account/shop/{owned_id}/download")
 ok("Non-owner blocked from shop file download", r.status_code == 404)
 
 r = admin.get("/admin/")
-ok("Dashboard loads after order without Lemon revenue mirror",
-   r.status_code == 200 and "Lemon Squeezy" in r.get_data(as_text=True)
-   and "Revenue (30d)" not in r.get_data(as_text=True))
+_dash = r.get_data(as_text=True)
+ok("Dashboard shows local payment insights",
+   r.status_code == 200 and "Payments (30 days)" in _dash
+   and "Dodo Payments" in _dash)
 
 # give the main member a Creator membership: unlocks posting, profile links,
 # the video room, and the My Journey export
@@ -820,10 +843,10 @@ ok("Free member browse is not soft-gated",
 ok("Community post rows spread meta into an aside",
    "post-row__aside" in free_cat)
 
-# /courses always redirects to the shop (subject filters retired)
-r = client.get("/courses?subject=Healing", follow_redirects=False)
-ok("Subject-filtered /courses still redirects to shop",
-   r.status_code == 302 and "shop.bloomanyway.online" in r.headers.get("Location", ""))
+# /courses stays on-site (query params ignored / filters via h=)
+r = client.get("/courses?h=workbook", follow_redirects=False)
+ok("Filtered /courses stays on-site",
+   r.status_code == 200 and "Courses &amp; Guides" in r.get_data(as_text=True))
 
 # videos: owner uploads, Creator watches, free is blocked
 minimal_mp4 = b"\x00\x00\x00\x18ftypmp42" + b"\x00" * 64
@@ -989,8 +1012,7 @@ plan_form = {
     "healing_name": "Healing membership", "healing_period": "month",
     "creator_name": "Creator membership", "creator_tagline": "Everything, plus tools.",
     "creator_price": "19", "creator_currency": "USD", "creator_period": "month",
-    "creator_variant": "555001",
-    "creator_checkout": "https://store.lemonsqueezy.com/buy/creator",
+    "creator_dodo": "prod_creator_mem",
     "creator_active": "1",
 }
 r = admin.post("/admin/memberships", data=plan_form, follow_redirects=True)
@@ -998,20 +1020,13 @@ ok("Owner can configure a membership plan", "Membership plans saved" in r.get_da
 r = app.test_client().get("/membership")  # anonymous visitor sees the buy buttons
 mbody = r.get_data(as_text=True)
 ok("Membership page shows comparison + Creator buy button",
-   "Compare every perk" in mbody and "store.lemonsqueezy.com/buy/creator" in mbody
+   "Compare every perk" in mbody and "/checkout/membership/creator" in mbody
    and "Become a Creator" in mbody)
 
 
-def _order_webhook(order_id, email, variant, event="order_created", status="paid"):
-    body = json.dumps({
-        "meta": {"event_name": event},
-        "data": {"id": order_id, "attributes": {
-            "user_email": email, "total": 1900, "currency": "USD",
-            "status": status, "first_order_item": {"variant_id": variant}}},
-    }).encode()
-    s = hmac.new(b"test-secret", body, hashlib.sha256).hexdigest()
-    return client.post("/webhooks/lemonsqueezy", data=body,
-                       headers={"Content-Type": "application/json", "X-Signature": s})
+def _order_webhook(order_id, email, product_id, event="payment.succeeded"):
+    body = _payment_payload(order_id, email, product_id, event=event, amount=1900)
+    return client.post("/webhooks/dodo", data=body, headers=_dodo_headers(body))
 
 
 # an existing free member buys -> upgraded to Creator
@@ -1020,20 +1035,20 @@ with app.app_context():
     b2.set_password(USER_PW)
     db.session.add(b2)
     db.session.commit()
-_order_webhook("MEM-1", "buyer2@example.com", 555001)
+_order_webhook("MEM-1", "buyer2@example.com", "prod_creator_mem")
 with app.app_context():
     t = User.query.filter_by(email="buyer2@example.com").first().membership
 ok("Buying a membership upgrades the account", t == "creator", f"got {t}")
 
 # a refund revokes it
-_order_webhook("MEM-1", "buyer2@example.com", 555001,
-               event="order_refunded", status="refunded")
+_order_webhook("MEM-1", "buyer2@example.com", "prod_creator_mem",
+               event="refund.succeeded")
 with app.app_context():
     t = User.query.filter_by(email="buyer2@example.com").first().membership
 ok("Refunding a membership revokes it", t == "none", f"got {t}")
 
 # buying before the account exists: tier is granted at first login
-_order_webhook("MEM-2", "prebuyer@example.com", 555001)
+_order_webhook("MEM-2", "prebuyer@example.com", "prod_creator_mem")
 with app.app_context():
     pre = User(email="prebuyer@example.com", membership="none", email_verified_at=utcnow())
     pre.set_password(USER_PW)
@@ -1204,17 +1219,11 @@ with app.app_context():
 ok("Cancelling membership drops the tier", tier == "none", f"got {tier}")
 ok("Cancelling hides the member's ads", still_active == 0)
 
-# Gift custom_data still stored on Order (shop My Space links by buyer email only)
-gbody = json.dumps({
-    "meta": {"event_name": "order_created", "custom_data": {"gift_to": "free@example.com"}},
-    "data": {"id": "GIFT-1", "attributes": {
-        "user_email": "santa@example.com", "total": 4900, "currency": "USD",
-        "status": "paid",
-        "first_order_item": {"variant_id": "123456", "product_name": "Gifted Guide"}}},
-}).encode()
-gs = hmac.new(b"test-secret", gbody, hashlib.sha256).hexdigest()
-r = client.post("/webhooks/lemonsqueezy", data=gbody,
-                headers={"Content-Type": "application/json", "X-Signature": gs})
+# Gift metadata still stored on Order (My Space links by buyer email only)
+gbody = _payment_payload(
+    "GIFT-1", "santa@example.com", "prod_begin_again",
+    product_name="Gifted Guide", gift_to="free@example.com")
+r = client.post("/webhooks/dodo", data=gbody, headers=_dodo_headers(gbody))
 ok("Gift webhook accepted", r.status_code == 200)
 with app.app_context():
     gift_order = Order.query.filter_by(ls_order_id="GIFT-1").first()
@@ -1319,11 +1328,12 @@ ok("Member archive goes back to signup date",
 r = admin.get("/admin/quotes")
 ok("Admin quotes page (pins, preview tomorrow)", r.status_code == 200 and "Preview tomorrow" in r.get_data(as_text=True))
 r = admin.get("/admin/orders", follow_redirects=True)
-ok("Admin orders redirects to Lemon-first dashboard",
-   r.status_code == 200 and "Lemon Squeezy" in r.get_data(as_text=True))
+ok("Admin orders redirects to dashboard",
+   r.status_code == 200 and "Payments (30 days)" in r.get_data(as_text=True))
 r = admin.get("/admin/subscribers/export.csv", follow_redirects=True)
 ok("Admin subscribers redirects away from local list",
-   r.status_code == 200 and "Lemon Squeezy" in r.get_data(as_text=True))
+   r.status_code == 200 and ("Dashboard" in r.get_data(as_text=True)
+                             or "Payments" in r.get_data(as_text=True)))
 
 # --- 7b. reel reviews, nav order -------------------------------------------
 from app.models import ReelReview, ReelReviewApplication
