@@ -10,7 +10,7 @@ from flask_login import current_user, login_required
 from ..extensions import db, limiter
 
 from ..models import (JOURNAL_PROMPTS, MARKETPLACE_KINDS, MARKETPLACE_KIND_LABELS,
-                      MARKETPLACE_TAG_MAX, MARKETPLACE_TAGS,
+                      MARKETPLACE_TAG_MAX, MARKETPLACE_TAGS, MOOD_KEYS, MOODS,
                       ContactMessage, FaqItem, JournalEntry,
                       ListingImage, MarketplaceListing, MembershipPlan,
                       Notification, Order, Page, Product, Quote, QuoteFavorite,
@@ -647,6 +647,8 @@ def account():
     from ..services.social_graph import follow_counts, unread_notification_count
     from ..services import support_groups as sg_svc
     from ..services.listings import active_listing_count, listing_limit
+    from ..services.participation import (community_participation_count,
+                                          participation_bar_pct)
     followers_n, following_n = follow_counts(current_user)
     owner_support_pending = (
         sg_svc.pending_count() if current_user.is_admin else 0
@@ -658,6 +660,8 @@ def account():
                        .filter_by(user_id=current_user.id, active=True)
                        .order_by(MarketplaceListing.created_at.desc())
                        .limit(5).all())
+    today_entry = next((e for e in journal if e.day == date.today()), None)
+    participation_n = community_participation_count(current_user)
     return render_template(
         "main/account.html", greeting=greeting, orders=orders,
         favorites=favorites,
@@ -665,7 +669,11 @@ def account():
         premium=is_premium(current_user),
         active_tab=tab,
         journal_entries=journal,
+        today_entry=today_entry,
         today_prompt=random_journal_prompt(),
+        moods=MOODS,
+        community_participation=participation_n,
+        community_participation_pct=participation_bar_pct(participation_n),
         notifications=notes,
         unread_notes=unread_notification_count(current_user),
         followers_n=followers_n,
@@ -780,25 +788,36 @@ def cancel_membership():
 def checkin():
     freshly = current_user.check_in()
     journal_body = (request.form.get("journal") or "").strip()[:4000]
+    mood = (request.form.get("mood") or "").strip().lower()
+    if mood not in MOOD_KEYS:
+        mood = None
     prompt_key = (request.form.get("prompt") or "").strip()
     prompt_map = dict(JOURNAL_PROMPTS)
     if prompt_key not in prompt_map:
         prompt_key, _ = random_journal_prompt()
-    if journal_body:
-        today = date.today()
-        entry = JournalEntry.query.filter_by(
-            user_id=current_user.id, day=today).first()
+    today = date.today()
+    entry = JournalEntry.query.filter_by(
+        user_id=current_user.id, day=today).first()
+    if journal_body or mood:
         if entry is None:
-            entry = JournalEntry(user_id=current_user.id, day=today)
+            entry = JournalEntry(
+                user_id=current_user.id, day=today,
+                prompt_key=prompt_key, prompt_label=prompt_map[prompt_key],
+            )
             db.session.add(entry)
-        entry.prompt_key = prompt_key
-        entry.prompt_label = prompt_map[prompt_key]
-        entry.body = journal_body
+        elif journal_body or not entry.prompt_label:
+            entry.prompt_key = prompt_key
+            entry.prompt_label = prompt_map[prompt_key]
+        if journal_body:
+            entry.body = journal_body
+        if mood:
+            entry.mood = mood
     db.session.commit()
     if freshly:
         flash("You showed up today. That's the whole thing.", "success")
-    elif journal_body:
-        flash("Journal note saved.", "success")
+    elif journal_body or mood:
+        flash("Journal note saved." if journal_body else "Mood saved for today.",
+              "success")
     else:
         flash("Already checked in today \u2014 see you tomorrow.", "info")
     next_url = request.form.get("next") or url_for("main.account", tab="journal")

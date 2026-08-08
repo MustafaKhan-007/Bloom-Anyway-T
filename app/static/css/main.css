@@ -4873,6 +4873,64 @@ a.at-handle:hover { text-decoration: underline; }
 .ms-exact__checkin-form, .ms-exact__checkin-done {
   display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
 }
+.ms-exact__checkin-form--mood {
+  width: 100%;
+  justify-content: space-between;
+  align-items: center;
+}
+.ms-exact__checkin-actions {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+}
+.ms-mood {
+  display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
+}
+.ms-mood--compact { margin: 0 0 12px; }
+.ms-mood__opt {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px; height: 42px;
+  border-radius: 999px;
+  border: 1px solid rgba(61, 20, 49, 0.12);
+  background: #faf6f2;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease;
+}
+.ms-mood__opt:hover {
+  border-color: rgba(61, 20, 49, 0.35);
+  transform: translateY(-1px);
+}
+.ms-mood__opt input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.ms-mood__opt.is-selected,
+.ms-mood__opt:has(input:checked) {
+  border-color: #3d1431;
+  background: #f0e4ef;
+  box-shadow: 0 0 0 2px rgba(61, 20, 49, 0.12);
+}
+.ms-mood__opt:focus-within {
+  outline: 2px solid rgba(61, 20, 49, 0.35);
+  outline-offset: 2px;
+}
+.ms-mood__emoji { font-size: 1.25rem; line-height: 1; }
+.ms-mood__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #f0e4ef;
+  color: #3d1431;
+  font-size: 0.85em;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+}
 .ms-exact__block-title {
   margin: 0 0 12px; font-size: 1.35rem; color: #3d1431;
 }

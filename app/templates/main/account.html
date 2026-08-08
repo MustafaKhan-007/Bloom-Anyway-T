@@ -94,27 +94,34 @@
 <section class="section section--tight ms-exact">
   <div class="container">
     <div class="ms-exact__checkin">
-      <div class="ms-exact__checkin-copy">
-        <p class="ms-exact__checkin-q">How are you showing up today?</p>
-        <div class="ms-exact__emojis" aria-hidden="true">
-          <span>&#128522;</span><span>&#128524;</span><span>&#128170;</span><span>&#129293;</span><span>&#127803;</span>
-        </div>
-      </div>
-      {% if current_user.checked_in_today() %}
-      <div class="ms-exact__checkin-done">
-        <span class="streak-done">&#10003; You showed up today</span>
-        <a class="btn btn--secondary btn--sm" href="{{ url_for('main.account', tab='journal') }}">Open journal &rarr;</a>
-      </div>
-      {% else %}
-      <form method="post" action="{{ url_for('main.checkin') }}" class="ms-exact__checkin-form">
+      <form method="post" action="{{ url_for('main.checkin') }}" class="ms-exact__checkin-form ms-exact__checkin-form--mood">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <input type="hidden" name="next" value="{{ url_for('main.account', tab='journal') }}">
+        <input type="hidden" name="next" value="{{ url_for('main.account', tab='profile') }}">
         <input type="hidden" name="prompt" value="{{ today_prompt[0] }}">
-        <input type="hidden" name="journal" value="">
-        <button class="btn btn--primary btn--sm" type="submit">I showed up today</button>
-        <a class="btn btn--secondary btn--sm" href="{{ url_for('main.account', tab='journal') }}">Open journal &rarr;</a>
+        <div class="ms-exact__checkin-copy">
+          <p class="ms-exact__checkin-q">How are you showing up today?</p>
+          <div class="ms-mood" role="radiogroup" aria-label="Today's mood">
+            {% for key, emoji, label in moods %}
+            <label class="ms-mood__opt {{ 'is-selected' if today_entry and today_entry.mood == key }}">
+              <input type="radio" name="mood" value="{{ key }}"
+                     {{ 'checked' if today_entry and today_entry.mood == key }}>
+              <span class="ms-mood__emoji" aria-hidden="true">{{ emoji }}</span>
+              <span class="visually-hidden">{{ label }}</span>
+            </label>
+            {% endfor %}
+          </div>
+        </div>
+        <div class="ms-exact__checkin-actions">
+          {% if current_user.checked_in_today() %}
+          <span class="streak-done">&#10003; You showed up today</span>
+          <button class="btn btn--secondary btn--sm" type="submit">Save mood</button>
+          <a class="btn btn--secondary btn--sm" href="{{ url_for('main.account', tab='journal') }}">Open journal &rarr;</a>
+          {% else %}
+          <button class="btn btn--primary btn--sm" type="submit">I showed up today</button>
+          <a class="btn btn--secondary btn--sm" href="{{ url_for('main.account', tab='journal') }}">Open journal &rarr;</a>
+          {% endif %}
+        </div>
       </form>
-      {% endif %}
     </div>
 
     <div class="ms-overview ms-exact__overview">
@@ -133,10 +140,11 @@
             <div class="ms-card ms-exact__streak-card">
               <p class="eyebrow">Community participation</p>
               <p class="ms-exact__streak-stat">
-                {% if current_user.checked_in_today() %}<strong>Active</strong>{% else %}<strong>Open</strong>{% endif %}
+                <strong>{{ community_participation }}</strong>
+                time{{ '' if community_participation == 1 else 's' }}
               </p>
               <div class="ms-exact__bar" aria-hidden="true">
-                <span style="width: {{ 70 if current_user.checked_in_today() else 25 }}%;"></span>
+                <span style="width: {{ community_participation_pct }}%;"></span>
               </div>
               <p class="field-help" style="margin:0;">Check-ins, posts, and showing up.</p>
             </div>
@@ -172,6 +180,16 @@
             <input type="hidden" name="prompt" value="{{ today_prompt[0] }}">
             <p class="field-help">{{ today_prompt[1] }}</p>
             <h3>{{ today_prompt[1] }}</h3>
+            <div class="ms-mood ms-mood--compact" role="radiogroup" aria-label="Today's mood">
+              {% for key, emoji, label in moods %}
+              <label class="ms-mood__opt {{ 'is-selected' if today_entry and today_entry.mood == key }}">
+                <input type="radio" name="mood" value="{{ key }}"
+                       {{ 'checked' if today_entry and today_entry.mood == key }}>
+                <span class="ms-mood__emoji" aria-hidden="true">{{ emoji }}</span>
+                <span class="visually-hidden">{{ label }}</span>
+              </label>
+              {% endfor %}
+            </div>
             <textarea name="journal" rows="4" maxlength="4000"
                       placeholder="A few words is plenty. Or leave this blank."
                       aria-label="{{ today_prompt[1] }}"></textarea>
@@ -179,7 +197,10 @@
           </form>
           {% elif journal_entries %}
           {% set latest = journal_entries[0] %}
-          <p class="field-help">{{ latest.day.strftime('%A, %b %d') }}</p>
+          <p class="field-help">
+            {{ latest.day.strftime('%A, %b %d') }}
+            {% if latest.mood %}<span class="ms-mood__chip" title="{{ latest.mood_label() }}">{{ latest.mood_emoji() }}</span>{% endif %}
+          </p>
           <h3>{{ latest.prompt_label or 'Note' }}</h3>
           <div class="forum-body">{{ latest.body|truncate(220)|nl2br }}</div>
           {% else %}
@@ -189,7 +210,7 @@
           <ul class="ms-exact__journal-snips">
             {% for entry in journal_entries[:3] %}
             <li>
-              <span>{{ entry.day.strftime('%b %d') }}</span>
+              <span>{{ entry.day.strftime('%b %d') }}{% if entry.mood %} {{ entry.mood_emoji() }}{% endif %}</span>
               <em>{{ (entry.body or entry.prompt_label or 'Note')|truncate(70) }}</em>
             </li>
             {% endfor %}
@@ -495,32 +516,46 @@
       <h2>Your journal</h2>
       <p class="field-help" style="margin-top: -6px;">Private notes from the days you showed up. Only you can see these.</p>
 
-      {% if not current_user.checked_in_today() %}
       <form method="post" action="{{ url_for('main.checkin') }}" class="checkin-journal ms-journal__today">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="next" value="{{ url_for('main.account', tab='journal') }}">
         <input type="hidden" name="prompt" value="{{ today_prompt[0] }}">
         <p class="checkin-journal__q">{{ today_prompt[1] }}</p>
+        <p class="field-help" style="margin: 0 0 8px;">How are you showing up?</p>
+        <div class="ms-mood" role="radiogroup" aria-label="Today's mood">
+          {% for key, emoji, label in moods %}
+          <label class="ms-mood__opt {{ 'is-selected' if today_entry and today_entry.mood == key }}">
+            <input type="radio" name="mood" value="{{ key }}"
+                   {{ 'checked' if today_entry and today_entry.mood == key }}>
+            <span class="ms-mood__emoji" aria-hidden="true">{{ emoji }}</span>
+            <span class="visually-hidden">{{ label }}</span>
+          </label>
+          {% endfor %}
+        </div>
         <textarea name="journal" rows="6" maxlength="4000"
                   placeholder="Write as much or as little as you like."
-                  aria-label="{{ today_prompt[1] }}"></textarea>
+                  aria-label="{{ today_prompt[1] }}">{% if today_entry and today_entry.body %}{{ today_entry.body }}{% endif %}</textarea>
+        {% if current_user.checked_in_today() %}
+        <button class="btn btn--primary" type="submit">Save journal &#10003;</button>
+        <p class="field-help" style="margin: 10px 0 0;">Mood and notes stay with today’s entry.</p>
+        {% else %}
         <button class="btn btn--primary" type="submit">I showed up today &#10003;</button>
+        {% endif %}
       </form>
-      {% else %}
-      <div class="ms-journal__done">
-        <span class="streak-done">&#10003; You showed up today</span>
-        <p class="field-help">Come back tomorrow — or keep reading past entries below.</p>
-      </div>
-      {% endif %}
 
       <h3 class="ms-journal__prev-title">Previous entries</h3>
       {% if journal_entries %}
       <div class="journal-list">
         {% for entry in journal_entries %}
         <article class="journal-card">
-          <p class="eyebrow">{{ entry.day.strftime('%A, %b %d') }}</p>
+          <p class="eyebrow">
+            {{ entry.day.strftime('%A, %b %d') }}
+            {% if entry.mood %}
+            <span class="ms-mood__chip" title="{{ entry.mood_label() }}">{{ entry.mood_emoji() }} {{ entry.mood_label() }}</span>
+            {% endif %}
+          </p>
           <h3>{{ entry.prompt_label or 'Note' }}</h3>
-          <div class="forum-body">{{ entry.body|nl2br }}</div>
+          <div class="forum-body">{% if entry.body %}{{ entry.body|nl2br }}{% else %}<em class="field-help">Mood only — no written note.</em>{% endif %}</div>
         </article>
         {% endfor %}
       </div>

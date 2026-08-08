@@ -654,17 +654,44 @@ ok("Public profile page renders with links",
 ok("Unknown profile returns 404", client.get("/u/99999").status_code == 404)
 
 # --- 5b2. streaks: "I showed up today" ---------------------------------------
-r = client.post("/account/checkin", follow_redirects=True)
+r = client.post("/account/checkin", data={"mood": "soft"}, follow_redirects=True)
 with app.app_context():
     m = User.query.filter_by(email="newperson@example.com").first()
     ci = (m.total_checkins, m.current_streak, m.longest_streak, m.checked_in_today())
+    from app.models import JournalEntry
+    mood_entry = JournalEntry.query.filter_by(user_id=m.id, day=date.today()).first()
 ok("Check-in records the first streak day", ci == (1, 1, 1, True), f"got {ci}")
+ok("Check-in mood is saved on today's journal entry",
+   mood_entry is not None and mood_entry.mood == "soft",
+   f"got {getattr(mood_entry, 'mood', None)}")
 client.post("/account/checkin", follow_redirects=True)
 with app.app_context():
     again = User.query.filter_by(email="newperson@example.com").first().total_checkins
 ok("A second check-in the same day doesn't double-count", again == 1, f"got {again}")
 r = client.get("/account")
-ok("Account confirms you showed up today", "You showed up today" in r.get_data(as_text=True))
+abody = r.get_data(as_text=True)
+ok("Account confirms you showed up today", "You showed up today" in abody)
+ok("Account shows community participation count",
+   "Community participation" in abody and "time" in abody
+   and "Open</strong>" not in abody)
+with app.app_context():
+    from app.services.participation import community_participation_count
+    m = User.query.filter_by(email="newperson@example.com").first()
+    # 1 check-in + whatever forum posts this member already made in earlier steps
+    part_n = community_participation_count(m)
+ok("Community participation counts check-ins and posts",
+   part_n >= 1, f"got {part_n}")
+client.post("/account/checkin",
+            data={"mood": "bloom", "journal": "Blooming a little today."},
+            follow_redirects=True)
+with app.app_context():
+    m = User.query.filter_by(email="newperson@example.com").first()
+    from app.models import JournalEntry
+    je = JournalEntry.query.filter_by(user_id=m.id, day=date.today()).first()
+ok("Mood and journal body stay on the same day entry",
+   je is not None and je.mood == "bloom"
+   and "Blooming a little today." in (je.body or ""),
+   f"mood={getattr(je, 'mood', None)} body={getattr(je, 'body', None)!r}")
 
 # --- 5b3. badges: earn, display (max 3), byline, profile, owner --------------
 from app.services.badges import earned_badges, primary_badge

@@ -524,6 +524,33 @@ def random_journal_prompt():
     return random.choice(JOURNAL_PROMPTS)
 
 
+# 5-point mood scale for the day's journal (bloom-themed, not yellow smileys).
+# key, emoji, short a11y / UI label
+MOODS = (
+    ("sad", "\U0001f940", "Sad"),            # wilted flower
+    ("low", "\U0001f342", "A little sad"),    # fallen leaf
+    ("neutral", "\U0001f33f", "Neutral"),     # herb
+    ("soft", "\U0001f338", "A little happy"), # cherry blossom
+    ("bloom", "\U0001f33b", "Happy"),         # sunflower
+)
+MOOD_KEYS = frozenset(k for k, _, _ in MOODS)
+MOOD_BY_KEY = {k: (emoji, label) for k, emoji, label in MOODS}
+
+
+def mood_emoji(key: str | None) -> str:
+    if not key:
+        return ""
+    pair = MOOD_BY_KEY.get(key)
+    return pair[0] if pair else ""
+
+
+def mood_label(key: str | None) -> str:
+    if not key:
+        return ""
+    pair = MOOD_BY_KEY.get(key)
+    return pair[1] if pair else ""
+
+
 class JournalEntry(db.Model):
     """Optional short journal note attached to a check-in day."""
     __tablename__ = "journal_entries"
@@ -535,9 +562,16 @@ class JournalEntry(db.Model):
     prompt_key = db.Column(db.String(40), nullable=False, default="mind")
     prompt_label = db.Column(db.String(120), nullable=False, default="")
     body = db.Column(db.Text, nullable=False, default="")
+    mood = db.Column(db.String(20))  # MOODS key; optional
     created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
 
     author = db.relationship("User", backref=db.backref("journal_entries", lazy="dynamic"))
+
+    def mood_emoji(self) -> str:
+        return mood_emoji(self.mood)
+
+    def mood_label(self) -> str:
+        return mood_label(self.mood)
 
 
 class Follow(db.Model):
