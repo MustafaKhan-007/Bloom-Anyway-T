@@ -916,7 +916,21 @@ def prelaunch():
         emails=prelaunch_svc.allowlist(),
         owner_emails=sorted(prelaunch_svc.OWNER_EMAILS),
         lock_on=bool(current_app.config.get("PRELAUNCH_LOCK")),
+        public_browse=prelaunch_svc.public_browse_enabled(),
     )
+
+
+@bp.route("/prelaunch/public-browse", methods=["POST"])
+@admin_required
+def prelaunch_public_browse():
+    from ..services import prelaunch as prelaunch_svc
+    on = request.form.get("public_browse") == "1"
+    prelaunch_svc.set_public_browse(on)
+    if on:
+        flash("Invite-list restrictions are off — anyone can view the site.", "success")
+    else:
+        flash("Invite-list restrictions are on — only invited emails can browse.", "success")
+    return redirect(url_for("admin.prelaunch"))
 
 
 @bp.route("/prelaunch/add", methods=["POST"])

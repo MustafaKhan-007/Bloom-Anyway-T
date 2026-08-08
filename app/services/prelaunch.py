@@ -20,6 +20,7 @@ OWNER_EMAILS = frozenset({
 
 # Underscore prefix keeps this out of public `site` template settings.
 SETTING_KEY = "_prelaunch_allowlist"
+PUBLIC_BROWSE_KEY = "_prelaunch_public_browse"
 
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
@@ -33,6 +34,23 @@ _PUBLIC_PREFIXES = ("/static/", "/webhooks/", "/media/site/", "/cron/")
 
 def enabled() -> bool:
     return bool(current_app.config.get("PRELAUNCH_LOCK"))
+
+
+def public_browse_enabled() -> bool:
+    """When True, invite-list restrictions are off while PRELAUNCH_LOCK stays on."""
+    row = db.session.get(Setting, PUBLIC_BROWSE_KEY)
+    return (row.value if row else "").strip().lower() in ("1", "true", "yes", "on")
+
+
+def set_public_browse(on: bool) -> bool:
+    payload = "1" if on else "0"
+    row = db.session.get(Setting, PUBLIC_BROWSE_KEY)
+    if row is None:
+        db.session.add(Setting(key=PUBLIC_BROWSE_KEY, value=payload))
+    else:
+        row.value = payload
+    db.session.commit()
+    return on
 
 
 def is_public_path(path: str) -> bool:

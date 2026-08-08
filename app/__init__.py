@@ -156,6 +156,9 @@ def create_app(config_class=None):
         if not app.config.get("PRELAUNCH_LOCK"):
             return None
         from .services import prelaunch as prelaunch_svc
+        # Soft open from Studio: browse without invite list (env lock stays on).
+        if prelaunch_svc.public_browse_enabled():
+            return None
         if prelaunch_svc.is_public_path(request.path):
             return None
         if (getattr(current_user, "is_authenticated", False)
