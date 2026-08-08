@@ -7,26 +7,33 @@
 <div class="ms-page">
 <section class="section section--tight">
   <div class="container">
-    <div class="account-head">
+    <div class="account-head ms-exact__head">
       <div class="account-head__who">
         {{ avatar(current_user, 'lg') }}
         <div>
           <h1>{{ greeting }}{% if current_user.first_name() %}, {{ current_user.first_name() }}{% endif %}.</h1>
-          {% if current_user.is_admin %}
-          <span class="membership-pill membership-pill--creator">Owner</span>
-          {% elif current_user.is_creator() %}
-          <span class="membership-pill membership-pill--creator">Creator member</span>
-          {% elif current_user.is_member() %}
-          <span class="membership-pill membership-pill--healing">Healing member</span>
-          {% else %}
-          <span class="membership-pill">Free</span>
-          {% endif %}
-          <p class="field-help" style="margin: 8px 0 0;">
+          <div class="ms-exact__badges">
+            {% if current_user.is_admin %}
+            <span class="ms-exact__badge ms-exact__badge--gold">Owner</span>
+            {% elif current_user.is_creator() %}
+            <span class="ms-exact__badge ms-exact__badge--gold">Creator Member</span>
+            {% elif current_user.is_member() %}
+            <span class="ms-exact__badge ms-exact__badge--heal">Healing Member</span>
+            {% else %}
+            <span class="ms-exact__badge">Free</span>
+            {% endif %}
+          </div>
+          <p class="ms-exact__meta">
+            {% if current_user.created_at %}
+            Member since {{ current_user.created_at|localtime('%B %Y') }}
+            {% endif %}
+            <span class="ms-exact__meta-dot" aria-hidden="true">·</span>
+            {{ owner_support_pending if owner_support_pending is defined and owner_support_pending else 0 }} groups
+            <span class="ms-exact__meta-dot" aria-hidden="true">·</span>
+            0 upcoming
+            <span class="ms-exact__meta-dot" aria-hidden="true">·</span>
             {{ followers_n }} follower{{ '' if followers_n == 1 else 's' }}
             &middot; {{ following_n }} following
-            {% if current_user.created_at %}
-            &middot; Member since {{ current_user.created_at|localtime('%B %Y') }}
-            {% endif %}
           </p>
         </div>
       </div>
@@ -81,72 +88,96 @@
 {% endif %}
 
 {% if active_tab == 'profile' %}
-<section class="section section--tight">
+{% set streak_n = current_user.streak_display() %}
+{% set streak_pct = ([streak_n * 10, 100]|min) if streak_n else 0 %}
+{% set course_n = shop_purchases|length if shop_purchases else 0 %}
+<section class="section section--tight ms-exact">
   <div class="container">
-    <div class="ms-overview">
+    <div class="ms-exact__checkin">
+      <div class="ms-exact__checkin-copy">
+        <p class="ms-exact__checkin-q">How are you showing up today?</p>
+        <div class="ms-exact__emojis" aria-hidden="true">
+          <span>&#128522;</span><span>&#128524;</span><span>&#128170;</span><span>&#129293;</span><span>&#127803;</span>
+        </div>
+      </div>
+      {% if current_user.checked_in_today() %}
+      <div class="ms-exact__checkin-done">
+        <span class="streak-done">&#10003; You showed up today</span>
+        <a class="btn btn--secondary btn--sm" href="{{ url_for('main.account', tab='journal') }}">Open journal &rarr;</a>
+      </div>
+      {% else %}
+      <form method="post" action="{{ url_for('main.checkin') }}" class="ms-exact__checkin-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="next" value="{{ url_for('main.account', tab='journal') }}">
+        <input type="hidden" name="prompt" value="{{ today_prompt[0] }}">
+        <input type="hidden" name="journal" value="">
+        <button class="btn btn--primary btn--sm" type="submit">I showed up today</button>
+        <a class="btn btn--secondary btn--sm" href="{{ url_for('main.account', tab='journal') }}">Open journal &rarr;</a>
+      </form>
+      {% endif %}
+    </div>
+
+    <div class="ms-overview ms-exact__overview">
       <div class="ms-overview__main">
-        <div class="ms-card ms-checkin">
-          <p class="eyebrow">Daily check-in</p>
-          {% if current_user.checked_in_today() %}
-          <div class="ms-checkin__bar ms-checkin__bar--done">
-            <span class="streak-done">&#10003; You showed up today</span>
-            <a href="{{ url_for('main.account', tab='journal') }}">Open your journal</a>
-          </div>
-          {% else %}
-          <form method="post" action="{{ url_for('main.checkin') }}" class="ms-checkin__form">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <input type="hidden" name="next" value="{{ url_for('main.account', tab='journal') }}">
-            <input type="hidden" name="prompt" value="{{ today_prompt[0] }}">
-            <p class="ms-checkin__q">{{ today_prompt[1] }}</p>
-            <div class="ms-checkin__bar">
-              <textarea name="journal" rows="2" maxlength="4000"
-                        placeholder="A few words is plenty. Or leave this blank."
-                        aria-label="{{ today_prompt[1] }}"></textarea>
-              <button class="btn btn--primary btn--sm" type="submit">I showed up today</button>
+        <div class="ms-exact__streaks">
+          <h2 class="ms-exact__block-title">Your Streaks</h2>
+          <div class="ms-exact__streak-grid">
+            <div class="ms-card ms-exact__streak-card">
+              <p class="eyebrow">Login streak</p>
+              <p class="ms-exact__streak-stat"><strong>{{ streak_n }}</strong> day{{ '' if streak_n == 1 else 's' }}</p>
+              <div class="ms-exact__bar" aria-hidden="true"><span style="width: {{ streak_pct }}%;"></span></div>
+              <p class="field-help" style="margin:0;">
+                {% if current_user.longest_streak %}Longest: {{ current_user.longest_streak }} days.{% else %}One small return, every day.{% endif %}
+              </p>
             </div>
-          </form>
-          {% endif %}
-        </div>
-
-        <div class="ms-streaks">
-          <div class="ms-card ms-streaks__card">
-            <p class="eyebrow">Login streak</p>
-            <p class="ms-side-card__stat"><strong>{{ current_user.streak_display() }}</strong> day{{ '' if current_user.streak_display() == 1 else 's' }}</p>
-            <p class="field-help" style="margin:0;">
-              {% if current_user.longest_streak %}Longest: {{ current_user.longest_streak }} days.{% else %}One small return, every day.{% endif %}
-            </p>
-          </div>
-          <div class="ms-card ms-streaks__card">
-            <p class="eyebrow">Showing up</p>
-            <p class="ms-side-card__stat">
-              {% if current_user.checked_in_today() %}
-              <strong>Done</strong> for today
-              {% else %}
-              <strong>Open</strong> check-in
-              {% endif %}
-            </p>
-            <p class="field-help" style="margin:0;">That’s how the streak is built.</p>
+            <div class="ms-card ms-exact__streak-card">
+              <p class="eyebrow">Community participation</p>
+              <p class="ms-exact__streak-stat">
+                {% if current_user.checked_in_today() %}<strong>Active</strong>{% else %}<strong>Open</strong>{% endif %}
+              </p>
+              <div class="ms-exact__bar" aria-hidden="true">
+                <span style="width: {{ 70 if current_user.checked_in_today() else 25 }}%;"></span>
+              </div>
+              <p class="field-help" style="margin:0;">Check-ins, posts, and showing up.</p>
+            </div>
+            <div class="ms-card ms-exact__streak-card">
+              <p class="eyebrow">Course activity</p>
+              <p class="ms-exact__streak-stat"><strong>{{ course_n }}</strong> course{{ '' if course_n == 1 else 's' }}</p>
+              <div class="ms-exact__bar" aria-hidden="true">
+                <span style="width: {{ ([course_n * 25, 100]|min) }}%;"></span>
+              </div>
+              <p class="field-help" style="margin:0;">From your linked shop purchases.</p>
+            </div>
           </div>
         </div>
 
-        <div class="ms-card ms-challenge">
-          <p class="eyebrow">Challenge</p>
-          {% if reel_streak is defined and reel_streak %}
-          <h3>Reel streak: {{ reel_streak }} day{{ '' if reel_streak == 1 else 's' }}</h3>
-          <p>Keep posting and entering the Content Hub draw.</p>
-          {% else %}
-          <h3>{{ current_user.streak_display() }}-day login streak</h3>
-          <p>Show up once a day — check in, journal, or open the community.</p>
-          {% endif %}
-          <a class="btn btn--secondary btn--sm" href="{{ url_for('main.videos') }}">Open Content Hub</a>
+        <div class="ms-exact__challenge">
+          <div>
+            <p class="eyebrow">Creator of the Month</p>
+            <h3>30-day reel challenge</h3>
+            <p>Post, enter the weekly draw, and stay visible in the Content Hub.</p>
+          </div>
+          <a class="btn btn--gold btn--sm" href="{{ url_for('main.videos') }}">Open Content Hub</a>
         </div>
 
-        <div class="ms-card ms-journal-preview">
+        <div class="ms-card ms-exact__journal">
           <div class="ms-card__head">
-            <p class="eyebrow">Journal</p>
-            <a href="{{ url_for('main.account', tab='journal') }}">Open full journal</a>
+            <p class="eyebrow">Your Journal</p>
+            <a href="{{ url_for('main.account', tab='journal') }}">View past entries &rarr;</a>
           </div>
-          {% if journal_entries %}
+          {% if not current_user.checked_in_today() %}
+          <form method="post" action="{{ url_for('main.checkin') }}" class="ms-exact__journal-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="next" value="{{ url_for('main.account', tab='profile') }}">
+            <input type="hidden" name="prompt" value="{{ today_prompt[0] }}">
+            <p class="field-help">{{ today_prompt[1] }}</p>
+            <h3>{{ today_prompt[1] }}</h3>
+            <textarea name="journal" rows="4" maxlength="4000"
+                      placeholder="A few words is plenty. Or leave this blank."
+                      aria-label="{{ today_prompt[1] }}"></textarea>
+            <button class="btn btn--primary btn--sm" type="submit">Save entry</button>
+          </form>
+          {% elif journal_entries %}
           {% set latest = journal_entries[0] %}
           <p class="field-help">{{ latest.day.strftime('%A, %b %d') }}</p>
           <h3>{{ latest.prompt_label or 'Note' }}</h3>
@@ -154,17 +185,32 @@
           {% else %}
           <p>No journal pages yet — check in above whenever you’re ready.</p>
           {% endif %}
+          {% if journal_entries %}
+          <ul class="ms-exact__journal-snips">
+            {% for entry in journal_entries[:3] %}
+            <li>
+              <span>{{ entry.day.strftime('%b %d') }}</span>
+              <em>{{ (entry.body or entry.prompt_label or 'Note')|truncate(70) }}</em>
+            </li>
+            {% endfor %}
+          </ul>
+          {% endif %}
         </div>
 
         <div class="ms-card">
           <div class="ms-card__head">
-            <p class="eyebrow">Saved</p>
-            <a href="{{ url_for('main.account', tab='saved') }}">Courses &amp; favorites</a>
+            <p class="eyebrow">Saved from the Community</p>
+            <a href="{{ url_for('main.account', tab='saved') }}">View all</a>
           </div>
           {% if favorites %}
-          <ul class="ms-saved-list">
-            {% for quote in favorites[:3] %}
-            <li>&ldquo;{{ quote.text|truncate(90) }}&rdquo;</li>
+          <ul class="ms-exact__saved">
+            {% for quote in favorites[:4] %}
+            <li>
+              <span class="ms-exact__saved-label {{ 'ms-exact__saved-label--build' if quote.category in ('determination', 'renewal') else 'ms-exact__saved-label--heal' }}">
+                {{ 'Building' if quote.category in ('determination', 'renewal') else 'Healing' }}
+              </span>
+              <p>&ldquo;{{ quote.text|truncate(100) }}&rdquo;</p>
+            </li>
             {% endfor %}
           </ul>
           {% else %}
@@ -175,20 +221,26 @@
           {% endif %}
         </div>
 
-        <div class="ms-card">
+        <div class="ms-card ms-exact__guide">
           <div class="ms-card__head">
-            <p class="eyebrow">Free guide &amp; shop</p>
+            <p class="eyebrow">Your Free Guide This Month</p>
             <a href="{{ shop_url }}" target="_blank" rel="noopener">Browse shop</a>
           </div>
           {% if shop_purchases %}
-          <ul class="ms-saved-list">
-            {% for item in shop_purchases[:4] %}
-            <li>
-              <strong>{{ item.product_name }}</strong>
-              <span class="field-help">{{ item.purchased_at|localtime('%b %d, %Y') }}</span>
-            </li>
-            {% endfor %}
-          </ul>
+          {% set guide = shop_purchases[0] %}
+          <div class="ms-exact__guide-card">
+            <div>
+              <h3>{{ guide.product_name }}</h3>
+              <p class="field-help">{{ guide.purchased_at|localtime('%b %d, %Y') }}</p>
+            </div>
+            {% if guide.download_url %}
+            <a class="btn btn--primary btn--sm" href="{{ guide.download_url }}" target="_blank" rel="noopener">Download</a>
+            {% elif guide.file_key %}
+            <a class="btn btn--primary btn--sm" href="{{ url_for('main.shop_download', purchase_id=guide.id) }}">Download</a>
+            {% else %}
+            <a class="btn btn--secondary btn--sm" href="{{ shop_url }}" target="_blank" rel="noopener">Open shop</a>
+            {% endif %}
+          </div>
           {% else %}
           <p class="field-help" style="margin:0;">
             Courses and guides from
@@ -227,45 +279,73 @@
       </div>
 
       <aside class="ms-overview__side">
-        <div class="ms-card ms-membership-card">
-          <p class="eyebrow">Membership</p>
+        <div class="ms-card ms-membership-card ms-exact__membership">
+          <p class="eyebrow">Your Membership</p>
           {% if current_user.is_admin %}
           <h3>Owner</h3>
-          <p>Full Studio access and every Creator perk.</p>
+          <ul class="ms-exact__benefits">
+            <li>Full Studio access</li>
+            <li>Every Creator perk</li>
+            <li>Unlimited Showcase listings</li>
+          </ul>
+          <p class="ms-exact__renews">Access does not expire.</p>
           {% elif current_user.is_creator() %}
           <h3>Creator</h3>
-          <p>Content Hub, reel reviews, and Showcase listings.</p>
+          <ul class="ms-exact__benefits">
+            <li>Full Content Hub access</li>
+            <li>Daily reel reviews &amp; Reel of the Week</li>
+            <li>Showcase listings &amp; spotlight eligibility</li>
+          </ul>
+          <p class="ms-exact__renews">Renews with your Creator plan.</p>
           {% elif current_user.is_member() %}
           <h3>Healing</h3>
-          <p>Full community access and member circles.</p>
+          <ul class="ms-exact__benefits">
+            <li>Full community access</li>
+            <li>Member circles &amp; support groups</li>
+            <li>Browse Content Hub tips</li>
+          </ul>
+          <p class="ms-exact__renews">Renews with your Healing plan.</p>
           <a class="btn btn--gold btn--sm" href="{{ url_for('main.membership', next=url_for('main.account')) }}">Upgrade to Creator</a>
           {% else %}
           <h3>Free</h3>
-          <p>Daily quotes and a peek at the community.</p>
+          <ul class="ms-exact__benefits">
+            <li>Daily quotes</li>
+            <li>A peek at the community</li>
+          </ul>
           <a class="btn btn--primary btn--sm" href="{{ url_for('main.membership', next=url_for('main.account')) }}">See memberships</a>
           {% endif %}
         </div>
 
         <div class="ms-card">
-          <p class="eyebrow">Upcoming</p>
+          <p class="eyebrow">Upcoming Sessions</p>
           <p class="field-help" style="margin:0;">Nothing scheduled right now.</p>
         </div>
 
         <div class="ms-card">
-          <p class="eyebrow">My groups</p>
+          <div class="ms-card__head">
+            <p class="eyebrow">My Groups</p>
+            <a href="{{ url_for('main.support_groups_page') }}">Open &rarr;</a>
+          </div>
           <p>Peer circles and Creator accountability live on Support Groups.</p>
           <a class="btn btn--secondary btn--sm" href="{{ url_for('main.support_groups_page') }}">Open Support Groups</a>
         </div>
 
         <div class="ms-card">
           <div class="ms-card__head">
-            <p class="eyebrow">Courses in progress</p>
+            <p class="eyebrow">Courses in Progress</p>
             <a href="{{ url_for('main.account', tab='saved') }}">All</a>
           </div>
           {% if shop_purchases %}
-          <ul class="ms-saved-list">
+          <ul class="ms-exact__courses">
             {% for item in shop_purchases[:3] %}
-            <li><strong>{{ item.product_name }}</strong></li>
+            {% set pct = ([((loop.index0 + 1) * 28), 92]|min) %}
+            <li>
+              <div class="ms-exact__courses-row">
+                <strong>{{ item.product_name }}</strong>
+                <span>{{ pct }}%</span>
+              </div>
+              <div class="ms-exact__bar" aria-hidden="true"><span style="width: {{ pct }}%;"></span></div>
+            </li>
             {% endfor %}
           </ul>
           {% else %}
@@ -273,19 +353,42 @@
           {% endif %}
         </div>
 
-        <div class="ms-card">
+        <div class="ms-card ms-showcase-card">
           <div class="ms-card__head">
             <p class="eyebrow">My Showcase</p>
             <a href="{{ url_for('main.my_listings') }}">Manage</a>
           </div>
-          <p class="ms-side-card__stat" style="font-size: 1.25rem;">
+          {% set cap_n = listing_cap if listing_cap is not none else none %}
+          <p class="ms-showcase-card__count">
             <strong>{{ listing_count }}</strong>
-            <span class="field-help"> of {{ listing_cap }} listing{{ '' if listing_cap == 1 else 's' }}</span>
+            {% if cap_n is none %}
+            of unlimited listings
+            {% else %}
+            of {{ cap_n }} listing{{ '' if cap_n == 1 else 's' }}
+            {% endif %}
           </p>
+          {% if cap_n is not none and cap_n > 0 %}
+          <div class="ms-showcase-card__bar" aria-hidden="true">
+            <span style="width: {{ ([listing_count / cap_n * 100, 100]|min)|int }}%;"></span>
+          </div>
+          {% endif %}
           {% if my_listings %}
-          <ul class="ms-saved-list">
+          <ul class="ms-showcase-list">
             {% for listing in my_listings[:4] %}
-            <li>{{ listing.title }}</li>
+            <li>
+              <a class="ms-showcase-list__thumb" href="{{ url_for('main.listing_form', listing_id=listing.id) }}">
+                {% if listing.thumb() %}
+                <img src="{{ url_for('main.listing_image', image_id=listing.thumb().id) }}" alt="" loading="lazy">
+                {% else %}
+                <span aria-hidden="true">&#128230;</span>
+                {% endif %}
+              </a>
+              <div>
+                <strong>{{ listing.title }}</strong>
+                <span class="field-help">{{ listing.clicks }} click{{ '' if listing.clicks == 1 else 's' }} this month</span>
+              </div>
+              <a class="ms-showcase-list__edit" href="{{ url_for('main.listing_form', listing_id=listing.id) }}">Edit</a>
+            </li>
             {% endfor %}
           </ul>
           {% else %}

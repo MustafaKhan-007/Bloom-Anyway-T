@@ -24,27 +24,30 @@
         {% set here = request.path %}
         <a href="{{ url_for('admin.dashboard') }}" class="{{ 'active' if here == '/admin/' }}">Dashboard</a>
         <a href="{{ url_for('admin.prelaunch') }}" class="{{ 'active' if here.startswith('/admin/prelaunch') }}">Prelaunch</a>
+        <a href="{{ url_for('admin.inbox') }}" class="{{ 'active' if here.startswith('/admin/inbox') }}">Inbox</a>
+        <a href="{{ url_for('admin.quotes') }}" class="{{ 'active' if here.startswith('/admin/quotes') }}">Quotes</a>
+        <a href="{{ url_for('admin.testimonials') }}" class="{{ 'active' if here.startswith('/admin/testimonials') }}">Testimonials</a>
+        <a href="{{ url_for('admin.faq') }}" class="{{ 'active' if here.startswith('/admin/faq') }}">FAQ</a>
+        <a href="{{ url_for('admin.pages') }}" class="{{ 'active' if here.startswith('/admin/pages') }}">Pages</a>
 
         <p class="admin-nav__label">Community</p>
+        <a href="{{ url_for('admin.community') }}" class="{{ 'active' if here.startswith('/admin/community') }}">Community</a>
+        <a href="{{ url_for('admin.members') }}" class="{{ 'active' if here.startswith('/admin/members') }}">Members</a>
+        <a href="{{ url_for('admin.owners') }}" class="{{ 'active' if here.startswith('/admin/owners') }}">Owners</a>
+        <a href="{{ url_for('admin.membership_plans') }}" class="{{ 'active' if here.startswith('/admin/memberships') }}">Plans</a>
+
+        <p class="admin-nav__label">Content</p>
+        <a href="{{ url_for('admin.videos') }}" class="{{ 'active' if here.startswith('/admin/videos') }}">Content Hub</a>
+        <a href="{{ url_for('admin.reel_reviews') }}" class="{{ 'active' if here.startswith('/admin/reel-reviews') }}">Reel reviews</a>
+        <a href="{{ url_for('admin.support_groups') }}" class="{{ 'active' if here.startswith('/admin/support-groups') }}">Support groups</a>
+        <a href="{{ url_for('admin.marketplace') }}" class="{{ 'active' if here.startswith('/admin/marketplace') }}">Showcase</a>
+        <a href="{{ url_for('admin.badges') }}" class="{{ 'active' if here.startswith('/admin/badges') }}">Badges</a>
+
+        <p class="admin-nav__label">New</p>
         <a href="{{ url_for('admin.inbox') }}" class="{{ 'active' if here.startswith('/admin/inbox') }}">
           Member Feedback
           <span class="admin-nav__badge">new</span>
         </a>
-        <a href="{{ url_for('admin.community') }}" class="{{ 'active' if here.startswith('/admin/community') }}">Community</a>
-        <a href="{{ url_for('admin.members') }}" class="{{ 'active' if here.startswith('/admin/members') }}">Members</a>
-        <a href="{{ url_for('admin.owners') }}" class="{{ 'active' if here.startswith('/admin/owners') }}">Owners</a>
-        <a href="{{ url_for('admin.support_groups') }}" class="{{ 'active' if here.startswith('/admin/support-groups') }}">Support groups</a>
-        <a href="{{ url_for('admin.marketplace') }}" class="{{ 'active' if here.startswith('/admin/marketplace') }}">Showcase</a>
-        <a href="{{ url_for('admin.testimonials') }}" class="{{ 'active' if here.startswith('/admin/testimonials') }}">Testimonials</a>
-        <a href="{{ url_for('admin.badges') }}" class="{{ 'active' if here.startswith('/admin/badges') }}">Badges</a>
-
-        <p class="admin-nav__label">Content</p>
-        <a href="{{ url_for('admin.quotes') }}" class="{{ 'active' if here.startswith('/admin/quotes') }}">Quotes</a>
-        <a href="{{ url_for('admin.faq') }}" class="{{ 'active' if here.startswith('/admin/faq') }}">FAQ</a>
-        <a href="{{ url_for('admin.pages') }}" class="{{ 'active' if here.startswith('/admin/pages') }}">Pages</a>
-        <a href="{{ url_for('admin.videos') }}" class="{{ 'active' if here.startswith('/admin/videos') }}">Content Hub</a>
-        <a href="{{ url_for('admin.reel_reviews') }}" class="{{ 'active' if here.startswith('/admin/reel-reviews') }}">Reel reviews</a>
-        <a href="{{ url_for('admin.membership_plans') }}" class="{{ 'active' if here.startswith('/admin/memberships') }}">Plans</a>
       </nav>
       <nav class="admin-nav admin-nav--footer" aria-label="Studio footer">
         <a href="{{ url_for('admin.settings') }}" class="{{ 'active' if here.startswith('/admin/settings') }}">Settings</a>

@@ -103,6 +103,11 @@ def dashboard():
         memberships=stats.membership_breakdown(),
         video_count=stats.video_count(),
         marketplace=stats.marketplace_counts(),
+        member_activity=stats.member_activity(),
+        showcase_perf=stats.showcase_performance(),
+        recent_feedback=stats.recent_feedback(),
+        support_occupancy=stats.support_occupancy(),
+        founder_days=stats.founder_days_remaining(),
     )
 
 

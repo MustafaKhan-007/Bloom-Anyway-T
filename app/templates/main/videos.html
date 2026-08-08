@@ -2,90 +2,91 @@
 {% block title %}Content Hub — {{ site.site_title }}{% endblock %}
 
 {% block content %}
-<div class="hub-page">
-  {% if not current_user.is_authenticated or not current_user.is_creator() %}
-  <div class="hub-page__cta-banner">
-    <div class="container hub-page__cta-banner-inner">
+{% set is_creator = current_user.is_authenticated and current_user.is_creator() %}
+<div class="hub-exact">
+  <div class="hub-exact__banner {{ 'hub-exact__banner--soft' if is_creator }}">
+    <div class="container hub-exact__banner-inner">
+      {% if not is_creator %}
       <p>
-        <strong>Creator members only.</strong>
+        <strong>Creator Members only.</strong>
         Full playback, Content Tips, and weekly reel entries are Creator perks.
       </p>
-      <a class="btn btn--gold" href="{{ url_for('main.membership', next=url_for('main.videos')) }}">Join Creator Membership</a>
+      <a class="btn btn--gold hub-exact__banner-cta" href="{{ url_for('main.membership', next=url_for('main.videos')) }}">Join Creator Membership</a>
+      {% else %}
+      <p class="hub-exact__banner-soft">You’re in — enjoy full Content Hub access.</p>
+      {% endif %}
     </div>
   </div>
-  {% endif %}
 
-  <header class="hub-page__hero">
+  <header class="hub-exact__hero">
     <div class="container">
-      <p class="hub-page__eyebrow">Creator members only</p>
+      <p class="hub-exact__eyebrow">Creator Members Only</p>
       <h1>Content Hub</h1>
-      <p class="hub-page__lede">
+      <p class="hub-exact__lede">
         Tips for showing up online, daily reel reviews from the community, and a weekly
         Reel of the Week draw — one Creator member is chosen at random.
       </p>
     </div>
   </header>
 
-  <section class="hub-page__actions">
+  <section class="hub-exact__actions">
     <div class="container">
-      <div class="hub-page__action-grid">
-        <a class="hub-page__action-card" href="#videos">
-          <span class="hub-page__action-label">Learn</span>
+      <div class="hub-exact__action-grid">
+        <a class="hub-exact__action hub-exact__action--white" href="#videos">
+          <span class="hub-exact__action-icon" aria-hidden="true">&#128161;</span>
           <h2>Content Tips</h2>
-        <p class="sr-only">Video library</p>
-          <p>Short Creator lessons and free picks to level up your content.</p>
+          <span class="hub-exact__action-link">Browse Tips &rarr;</span>
         </a>
-        <a class="hub-page__action-card hub-page__action-card--gold" href="#reviews">
-          <span class="hub-page__action-label">Creator perk</span>
-          <h2>Submit reel</h2>
-          <p>Enter this week’s draw for a community reel review.</p>
+        <a class="hub-exact__action hub-exact__action--plum" href="#reviews">
+          <h2>Submit Your Reel for Review</h2>
+          <span class="hub-exact__action-link hub-exact__action-link--gold">Submit your reel &rarr;</span>
         </a>
-        <a class="hub-page__action-card" href="#reviews">
-          <span class="hub-page__action-label">Spotlight</span>
+        <a class="hub-exact__action hub-exact__action--white" href="#reviews">
           <h2>Reel of the Week</h2>
-          <p>Win a review — share your reel (goal: 100 shares) and enter the draw.</p>
+          <p>Minimum 100 shares</p>
+          <span class="hub-exact__action-link">Submit for Reel of the Week &rarr;</span>
         </a>
       </div>
     </div>
   </section>
 
-  <section class="section section--tight hub-page__tips" id="videos">
+  <section class="hub-exact__tips" id="videos">
     <div class="container">
-      <div class="hub-page__section-head">
-        <p class="hub-page__eyebrow">Library</p>
-        <h2>Content Tips</h2>
-        <p class="sr-only">Video library</p>
-        <p class="hub-page__section-note">
-          {% if can_browse %}
-            {% if can_play %}Watch Creator tips anytime — nothing to download.
-            {% else %}Browse everything; play free picks, or upgrade to Creator for the full shelf.{% endif %}
-          {% else %}
-            Sign in to browse the tip library.
-          {% endif %}
-        </p>
+      <div class="hub-exact__section-head">
+        <div>
+          <h2>Content Tips</h2>
+          <p class="hub-exact__section-sub">from the founders — updated regularly</p>
+          <p class="sr-only">Video library</p>
+        </div>
+        <a class="hub-exact__view-all" href="#videos">View all tips &rarr;</a>
       </div>
 
       {% if can_browse %}
         {% if videos %}
-        <div class="hub-tips-grid">
+        <div class="hub-exact__tips-grid">
           {% for v in videos %}
           {% set playable_for_me = can_play_video(current_user, v) %}
-          <a class="hub-tip-card {{ 'hub-tip-card--locked' if not playable_for_me }}"
+          {% set tip_tone = loop.index0 % 3 %}
+          <a class="hub-exact__tip {{ 'hub-exact__tip--locked' if not playable_for_me }} hub-exact__tip--tone-{{ tip_tone }}"
              href="{{ url_for('main.watch', video_id=v.id) }}">
-            <span class="hub-tip-card__num" aria-hidden="true">{{ '%02d'|format(loop.index) }}</span>
-            <div class="hub-tip-card__thumb">
-              {% if v.has_thumb() %}
-              <img src="{{ url_for('main.video_thumb', video_id=v.id) }}" alt="" loading="lazy">
-              {% else %}
-              <span class="hub-tip-card__play" aria-hidden="true">&#9654;</span>
-              {% endif %}
-              {% if not playable_for_me %}<span class="hub-tip-card__lock" aria-hidden="true">&#128274;</span>{% endif %}
-            </div>
-            <div class="hub-tip-card__body">
-              <h3><span class="hub-tip-card__label">Tip {{ loop.index }}</span>{{ v.title }}</h3>
-              <span class="video-access-tag {{ 'video-access-tag--yours' if playable_for_me }}">{{ v.access_label(current_user) }}</span>
+            <span class="hub-exact__tip-top" aria-hidden="true"></span>
+            <div class="hub-exact__tip-body">
+              <span class="hub-exact__tip-num" aria-hidden="true">{{ '%02d'|format(loop.index) }}</span>
+              <span class="hub-exact__tip-cat">
+                {% if v.free_access %}Free pick{% else %}Creator tip{% endif %}
+              </span>
+              <h3>{{ v.title }}</h3>
               {% if v.description %}<p>{{ v.description|truncate(110) }}</p>{% endif %}
-              <span class="video-card__date">{{ v.created_at|localtime('%b %d, %Y') }}</span>
+              <div class="hub-exact__tip-meta">
+                <span>{{ v.created_at|localtime('%b %d, %Y') }}</span>
+                <span>{{ v.access_label(current_user) }}</span>
+                <span class="hub-exact__tip-read">
+                  {% if playable_for_me %}Read &rarr;{% else %}<span class="hub-exact__tip-lock" aria-hidden="true">&#128274;</span> Locked{% endif %}
+                </span>
+              </div>
+              {% if playable_for_me %}
+              <span class="hub-exact__tip-play" aria-hidden="true">&#9654;</span>
+              {% endif %}
             </div>
           </a>
           {% endfor %}
@@ -105,59 +106,60 @@
     </div>
   </section>
 
-  <section class="section section--band section--tight hub-page__reviews" id="reviews">
+  <section class="hub-exact__reviews" id="reviews">
     <div class="container">
-      <div class="hub-page__section-head">
-        <p class="hub-page__eyebrow">Community feedback</p>
-        <h2>Daily Reel Reviews</h2>
-        <p class="sr-only">Reel reviews</p>
-        <p class="hub-page__section-note">
-          Finished reviews are public. Creator members enter the weekly Reel of the Week draw —
-          one applicant is chosen at random. A fresh round opens every Monday.
-        </p>
+      <div class="hub-exact__section-head">
+        <div>
+          <h2>Daily Reel Reviews</h2>
+          <p class="sr-only">Reel reviews</p>
+        </div>
+        <a class="btn btn--gold btn--sm" href="#reel-of-the-week">Submit your reel</a>
       </div>
 
-      {% if week_key is defined or week_review is defined or my_application is defined %}
-      <div class="hub-status-bar" role="status">
-        <span class="hub-status-bar__label">This week</span>
-        {% if week_key %}
-        <span class="hub-status-bar__meta">Week of {{ week_key.strftime('%b %d, %Y') }}</span>
-        {% endif %}
+      <div class="hub-exact__status" role="status">
+        <span class="hub-exact__status-label">Today:</span>
         {% if week_review %}
-        <span class="hub-status-bar__pill hub-status-bar__pill--live">Review live</span>
+        <span>Review live{% if week_key %} · week of {{ week_key.strftime('%b %d, %Y') }}{% endif %}</span>
         {% elif my_application %}
-        <span class="hub-status-bar__pill hub-status-bar__pill--queued">You’re in the draw</span>
-        {% elif current_user.is_authenticated and current_user.is_creator() %}
-        <span class="hub-status-bar__pill">Draw open</span>
+        <span>You’re in the draw{% if week_key %} · week of {{ week_key.strftime('%b %d, %Y') }}{% endif %}</span>
+        {% elif is_creator %}
+        <span>Draw open — submit your reel below</span>
         {% else %}
-        <span class="hub-status-bar__pill">Creator members can enter</span>
+        <span>Creator members can enter the weekly draw</span>
         {% endif %}
       </div>
-      {% endif %}
 
       {% if reviews %}
-      <div class="review-grid hub-review-grid">
+      <div class="hub-exact__review-row">
         {% for rev in reviews %}
-        <article class="review-card">
-          <h3>{{ rev.title }}</h3>
-          {% if rev.application and rev.application.author %}
-          <p class="field-help">For {{ rev.application.author.public_name() }}</p>
-          {% endif %}
-          {% if rev.application and rev.application.reel_url %}
-          <p><a href="{{ rev.application.reel_url }}" target="_blank" rel="noopener">Original reel on Instagram &rarr;</a></p>
-          {% endif %}
-          {% if rev.body %}
-          <div class="forum-body">{{ rev.body|nl2br }}</div>
-          {% endif %}
-          {% if rev.review_disk_name %}
-          <div class="video-player" style="margin-top: 14px;">
+        <article class="hub-exact__review-card">
+          <div class="hub-exact__review-thumb">
+            {% if rev.review_disk_name %}
             <video controls playsinline preload="metadata">
               <source src="{{ url_for('main.reel_review_stream', review_id=rev.id) }}"
                       type="{{ rev.review_mime or 'video/mp4' }}">
             </video>
+            {% else %}
+            <span class="hub-exact__review-play" aria-hidden="true">&#9654;</span>
+            {% endif %}
           </div>
-          {% endif %}
-          <span class="video-card__date">{{ rev.created_at|localtime('%b %d, %Y') }}</span>
+          <div class="hub-exact__review-body">
+            <h3>{{ rev.title }}</h3>
+            {% if rev.application and rev.application.author %}
+            <p class="hub-exact__review-author">{{ rev.application.author.public_name() }}</p>
+            {% endif %}
+            <div class="hub-exact__review-tags">
+              <span>Reel review</span>
+              {% if rev.application and rev.application.selected %}<span>Pick of the week</span>{% endif %}
+            </div>
+            {% if rev.body %}
+            <div class="hub-exact__review-critique">{{ rev.body|truncate(160)|nl2br }}</div>
+            {% endif %}
+            {% if rev.application and rev.application.reel_url %}
+            <a class="hub-exact__review-ig" href="{{ rev.application.reel_url }}" target="_blank" rel="noopener">Original reel &rarr;</a>
+            {% endif %}
+            <span class="hub-exact__review-date">{{ rev.created_at|localtime('%b %d, %Y') }}</span>
+          </div>
         </article>
         {% endfor %}
       </div>
@@ -167,47 +169,48 @@
       </div>
       {% endif %}
 
-      <div class="hub-rotw" id="reel-of-the-week">
-        <div class="hub-rotw__head">
-          <p class="hub-page__eyebrow">Weekly draw</p>
+      <div class="hub-exact__rotw" id="reel-of-the-week">
+        <div class="hub-exact__rotw-copy">
+          <p class="hub-exact__eyebrow">Weekly draw</p>
           <h2>Reel of the Week</h2>
-          <p class="hub-page__section-note">
-            Submit your posted Instagram reel and the raw file. Aim for 100 shares —
-            one Creator entry is picked at random each week.
-          </p>
+          <ul>
+            <li>Post your Instagram reel and aim for <strong>100 shares</strong></li>
+            <li>Submit the posted link + raw video file</li>
+            <li>One Creator entry is picked at random each week</li>
+            <li>A fresh round opens every Monday</li>
+          </ul>
         </div>
-
-        {% if current_user.is_authenticated and current_user.is_creator() %}
-          {% if week_review %}
-          <div class="hub-notice">
-            <p>This week’s reel review is published
-              (week of {{ week_key.strftime('%b %d, %Y') }}).</p>
-            <p class="field-help">
-              The draw is closed — see
-              <strong>{{ week_review.title }}</strong> above.
-              A fresh round opens next Monday.
-            </p>
-            {% if my_application %}
-            <p class="field-help">
-              Your entry:
-              <a href="{{ my_application.reel_url }}" target="_blank" rel="noopener">view on Instagram</a>
-              {% if my_application.selected %}
-              &middot; you were this week’s pick
+        <div class="hub-exact__rotw-form">
+          {% if is_creator %}
+            {% if week_review %}
+            <div class="hub-exact__notice">
+              <p>This week’s reel review is published
+                (week of {{ week_key.strftime('%b %d, %Y') }}).</p>
+              <p class="field-help">
+                The draw is closed — see
+                <strong>{{ week_review.title }}</strong> above.
+                A fresh round opens next Monday.
+              </p>
+              {% if my_application %}
+              <p class="field-help">
+                Your entry:
+                <a href="{{ my_application.reel_url }}" target="_blank" rel="noopener">view on Instagram</a>
+                {% if my_application.selected %}
+                &middot; you were this week’s pick
+                {% endif %}
+              </p>
               {% endif %}
-            </p>
-            {% endif %}
-          </div>
-          {% elif my_application %}
-          <div class="hub-notice">
-            <p>You’re in this week’s draw
-              (week of {{ week_key.strftime('%b %d, %Y') }}).
-              Hang tight — one person is selected at random.</p>
-            <p class="field-help">
-              Your reel: <a href="{{ my_application.reel_url }}" target="_blank" rel="noopener">view on Instagram</a>
-            </p>
-          </div>
-          {% else %}
-          <div class="hub-request">
+            </div>
+            {% elif my_application %}
+            <div class="hub-exact__notice">
+              <p>You’re in this week’s draw
+                (week of {{ week_key.strftime('%b %d, %Y') }}).
+                Hang tight — one person is selected at random.</p>
+              <p class="field-help">
+                Your reel: <a href="{{ my_application.reel_url }}" target="_blank" rel="noopener">view on Instagram</a>
+              </p>
+            </div>
+            {% else %}
             <form class="stack-form" method="post" action="{{ url_for('main.reel_review_request') }}"
                   enctype="multipart/form-data">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -223,44 +226,61 @@
               <p class="field-help">Max {{ max_mb }} MB. MP4, MOV or WEBM.</p>
               <button class="btn btn--primary" type="submit">Enter this week’s draw</button>
             </form>
+            {% endif %}
+          {% elif current_user.is_authenticated %}
+          <div class="hub-exact__notice">
+            <p>Reel of the Week entries are for Creator members.
+              <a href="{{ url_for('main.membership', next=url_for('main.videos') + '#reviews') }}">Upgrade to Creator</a>
+              to enter the weekly draw.</p>
+          </div>
+          {% else %}
+          <div class="hub-exact__notice">
+            <p><a href="{{ url_for('auth.login', next=url_for('main.videos') + '#reviews') }}">Sign in</a>
+              as a Creator member to request a review.</p>
           </div>
           {% endif %}
-        {% elif current_user.is_authenticated %}
-        <div class="hub-notice">
-          <p>Reel of the Week entries are for Creator members.
-            <a href="{{ url_for('main.membership', next=url_for('main.videos') + '#reviews') }}">Upgrade to Creator</a>
-            to enter the weekly draw.</p>
         </div>
-        {% else %}
-        <div class="hub-notice">
-          <p><a href="{{ url_for('auth.login', next=url_for('main.videos') + '#reviews') }}">Sign in</a>
-            as a Creator member to request a review.</p>
-        </div>
-        {% endif %}
       </div>
 
-      <div class="hub-queue" id="review-queue">
-        <div class="hub-page__section-head">
-          <p class="hub-page__eyebrow">Draw</p>
-          <h2>Review queue</h2>
+      <div class="hub-exact__queue" id="review-queue">
+        <div class="hub-exact__section-head">
+          <div>
+            <h2>Review queue</h2>
+          </div>
         </div>
         {% if week_review %}
-        <div class="hub-queue__empty">
-          <p>This week’s pick is already live. The next queue opens Monday.</p>
-        </div>
+        <ol class="hub-exact__queue-list">
+          <li class="hub-exact__queue-item hub-exact__queue-item--done">
+            <span class="hub-exact__queue-n">1</span>
+            <div>
+              <strong>{{ week_review.title }}</strong>
+              <p>This week’s pick is live. The next queue opens Monday.</p>
+            </div>
+          </li>
+        </ol>
         {% elif my_application %}
-        <div class="hub-queue__card">
-          <p class="hub-queue__place">Your entry</p>
-          <p>You’re in this week’s draw. One Creator member will be chosen at random.</p>
-          <p class="field-help">
-            <a href="{{ my_application.reel_url }}" target="_blank" rel="noopener">Your reel on Instagram</a>
-            {% if my_application.selected %} &middot; selected{% endif %}
-          </p>
-        </div>
+        <ol class="hub-exact__queue-list">
+          <li class="hub-exact__queue-item">
+            <span class="hub-exact__queue-n">1</span>
+            <div>
+              <strong>Your entry</strong>
+              <p>You’re in this week’s draw. One Creator member will be chosen at random.</p>
+              <p class="field-help">
+                <a href="{{ my_application.reel_url }}" target="_blank" rel="noopener">Your reel on Instagram</a>
+                {% if my_application.selected %} &middot; selected{% endif %}
+              </p>
+            </div>
+          </li>
+        </ol>
         {% else %}
-        <div class="hub-queue__empty">
-          <p>No queue details to show yet. Enter the Reel of the Week draw above when it’s open.</p>
-        </div>
+        <ol class="hub-exact__queue-list">
+          <li class="hub-exact__queue-item hub-exact__queue-item--empty">
+            <span class="hub-exact__queue-n">—</span>
+            <div>
+              <p>No queue details to show yet. Enter the Reel of the Week draw above when it’s open.</p>
+            </div>
+          </li>
+        </ol>
         {% endif %}
       </div>
     </div>

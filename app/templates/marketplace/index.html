@@ -200,17 +200,23 @@
         {% else %}
           {% set cta = 'Visit her store →' %}
         {% endif %}
-        <article class="show-card show-card--{{ band }}">
-          <div class="show-card__band">
-            <span class="show-card__pill">{{ ln.kind_label() }}</span>
-            <span class="show-card__pill show-card__pill--mem">{{ mem }}</span>
-          </div>
+        <article class="show-card show-card--{{ band }} {{ 'show-card--has-thumb' if ln.thumb() }}">
+          <a class="show-card__band" href="{{ url_for('main.listing_detail', listing_id=ln.id) }}">
+            {% if ln.thumb() %}
+            <img class="show-card__thumb" src="{{ url_for('main.listing_image', image_id=ln.thumb().id) }}"
+                 alt="" loading="lazy">
+            {% endif %}
+            <span class="show-card__pills">
+              <span class="show-card__pill">{{ ln.kind_label() }}</span>
+              <span class="show-card__pill show-card__pill--mem">{{ mem }}</span>
+            </span>
+          </a>
           <div class="show-card__body">
             <h3><a href="{{ url_for('main.listing_detail', listing_id=ln.id) }}">{{ ln.title }}</a></h3>
             <p class="show-card__by">
               by {{ ln.author.public_name() if ln.author else 'Member' }}
               {% if ln.author and ln.author.username %}
-              &middot; {{ author_name(ln.author, false) }}
+              &middot; @{{ ln.author.username }}
               {% endif %}
             </p>
             <p class="show-card__desc">{{ ln.description|truncate(120) }}</p>

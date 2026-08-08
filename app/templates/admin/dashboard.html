@@ -2,7 +2,7 @@
 {% block title %}Dashboard{% endblock %}
 
 {% block content %}
-<div class="studio-dash">
+<div class="studio-dash studio-dash-exact">
   <div class="page-head studio-dash__head">
     <div>
       <h1>Dashboard</h1>
@@ -15,10 +15,11 @@
     <span class="studio-pill">Owner access only</span>
   </div>
 
-  <div class="admin-cards">
+  <div class="admin-cards studio-dash-exact__metrics">
     <div class="stat-card studio-card">
-      <div class="label">Forum posts (30d)</div>
-      <div class="value">{{ cards.forum_posts }}</div>
+      <div class="label">Forum Posts (24h)</div>
+      <div class="value">{{ cards.forum_posts_24h }}</div>
+      <span class="delta">{{ cards.forum_posts }} in 30 days</span>
     </div>
     <div class="stat-card studio-card">
       <div class="label">Members (Healing / Creator)</div>
@@ -26,52 +27,74 @@
       <span class="delta">{{ memberships.none }} free &middot; {{ memberships.total }} total</span>
     </div>
     <div class="stat-card studio-card">
-      <div class="label">Content Hub</div>
-      <div class="value">{{ video_count }}</div>
-      <span class="delta"><a href="{{ url_for('admin.videos') }}">Manage &rarr;</a></span>
+      <div class="label">Weekly Engagement Health</div>
+      <div class="value">{{ cards.engagement_pct }}%</div>
+      <span class="delta">{{ cards.posters_week }} posters this week</span>
     </div>
     <div class="stat-card studio-card">
-      <div class="label">Showcase listings</div>
-      <div class="value">{{ marketplace.active }}</div>
-      <span class="delta">{{ marketplace.total }} total &middot; <a href="{{ url_for('admin.marketplace') }}">Manage &rarr;</a></span>
+      <div class="label">Avg Login Streak</div>
+      <div class="value">{{ cards.avg_streak }}</div>
+      <span class="delta">{{ cards.new_members_week }} new this week</span>
     </div>
   </div>
 
-  {% if cards.revenue or cards.founder_price or site.founder_price_ends %}
-  <div class="admin-grid-2 studio-dash__money">
-    {% if cards.revenue %}
-    <div class="admin-panel studio-card">
+  <div class="studio-dash-exact__money">
+    <div class="admin-panel studio-card studio-dash-exact__revenue">
       <h2>Revenue</h2>
+      {% if cards.revenue %}
       <p class="studio-card__metric">{{ cards.revenue }}</p>
       {% if cards.revenue_note %}<p class="field-help">{{ cards.revenue_note }}</p>{% endif %}
+      {% else %}
+      <p class="studio-card__metric">—</p>
+      <p class="field-help">Tracked in Lemon Squeezy. Open the dashboard for live totals.</p>
+      {% endif %}
+      <a class="btn btn--secondary btn--sm" href="https://app.lemonsqueezy.com" target="_blank" rel="noopener">Open Lemon Squeezy</a>
     </div>
-    {% endif %}
-    {% if cards.founder_price or site.founder_price_ends %}
-    <div class="admin-panel studio-card">
+    <div class="admin-panel studio-card studio-dash-exact__founder">
       <h2>Founder pricing</h2>
       {% if cards.founder_price %}
       <p class="studio-card__metric">{{ cards.founder_price }}</p>
+      {% else %}
+      <p class="studio-card__metric">Founder rate</p>
       {% endif %}
-      {% if site.founder_price_ends %}
+      {% if founder_days is not none %}
+      <p class="studio-dash-exact__founder-days"><strong>{{ founder_days }}</strong> day{{ '' if founder_days == 1 else 's' }} remaining</p>
+      {% elif site.founder_price_ends %}
       <p class="field-help">Ends {{ site.founder_price_ends }}</p>
+      {% else %}
+      <p class="field-help">No end date set.</p>
       {% endif %}
       <a class="btn btn--secondary btn--sm" href="{{ url_for('admin.settings') }}">Edit in Settings</a>
     </div>
-    {% endif %}
   </div>
-  {% endif %}
 
-  <div class="admin-panel studio-card">
-    <h2>Member activity</h2>
-    {% if member_activity is defined and member_activity %}
+  <div class="admin-panel studio-card studio-dash-exact__activity">
+    <h2>Member Activity</h2>
+    {% if member_activity %}
     <table class="admin-table">
-      <thead><tr><th>Member</th><th>Action</th><th>When</th></tr></thead>
+      <thead>
+        <tr>
+          <th>Member</th>
+          <th>Plan</th>
+          <th>Last active</th>
+          <th>Posts</th>
+          <th>Streak</th>
+          <th>Status</th>
+        </tr>
+      </thead>
       <tbody>
         {% for row in member_activity %}
         <tr>
-          <td>{{ row.member }}</td>
-          <td>{{ row.action }}</td>
-          <td>{{ row.when }}</td>
+          <td>{{ row.name }}</td>
+          <td>{{ row.plan }}</td>
+          <td>{{ row.last_active }}</td>
+          <td>{{ row.posts }}</td>
+          <td>{{ row.streak }}</td>
+          <td>
+            <span class="studio-dash-exact__tone studio-dash-exact__tone--{{ row.tone }}">
+              <i aria-hidden="true"></i>{{ row.status }}
+            </span>
+          </td>
         </tr>
         {% endfor %}
       </tbody>
@@ -85,14 +108,97 @@
     {% endif %}
   </div>
 
-  <div class="admin-panel studio-card studio-dash__occupancy">
-    <div class="sg-panel__head" style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
-      <h2 style="margin:0;">Support group occupancy</h2>
-      <a class="btn btn--secondary btn--sm" href="{{ url_for('admin.support_groups') }}">Open circles</a>
+  <div class="admin-grid-2 studio-dash-exact__pair">
+    <div class="admin-panel studio-card">
+      <div class="studio-dash-exact__pair-head">
+        <h2>Support Group Occupancy</h2>
+        <a class="btn btn--secondary btn--sm" href="{{ url_for('admin.support_groups') }}">Open circles</a>
+      </div>
+      {% if support_occupancy %}
+      <ul class="studio-dash-exact__occ">
+        {% for row in support_occupancy %}
+        {% set cap = row.circle.capacity if row.circle else 0 %}
+        {% set used = row.used if row.used is defined else row.seated %}
+        {% set pct = ((100 * used / cap)|int) if cap else 0 %}
+        {% if pct > 100 %}{% set pct = 100 %}{% endif %}
+        <li>
+          <div class="sg-occ__meta">
+            <span>{{ row.circle.name if row.circle else 'Circle' }}</span>
+            <span>{{ used }} / {{ cap }}{% if row.pending %} · {{ row.pending }} waiting{% endif %}</span>
+          </div>
+          <div class="sg-occ__bar" aria-hidden="true"><span style="width: {{ pct }}%;"></span></div>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p class="field-help" style="margin:0;">No circles yet — create one on Support groups.</p>
+      {% endif %}
     </div>
-    <p class="field-help" style="margin: 8px 0 0;">
-      Per-circle waiting lists and seating live on the Support groups page.
-    </p>
+    <div class="admin-panel studio-card">
+      <h2>Content Pipeline</h2>
+      <ul class="studio-dash-exact__pipeline">
+        <li>
+          <span>Content Tips live</span>
+          <strong>{{ video_count }}</strong>
+        </li>
+        <li>
+          <span>Showcase listings</span>
+          <strong>{{ marketplace.active }}</strong>
+          <em>{{ marketplace.total }} total</em>
+        </li>
+        <li>
+          <span>Reel reviews / queue</span>
+          <strong>—</strong>
+          <em><a href="{{ url_for('admin.reel_reviews') }}">Manage</a></em>
+        </li>
+        <li>
+          <span>Hub library</span>
+          <strong><a href="{{ url_for('admin.videos') }}">Manage &rarr;</a></strong>
+        </li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="admin-grid-2 studio-dash-exact__pair">
+    <div class="admin-panel studio-card">
+      <h2>Showcase Performance</h2>
+      {% if showcase_perf %}
+      <table class="admin-table">
+        <thead><tr><th>Listing</th><th>Member</th><th>Views</th><th>Clicks</th><th>CTR</th></tr></thead>
+        <tbody>
+          {% for row in showcase_perf %}
+          <tr>
+            <td>{{ row.title }}</td>
+            <td>{{ row.member }}</td>
+            <td>{{ row.views }}</td>
+            <td>{{ row.clicks }}</td>
+            <td>{{ row.ctr }}%</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <p class="field-help" style="margin:0;">No active Showcase listings yet.</p>
+      {% endif %}
+    </div>
+    <div class="admin-panel studio-card">
+      <h2>Member Feedback</h2>
+      {% if recent_feedback %}
+      <ul class="studio-dash-exact__feedback">
+        {% for f in recent_feedback %}
+        <li>
+          <span class="studio-dash-exact__stars" aria-label="{{ f.stars }} stars">
+            {% for _ in range(f.stars or 0) %}&#9733;{% endfor %}
+          </span>
+          <p>{{ f.body or '(no comment)' }}</p>
+          <span class="field-help">{{ f.kind }} · {{ f.when|localtime('%b %d') if f.when else '' }}</span>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p class="field-help" style="margin:0;">No feedback yet.</p>
+      {% endif %}
+    </div>
   </div>
 
   <div class="admin-grid-2">
@@ -115,11 +221,10 @@
     </div>
   </div>
 
-  <div class="admin-panel studio-card studio-dash__quote" style="border-left: 4px solid var(--gold);">
+  <div class="admin-panel studio-card studio-dash-exact__quote">
     <h2>Today’s quote</h2>
     {% if today_quote %}
-      <p style="font-family: var(--font-display); font-style: italic; font-size: 18px; margin: 0 0 6px;">
-        &ldquo;{{ today_quote.text }}&rdquo;</p>
+      <p class="studio-dash-exact__quote-text">&ldquo;{{ today_quote.text }}&rdquo;</p>
       <p class="field-help" style="margin: 0 0 12px;">
         {{ today_quote.category }}{% if tomorrow_quote %} &middot; tomorrow: &ldquo;{{ tomorrow_quote.text[:70] }}{{ '…' if tomorrow_quote.text|length > 70 }}&rdquo;{% endif %}
       </p>
