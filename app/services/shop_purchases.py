@@ -20,6 +20,7 @@ def is_membership_variant(variant_id) -> bool:
         return False
     return (MembershipPlan.query
             .filter(or_(MembershipPlan.dodo_product_id == key,
+                        MembershipPlan.dodo_product_id_annual == key,
                         MembershipPlan.ls_variant_id == key))
             .first()) is not None
 

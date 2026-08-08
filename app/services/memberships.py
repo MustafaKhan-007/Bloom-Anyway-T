@@ -24,6 +24,7 @@ def _plan_for_product_id(product_id):
         return None
     return (MembershipPlan.query
             .filter(or_(MembershipPlan.dodo_product_id == key,
+                        MembershipPlan.dodo_product_id_annual == key,
                         MembershipPlan.ls_variant_id == key))
             .first())
 
@@ -35,6 +36,7 @@ def purchased_tier(email: str) -> str:
     rows = (db.session.query(MembershipPlan.tier)
             .join(Order, or_(
                 Order.ls_variant_id == MembershipPlan.dodo_product_id,
+                Order.ls_variant_id == MembershipPlan.dodo_product_id_annual,
                 Order.ls_variant_id == MembershipPlan.ls_variant_id,
             ))
             .filter(Order.status == "paid",

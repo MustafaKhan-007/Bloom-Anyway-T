@@ -9,9 +9,9 @@
       <h1>Membership plans</h1>
       <p class="field-help" style="margin: 6px 0 0; max-width: 640px;">
         These sell on their own at <a href="{{ url_for('main.membership') }}" target="_blank">/membership</a>.
-        Set a price and paste the <strong>Dodo Payments product ID</strong> for each tier, then flip it
-        <strong>Live</strong>. When someone buys, their account is upgraded automatically
-        (a refund removes it). The owner is always Creator.
+        Set monthly and annual prices, paste each <strong>Dodo product ID</strong>, then flip
+        <strong>Live</strong>. The membership page Monthly / Annual toggle switches checkout
+        between the two products. The owner is always Creator.
       </p>
     </div>
   </div>
@@ -35,29 +35,31 @@
       </div>
       <div class="form-row">
         <div class="field">
-          <label for="{{ plan.tier }}_price">Price</label>
+          <label for="{{ plan.tier }}_price">Monthly price</label>
           <input type="text" id="{{ plan.tier }}_price" name="{{ plan.tier }}_price"
                  placeholder="e.g. 12" value="{{ '%.2f'|format(plan.price_cents / 100) if plan.price_cents is not none else '' }}">
+        </div>
+        <div class="field">
+          <label for="{{ plan.tier }}_annual_price">Annual price</label>
+          <input type="text" id="{{ plan.tier }}_annual_price" name="{{ plan.tier }}_annual_price"
+                 placeholder="e.g. 75" value="{{ '%.2f'|format(plan.annual_price_cents / 100) if plan.annual_price_cents is not none else '' }}">
         </div>
         <div class="field">
           <label for="{{ plan.tier }}_currency">Currency</label>
           <input type="text" id="{{ plan.tier }}_currency" name="{{ plan.tier }}_currency"
                  maxlength="3" value="{{ plan.currency }}">
         </div>
-        <div class="field">
-          <label for="{{ plan.tier }}_period">Billing</label>
-          <select id="{{ plan.tier }}_period" name="{{ plan.tier }}_period">
-            <option value="month" {{ 'selected' if plan.period == 'month' }}>per month</option>
-            <option value="year" {{ 'selected' if plan.period == 'year' }}>per year</option>
-            <option value="once" {{ 'selected' if plan.period == 'once' }}>one-time</option>
-          </select>
-        </div>
       </div>
       <div class="field">
-        <label for="{{ plan.tier }}_dodo">Dodo Payments product ID</label>
+        <label for="{{ plan.tier }}_dodo">Dodo product ID (monthly)</label>
         <input type="text" id="{{ plan.tier }}_dodo" name="{{ plan.tier }}_dodo"
                placeholder="prod_…" value="{{ plan.dodo_product_id or '' }}">
-        <p class="field-help">Create the product in Dodo, then paste its ID here. Checkout uses this.</p>
+      </div>
+      <div class="field">
+        <label for="{{ plan.tier }}_dodo_annual">Dodo product ID (annual)</label>
+        <input type="text" id="{{ plan.tier }}_dodo_annual" name="{{ plan.tier }}_dodo_annual"
+               placeholder="prod_…" value="{{ plan.dodo_product_id_annual or '' }}">
+        <p class="field-help">Create a separate yearly product in Dodo. The Annual toggle uses this ID.</p>
       </div>
       <div class="field">
         <label class="checkline checkline--sm">

@@ -839,14 +839,21 @@ def membership_plans():
             plan.name = (request.form.get(f"{p}_name") or plan.name).strip()
             plan.tagline = (request.form.get(f"{p}_tagline") or "").strip() or None
             plan.currency = (request.form.get(f"{p}_currency") or "USD").strip().upper()[:3]
-            plan.period = request.form.get(f"{p}_period") or "month"
+            plan.period = "month"
             plan.dodo_product_id = (request.form.get(f"{p}_dodo") or "").strip() or None
+            plan.dodo_product_id_annual = (
+                request.form.get(f"{p}_dodo_annual") or "").strip() or None
             plan.active = bool(request.form.get(f"{p}_active"))
             raw = (request.form.get(f"{p}_price") or "").strip().replace(",", "")
             try:
                 plan.price_cents = round(float(raw) * 100) if raw else None
             except ValueError:
                 plan.price_cents = plan.price_cents
+            raw_y = (request.form.get(f"{p}_annual_price") or "").strip().replace(",", "")
+            try:
+                plan.annual_price_cents = round(float(raw_y) * 100) if raw_y else None
+            except ValueError:
+                plan.annual_price_cents = plan.annual_price_cents
         db.session.commit()
         flash("Membership plans saved.", "success")
         return redirect(url_for("admin.membership_plans"))

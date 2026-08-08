@@ -18,10 +18,14 @@
 {% set saman_url = site.saman_booking_url or url_for('main.contact') %}
 {% set healing = plans.get('healing') %}
 {% set creator = plans.get('creator') %}
-{% set healing_checkout = checkout.get('healing') %}
-{% set creator_checkout = checkout.get('creator') %}
+{% set healing_checkout_m = checkout.monthly.get('healing') %}
+{% set creator_checkout_m = checkout.monthly.get('creator') %}
+{% set healing_checkout_y = checkout.annual.get('healing') %}
+{% set creator_checkout_y = checkout.annual.get('creator') %}
 {% set healing_price = healing.price_display() if healing and healing.price_cents is not none else '$9' %}
 {% set creator_price = creator.price_display() if creator and creator.price_cents is not none else '$15' %}
+{% set healing_year = healing.annual_price_display() if healing and healing.annual_price_cents is not none else '$75' %}
+{% set creator_year = creator.annual_price_display() if creator and creator.annual_price_cents is not none else '$150' %}
 {% set ends = site.founder_price_ends %}
 
 <div class="mem-page">
@@ -86,19 +90,26 @@
             <p class="mem-card__founder-label">&#10022; Founder price{% if ends %} &mdash; ends {{ ends }}{% endif %}</p>
             <p class="mem-card__price mem-card__price--box">
               <span class="mem-price--month">{{ healing_price }} <span>/ month</span></span>
-              <span class="mem-price--year">$75 <span>/ year</span></span>
+              <span class="mem-price--year">{{ healing_year }} <span>/ year</span></span>
             </p>
             <p class="mem-card__lock">Lock this in forever.</p>
           </div>
           {% else %}
           <p class="mem-card__price">
             {% if healing and healing.price_cents is not none %}
-            <span class="mem-price--month">{{ healing.price_display() }}<span>{{ healing.period_label() }}</span></span>
-            <span class="mem-price--year">$75 <span>/ year</span></span>
-            {% else %}<span class="soon">Coming soon</span>{% endif %}
+            <span class="mem-price--month">{{ healing.price_display() }}<span> / month</span></span>
+            {% else %}
+            <span class="mem-price--month soon">Coming soon</span>
+            {% endif %}
+            {% if healing and healing.annual_price_cents is not none %}
+            <span class="mem-price--year">{{ healing.annual_price_display() }}<span> / year</span></span>
+            {% else %}
+            <span class="mem-price--year">{{ healing_year }} <span>/ year</span></span>
+            {% endif %}
           </p>
           {% endif %}
-          <p class="mem-card__trial">&#10003; 2-week free trial &mdash; card required.</p>
+          <p class="mem-card__trial mem-trial--month">&#10003; 2-week free trial &mdash; card required.</p>
+          <p class="mem-card__trial mem-trial--year">&#10003; Pay once a year and save.</p>
           <p class="mem-card__section-label">Everything in Free, plus</p>
           <ul class="mem-card__perks">
             <li>Unlimited posts, replies &amp; likes</li>
@@ -113,10 +124,21 @@
           </ul>
           {% if current == 'healing' %}
           <span class="btn btn--secondary btn--block is-disabled">Your current plan</span>
-          {% elif healing and healing.is_buyable() and healing_checkout %}
-          <a class="btn btn--primary btn--block" href="{{ healing_checkout }}">Start 2-week free trial &rarr;</a>
           {% else %}
-          <span class="btn btn--secondary btn--block is-disabled">Coming soon</span>
+          <span class="mem-cta mem-cta--month">
+            {% if healing_checkout_m %}
+            <a class="btn btn--primary btn--block" href="{{ healing_checkout_m }}">Start 2-week free trial &rarr;</a>
+            {% else %}
+            <span class="btn btn--secondary btn--block is-disabled">Coming soon</span>
+            {% endif %}
+          </span>
+          <span class="mem-cta mem-cta--year">
+            {% if healing_checkout_y %}
+            <a class="btn btn--primary btn--block" href="{{ healing_checkout_y }}">Get Healing annually &rarr;</a>
+            {% else %}
+            <span class="btn btn--secondary btn--block is-disabled">Annual coming soon</span>
+            {% endif %}
+          </span>
           {% endif %}
         </article>
 
@@ -130,19 +152,26 @@
             <p class="mem-card__founder-label">&#10022; Founder price{% if ends %} &mdash; ends {{ ends }}{% endif %}</p>
             <p class="mem-card__price mem-card__price--box">
               <span class="mem-price--month">{{ creator_price }} <span>/ month</span></span>
-              <span class="mem-price--year">$150 <span>/ year</span></span>
+              <span class="mem-price--year">{{ creator_year }} <span>/ year</span></span>
             </p>
             <p class="mem-card__lock">Lock this in forever.</p>
           </div>
           {% else %}
           <p class="mem-card__price">
             {% if creator and creator.price_cents is not none %}
-            <span class="mem-price--month">{{ creator.price_display() }}<span>{{ creator.period_label() }}</span></span>
-            <span class="mem-price--year">$150 <span>/ year</span></span>
-            {% else %}<span class="soon">Coming soon</span>{% endif %}
+            <span class="mem-price--month">{{ creator.price_display() }}<span> / month</span></span>
+            {% else %}
+            <span class="mem-price--month soon">Coming soon</span>
+            {% endif %}
+            {% if creator and creator.annual_price_cents is not none %}
+            <span class="mem-price--year">{{ creator.annual_price_display() }}<span> / year</span></span>
+            {% else %}
+            <span class="mem-price--year">{{ creator_year }} <span>/ year</span></span>
+            {% endif %}
           </p>
           {% endif %}
-          <p class="mem-card__trial">&#10003; 1-week free trial &mdash; card required.</p>
+          <p class="mem-card__trial mem-trial--month">&#10003; 1-week free trial &mdash; card required.</p>
+          <p class="mem-card__trial mem-trial--year">&#10003; Pay once a year and save.</p>
           <p class="mem-card__section-label">Everything in Healing, plus</p>
           <ul class="mem-card__perks">
             <li>Full Content Hub access</li>
@@ -155,34 +184,37 @@
           </ul>
           {% if current == 'creator' %}
           <span class="btn btn--secondary btn--block is-disabled">Your current plan</span>
-          {% elif creator and creator.is_buyable() and creator_checkout %}
-          <a class="btn btn--gold btn--block" href="{{ creator_checkout }}">Become a Creator &mdash; start free trial &rarr;</a>
           {% else %}
-          <span class="btn btn--secondary btn--block is-disabled">Coming soon</span>
+          <span class="mem-cta mem-cta--month">
+            {% if creator_checkout_m %}
+            <a class="btn btn--gold btn--block" href="{{ creator_checkout_m }}">Become a Creator &mdash; start free trial &rarr;</a>
+            {% else %}
+            <span class="btn btn--secondary btn--block is-disabled">Coming soon</span>
+            {% endif %}
+          </span>
+          <span class="mem-cta mem-cta--year">
+            {% if creator_checkout_y %}
+            <a class="btn btn--gold btn--block" href="{{ creator_checkout_y }}">Get Creator annually &rarr;</a>
+            {% else %}
+            <span class="btn btn--secondary btn--block is-disabled">Annual coming soon</span>
+            {% endif %}
+          </span>
           {% endif %}
         </article>
       </div>
     </div>
   </section>
 
-  <section class="mem-page__annual">
+  <section class="mem-page__annual mem-page__annual--hint">
     <div class="container mem-page__annual-inner">
       <div>
         <p class="mem-page__annual-eyebrow">Annual plans &mdash; best value</p>
         <h2>Pay once a year and save</h2>
-        <p>Healing $75/year &middot; Creator $150/year. Same secure checkout when annual products are live in Dodo.</p>
+        <p>Use the <strong>Annual</strong> toggle above to switch the cards to yearly pricing and checkout.
+          Healing {{ healing_year }}/year &middot; Creator {{ creator_year }}/year.</p>
       </div>
       <div class="mem-page__annual-actions">
-        {% if healing and healing.is_buyable() and healing_checkout %}
-        <a class="btn btn--primary" href="{{ healing_checkout }}">Healing &mdash; $75/yr</a>
-        {% else %}
-        <span class="btn btn--secondary is-disabled">Healing &mdash; $75/yr</span>
-        {% endif %}
-        {% if creator and creator.is_buyable() and creator_checkout %}
-        <a class="btn btn--gold" href="{{ creator_checkout }}">Creator &mdash; $150/yr</a>
-        {% else %}
-        <span class="btn btn--secondary is-disabled">Creator &mdash; $150/yr</span>
-        {% endif %}
+        <button type="button" class="btn btn--primary" data-billing-jump="annual">Switch to Annual &rarr;</button>
       </div>
     </div>
   </section>
@@ -290,21 +322,39 @@
 <script>
 (function () {
   var root = document.querySelector("[data-billing-toggle]");
-  if (!root) return;
   var page = document.querySelector(".mem-page");
+  if (!root || !page) return;
   var buttons = root.querySelectorAll("[data-billing]");
+
+  function setBilling(mode) {
+    mode = mode === "annual" ? "annual" : "monthly";
+    buttons.forEach(function (b) {
+      var on = b.getAttribute("data-billing") === mode;
+      b.classList.toggle("is-active", on);
+      b.setAttribute("aria-pressed", on ? "true" : "false");
+    });
+    page.setAttribute("data-billing", mode);
+    try { history.replaceState(null, "", "?billing=" + mode); } catch (e) {}
+  }
+
   buttons.forEach(function (btn) {
     btn.addEventListener("click", function () {
-      var mode = btn.getAttribute("data-billing");
-      buttons.forEach(function (b) {
-        var on = b === btn;
-        b.classList.toggle("is-active", on);
-        b.setAttribute("aria-pressed", on ? "true" : "false");
-      });
-      if (page) page.setAttribute("data-billing", mode);
+      setBilling(btn.getAttribute("data-billing"));
     });
   });
-  if (page) page.setAttribute("data-billing", "monthly");
+  document.querySelectorAll("[data-billing-jump]").forEach(function (el) {
+    el.addEventListener("click", function () {
+      setBilling(el.getAttribute("data-billing-jump"));
+      root.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+  });
+
+  var start = "monthly";
+  try {
+    var q = new URLSearchParams(window.location.search).get("billing");
+    if (q === "annual" || q === "yearly" || q === "year") start = "annual";
+  } catch (e) {}
+  setBilling(start);
 })();
 </script>
 {% endblock %}

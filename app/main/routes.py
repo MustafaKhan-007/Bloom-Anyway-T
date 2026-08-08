@@ -222,8 +222,15 @@ def checkout_product(slug):
 def checkout_membership(tier):
     if tier not in ("healing", "creator"):
         abort(404)
+    billing = (request.args.get("billing") or request.form.get("billing")
+               or "monthly").strip().lower()
+    if billing in ("year", "yearly", "annual"):
+        billing = "annual"
+    else:
+        billing = "monthly"
     plan = MembershipPlan.query.filter_by(tier=tier, active=True).first()
-    if plan is None or not plan.is_buyable():
+    product_id = plan.payment_product_id(billing) if plan else None
+    if plan is None or not product_id:
         flash("That membership isn’t available for checkout yet.", "info")
         return redirect(url_for("main.membership"))
     if not dodo_svc.configured():
@@ -233,11 +240,11 @@ def checkout_membership(tier):
     name = current_user.public_name() if current_user.is_authenticated else None
     try:
         url = dodo_svc.create_checkout_session(
-            product_id=plan.dodo_product_id,
+            product_id=product_id,
             return_url=url_for("main.account", _external=True),
             customer_email=email,
             customer_name=name,
-            metadata={"tier": tier, "kind": "membership"},
+            metadata={"tier": tier, "kind": "membership", "billing": billing},
         )
     except dodo_svc.DodoError as exc:
         flash(str(exc), "error")
@@ -287,12 +294,14 @@ def membership():
     plans = {p.tier: p for p in MembershipPlan.query.filter_by(active=True).all()}
     current = (current_user.effective_membership()
                if current_user.is_authenticated else None)
-    checkout = {}
+    checkout = {"monthly": {}, "annual": {}}
     for tier, plan in plans.items():
-        if plan and plan.is_buyable():
-            checkout[tier] = url_for("main.checkout_membership", tier=tier)
-        else:
-            checkout[tier] = None
+        for billing in ("monthly", "annual"):
+            if plan and plan.is_buyable(billing):
+                checkout[billing][tier] = url_for(
+                    "main.checkout_membership", tier=tier, billing=billing)
+            else:
+                checkout[billing][tier] = None
     back_url = (_safe_back_url(request.args.get("next"))
                 or _safe_back_url(request.referrer)
                 or url_for("main.index"))

@@ -1020,10 +1020,11 @@ with app.app_context():
 
 # --- 5f. purchasable memberships (sold on their own, not as products) -------
 plan_form = {
-    "healing_name": "Healing membership", "healing_period": "month",
+    "healing_name": "Healing membership",
     "creator_name": "Creator membership", "creator_tagline": "Everything, plus tools.",
-    "creator_price": "19", "creator_currency": "USD", "creator_period": "month",
+    "creator_price": "19", "creator_annual_price": "150", "creator_currency": "USD",
     "creator_dodo": "prod_creator_mem",
+    "creator_dodo_annual": "prod_creator_yr",
     "creator_active": "1",
 }
 r = admin.post("/admin/memberships", data=plan_form, follow_redirects=True)
@@ -1033,6 +1034,10 @@ mbody = r.get_data(as_text=True)
 ok("Membership page shows comparison + Creator buy button",
    "Compare every perk" in mbody and "/checkout/membership/creator" in mbody
    and "Become a Creator" in mbody)
+ok("Membership page wires annual Creator checkout",
+   "billing=annual" in mbody and "Get Creator annually" in mbody)
+ok("Membership page has Monthly/Annual billing toggle",
+   'data-billing="monthly"' in mbody and 'data-billing="annual"' in mbody)
 
 
 def _order_webhook(order_id, email, product_id, event="payment.succeeded"):

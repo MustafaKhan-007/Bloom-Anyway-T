@@ -373,31 +373,47 @@ class MembershipPlan(db.Model):
     name = db.Column(db.String(80), nullable=False)
     tagline = db.Column(db.String(160))
     price_cents = db.Column(db.Integer)
+    annual_price_cents = db.Column(db.Integer)
     currency = db.Column(db.String(3), nullable=False, default="USD")
     period = db.Column(db.String(20), nullable=False, default="month")  # month / year / once
     ls_variant_id = db.Column(db.String(40), index=True)  # legacy
     ls_checkout_url = db.Column(db.String(500))  # legacy
     dodo_product_id = db.Column(db.String(80), index=True)
+    dodo_product_id_annual = db.Column(db.String(80), index=True)
     active = db.Column(db.Boolean, nullable=False, default=False)
     sort_order = db.Column(db.Integer, nullable=False, default=0)
 
     def label(self):
         return MEMBERSHIP_LABELS.get(self.tier, self.tier.title())
 
-    def price_display(self):
-        if self.price_cents is None:
+    def _money(self, cents):
+        if cents is None:
             return ""
         symbol = {"USD": "$", "EUR": "\u20ac", "GBP": "\u00a3"}.get(self.currency, self.currency + " ")
-        amount = self.price_cents / 100
-        return f"{symbol}{amount:,.0f}" if self.price_cents % 100 == 0 else f"{symbol}{amount:,.2f}"
+        amount = cents / 100
+        return f"{symbol}{amount:,.0f}" if cents % 100 == 0 else f"{symbol}{amount:,.2f}"
+
+    def price_display(self):
+        return self._money(self.price_cents)
+
+    def annual_price_display(self):
+        return self._money(self.annual_price_cents)
 
     def period_label(self):
         return {"month": "/ month", "year": "/ year", "once": "one-time"}.get(self.period, "")
 
-    def is_buyable(self):
-        return bool(self.active and (self.dodo_product_id or "").strip())
+    def is_buyable(self, billing: str = "monthly"):
+        billing = (billing or "monthly").strip().lower()
+        if not self.active:
+            return False
+        if billing in ("annual", "year", "yearly"):
+            return bool((self.dodo_product_id_annual or "").strip())
+        return bool((self.dodo_product_id or "").strip())
 
-    def payment_product_id(self) -> str | None:
+    def payment_product_id(self, billing: str = "monthly") -> str | None:
+        billing = (billing or "monthly").strip().lower()
+        if billing in ("annual", "year", "yearly"):
+            return (self.dodo_product_id_annual or "").strip() or None
         return (self.dodo_product_id or self.ls_variant_id or "").strip() or None
 
 
