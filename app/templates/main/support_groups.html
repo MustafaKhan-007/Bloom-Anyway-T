@@ -4,8 +4,8 @@
 
 {% block content %}
 {% set is_member = current_user.is_authenticated and current_user.is_member() %}
+{% set is_creator = current_user.is_authenticated and current_user.is_creator() %}
 {% set membership_url = url_for('main.membership', next=request.path) %}
-{% set apply_url = url_for('main.account') ~ '#support-groups' %}
 {% set facilitator_url = site.facilitator_booking_url or membership_url %}
 {% set ayesha_url = site.ayesha_booking_url or url_for('main.contact') %}
 {% set saman_url = site.saman_booking_url or url_for('main.contact') %}
@@ -16,8 +16,8 @@
       <p class="sg-page__eyebrow">COMMUNITY &bull; MEMBERS ONLY</p>
       <h1>Support Groups</h1>
       <p class="sg-page__intro">
-        Peer circles for healing, creator accountability for building, facilitator-led sessions,
-        and optional 1:1 coaching — so you never have to do the hard parts alone.
+        Peer-led circles for healing, creator accountability for building, facilitator-led
+        sessions when you want a guide in the room, and optional 1:1 coaching with the founders.
       </p>
       <nav class="sg-page__tabs" aria-label="Support group sections">
         <a href="#healing">Healing Groups</a>
@@ -28,109 +28,180 @@
     </div>
   </header>
 
-  <section class="sg-page__section" id="healing">
+  <section class="sg-page__band" id="healing">
     <div class="container">
       <div class="sg-page__section-head">
+        <div class="sg-page__pills">
+          <span class="sg-pill sg-pill--heal">HEALING</span>
+          <span class="sg-pill">PEER-LED</span>
+          <span class="sg-pill">FULL MEMBERS</span>
+        </div>
         <h2>Healing peer groups</h2>
-        <p>Small, facilitated Zoom circles for women navigating divorce, co-parenting, grief, and fresh starts.</p>
+        <p>Small, private, peer-led circles. Included in Full Membership. Capped at 12 women per group.</p>
       </div>
       <div class="sg-page__grid">
-        {% for title, blurb in [
-          ('Divorce Recovery', 'Process endings, paperwork, and the quiet after — with women who get it.'),
-          ('Co-Parenting Circle', 'Navigate shared parenting, boundaries, and hard conversations with care.'),
-          ('Starting Over', 'Rebuild identity, routines, and confidence when life looks nothing like before.'),
-          ('Grief & Loss', 'Hold space for what was lost — without having to rush toward fine.')
-        ] %}
-        <article class="sg-page__card">
-          <h3>{{ title }}</h3>
-          <p>{{ blurb }}</p>
-          {% if is_member %}
-          <a class="btn btn--secondary sg-page__join" href="{{ apply_url }}">Join circle</a>
-          <p class="sg-page__hint">Apply from <a href="{{ apply_url }}">My Space</a></p>
+        {% for s in healing_circles %}
+        {% set c = s.circle %}
+        <article class="sg-card">
+          <span class="sg-card__icon" aria-hidden="true">&#10084;</span>
+          <h3>{{ c.title }}</h3>
+          <p>{{ c.blurb }}</p>
+          <p class="sg-card__meta">Meets: {{ c.meets_label or 'Weekly' }}<br>Facilitator: Peer-led</p>
+          {% if s.full %}
+          <span class="sg-card__spots sg-card__spots--full">Group full</span>
           {% else %}
-          <a class="btn btn--primary sg-page__join" href="{{ membership_url }}">Join with membership</a>
+          <span class="sg-card__spots">{{ s.spots_left }} spot{{ '' if s.spots_left == 1 else 's' }} available</span>
           {% endif %}
+          {% if c.id in my_circle_ids %}
+          <span class="btn btn--quiet sg-card__btn">You're in</span>
+          {% elif is_member %}
+          <form method="post" action="{{ url_for('main.join_support_circle') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="circle_id" value="{{ c.id }}">
+            <button class="btn btn--primary sg-card__btn" type="submit">
+              {% if s.full %}Join waitlist{% else %}Join group &rarr;{% endif %}
+            </button>
+          </form>
+          {% else %}
+          <a class="btn btn--primary sg-card__btn" href="{{ membership_url }}">Join with membership</a>
+          {% endif %}
+          <p class="sg-card__foot">&bull; Full Members only</p>
         </article>
         {% endfor %}
       </div>
     </div>
   </section>
 
-  <section class="sg-page__section sg-page__section--soft" id="creators">
+  <section class="sg-page__band sg-page__band--lavender" id="creators">
     <div class="container">
       <div class="sg-page__section-head">
+        <div class="sg-page__pills">
+          <span class="sg-pill sg-pill--build">BUILDING</span>
+          <span class="sg-pill">PEER-LED</span>
+          <span class="sg-pill">FULL MEMBERS</span>
+        </div>
         <h2>Creator accountability</h2>
         <p>Weekly check-ins for women building businesses, content, and digital products — show up, stay honest, grow together.</p>
       </div>
       <div class="sg-page__grid">
-        {% for title, blurb in [
-          ('New Creators Circle', 'Launch your first posts, offers, and habits without spinning alone.'),
-          ('Digital Product Builders', 'Ship guides, templates, and downloads with peers who understand the messy middle.'),
-          ('Scaling Up', 'Systems, launches, and sustainable growth when ready to level up.'),
-          ('Money & Investing', 'Normalize talking numbers, pricing, and building wealth on your terms.')
-        ] %}
-        <article class="sg-page__card sg-page__card--gold">
-          <h3>{{ title }}</h3>
-          <p>{{ blurb }}</p>
-          {% if is_member %}
-          <a class="btn btn--gold sg-page__join" href="{{ apply_url }}">Join circle</a>
-          <p class="sg-page__hint">Apply from <a href="{{ apply_url }}">My Space</a></p>
+        {% for s in building_circles %}
+        {% set c = s.circle %}
+        <article class="sg-card">
+          <span class="sg-card__icon" aria-hidden="true">&#9733;</span>
+          <h3>{{ c.title }}</h3>
+          <p>{{ c.blurb }}</p>
+          <p class="sg-card__meta">Meets: {{ c.meets_label or 'Weekly' }}<br>Facilitator: Peer-led</p>
+          {% if s.full %}
+          <span class="sg-card__spots sg-card__spots--full">Group full</span>
           {% else %}
-          <a class="btn btn--gold sg-page__join" href="{{ membership_url }}">Join with membership</a>
+          <span class="sg-card__spots sg-card__spots--gold">{{ s.spots_left }} spot{{ '' if s.spots_left == 1 else 's' }} available</span>
           {% endif %}
+          {% if c.id in my_circle_ids %}
+          <span class="btn btn--quiet sg-card__btn">You're in</span>
+          {% elif is_creator %}
+          <form method="post" action="{{ url_for('main.join_support_circle') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="circle_id" value="{{ c.id }}">
+            <button class="btn btn--gold sg-card__btn" type="submit">
+              {% if s.full %}Join waitlist{% else %}Join circle{% endif %}
+            </button>
+          </form>
+          {% elif is_member %}
+          <a class="btn btn--gold sg-card__btn" href="{{ membership_url }}">Creator members only</a>
+          {% else %}
+          <a class="btn btn--gold sg-card__btn" href="{{ membership_url }}">Join with membership</a>
+          {% endif %}
+          <p class="sg-card__foot">&bull; Creator Members</p>
         </article>
         {% endfor %}
       </div>
     </div>
   </section>
 
-  <section class="sg-page__section" id="facilitator">
+  <section class="sg-page__band" id="facilitator">
     <div class="container">
+      <div class="sg-page__section-head">
+        <div class="sg-page__pills">
+          <span class="sg-pill sg-pill--heal">FACILITATOR-LED</span>
+          <span class="sg-pill">ADDITIONAL COST</span>
+          <span class="sg-pill">8 WOMEN MAX</span>
+        </div>
+        <h2>Facilitator-Led Sessions</h2>
+        <p>One session per day. Professionally guided. Capped at 8 women. Healing track only.</p>
+      </div>
       <div class="sg-page__premium">
         <div class="sg-page__premium-copy">
-          <p class="sg-page__eyebrow sg-page__eyebrow--light">Facilitator-led</p>
-          <h2>Guided support session</h2>
+          <p class="sg-page__eyebrow sg-page__eyebrow--light">PREMIUM &bull; HEALING TRACK ONLY</p>
+          <h2>Go deeper with a guided session</h2>
           <p>A trained facilitator holds the room so you can speak freely, listen deeply, and leave with clarity.</p>
-          <p class="sg-page__price">$25 <span>per session</span></p>
+          <ul class="sg-page__bullets">
+            <li>60-minute Zoom session</li>
+            <li>Small group — 8 women max</li>
+            <li>Professionally facilitated</li>
+          </ul>
         </div>
         <div class="sg-page__premium-cta">
-          {% if site.facilitator_booking_url %}
-          <a class="btn btn--gold" href="{{ facilitator_url }}" target="_blank" rel="noopener">Book a session</a>
-          {% elif is_member %}
-          <a class="btn btn--gold" href="{{ apply_url }}">Apply from My Space</a>
-          {% else %}
-          <a class="btn btn--gold" href="{{ membership_url }}">Get membership access</a>
-          {% endif %}
+          <p class="sg-page__price">$25 <span>per session</span></p>
+          <a class="btn btn--gold" href="{{ facilitator_url }}"
+             {% if site.facilitator_booking_url %}target="_blank" rel="noopener"{% endif %}>
+            Book your spot &rarr;
+          </a>
         </div>
       </div>
     </div>
   </section>
 
-  <section class="sg-page__section sg-page__section--soft" id="coaching">
+  <section class="sg-page__band sg-page__band--cream" id="coaching">
     <div class="container">
       <div class="sg-page__section-head">
-        <h2>1:1 Coaching</h2>
-        <p>Private sessions with Ayesha (healing) or Saman (building) when you want focused, personal support.</p>
+        <div class="sg-page__pills">
+          <span class="sg-pill sg-pill--heal">1:1 COACHING</span>
+          <span class="sg-pill">BOOK DIRECTLY WITH THE FOUNDERS</span>
+        </div>
+        <h2>One on One with the Founders</h2>
+        <p>Not a generic coach. The women who built this, who lived it, who are still in it.</p>
       </div>
       <div class="sg-page__coach-grid">
-        <article class="sg-page__card sg-page__card--coach">
-          <p class="sg-page__coach-tag">Healing</p>
-          <h3>Ayesha</h3>
+        <article class="sg-coach sg-coach--heal">
+          <div class="sg-coach__who">
+            <span class="sg-coach__avatar" aria-hidden="true">A</span>
+            <div>
+              <h3>Ayesha</h3>
+              <p class="sg-coach__role">CO-FOUNDER &bull; HEALING TRACK</p>
+            </div>
+          </div>
+          <h4>Healing 1:1 — find your way through it</h4>
           <p>Navigate divorce, custody, heartbreak, and rebuilding with someone who has walked it and holds space without judgment.</p>
-          <p class="sg-page__price sg-page__price--inline">$97 <span>per session</span></p>
+          <ul class="sg-page__bullets sg-page__bullets--gold">
+            <li>60-minute private session</li>
+            <li>Focused on your situation</li>
+            <li>Honest, grounded guidance</li>
+          </ul>
+          <p class="sg-page__price sg-page__price--inline">$97 <span>per session + limited availability</span></p>
           <a class="btn btn--primary" href="{{ ayesha_url if site.ayesha_booking_url else membership_url }}"
              {% if site.ayesha_booking_url %}target="_blank" rel="noopener"{% endif %}>
-            {% if site.ayesha_booking_url %}Book with Ayesha{% else %}See memberships{% endif %}
+            Book with Ayesha &rarr;
           </a>
         </article>
-        <article class="sg-page__card sg-page__card--coach">
-          <p class="sg-page__coach-tag sg-page__coach-tag--build">Building</p>
-          <h3>Saman</h3>
+        <article class="sg-coach sg-coach--build">
+          <div class="sg-coach__who">
+            <span class="sg-coach__avatar sg-coach__avatar--gold" aria-hidden="true">S</span>
+            <div>
+              <h3>Saman</h3>
+              <p class="sg-coach__role">CO-FOUNDER &bull; BUILDING TRACK</p>
+            </div>
+          </div>
+          <h4>Creator 1:1 — build it with someone who did</h4>
           <p>Strategy for content, digital products, and business growth — practical, encouraging, and built for real life.</p>
-          <p class="sg-page__price sg-page__price--inline">$97 <span>per session</span></p>
-          <a class="btn btn--primary" href="{{ saman_url if site.saman_booking_url else membership_url }}"
+          <ul class="sg-page__bullets sg-page__bullets--gold">
+            <li>60-minute private session</li>
+            <li>Content &amp; growth strategy</li>
+            <li>Actionable next steps</li>
+          </ul>
+          <p class="sg-page__price sg-page__price--inline">$97 <span>per session + limited availability</span></p>
+          <a class="btn btn--gold" href="{{ saman_url if site.saman_booking_url else membership_url }}"
              {% if site.saman_booking_url %}target="_blank" rel="noopener"{% endif %}>
-            {% if site.saman_booking_url %}Book with Saman{% else %}See memberships{% endif %}
+            Book with Saman &rarr;
           </a>
         </article>
       </div>

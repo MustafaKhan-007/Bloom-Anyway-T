@@ -1435,7 +1435,8 @@ ok("Page loader uses the sunflower favicon",
    and "page-loader__sun" in r.get_data(as_text=True))
 
 # support / coaching groups
-from app.models import Notification, SupportGroupApplication, SupportGroupMeeting
+from app.models import (Notification, SupportGroupApplication, SupportGroupCircle,
+                        SupportGroupMeeting)
 from app.services import support_groups as sg_svc
 
 _sent_mail = []
@@ -1444,34 +1445,56 @@ sg_svc.send_email = (
     _sent_mail.append({"to": to, "subject": subject, "text": text_body}) or True
 )
 
-r = free_client.post("/account/support-groups", data={"message": "hi"},
+with app.app_context():
+    sg_svc.ensure_circles()
+    _heal_circle = SupportGroupCircle.query.filter_by(track="healing").first()
+    _build_circle = SupportGroupCircle.query.filter_by(track="building").first()
+    ok("Support group circles are seeded",
+       _heal_circle is not None and _build_circle is not None
+       and SupportGroupCircle.query.count() >= 8)
+    heal_cid = _heal_circle.id
+    build_cid = _build_circle.id
+
+r = free_client.post("/support-groups/join",
+                     data={"circle_id": heal_cid, "message": "hi"},
                      follow_redirects=True)
 ok("Free members cannot apply for support groups",
    "Healing and Creator" in r.get_data(as_text=True)
    or free_client.get("/membership").status_code == 200)
 
-r = stranger_client.post("/account/support-groups",
-                         data={"message": "Need a gentle circle"},
+r = stranger_client.post("/support-groups/join",
+                         data={"circle_id": heal_cid,
+                               "message": "Need a gentle circle"},
                          follow_redirects=True)
 ok("Healing member can apply for a support group",
    "on the list" in r.get_data(as_text=True).lower())
-r = client.post("/account/support-groups",
-                data={"message": "Creator joining too"},
+r = client.post("/support-groups/join",
+                data={"circle_id": heal_cid, "message": "Creator joining too"},
                 follow_redirects=True)
 ok("Creator member can apply for a support group",
    "on the list" in r.get_data(as_text=True).lower())
 
+r = client.get("/support-groups")
+ok("Support groups page lists named circles",
+   r.status_code == 200
+   and "Divorce Recovery" in r.get_data(as_text=True)
+   and "New Creators Circle" in r.get_data(as_text=True)
+   and "Apply from My Space" not in r.get_data(as_text=True))
 r = client.get("/account")
-ok("My space shows support-group fold",
-   "support-groups" in r.get_data(as_text=True)
-   and "data-coaching-toggle" in r.get_data(as_text=True))
+ok("My space no longer hosts the support-group apply fold",
+   "data-coaching-toggle" not in r.get_data(as_text=True)
+   and 'id="support-groups"' not in r.get_data(as_text=True))
 ok("Membership matrix lists support groups",
    "Support groups" in app.test_client().get("/membership").get_data(as_text=True))
 
 r = admin.get("/admin/support-groups")
 ok("Studio support-groups page loads",
-   r.status_code == 200 and "Waiting list" in r.get_data(as_text=True))
-r = admin.post("/admin/support-groups/form", data={"capacity": "2"},
+   r.status_code == 200
+   and ("Waiting list" in r.get_data(as_text=True)
+        or "Waiting lists" in r.get_data(as_text=True))
+   and "Divorce Recovery" in r.get_data(as_text=True))
+r = admin.post("/admin/support-groups/form",
+               data={"capacity": "2", "circle_id": str(heal_cid)},
                follow_redirects=True)
 ok("Owner can seat earliest applicants",
    "Seated 2" in r.get_data(as_text=True),
@@ -1526,7 +1549,7 @@ with app.app_context():
     late.set_password(USER_PW)
     db.session.add(late)
     db.session.commit()
-    late_app, _ = sg_svc.apply(late, "applied after seating")
+    late_app, _ = sg_svc.apply(late, "applied after seating", circle_id=heal_cid)
     late_id = late.id
     late_created = late_app.created_at
     booked_apps = SupportGroupApplication.query.filter_by(
@@ -1569,9 +1592,9 @@ with app.app_context():
     d2.set_password(USER_PW)
     db.session.add_all([d1, d2])
     db.session.commit()
-    sg_svc.apply(d1, "draft one")
-    sg_svc.apply(d2, "draft two")
-    draft, derr = sg_svc.form_next_meeting(2)
+    sg_svc.apply(d1, "draft one", circle_id=heal_cid)
+    sg_svc.apply(d2, "draft two", circle_id=heal_cid)
+    draft, derr = sg_svc.form_next_meeting(2, circle_id=heal_cid)
     ok("Draft seating for cancel test", draft is not None and not derr)
     draft_id = draft.id
     notes_before_draft = Notification.query.filter_by(kind="support_group").count()

@@ -2,83 +2,87 @@
 {% block title %}Owners{% endblock %}
 
 {% block content %}
-<div class="page-head">
-  <h1>Owners</h1>
-</div>
+<div class="studio-page">
+  <div class="page-head">
+    <div>
+      <p class="eyebrow">Access</p>
+      <h1>Owners</h1>
+      <p class="field-help" style="margin: 6px 0 0; max-width: 62ch;">
+        Owners share full Studio access. Invite a partner by email &mdash; if they already
+        have an account, they become an owner right away; otherwise they join with that
+        email and unlock Studio after they confirm it.
+      </p>
+    </div>
+  </div>
 
-<p class="field-help" style="margin-top: 0; max-width: 62ch;">
-  Owners share full Studio access. Invite a partner by email &mdash; if they already
-  have an account, they become an owner right away; otherwise they join with that
-  email and unlock Studio after they confirm it.
-</p>
+  <section class="admin-panel studio-card">
+    <h2 style="margin-top: 0;">Current owners</h2>
+    <table class="admin-table">
+      <thead>
+        <tr><th>Name</th><th>Email</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for o in owners %}
+        <tr>
+          <td>
+            <strong>{{ o.public_name() }}</strong>
+            {% if (o.email or '')|lower == me_email %}
+            <span class="field-help">(you)</span>
+            {% endif %}
+          </td>
+          <td><code>{{ o.email }}</code></td>
+          <td>
+            {% if (o.email or '')|lower != me_email %}
+            <form method="post" action="{{ url_for('admin.owners_remove') }}" class="inline-form"
+                  data-confirm="Remove owner access for {{ o.email }}?">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="email" value="{{ o.email }}">
+              <button class="btn btn--secondary btn--sm" type="submit">Remove</button>
+            </form>
+            {% else %}
+            <span class="field-help">—</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
 
-<div class="admin-panel" style="margin-top: 20px;">
-  <h2 style="margin-top: 0;">Current owners</h2>
-  <table class="admin-table">
-    <thead>
-      <tr><th>Name</th><th>Email</th><th></th></tr>
-    </thead>
-    <tbody>
-      {% for o in owners %}
-      <tr>
-        <td>
-          <strong>{{ o.public_name() }}</strong>
-          {% if (o.email or '')|lower == me_email %}
-          <span class="field-help">(you)</span>
-          {% endif %}
-        </td>
-        <td><code>{{ o.email }}</code></td>
-        <td>
-          {% if (o.email or '')|lower != me_email %}
-          <form method="post" action="{{ url_for('admin.owners_remove') }}" class="inline-form"
-                data-confirm="Remove owner access for {{ o.email }}?">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <input type="hidden" name="email" value="{{ o.email }}">
-            <button class="btn btn--secondary btn--sm" type="submit">Remove</button>
-          </form>
-          {% else %}
-          <span class="field-help">—</span>
-          {% endif %}
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</div>
+  <section class="admin-panel studio-card">
+    <h2 style="margin-top: 0;">Invite another owner</h2>
+    <form method="post" action="{{ url_for('admin.owners_invite') }}" class="member-search" style="margin-bottom: 18px;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="email" name="email" required maxlength="255" placeholder="partner@example.com">
+      <button class="btn btn--primary btn--sm" type="submit">Invite as owner</button>
+    </form>
 
-<div class="admin-panel" style="margin-top: 20px;">
-  <h2 style="margin-top: 0;">Invite another owner</h2>
-  <form method="post" action="{{ url_for('admin.owners_invite') }}" class="member-search" style="margin-bottom: 18px;">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <input type="email" name="email" required maxlength="255" placeholder="partner@example.com">
-    <button class="btn btn--primary btn--sm" type="submit">Invite as owner</button>
-  </form>
-
-  {% if invites %}
-  <h3>Pending invites</h3>
-  <p class="field-help" style="margin-top: 0;">These emails become owners the moment they register or sign in.</p>
-  <table class="admin-table">
-    <thead>
-      <tr><th>Email</th><th></th></tr>
-    </thead>
-    <tbody>
-      {% for email in invites %}
-      <tr>
-        <td><code>{{ email }}</code></td>
-        <td>
-          <form method="post" action="{{ url_for('admin.owners_remove') }}" class="inline-form"
-                data-confirm="Cancel invite for {{ email }}?">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <input type="hidden" name="email" value="{{ email }}">
-            <button class="btn btn--secondary btn--sm" type="submit">Cancel invite</button>
-          </form>
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-  {% else %}
-  <p class="field-help" style="margin: 0;">No pending owner invites.</p>
-  {% endif %}
+    {% if invites %}
+    <h3>Pending invites</h3>
+    <p class="field-help" style="margin-top: 0;">These emails become owners the moment they register or sign in.</p>
+    <table class="admin-table">
+      <thead>
+        <tr><th>Email</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for email in invites %}
+        <tr>
+          <td><code>{{ email }}</code></td>
+          <td>
+            <form method="post" action="{{ url_for('admin.owners_remove') }}" class="inline-form"
+                  data-confirm="Cancel invite for {{ email }}?">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="email" value="{{ email }}">
+              <button class="btn btn--secondary btn--sm" type="submit">Cancel invite</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="field-help" style="margin: 0;">No pending owner invites.</p>
+    {% endif %}
+  </section>
 </div>
 {% endblock %}

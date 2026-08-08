@@ -3,25 +3,26 @@
 
 {% block content %}
 <div class="hub-page">
+  {% if not current_user.is_authenticated or not current_user.is_creator() %}
+  <div class="hub-page__cta-banner">
+    <div class="container hub-page__cta-banner-inner">
+      <p>
+        <strong>Creator members only.</strong>
+        Full playback, Content Tips, and weekly reel entries are Creator perks.
+      </p>
+      <a class="btn btn--gold" href="{{ url_for('main.membership', next=url_for('main.videos')) }}">Join Creator Membership</a>
+    </div>
+  </div>
+  {% endif %}
+
   <header class="hub-page__hero">
     <div class="container">
-      <p class="hub-page__eyebrow">Videos &amp; reel reviews</p>
+      <p class="hub-page__eyebrow">Creator members only</p>
       <h1>Content Hub</h1>
       <p class="hub-page__lede">
-        Browse the library on any signed-in account. Some videos are free picks; full playback is a Creator perk. Finished community reviews stay open to everyone below.
+        Tips for showing up online, daily reel reviews from the community, and a weekly
+        Reel of the Week draw — one Creator member is chosen at random.
       </p>
-      {% if current_user.is_authenticated and not current_user.is_creator() %}
-      <div class="hub-page__banner" role="note">
-        <strong>Creator membership</strong> unlocks full video playback and weekly reel review entries.
-        <a href="{{ url_for('main.membership', next=url_for('main.videos')) }}">Upgrade to Creator</a>
-      </div>
-      {% elif not current_user.is_authenticated %}
-      <div class="hub-page__banner" role="note">
-        <strong>Creator membership</strong> unlocks full playback and reel review requests.
-        <a href="{{ url_for('auth.login', next=url_for('main.videos')) }}">Sign in</a>
-        or <a href="{{ url_for('main.membership', next=url_for('main.videos')) }}">see memberships</a>.
-      </div>
-      {% endif %}
     </div>
   </header>
 
@@ -29,47 +30,59 @@
     <div class="container">
       <div class="hub-page__action-grid">
         <a class="hub-page__action-card" href="#videos">
-          <span class="hub-page__action-label">Tips</span>
-          <h2>Video library</h2>
-          <p>Watch Creator picks, free samples, and past lessons.</p>
+          <span class="hub-page__action-label">Learn</span>
+          <h2>Content Tips</h2>
+        <p class="sr-only">Video library</p>
+          <p>Short Creator lessons and free picks to level up your content.</p>
         </a>
         <a class="hub-page__action-card hub-page__action-card--gold" href="#reviews">
           <span class="hub-page__action-label">Creator perk</span>
           <h2>Submit reel</h2>
-          <p>Enter the weekly draw for a community reel review.</p>
+          <p>Enter this week’s draw for a community reel review.</p>
         </a>
         <a class="hub-page__action-card" href="#reviews">
-          <span class="hub-page__action-label">Community</span>
-          <h2>Reel of the week</h2>
-          <p>Read finished reviews and watch published feedback.</p>
+          <span class="hub-page__action-label">Spotlight</span>
+          <h2>Reel of the Week</h2>
+          <p>Win a review — share your reel (goal: 100 shares) and enter the draw.</p>
         </a>
       </div>
     </div>
   </section>
 
-  <section class="section section--tight" id="videos">
+  <section class="section section--tight hub-page__tips" id="videos">
     <div class="container">
-      <h2>Video library</h2>
-      {% if can_browse %}
+      <div class="hub-page__section-head">
+        <p class="hub-page__eyebrow">Library</p>
+        <h2>Content Tips</h2>
+        <p class="sr-only">Video library</p>
         <p class="hub-page__section-note">
-          {% if can_play %}Watch Creator videos anytime &mdash; nothing to download.
-          {% else %}Browse everything; play the ones tagged as included in your membership, or upgrade to Creator for the full shelf.{% endif %}
+          {% if can_browse %}
+            {% if can_play %}Watch Creator tips anytime — nothing to download.
+            {% else %}Browse everything; play free picks, or upgrade to Creator for the full shelf.{% endif %}
+          {% else %}
+            Sign in to browse the tip library.
+          {% endif %}
         </p>
+      </div>
+
+      {% if can_browse %}
         {% if videos %}
-        <div class="video-grid">
+        <div class="hub-tips-grid">
           {% for v in videos %}
           {% set playable_for_me = can_play_video(current_user, v) %}
-          <a class="video-card {{ 'video-card--locked' if not playable_for_me }}" href="{{ url_for('main.watch', video_id=v.id) }}">
-            <div class="video-card__thumb">
+          <a class="hub-tip-card {{ 'hub-tip-card--locked' if not playable_for_me }}"
+             href="{{ url_for('main.watch', video_id=v.id) }}">
+            <span class="hub-tip-card__num" aria-hidden="true">{{ '%02d'|format(loop.index) }}</span>
+            <div class="hub-tip-card__thumb">
               {% if v.has_thumb() %}
               <img src="{{ url_for('main.video_thumb', video_id=v.id) }}" alt="" loading="lazy">
               {% else %}
-              <span class="video-card__play" aria-hidden="true">&#9654;</span>
+              <span class="hub-tip-card__play" aria-hidden="true">&#9654;</span>
               {% endif %}
-              {% if not playable_for_me %}<span class="video-card__lock" aria-hidden="true">&#128274;</span>{% endif %}
+              {% if not playable_for_me %}<span class="hub-tip-card__lock" aria-hidden="true">&#128274;</span>{% endif %}
             </div>
-            <div class="video-card__body">
-              <h3>{{ v.title }}</h3>
+            <div class="hub-tip-card__body">
+              <h3><span class="hub-tip-card__label">Tip {{ loop.index }}</span>{{ v.title }}</h3>
               <span class="video-access-tag {{ 'video-access-tag--yours' if playable_for_me }}">{{ v.access_label(current_user) }}</span>
               {% if v.description %}<p>{{ v.description|truncate(110) }}</p>{% endif %}
               <span class="video-card__date">{{ v.created_at|localtime('%b %d, %Y') }}</span>
@@ -79,12 +92,12 @@
         </div>
         {% else %}
         <div class="empty-state">
-          <p>No videos yet &mdash; the first one is on its way. Check back soon.</p>
+          <p>No Content Tips yet — the first one is on its way. Check back soon.</p>
         </div>
         {% endif %}
       {% else %}
         <div class="empty-state">
-          <p>Sign in (even on Free) to browse the video library.
+          <p>Sign in (even on Free) to browse Content Tips.
             <a href="{{ url_for('auth.login', next=url_for('main.videos')) }}">Sign in</a>
             or <a href="{{ url_for('auth.register', next=url_for('main.videos')) }}">create an account</a>.</p>
         </div>
@@ -92,75 +105,38 @@
     </div>
   </section>
 
-  <section class="section section--band section--tight" id="reviews">
+  <section class="section section--band section--tight hub-page__reviews" id="reviews">
     <div class="container">
-      <h2>Reel reviews</h2>
-      <p class="hub-page__section-note">
-        Finished reviews are public for everyone. Creator members can enter the weekly draw
-        once per week &mdash; one applicant is chosen at random. A fresh round opens every Monday.
-      </p>
+      <div class="hub-page__section-head">
+        <p class="hub-page__eyebrow">Community feedback</p>
+        <h2>Daily Reel Reviews</h2>
+        <p class="sr-only">Reel reviews</p>
+        <p class="hub-page__section-note">
+          Finished reviews are public. Creator members enter the weekly Reel of the Week draw —
+          one applicant is chosen at random. A fresh round opens every Monday.
+        </p>
+      </div>
 
-      {% if current_user.is_authenticated and current_user.is_creator() %}
-        {% if week_review %}
-        <div class="hub-notice">
-          <p>This week's reel review is published
-            (week of {{ week_key.strftime('%b %d, %Y') }}).</p>
-          <p class="field-help">
-            The draw is closed &mdash; see
-            <strong>{{ week_review.title }}</strong> below.
-            A fresh round opens next Monday.
-          </p>
-          {% if my_application %}
-          <p class="field-help">
-            Your entry:
-            <a href="{{ my_application.reel_url }}" target="_blank" rel="noopener">view on Instagram</a>
-            {% if my_application.selected %}
-            &middot; you were this week's pick
-            {% endif %}
-          </p>
-          {% endif %}
-        </div>
-        {% elif my_application %}
-        <div class="hub-notice">
-          <p>You're in this week's draw
-            (week of {{ week_key.strftime('%b %d, %Y') }}).
-            Hang tight &mdash; one person is selected at random.</p>
-          <p class="field-help">
-            Your reel: <a href="{{ my_application.reel_url }}" target="_blank" rel="noopener">view on Instagram</a>
-          </p>
-        </div>
-        {% else %}
-        <div class="hub-request" style="margin-top: 24px;">
-        <form class="stack-form" method="post" action="{{ url_for('main.reel_review_request') }}"
-              enctype="multipart/form-data" style="max-width: 520px;">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <h3 style="margin: 0 0 8px;">Request a reel review</h3>
-          <p class="field-help">Submit your posted Instagram reel link and the raw video file. One entry per week.</p>
-          <label>Instagram reel link
-            <input type="url" name="reel_url" required
-                   placeholder="https://www.instagram.com/reel/…">
-          </label>
-          <label>Raw video file
-            <input type="file" name="raw_video" accept="video/mp4,video/quicktime,video/webm,.mp4,.mov,.webm" required>
-          </label>
-          <p class="field-help">Max {{ max_mb }} MB. MP4, MOV or WEBM.</p>
-          <button class="btn btn--primary" type="submit">Enter this week's draw</button>
-        </form>
-        </div>
+      {% if week_key is defined or week_review is defined or my_application is defined %}
+      <div class="hub-status-bar" role="status">
+        <span class="hub-status-bar__label">This week</span>
+        {% if week_key %}
+        <span class="hub-status-bar__meta">Week of {{ week_key.strftime('%b %d, %Y') }}</span>
         {% endif %}
-      {% elif current_user.is_authenticated %}
-      <p style="margin-top: 18px;">
-        Reel review requests are for Creator members.
-        <a href="{{ url_for('main.membership') }}">Upgrade to Creator</a> to enter the weekly draw.
-      </p>
-      {% else %}
-      <p style="margin-top: 18px;">
-        <a href="{{ url_for('auth.login') }}">Sign in</a> as a Creator member to request a review.
-      </p>
+        {% if week_review %}
+        <span class="hub-status-bar__pill hub-status-bar__pill--live">Review live</span>
+        {% elif my_application %}
+        <span class="hub-status-bar__pill hub-status-bar__pill--queued">You’re in the draw</span>
+        {% elif current_user.is_authenticated and current_user.is_creator() %}
+        <span class="hub-status-bar__pill">Draw open</span>
+        {% else %}
+        <span class="hub-status-bar__pill">Creator members can enter</span>
+        {% endif %}
+      </div>
       {% endif %}
 
       {% if reviews %}
-      <div class="review-grid" style="margin-top: 32px;">
+      <div class="review-grid hub-review-grid">
         {% for rev in reviews %}
         <article class="review-card">
           <h3>{{ rev.title }}</h3>
@@ -186,10 +162,107 @@
         {% endfor %}
       </div>
       {% else %}
-      <div class="empty-state" style="margin-top: 28px;">
-        <p>No published reel reviews yet &mdash; the first ones will show up here.</p>
+      <div class="empty-state">
+        <p>No published reel reviews yet — the first ones will show up here.</p>
       </div>
       {% endif %}
+
+      <div class="hub-rotw" id="reel-of-the-week">
+        <div class="hub-rotw__head">
+          <p class="hub-page__eyebrow">Weekly draw</p>
+          <h2>Reel of the Week</h2>
+          <p class="hub-page__section-note">
+            Submit your posted Instagram reel and the raw file. Aim for 100 shares —
+            one Creator entry is picked at random each week.
+          </p>
+        </div>
+
+        {% if current_user.is_authenticated and current_user.is_creator() %}
+          {% if week_review %}
+          <div class="hub-notice">
+            <p>This week’s reel review is published
+              (week of {{ week_key.strftime('%b %d, %Y') }}).</p>
+            <p class="field-help">
+              The draw is closed — see
+              <strong>{{ week_review.title }}</strong> above.
+              A fresh round opens next Monday.
+            </p>
+            {% if my_application %}
+            <p class="field-help">
+              Your entry:
+              <a href="{{ my_application.reel_url }}" target="_blank" rel="noopener">view on Instagram</a>
+              {% if my_application.selected %}
+              &middot; you were this week’s pick
+              {% endif %}
+            </p>
+            {% endif %}
+          </div>
+          {% elif my_application %}
+          <div class="hub-notice">
+            <p>You’re in this week’s draw
+              (week of {{ week_key.strftime('%b %d, %Y') }}).
+              Hang tight — one person is selected at random.</p>
+            <p class="field-help">
+              Your reel: <a href="{{ my_application.reel_url }}" target="_blank" rel="noopener">view on Instagram</a>
+            </p>
+          </div>
+          {% else %}
+          <div class="hub-request">
+            <form class="stack-form" method="post" action="{{ url_for('main.reel_review_request') }}"
+                  enctype="multipart/form-data">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <h3>Submit your reel</h3>
+              <p class="field-help">Paste your posted Instagram reel link and upload the raw video. One entry per week.</p>
+              <label>Instagram reel link
+                <input type="url" name="reel_url" required
+                       placeholder="https://www.instagram.com/reel/…">
+              </label>
+              <label>Raw video file
+                <input type="file" name="raw_video" accept="video/mp4,video/quicktime,video/webm,.mp4,.mov,.webm" required>
+              </label>
+              <p class="field-help">Max {{ max_mb }} MB. MP4, MOV or WEBM.</p>
+              <button class="btn btn--primary" type="submit">Enter this week’s draw</button>
+            </form>
+          </div>
+          {% endif %}
+        {% elif current_user.is_authenticated %}
+        <div class="hub-notice">
+          <p>Reel of the Week entries are for Creator members.
+            <a href="{{ url_for('main.membership', next=url_for('main.videos') + '#reviews') }}">Upgrade to Creator</a>
+            to enter the weekly draw.</p>
+        </div>
+        {% else %}
+        <div class="hub-notice">
+          <p><a href="{{ url_for('auth.login', next=url_for('main.videos') + '#reviews') }}">Sign in</a>
+            as a Creator member to request a review.</p>
+        </div>
+        {% endif %}
+      </div>
+
+      <div class="hub-queue" id="review-queue">
+        <div class="hub-page__section-head">
+          <p class="hub-page__eyebrow">Draw</p>
+          <h2>Review queue</h2>
+        </div>
+        {% if week_review %}
+        <div class="hub-queue__empty">
+          <p>This week’s pick is already live. The next queue opens Monday.</p>
+        </div>
+        {% elif my_application %}
+        <div class="hub-queue__card">
+          <p class="hub-queue__place">Your entry</p>
+          <p>You’re in this week’s draw. One Creator member will be chosen at random.</p>
+          <p class="field-help">
+            <a href="{{ my_application.reel_url }}" target="_blank" rel="noopener">Your reel on Instagram</a>
+            {% if my_application.selected %} &middot; selected{% endif %}
+          </p>
+        </div>
+        {% else %}
+        <div class="hub-queue__empty">
+          <p>No queue details to show yet. Enter the Reel of the Week draw above when it’s open.</p>
+        </div>
+        {% endif %}
+      </div>
     </div>
   </section>
 </div>

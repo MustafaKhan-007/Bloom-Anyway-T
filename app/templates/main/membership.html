@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Membership &mdash; {{ site.site_title }}{% endblock %}
+{% block meta_description %}Start free, or join Healing or Creator membership — community, support groups, Showcase, and Content Hub.{% endblock %}
 
 {% macro cell(val) %}
   {% if val is sameas true %}
@@ -15,100 +16,173 @@
 {% set facilitator_url = site.facilitator_booking_url or url_for('main.contact') %}
 {% set ayesha_url = site.ayesha_booking_url or url_for('main.contact') %}
 {% set saman_url = site.saman_booking_url or url_for('main.contact') %}
+{% set healing = plans.get('healing') %}
+{% set creator = plans.get('creator') %}
+{% set healing_checkout = checkout.get('healing') or (healing.ls_checkout_url if healing else none) %}
+{% set creator_checkout = checkout.get('creator') or (creator.ls_checkout_url if creator else none) %}
+{% set healing_price = healing.price_display() if healing and healing.price_cents is not none else '$9' %}
+{% set creator_price = creator.price_display() if creator and creator.price_cents is not none else '$15' %}
+{% set ends = site.founder_price_ends %}
 
 <div class="mem-page">
+  {% if ends %}
+  <section class="mem-page__founder" aria-label="Founder pricing">
+    <div class="container mem-page__founder-inner">
+      <p><strong>Founder pricing is live.</strong> Lock in your rate before {{ ends }} &mdash; it never increases for you.</p>
+      <span class="mem-page__founder-pill">Ends {{ ends }}</span>
+    </div>
+  </section>
+  {% endif %}
+
   <section class="mem-page__hero">
     <div class="container">
       <p class="mem-page__back"><a href="{{ back_url }}">&larr; Back to {{ back_label }}</a></p>
       <h1>Find your people. Grow out loud.</h1>
-      <p class="mem-page__subline">Start free forever, or step in for the full community and creator tools.
-        Cancel anytime &mdash; no drama.</p>
-    </div>
-  </section>
+      <p class="mem-page__subline">Start free. Or step in fully and get everything Bloom Anyway has to offer.
+        Cancel any time &mdash; no drama.</p>
 
-  {% if site.founder_price_ends %}
-  <section class="mem-page__banner">
-    <div class="container">
-      <p><strong>Founder pricing</strong> &mdash; lock in Healing &amp; Creator rates before {{ site.founder_price_ends }}.</p>
+      <div class="mem-toggle" data-billing-toggle>
+        <button type="button" class="mem-toggle__btn is-active" data-billing="monthly" aria-pressed="true">Monthly</button>
+        <button type="button" class="mem-toggle__btn" data-billing="annual" aria-pressed="false">
+          Annual <span class="mem-toggle__badge">Best value</span>
+        </button>
+      </div>
     </div>
   </section>
-  {% endif %}
 
   <section class="mem-page__plans">
     <div class="container">
       <div class="mem-page__plan-grid">
         <!-- Free -->
-        <div class="mem-page__plan {{ 'is-current' if current == 'none' }}">
-          {% if current == 'none' %}<span class="mem-page__badge">Your plan</span>{% endif %}
+        <article class="mem-card mem-card--free {{ 'is-current' if current == 'none' or not current }}">
+          <p class="mem-card__eyebrow">Free</p>
           <h2>Free</h2>
-          <p class="mem-page__price">$0<span>/ forever</span></p>
-          <p class="mem-page__tagline">Look around, buy what you love.</p>
-          <ul class="mem-page__perks">
-            <li>Buy any course or guide</li>
-            <li>Daily quotes &amp; badges</li>
-            <li>Read every community thread &amp; reply</li>
+          <p class="mem-card__price">$0 <span>/ forever</span></p>
+          <p class="mem-card__tagline">Browse, read, and buy what you love.</p>
+          <ul class="mem-card__perks">
+            <li>Browse and read all community posts</li>
             <li>Post once &amp; reply five times a week</li>
+            <li>Daily quotes &amp; badges</li>
+            <li>Buy any course or guide</li>
             <li>Browse Showcase &amp; Content Hub</li>
+            <li>Free Content Hub picks</li>
+            <li>Monthly free guide drops</li>
+            <li>Support groups (view only)</li>
+            <li>Always free &mdash; no card needed</li>
           </ul>
           {% if current == 'none' or not current %}
-          <span class="btn btn--secondary btn--block is-disabled">You're here</span>
+          <span class="btn btn--quiet btn--block is-disabled">You are here</span>
+          <p class="mem-card__foot">Always free. No card needed.</p>
           {% endif %}
-        </div>
+        </article>
 
         <!-- Healing -->
-        {% set healing = plans.get('healing') %}
-        <div class="mem-page__plan {{ 'is-current' if current == 'healing' }}">
-          {% if current == 'healing' %}<span class="mem-page__badge">Your plan</span>{% endif %}
+        <article class="mem-card mem-card--heal {{ 'is-current' if current == 'healing' }}">
+          <span class="mem-card__ribbon">Most caring &#10084;</span>
+          <p class="mem-card__eyebrow mem-card__eyebrow--pill">Healing membership</p>
           <h2>{{ healing.name if healing else 'Healing membership' }}</h2>
-          <p class="mem-page__price">
-            {% if healing and healing.price_cents is not none %}{{ healing.price_display() }}<span>{{ healing.period_label() }}</span>
+          {% if ends %}
+          <div class="mem-card__founder-box">
+            <p class="mem-card__founder-label">&#10022; Founder price{% if ends %} &mdash; ends {{ ends }}{% endif %}</p>
+            <p class="mem-card__price mem-card__price--box">
+              <span class="mem-price--month">{{ healing_price }} <span>/ month</span></span>
+              <span class="mem-price--year">$75 <span>/ year</span></span>
+            </p>
+            <p class="mem-card__lock">Lock this in forever.</p>
+          </div>
+          {% else %}
+          <p class="mem-card__price">
+            {% if healing and healing.price_cents is not none %}
+            <span class="mem-price--month">{{ healing.price_display() }}<span>{{ healing.period_label() }}</span></span>
+            <span class="mem-price--year">$75 <span>/ year</span></span>
             {% else %}<span class="soon">Coming soon</span>{% endif %}
           </p>
-          <p class="mem-page__tagline">{{ healing.tagline if healing and healing.tagline else 'Belong to the whole community.' }}</p>
-          <ul class="mem-page__perks">
-            <li>Everything in Free</li>
+          {% endif %}
+          <p class="mem-card__trial">&#10003; 2-week free trial &mdash; card required.</p>
+          <p class="mem-card__section-label">Everything in Free, plus</p>
+          <ul class="mem-card__perks">
             <li>Unlimited posts, replies &amp; likes</li>
-            <li>Profile links &amp; My Journey export</li>
-            <li>Coaching / support group circles</li>
-            <li>1 active Showcase listing</li>
+            <li>Peer-led support groups (Divorce Recovery, Co-Parenting, Starting Over, Grief)</li>
+            <li>1 Showcase listing per month</li>
             <li>Private messaging</li>
+            <li>Profile links &amp; My Journey export</li>
+            <li>Private journal with mood check-ins</li>
+            <li>Coaching / support group circles</li>
+            <li>Priority community access</li>
+            <li>Cancel any time</li>
           </ul>
           {% if current == 'healing' %}
           <span class="btn btn--secondary btn--block is-disabled">Your current plan</span>
-          {% elif healing and healing.is_buyable() %}
-          <a class="btn btn--primary btn--block lemonsqueezy-button" href="{{ checkout.get('healing') or healing.ls_checkout_url }}">Join Healing</a>
+          {% elif healing and healing.is_buyable() and healing_checkout %}
+          <a class="btn btn--primary btn--block lemonsqueezy-button" href="{{ healing_checkout }}">Start 2-week free trial &rarr;</a>
           {% else %}
           <span class="btn btn--secondary btn--block is-disabled">Coming soon</span>
           {% endif %}
-        </div>
+        </article>
 
         <!-- Creator -->
-        {% set creator = plans.get('creator') %}
-        <div class="mem-page__plan mem-page__plan--feature {{ 'is-current' if current == 'creator' }}">
-          <span class="mem-page__badge mem-page__badge--star">{{ 'Your plan' if current == 'creator' else 'Most loved' }}</span>
+        <article class="mem-card mem-card--creator {{ 'is-current' if current == 'creator' }}">
+          <span class="mem-card__ribbon mem-card__ribbon--gold">Most loved &#9733;</span>
+          <p class="mem-card__eyebrow mem-card__eyebrow--pill">Creator membership</p>
           <h2>{{ creator.name if creator else 'Creator membership' }}</h2>
-          <p class="mem-page__price">
-            {% if creator and creator.price_cents is not none %}{{ creator.price_display() }}<span>{{ creator.period_label() }}</span>
+          {% if ends %}
+          <div class="mem-card__founder-box">
+            <p class="mem-card__founder-label">&#10022; Founder price{% if ends %} &mdash; ends {{ ends }}{% endif %}</p>
+            <p class="mem-card__price mem-card__price--box">
+              <span class="mem-price--month">{{ creator_price }} <span>/ month</span></span>
+              <span class="mem-price--year">$150 <span>/ year</span></span>
+            </p>
+            <p class="mem-card__lock">Lock this in forever.</p>
+          </div>
+          {% else %}
+          <p class="mem-card__price">
+            {% if creator and creator.price_cents is not none %}
+            <span class="mem-price--month">{{ creator.price_display() }}<span>{{ creator.period_label() }}</span></span>
+            <span class="mem-price--year">$150 <span>/ year</span></span>
             {% else %}<span class="soon">Coming soon</span>{% endif %}
           </p>
-          <p class="mem-page__tagline">{{ creator.tagline if creator and creator.tagline else 'Everything, plus the tools to be seen.' }}</p>
-          <ul class="mem-page__perks">
-            <li>Everything in Healing</li>
-            <li>Content Hub videos &amp; weekly reel reviews</li>
-            <li>Social links on your profile</li>
-            <li>5 Showcase listings / month</li>
+          {% endif %}
+          <p class="mem-card__trial">&#10003; 1-week free trial &mdash; card required.</p>
+          <p class="mem-card__section-label">Everything in Healing, plus</p>
+          <ul class="mem-card__perks">
+            <li>Full Content Hub access</li>
+            <li>Daily reel review queue</li>
+            <li>5 Showcase listings per month</li>
             <li>Home-page spotlight eligibility</li>
-            <li>Creator accountability groups</li>
+            <li>Creator accountability groups (New Creators, Digital Products, Scaling Up, Investing)</li>
+            <li>Social links on your profile</li>
             <li>The &ldquo;My Journey&rdquo; keepsake export</li>
           </ul>
           {% if current == 'creator' %}
           <span class="btn btn--secondary btn--block is-disabled">Your current plan</span>
-          {% elif creator and creator.is_buyable() %}
-          <a class="btn btn--primary btn--block lemonsqueezy-button" href="{{ checkout.get('creator') or creator.ls_checkout_url }}">Become a Creator</a>
+          {% elif creator and creator.is_buyable() and creator_checkout %}
+          <a class="btn btn--gold btn--block lemonsqueezy-button" href="{{ creator_checkout }}">Become a Creator &mdash; start free trial &rarr;</a>
           {% else %}
           <span class="btn btn--secondary btn--block is-disabled">Coming soon</span>
           {% endif %}
-        </div>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="mem-page__annual">
+    <div class="container mem-page__annual-inner">
+      <div>
+        <p class="mem-page__annual-eyebrow">Annual plans &mdash; best value</p>
+        <h2>Pay once a year and save</h2>
+        <p>Healing $75/year &middot; Creator $150/year. Same Lemon checkout when annual links are live.</p>
+      </div>
+      <div class="mem-page__annual-actions">
+        {% if healing and healing.is_buyable() and healing_checkout %}
+        <a class="btn btn--primary lemonsqueezy-button" href="{{ healing_checkout }}">Healing &mdash; $75/yr</a>
+        {% else %}
+        <span class="btn btn--secondary is-disabled">Healing &mdash; $75/yr</span>
+        {% endif %}
+        {% if creator and creator.is_buyable() and creator_checkout %}
+        <a class="btn btn--gold lemonsqueezy-button" href="{{ creator_checkout }}">Creator &mdash; $150/yr</a>
+        {% else %}
+        <span class="btn btn--secondary is-disabled">Creator &mdash; $150/yr</span>
+        {% endif %}
       </div>
     </div>
   </section>
@@ -116,29 +190,62 @@
   <section class="mem-page__addons">
     <div class="container">
       <h2 class="mem-page__addons-title">Add-ons</h2>
-      <p class="mem-page__addons-lede">Optional extras on top of your membership — book when you're ready.</p>
+      <p class="mem-page__addons-lede">Optional extras on top of your membership &mdash; book when you're ready.</p>
       <div class="mem-page__addon-grid">
-        <article class="mem-page__addon mem-page__addon--plum">
-          <h3>Facilitator session</h3>
-          <p>Guided small-group support with a trained facilitator.</p>
-          <p class="mem-page__price mem-page__price--inline">$25 <span>per session</span></p>
+        <article class="mem-addon">
+          <p class="mem-addon__icon" aria-hidden="true">&#9787;</p>
+          <h3>Facilitator-led session</h3>
+          <p class="mem-addon__price">$25 <span>per session</span></p>
+          <p>Guided small-group support with a trained facilitator. Healing track only.</p>
+          <span class="mem-addon__tag">Available to all members &bull; Limited slots</span>
           <a class="btn btn--gold" href="{{ facilitator_url }}"
-             {% if site.facilitator_booking_url %}target="_blank" rel="noopener"{% endif %}>Book session</a>
+             {% if site.facilitator_booking_url %}target="_blank" rel="noopener"{% endif %}>Book facilitator &rarr;</a>
         </article>
-        <article class="mem-page__addon">
+        <article class="mem-addon">
+          <p class="mem-addon__icon" aria-hidden="true">&#10084;</p>
           <h3>1:1 with Ayesha</h3>
-          <p>Private healing coaching — divorce, custody, heartbreak, and rebuilding.</p>
-          <p class="mem-page__price mem-page__price--inline">$97 <span>per session</span></p>
+          <p class="mem-addon__price">$97 <span>per session</span></p>
+          <p>Private healing coaching &mdash; divorce, custody, heartbreak, and rebuilding.</p>
+          <span class="mem-addon__tag">Available to all members &bull; Limited slots</span>
           <a class="btn btn--secondary" href="{{ ayesha_url }}"
-             {% if site.ayesha_booking_url %}target="_blank" rel="noopener"{% endif %}>Book Ayesha</a>
+             {% if site.ayesha_booking_url %}target="_blank" rel="noopener"{% endif %}>Book with Ayesha &rarr;</a>
         </article>
-        <article class="mem-page__addon">
+        <article class="mem-addon">
+          <p class="mem-addon__icon" aria-hidden="true">&#10022;</p>
           <h3>1:1 with Saman</h3>
+          <p class="mem-addon__price">$97 <span>per session</span></p>
           <p>Business, content, and digital product strategy for builders.</p>
-          <p class="mem-page__price mem-page__price--inline">$97 <span>per session</span></p>
+          <span class="mem-addon__tag">Available to all members &bull; Limited slots</span>
           <a class="btn btn--secondary" href="{{ saman_url }}"
-             {% if site.saman_booking_url %}target="_blank" rel="noopener"{% endif %}>Book Saman</a>
+             {% if site.saman_booking_url %}target="_blank" rel="noopener"{% endif %}>Book with Saman &rarr;</a>
         </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="mem-page__trust" aria-label="Why join">
+    <div class="container">
+      <div class="mem-trust">
+        <div class="mem-trust__item">
+          <span class="mem-trust__icon" aria-hidden="true">&#128274;</span>
+          <h3>Secure checkout</h3>
+          <p>Prices &amp; billing handled by Lemon Squeezy. No hidden fees.</p>
+        </div>
+        <div class="mem-trust__item">
+          <span class="mem-trust__icon" aria-hidden="true">&#10005;</span>
+          <h3>Cancel any time</h3>
+          <p>No drama &mdash; cancel in two clicks from My space or Lemon.</p>
+        </div>
+        <div class="mem-trust__item">
+          <span class="mem-trust__icon" aria-hidden="true">&#9733;</span>
+          <h3>Founder price is locked</h3>
+          <p>{% if ends %}Join before {{ ends }} and your rate never increases.{% else %}Founder rates stay locked for early members.{% endif %}</p>
+        </div>
+        <div class="mem-trust__item">
+          <span class="mem-trust__icon" aria-hidden="true">&#10003;</span>
+          <h3>Built for real life</h3>
+          <p>Healing starts at {{ healing_price }}, and Free never runs out.</p>
+        </div>
       </div>
     </div>
   </section>
@@ -181,4 +288,24 @@
 
 {% block scripts %}
 <script src="https://assets.lemonsqueezy.com/lemon.js" defer></script>
+<script>
+(function () {
+  var root = document.querySelector("[data-billing-toggle]");
+  if (!root) return;
+  var page = document.querySelector(".mem-page");
+  var buttons = root.querySelectorAll("[data-billing]");
+  buttons.forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var mode = btn.getAttribute("data-billing");
+      buttons.forEach(function (b) {
+        var on = b === btn;
+        b.classList.toggle("is-active", on);
+        b.setAttribute("aria-pressed", on ? "true" : "false");
+      });
+      if (page) page.setAttribute("data-billing", mode);
+    });
+  });
+  if (page) page.setAttribute("data-billing", "monthly");
+})();
+</script>
 {% endblock %}

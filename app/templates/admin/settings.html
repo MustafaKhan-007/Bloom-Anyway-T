@@ -2,303 +2,311 @@
 {% block title %}Settings{% endblock %}
 
 {% block content %}
-<h1>Settings</h1>
-
-<div class="admin-panel" style="margin-bottom: 24px;">
-  <h2 style="margin-top: 0;">Email delivery</h2>
-  <p class="field-help" style="margin-top: 0;">
-    Confirmation codes use Brevo. If sign-up emails fail, send a test to your owner inbox —
-    the error message will name the exact problem (API key, unverified domain, bad sender).
-  </p>
-  <form method="post" action="{{ url_for('admin.settings_test_email') }}">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <button class="btn btn--secondary btn--sm" type="submit">Send test email to me</button>
-  </form>
-</div>
-
-<form method="post" enctype="multipart/form-data">
-  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-  <div class="admin-panel">
-    <div class="form-row">
-      <div class="field">
-        <label for="site_title">Site title</label>
-        <input type="text" id="site_title" name="site_title" value="{{ values.site_title }}">
-      </div>
-      <div class="field">
-        <label for="instagram_url">Instagram URL</label>
-        <input type="url" id="instagram_url" name="instagram_url" value="{{ values.instagram_url }}">
-      </div>
-    </div>
-    <div class="form-row">
-      <div class="field">
-        <label for="portrait_file">Their Story photo</label>
-        <div class="site-image-pick site-image-pick--portrait" data-crop-preview-wrap{% if not values.portrait_url %} data-empty{% endif %}>
-          <img id="portrait-preview" class="site-image-pick__preview"
-               src="{{ values.portrait_url or '' }}" alt=""
-               {% if not values.portrait_url %}hidden{% endif %}>
-          <span class="site-image-pick__ph" aria-hidden="true">4∶5</span>
-        </div>
-        <input type="file" id="portrait_file" name="portrait_file"
-               accept="image/png,image/jpeg,image/webp"
-               data-site-crop
-               data-crop-aspect="4:5"
-               data-crop-shape="rect"
-               data-crop-size="1200"
-               data-crop-filename="portrait.jpg"
-               data-crop-preview="#portrait-preview"
-               data-crop-title="Crop Their Story photo"
-               data-clear-checkbox="clear_portrait">
-        <label class="checkline checkline--sm" style="margin-top: 8px;">
-          <input type="checkbox" name="clear_portrait" value="1"> Remove current photo
-        </label>
-        <p class="field-help">Home “Their Story” photo (up to 8&nbsp;MB). Crop to 4∶5, then drag to fine-tune. Optional URL fallback below.</p>
-        <input type="url" id="portrait_url" name="portrait_url" value="{{ values.portrait_url }}"
-               placeholder="Or paste an image URL">
-      </div>
-      <div class="field">
-        <label for="hero_file">Story teaser image</label>
-        <div class="site-image-pick site-image-pick--teaser" data-crop-preview-wrap{% if not values.hero_image_url %} data-empty{% endif %}>
-          <img id="hero-preview" class="site-image-pick__preview"
-               src="{{ values.hero_image_url or '' }}" alt=""
-               {% if not values.hero_image_url %}hidden{% endif %}>
-          <span class="site-image-pick__ph" aria-hidden="true">1∶1</span>
-        </div>
-        <input type="file" id="hero_file" name="hero_file"
-               accept="image/png,image/jpeg,image/webp"
-               data-site-crop
-               data-crop-aspect="1:1"
-               data-crop-shape="rect"
-               data-crop-size="1200"
-               data-crop-filename="story-teaser.jpg"
-               data-crop-preview="#hero-preview"
-               data-crop-title="Crop story teaser"
-               data-clear-checkbox="clear_hero">
-        <label class="checkline checkline--sm" style="margin-top: 8px;">
-          <input type="checkbox" name="clear_hero" value="1"> Remove current teaser image
-        </label>
-        <p class="field-help">Upload a photo (up to 8&nbsp;MB). You'll crop it to the story teaser frame (square) and can drag to fine-tune. Optional URL fallback below.</p>
-        <input type="url" id="hero_image_url" name="hero_image_url" value="{{ values.hero_image_url }}"
-               placeholder="Or paste an image URL">
-      </div>
-    </div>
-    <div class="field">
-      <label for="contact_email">Contact email (shown publicly if you choose)</label>
-      <input type="email" id="contact_email" name="contact_email" value="{{ values.contact_email }}">
-    </div>
-    <div class="form-row">
-      <div class="field">
-        <label for="announcement_text">Announcement bar (leave empty to hide)</label>
-        <input type="text" id="announcement_text" name="announcement_text" value="{{ values.announcement_text }}"
-               placeholder="e.g. The new course opens Monday ☀">
-      </div>
-      <div class="field">
-        <label for="announcement_expires">Show until</label>
-        <input type="date" id="announcement_expires" name="announcement_expires"
-               value="{{ values.announcement_expires or default_expires }}">
-        <p class="field-help">Defaults to one day from now if you leave this blank.</p>
-      </div>
+<div class="studio-page">
+  <div class="page-head">
+    <div>
+      <p class="eyebrow">Site</p>
+      <h1>Settings</h1>
     </div>
   </div>
 
-  <h2 style="margin-top: 32px;">Home spotlight</h2>
-  <div class="admin-panel">
-    <p class="field-help" style="margin-top: 0;">These show on the home page. Use Clear to hide a card completely, or leave the name / reel blank when saving.</p>
-    <fieldset class="spotlight-fieldset">
-      <legend>Creator of the month</legend>
+  <section class="admin-panel studio-card">
+    <h2 style="margin-top: 0;">Email delivery</h2>
+    <p class="field-help" style="margin-top: 0;">
+      Confirmation codes use Brevo. If sign-up emails fail, send a test to your owner inbox —
+      the error message will name the exact problem (API key, unverified domain, bad sender).
+    </p>
+    <form method="post" action="{{ url_for('admin.settings_test_email') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="btn btn--secondary btn--sm" type="submit">Send test email to me</button>
+    </form>
+  </section>
+
+  <form method="post" enctype="multipart/form-data">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <section class="admin-panel studio-card">
+      <h2 style="margin-top: 0;">General</h2>
       <div class="form-row">
         <div class="field">
-          <label for="creator_name">Display name</label>
-          <input type="text" id="creator_name" name="creator_name" value="{{ values.creator_name }}"
-                 placeholder="How they show up on the card">
+          <label for="site_title">Site title</label>
+          <input type="text" id="site_title" name="site_title" value="{{ values.site_title }}">
         </div>
         <div class="field">
-          <label for="creator_instagram">Instagram handle</label>
-          <input type="text" id="creator_instagram" name="creator_instagram"
-                 value="{{ values.creator_instagram }}" placeholder="@theirhandle">
-          <p class="field-help">Just the handle &mdash; we strip share-link junk automatically. Paste a full URL if you like.</p>
+          <label for="instagram_url">Instagram URL</label>
+          <input type="url" id="instagram_url" name="instagram_url" value="{{ values.instagram_url }}">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="field">
+          <label for="portrait_file">Their Story photo</label>
+          <div class="site-image-pick site-image-pick--portrait" data-crop-preview-wrap{% if not values.portrait_url %} data-empty{% endif %}>
+            <img id="portrait-preview" class="site-image-pick__preview"
+                 src="{{ values.portrait_url or '' }}" alt=""
+                 {% if not values.portrait_url %}hidden{% endif %}>
+            <span class="site-image-pick__ph" aria-hidden="true">4∶5</span>
+          </div>
+          <input type="file" id="portrait_file" name="portrait_file"
+                 accept="image/png,image/jpeg,image/webp"
+                 data-site-crop
+                 data-crop-aspect="4:5"
+                 data-crop-shape="rect"
+                 data-crop-size="1200"
+                 data-crop-filename="portrait.jpg"
+                 data-crop-preview="#portrait-preview"
+                 data-crop-title="Crop Their Story photo"
+                 data-clear-checkbox="clear_portrait">
+          <label class="checkline checkline--sm" style="margin-top: 8px;">
+            <input type="checkbox" name="clear_portrait" value="1"> Remove current photo
+          </label>
+          <p class="field-help">Home “Their Story” photo (up to 8&nbsp;MB). Crop to 4∶5, then drag to fine-tune. Optional URL fallback below.</p>
+          <input type="url" id="portrait_url" name="portrait_url" value="{{ values.portrait_url }}"
+                 placeholder="Or paste an image URL">
+        </div>
+        <div class="field">
+          <label for="hero_file">Story teaser image</label>
+          <div class="site-image-pick site-image-pick--teaser" data-crop-preview-wrap{% if not values.hero_image_url %} data-empty{% endif %}>
+            <img id="hero-preview" class="site-image-pick__preview"
+                 src="{{ values.hero_image_url or '' }}" alt=""
+                 {% if not values.hero_image_url %}hidden{% endif %}>
+            <span class="site-image-pick__ph" aria-hidden="true">1∶1</span>
+          </div>
+          <input type="file" id="hero_file" name="hero_file"
+                 accept="image/png,image/jpeg,image/webp"
+                 data-site-crop
+                 data-crop-aspect="1:1"
+                 data-crop-shape="rect"
+                 data-crop-size="1200"
+                 data-crop-filename="story-teaser.jpg"
+                 data-crop-preview="#hero-preview"
+                 data-crop-title="Crop story teaser"
+                 data-clear-checkbox="clear_hero">
+          <label class="checkline checkline--sm" style="margin-top: 8px;">
+            <input type="checkbox" name="clear_hero" value="1"> Remove current teaser image
+          </label>
+          <p class="field-help">Upload a photo (up to 8&nbsp;MB). You'll crop it to the story teaser frame (square) and can drag to fine-tune. Optional URL fallback below.</p>
+          <input type="url" id="hero_image_url" name="hero_image_url" value="{{ values.hero_image_url }}"
+                 placeholder="Or paste an image URL">
         </div>
       </div>
       <div class="field">
-        <label for="creator_file">Profile photo (optional)</label>
-        {% if values.creator_image_url %}
-        <p class="field-help" style="margin-top: 0;">
-          Current:
-          <a href="{{ values.creator_image_url }}" target="_blank" rel="noopener">view</a>
-        </p>
-        <img src="{{ values.creator_image_url }}" alt="" style="max-width: 120px; border-radius: 50%; margin-bottom: 8px;">
-        {% endif %}
-        <input type="file" id="creator_file" name="creator_file" accept="image/*">
-        <label class="checkline checkline--sm" style="margin-top: 8px;">
-          <input type="checkbox" name="clear_creator" value="1"> Remove current photo
-        </label>
-        <p class="field-help">Upload a photo (up to 8&nbsp;MB). Leave blank to try their Instagram photo on save, or paste a URL below.</p>
-        <input type="url" id="creator_image_url" name="creator_image_url" value="{{ values.creator_image_url }}"
-               placeholder="Or paste an image URL">
+        <label for="contact_email">Contact email (shown publicly if you choose)</label>
+        <input type="email" id="contact_email" name="contact_email" value="{{ values.contact_email }}">
       </div>
-      <div class="field">
-        <label for="creator_blurb">Their bio</label>
-        <textarea id="creator_blurb" name="creator_blurb" rows="4"
-                  placeholder="Paste their Instagram bio (or write a short intro). This fills the card.">{{ values.creator_blurb }}</textarea>
-        <p class="field-help">Instagram rarely shares bios publicly &mdash; pasting it here is the reliable way to fill the card.</p>
+      <div class="form-row">
+        <div class="field">
+          <label for="announcement_text">Announcement bar (leave empty to hide)</label>
+          <input type="text" id="announcement_text" name="announcement_text" value="{{ values.announcement_text }}"
+                 placeholder="e.g. The new course opens Monday ☀">
+        </div>
+        <div class="field">
+          <label for="announcement_expires">Show until</label>
+          <input type="date" id="announcement_expires" name="announcement_expires"
+                 value="{{ values.announcement_expires or default_expires }}">
+          <p class="field-help">Defaults to one day from now if you leave this blank.</p>
+        </div>
       </div>
-      <div class="spotlight-clear">
-        <button class="btn btn--secondary btn--sm" type="submit" name="clear_spotlight_creator" value="1"
-                {% if not (values.creator_name or values.creator_instagram or values.creator_image_url or values.creator_blurb) %}disabled{% endif %}
-                onclick="return confirm('Clear Creator of the month from the home page?');">
-          Clear Creator of the month
-        </button>
-        <span class="field-help">Removes name, handle, photo, and bio.</span>
-      </div>
-    </fieldset>
-    <fieldset class="spotlight-fieldset">
-      <legend>Reel of the week</legend>
-      <div class="field">
-        <label for="reel_url">Instagram reel URL</label>
-        <input type="url" id="reel_url" name="reel_url" value="{{ values.reel_url }}" placeholder="https://instagram.com/reel/...">
-        <p class="field-help">We embed it automatically and add a "Watch on Instagram" button.</p>
-      </div>
-      <div class="field">
-        <label for="reel_description">Why you love it (optional)</label>
-        <input type="text" id="reel_description" name="reel_description" value="{{ values.reel_description }}">
-      </div>
-      <div class="spotlight-clear">
-        <button class="btn btn--secondary btn--sm" type="submit" name="clear_spotlight_reel" value="1"
-                {% if not (values.reel_url or values.reel_description) %}disabled{% endif %}
-                onclick="return confirm('Clear Reel of the week from the home page?');">
-          Clear Reel of the week
-        </button>
-        <span class="field-help">Removes the reel URL and description.</span>
-      </div>
-    </fieldset>
+    </section>
 
-    {% if spotlight %}
-    <div class="spotlight-candidates">
-      <h3>Creator members to feature</h3>
-      <p class="field-help" style="margin-top: 0;">Creator-tier members and their Instagram handles &mdash; copy one into the fields above.</p>
-      <ul>
-        {% for c in spotlight %}
-        <li>
-          <strong>{{ c.name }}</strong>
-          {% if c.instagram %}&mdash;
-            {% if c.profile_url %}<a href="{{ c.profile_url }}" target="_blank" rel="noopener">{{ c.instagram }}</a>
-            {% else %}{{ c.instagram }}{% endif %}
-          {% else %}<span class="field-help">(no Instagram link yet)</span>{% endif %}
-        </li>
-        {% endfor %}
-      </ul>
-    </div>
-    {% endif %}
-  </div>
+    <section class="admin-panel studio-card">
+      <h2 style="margin-top: 0;">Home spotlight</h2>
+      <p class="field-help" style="margin-top: 0;">These show on the home page. Use Clear to hide a card completely, or leave the name / reel blank when saving.</p>
+      <fieldset class="spotlight-fieldset">
+        <legend>Creator of the month</legend>
+        <div class="form-row">
+          <div class="field">
+            <label for="creator_name">Display name</label>
+            <input type="text" id="creator_name" name="creator_name" value="{{ values.creator_name }}"
+                   placeholder="How they show up on the card">
+          </div>
+          <div class="field">
+            <label for="creator_instagram">Instagram handle</label>
+            <input type="text" id="creator_instagram" name="creator_instagram"
+                   value="{{ values.creator_instagram }}" placeholder="@theirhandle">
+            <p class="field-help">Just the handle &mdash; we strip share-link junk automatically. Paste a full URL if you like.</p>
+          </div>
+        </div>
+        <div class="field">
+          <label for="creator_file">Profile photo (optional)</label>
+          {% if values.creator_image_url %}
+          <p class="field-help" style="margin-top: 0;">
+            Current:
+            <a href="{{ values.creator_image_url }}" target="_blank" rel="noopener">view</a>
+          </p>
+          <img src="{{ values.creator_image_url }}" alt="" style="max-width: 120px; border-radius: 50%; margin-bottom: 8px;">
+          {% endif %}
+          <input type="file" id="creator_file" name="creator_file" accept="image/*">
+          <label class="checkline checkline--sm" style="margin-top: 8px;">
+            <input type="checkbox" name="clear_creator" value="1"> Remove current photo
+          </label>
+          <p class="field-help">Upload a photo (up to 8&nbsp;MB). Leave blank to try their Instagram photo on save, or paste a URL below.</p>
+          <input type="url" id="creator_image_url" name="creator_image_url" value="{{ values.creator_image_url }}"
+                 placeholder="Or paste an image URL">
+        </div>
+        <div class="field">
+          <label for="creator_blurb">Their bio</label>
+          <textarea id="creator_blurb" name="creator_blurb" rows="4"
+                    placeholder="Paste their Instagram bio (or write a short intro). This fills the card.">{{ values.creator_blurb }}</textarea>
+          <p class="field-help">Instagram rarely shares bios publicly &mdash; pasting it here is the reliable way to fill the card.</p>
+        </div>
+        <div class="spotlight-clear">
+          <button class="btn btn--secondary btn--sm" type="submit" name="clear_spotlight_creator" value="1"
+                  {% if not (values.creator_name or values.creator_instagram or values.creator_image_url or values.creator_blurb) %}disabled{% endif %}
+                  onclick="return confirm('Clear Creator of the month from the home page?');">
+            Clear Creator of the month
+          </button>
+          <span class="field-help">Removes name, handle, photo, and bio.</span>
+        </div>
+      </fieldset>
+      <fieldset class="spotlight-fieldset">
+        <legend>Reel of the week</legend>
+        <div class="field">
+          <label for="reel_url">Instagram reel URL</label>
+          <input type="url" id="reel_url" name="reel_url" value="{{ values.reel_url }}" placeholder="https://instagram.com/reel/...">
+          <p class="field-help">We embed it automatically and add a "Watch on Instagram" button.</p>
+        </div>
+        <div class="field">
+          <label for="reel_description">Why you love it (optional)</label>
+          <input type="text" id="reel_description" name="reel_description" value="{{ values.reel_description }}">
+        </div>
+        <div class="spotlight-clear">
+          <button class="btn btn--secondary btn--sm" type="submit" name="clear_spotlight_reel" value="1"
+                  {% if not (values.reel_url or values.reel_description) %}disabled{% endif %}
+                  onclick="return confirm('Clear Reel of the week from the home page?');">
+            Clear Reel of the week
+          </button>
+          <span class="field-help">Removes the reel URL and description.</span>
+        </div>
+      </fieldset>
 
-  <h2 style="margin-top: 32px;">1:1 coaching &amp; facilitator booking</h2>
-  <div class="admin-panel">
-    <p class="field-help" style="margin-top: 0;">
-      External calendar links shown on Support Groups and Membership add-ons.
-      Leave blank to hide the book button until you're ready.
-    </p>
-    <div class="form-row">
-      <div class="field">
-        <label for="ayesha_booking_url">Ayesha (Healing) booking URL</label>
-        <input type="url" id="ayesha_booking_url" name="ayesha_booking_url"
-               value="{{ values.ayesha_booking_url }}"
-               placeholder="https://cal.com/…">
+      {% if spotlight %}
+      <div class="spotlight-candidates">
+        <h3>Creator members to feature</h3>
+        <p class="field-help" style="margin-top: 0;">Creator-tier members and their Instagram handles &mdash; copy one into the fields above.</p>
+        <ul>
+          {% for c in spotlight %}
+          <li>
+            <strong>{{ c.name }}</strong>
+            {% if c.instagram %}&mdash;
+              {% if c.profile_url %}<a href="{{ c.profile_url }}" target="_blank" rel="noopener">{{ c.instagram }}</a>
+              {% else %}{{ c.instagram }}{% endif %}
+            {% else %}<span class="field-help">(no Instagram link yet)</span>{% endif %}
+          </li>
+          {% endfor %}
+        </ul>
       </div>
-      <div class="field">
-        <label for="saman_booking_url">Saman (Building) booking URL</label>
-        <input type="url" id="saman_booking_url" name="saman_booking_url"
-               value="{{ values.saman_booking_url }}"
-               placeholder="https://cal.com/…">
+      {% endif %}
+    </section>
+
+    <section class="admin-panel studio-card">
+      <h2 style="margin-top: 0;">1:1 coaching &amp; facilitator booking</h2>
+      <p class="field-help" style="margin-top: 0;">
+        External calendar links shown on Support Groups and Membership add-ons.
+        Leave blank to hide the book button until you're ready.
+      </p>
+      <div class="form-row">
+        <div class="field">
+          <label for="ayesha_booking_url">Ayesha (Healing) booking URL</label>
+          <input type="url" id="ayesha_booking_url" name="ayesha_booking_url"
+                 value="{{ values.ayesha_booking_url }}"
+                 placeholder="https://cal.com/…">
+        </div>
+        <div class="field">
+          <label for="saman_booking_url">Saman (Building) booking URL</label>
+          <input type="url" id="saman_booking_url" name="saman_booking_url"
+                 value="{{ values.saman_booking_url }}"
+                 placeholder="https://cal.com/…">
+        </div>
       </div>
-    </div>
-    <div class="form-row">
-      <div class="field">
-        <label for="facilitator_booking_url">Facilitator session booking URL</label>
-        <input type="url" id="facilitator_booking_url" name="facilitator_booking_url"
-               value="{{ values.facilitator_booking_url }}"
-               placeholder="https://…">
+      <div class="form-row">
+        <div class="field">
+          <label for="facilitator_booking_url">Facilitator session booking URL</label>
+          <input type="url" id="facilitator_booking_url" name="facilitator_booking_url"
+                 value="{{ values.facilitator_booking_url }}"
+                 placeholder="https://…">
+        </div>
+        <div class="field">
+          <label for="founder_price_ends">Founder pricing ends (optional)</label>
+          <input type="date" id="founder_price_ends" name="founder_price_ends"
+                 value="{{ values.founder_price_ends }}">
+          <p class="field-help">Shows the countdown banner on Membership when set.</p>
+        </div>
       </div>
-      <div class="field">
-        <label for="founder_price_ends">Founder pricing ends (optional)</label>
-        <input type="date" id="founder_price_ends" name="founder_price_ends"
-               value="{{ values.founder_price_ends }}">
-        <p class="field-help">Shows the countdown banner on Membership when set.</p>
-      </div>
-    </div>
-  </div>
+    </section>
 
-  <button class="btn btn--primary" type="submit">Save settings</button>
-</form>
-
-{% if values.announcement_text %}
-<form method="post" style="margin-top: 14px;">
-  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-  <input type="hidden" name="clear_announcement" value="1">
-  <button class="btn btn--secondary btn--sm" type="submit">Remove announcement</button>
-  <span class="field-help" style="margin-left: 8px;">Clears the quick announcement above and its date.</span>
-</form>
-{% endif %}
-
-<div class="admin-panel" style="margin-top: 32px;">
-  <h2>More announcements</h2>
-  <p class="field-help">Run several at once &mdash; they stack tidily on the home page. Each can have its own expiry.</p>
-
-  <form method="post" class="form-row form-row--announce">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <input type="hidden" name="add_announcement" value="1">
-    <div class="field form-row--announce__body">
-      <label for="ann_body">Announcement</label>
-      <input type="text" id="ann_body" name="ann_body" maxlength="300" placeholder="e.g. New reel this week ☀">
-    </div>
-    <div class="field">
-      <label for="ann_expires">Show until</label>
-      <input type="date" id="ann_expires" name="ann_expires" value="{{ default_expires }}">
-      <p class="field-help">Defaults to one day from now.</p>
-    </div>
-    <div class="field form-row--announce__action">
-      <label class="sr-only" for="ann-add">Add announcement</label>
-      <button class="btn btn--primary btn--sm" id="ann-add" type="submit">Add</button>
-    </div>
+    <button class="btn btn--primary" type="submit">Save settings</button>
   </form>
 
-  {% if announcements %}
-  <table class="admin-table" style="margin-top: 16px;">
-    <thead><tr><th>Announcement</th><th>Expires</th><th>Status</th><th></th></tr></thead>
-    <tbody>
-      {% for a in announcements %}
-      <tr>
-        <td>{{ a.body }}</td>
-        <td>{{ a.expires.isoformat() if a.expires else '—' }}</td>
-        <td>{{ 'Live' if a.is_live() else 'Expired' }}</td>
-        <td>
-          <form method="post" style="display:inline">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <input type="hidden" name="remove_announcement" value="{{ a.id }}">
-            <button class="btn btn--danger btn--sm" type="submit">Remove</button>
-          </form>
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+  {% if values.announcement_text %}
+  <form method="post" style="margin-top: 14px;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="clear_announcement" value="1">
+    <button class="btn btn--secondary btn--sm" type="submit">Remove announcement</button>
+    <span class="field-help" style="margin-left: 8px;">Clears the quick announcement above and its date.</span>
+  </form>
   {% endif %}
-</div>
 
-<dialog class="avatar-crop" id="site-image-crop" aria-labelledby="site-image-crop-title">
-  <div class="avatar-crop__panel">
-    <h2 id="site-image-crop-title" data-crop-title>Crop image</h2>
-    <p class="field-help" data-crop-help>Drag to reposition. Use the slider to zoom. The frame is exactly what visitors will see.</p>
-    <div class="avatar-crop__stage avatar-crop__stage--rect" data-crop-stage>
-      <img data-crop-image alt="" draggable="false">
-      <div class="avatar-crop__mask" aria-hidden="true"></div>
+  <section class="admin-panel studio-card">
+    <h2>More announcements</h2>
+    <p class="field-help">Run several at once &mdash; they stack tidily on the home page. Each can have its own expiry.</p>
+
+    <form method="post" class="form-row form-row--announce">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="add_announcement" value="1">
+      <div class="field form-row--announce__body">
+        <label for="ann_body">Announcement</label>
+        <input type="text" id="ann_body" name="ann_body" maxlength="300" placeholder="e.g. New reel this week ☀">
+      </div>
+      <div class="field">
+        <label for="ann_expires">Show until</label>
+        <input type="date" id="ann_expires" name="ann_expires" value="{{ default_expires }}">
+        <p class="field-help">Defaults to one day from now.</p>
+      </div>
+      <div class="field form-row--announce__action">
+        <label class="sr-only" for="ann-add">Add announcement</label>
+        <button class="btn btn--primary btn--sm" id="ann-add" type="submit">Add</button>
+      </div>
+    </form>
+
+    {% if announcements %}
+    <table class="admin-table" style="margin-top: 16px;">
+      <thead><tr><th>Announcement</th><th>Expires</th><th>Status</th><th></th></tr></thead>
+      <tbody>
+        {% for a in announcements %}
+        <tr>
+          <td>{{ a.body }}</td>
+          <td>{{ a.expires.isoformat() if a.expires else '—' }}</td>
+          <td>{{ 'Live' if a.is_live() else 'Expired' }}</td>
+          <td>
+            <form method="post" style="display:inline">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="remove_announcement" value="{{ a.id }}">
+              <button class="btn btn--danger btn--sm" type="submit">Remove</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+  </section>
+
+  <dialog class="avatar-crop" id="site-image-crop" aria-labelledby="site-image-crop-title">
+    <div class="avatar-crop__panel">
+      <h2 id="site-image-crop-title" data-crop-title>Crop image</h2>
+      <p class="field-help" data-crop-help>Drag to reposition. Use the slider to zoom. The frame is exactly what visitors will see.</p>
+      <div class="avatar-crop__stage avatar-crop__stage--rect" data-crop-stage>
+        <img data-crop-image alt="" draggable="false">
+        <div class="avatar-crop__mask" aria-hidden="true"></div>
+      </div>
+      <label class="avatar-crop__zoom">
+        Zoom
+        <input type="range" min="100" max="300" value="100" data-crop-zoom>
+      </label>
+      <div class="avatar-crop__actions">
+        <button type="button" class="btn btn--secondary btn--sm" data-crop-cancel>Cancel</button>
+        <button type="button" class="btn btn--primary btn--sm" data-crop-apply>Use this crop</button>
+      </div>
     </div>
-    <label class="avatar-crop__zoom">
-      Zoom
-      <input type="range" min="100" max="300" value="100" data-crop-zoom>
-    </label>
-    <div class="avatar-crop__actions">
-      <button type="button" class="btn btn--secondary btn--sm" data-crop-cancel>Cancel</button>
-      <button type="button" class="btn btn--primary btn--sm" data-crop-apply>Use this crop</button>
-    </div>
-  </div>
-</dialog>
+  </dialog>
+</div>
 {% endblock %}

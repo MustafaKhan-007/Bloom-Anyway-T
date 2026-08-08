@@ -7,69 +7,92 @@
     <p class="eyebrow">Coaching circles</p>
     <h1>Support groups</h1>
     <p class="field-help" style="margin: 8px 0 0; max-width: 58ch;">
-      Healing &amp; Creator members apply from My space. Seat the earliest applicants,
-      pick a time in your timezone — Zoom is created automatically. Members get an
+      Healing &amp; Creator members apply from Support Groups. Seat the earliest applicants
+      per circle, pick a time in your timezone — Zoom is created automatically. Members get an
       email and an in-app note with the join link, plus a 24-hour reminder.
     </p>
+    {% if pending_total is defined %}
+    <p class="sg-studio__total">
+      <strong>{{ pending_total }}</strong> waiting across all circles
+    </p>
+    {% endif %}
   </header>
 
-  <div class="sg-studio__grid">
-    <section class="admin-panel sg-panel">
-      <div class="sg-panel__head">
-        <h2 style="margin:0;">Waiting list</h2>
-        <span class="sg-count">{{ pending|length }}</span>
-      </div>
-      <p class="field-help" style="margin-top: 6px;">Earliest applications first.</p>
+  <section class="admin-panel sg-panel">
+    <div class="sg-panel__head">
+      <h2 style="margin:0;">Waiting lists</h2>
+      {% if pending_total is defined %}<span class="sg-count">{{ pending_total }}</span>{% endif %}
+    </div>
+    <p class="field-help" style="margin-top: 6px;">
+      Occupancy and seating per circle. Earliest applications are seated first.
+    </p>
 
-      <form method="post" action="{{ url_for('admin.support_groups_form') }}"
-            class="sg-seat-form">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <label class="sg-seat-form__label">
-          Seats for next meeting
-          <input type="number" name="capacity" min="2" max="40" value="6" required>
-        </label>
-        <button class="btn btn--primary" type="submit"
-                {% if not pending %}disabled{% endif %}>
-          Seat earliest applicants
-        </button>
-      </form>
-
-      {% if pending %}
-      <ol class="sg-queue">
-        {% for a in pending %}
-        <li class="sg-queue__card">
-          <header class="sg-queue__head">
-            <div class="sg-queue__identity">
-              <strong class="sg-queue__name">{{ a.author.public_name() }}</strong>
-              <span class="sg-queue__tier">{{ a.author.membership_label() }}</span>
-            </div>
-            <span class="sg-queue__place" aria-label="Queue position">#{{ loop.index }}</span>
-          </header>
-          <dl class="sg-queue__meta">
-            <div>
-              <dt>Email</dt>
-              <dd>{{ a.author.email }}</dd>
-            </div>
-            <div>
-              <dt>Applied</dt>
-              <dd>{{ a.created_at|localtime('%b %d, %Y · %I:%M %p') }}</dd>
-            </div>
-          </dl>
-          {% if a.message %}
-          <div class="sg-queue__note">
-            <span class="sg-queue__note-label">Note</span>
-            <p>{{ a.message|truncate(220) }}</p>
+    {% if circle_stats %}
+    <div class="sg-circles">
+      {% for s in circle_stats %}
+      {% set c = s.circle %}
+      {% set cap = c.capacity or 1 %}
+      {% set used_pct = ((s.used / cap) * 100)|int if cap else 0 %}
+      <article class="sg-circle-card studio-card">
+        <header class="sg-circle-card__head">
+          <div>
+            <p class="eyebrow">{{ c.track|capitalize }}</p>
+            <h3 style="margin: 4px 0 0;">{{ c.title }}</h3>
           </div>
-          {% endif %}
-        </li>
-        {% endfor %}
-      </ol>
-      {% else %}
-      <p class="sg-empty">No one is waiting right now.</p>
-      {% endif %}
-    </section>
+          <span class="sg-count">{{ s.pending }} waiting</span>
+        </header>
 
-    <section class="admin-panel sg-panel">
+        <div class="sg-occ">
+          <div class="sg-occ__meta">
+            <span>{{ s.seated }} / {{ c.capacity }} seated</span>
+            <span>
+              {% if s.full %}Full{% else %}{{ s.spots_left }} spot{{ '' if s.spots_left == 1 else 's' }} left{% endif %}
+            </span>
+          </div>
+          <div class="sg-occ__bar" role="img" aria-label="{{ used_pct }} percent full">
+            <span style="width: {{ [used_pct, 100]|min }}%;"></span>
+          </div>
+          <p class="field-help" style="margin: 8px 0 0;">
+            {{ s.pending }} pending &middot; {{ s.seated }} seated in open meetings
+          </p>
+        </div>
+
+        {% if s.queue %}
+        <ol class="sg-queue">
+          {% for row in s.queue[:8] %}
+          <li>
+            <strong>#{{ loop.index }}</strong>
+            {{ row.author.public_name() if row.author else 'Member' }}
+            <span class="field-help">{{ row.created_at|localtime('%b %d') }}</span>
+          </li>
+          {% endfor %}
+        </ol>
+        {% endif %}
+
+        <form method="post" action="{{ url_for('admin.support_groups_form') }}"
+              class="sg-seat-form">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="circle_id" value="{{ c.id }}">
+          <label class="sg-seat-form__label">
+            Seats for next meeting
+            <input type="number" name="capacity" min="2" max="40"
+                   value="{{ [s.pending, c.capacity, 6]|min if s.pending else 6 }}" required>
+          </label>
+          <button class="btn btn--primary" type="submit"
+                  {% if not s.pending %}disabled{% endif %}>
+            Seat earliest ({{ s.pending }} waiting)
+          </button>
+        </form>
+      </article>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="sg-empty">No circles configured yet.</p>
+    {% endif %}
+  </section>
+
+  <div class="sg-studio__grid" style="margin-top: 24px;">
+    <section class="admin-panel sg-panel" style="grid-column: 1 / -1;">
       <div class="sg-panel__head">
         <h2 style="margin:0;">Open meetings</h2>
         <span class="sg-count">{{ open_meetings|length }}</span>
@@ -87,6 +110,9 @@
           <div class="sg-meeting__top">
             <div>
               <span class="sg-pill sg-pill--{{ m.status }}">{{ m.status }}</span>
+              {% if m.circle %}
+              <p class="field-help" style="margin: 6px 0 0;">{{ m.circle.title }}</p>
+              {% endif %}
               <h3 style="margin: 8px 0 4px;">
                 {{ seats|length }} of {{ m.capacity }} seated
               </h3>
@@ -170,7 +196,7 @@
         {% endfor %}
       </div>
       {% else %}
-      <p class="sg-empty">Seat people from the waiting list to open a meeting.</p>
+      <p class="sg-empty">Seat people from a circle waiting list to open a meeting.</p>
       {% endif %}
     </section>
   </div>
@@ -180,11 +206,12 @@
     <h2 style="margin-top:0;">Recent</h2>
     <table class="admin-table">
       <thead>
-        <tr><th>When</th><th>Seats</th><th>Status</th></tr>
+        <tr><th>Circle</th><th>When</th><th>Seats</th><th>Status</th></tr>
       </thead>
       <tbody>
         {% for m in past_meetings %}
         <tr>
+          <td>{% if m.circle %}{{ m.circle.title }}{% else %}—{% endif %}</td>
           <td>
             {% if m.scheduled_at %}
             {{ m.scheduled_at|localtime('%b %d, %Y · %I:%M %p') }}

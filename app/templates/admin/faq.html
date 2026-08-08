@@ -2,58 +2,67 @@
 {% block title %}FAQ{% endblock %}
 
 {% block content %}
-<h1>FAQ</h1>
+<div class="studio-page">
+  <div class="page-head">
+    <div>
+      <p class="eyebrow">Site copy</p>
+      <h1>FAQ</h1>
+    </div>
+  </div>
 
-<div class="admin-panel">
-  <h2>Add a question</h2>
-  <form method="post" action="{{ url_for('admin.faq_save') }}">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <div class="field">
-      <label for="question">Question</label>
-      <input type="text" id="question" name="question" maxlength="240" required>
-    </div>
-    <div class="field">
-      <label for="answer_md">Answer (Markdown)</label>
-      <textarea id="answer_md" name="answer_md" rows="4" required></textarea>
-    </div>
-    <div class="field" style="max-width: 160px;">
-      <label for="sort_order">Sort order</label>
-      <input type="number" id="sort_order" name="sort_order" value="0">
-    </div>
-    <button class="btn btn--primary btn--sm" type="submit">Add</button>
-  </form>
+  <section class="admin-panel studio-card">
+    <h2>Add a question</h2>
+    <form method="post" action="{{ url_for('admin.faq_save') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="field">
+        <label for="question">Question</label>
+        <input type="text" id="question" name="question" maxlength="240" required>
+      </div>
+      <div class="field">
+        <label for="answer_md">Answer (Markdown)</label>
+        <textarea id="answer_md" name="answer_md" rows="4" required></textarea>
+      </div>
+      <div class="field" style="max-width: 160px;">
+        <label for="sort_order">Sort order</label>
+        <input type="number" id="sort_order" name="sort_order" value="0">
+      </div>
+      <button class="btn btn--primary btn--sm" type="submit">Add</button>
+    </form>
+  </section>
+
+  <section class="admin-panel studio-card">
+    <h2>All questions ({{ items|length }})</h2>
+    {% for item in items %}
+    <details class="admin-panel studio-card faq-item">
+      <summary>
+        <span class="faq-item__q">{{ item.question }}</span>
+        <span class="faq-item__hint">Edit</span>
+      </summary>
+      <form method="post" action="{{ url_for('admin.faq_save', item_id=item.id) }}" style="margin-top: 16px;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="field">
+          <label>Question</label>
+          <input type="text" name="question" maxlength="240" value="{{ item.question }}">
+        </div>
+        <div class="field">
+          <label>Answer (Markdown)</label>
+          <textarea name="answer_md" rows="4">{{ item.answer_md }}</textarea>
+        </div>
+        <div class="field" style="max-width: 160px;">
+          <label>Sort order</label>
+          <input type="number" name="sort_order" value="{{ item.sort_order }}">
+        </div>
+        <button class="btn btn--primary btn--sm" type="submit">Save</button>
+      </form>
+      <form class="inline-form" method="post" action="{{ url_for('admin.faq_delete', item_id=item.id) }}"
+            data-confirm="Delete this FAQ item?" style="margin-top: 8px; display: inline-block;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn btn--danger btn--sm" type="submit">Delete</button>
+      </form>
+    </details>
+    {% else %}
+    <p>No FAQ items yet.</p>
+    {% endfor %}
+  </section>
 </div>
-
-<h2 style="margin-top: 32px;">All questions ({{ items|length }})</h2>
-{% for item in items %}
-<details class="admin-panel faq-item">
-  <summary>
-    <span class="faq-item__q">{{ item.question }}</span>
-    <span class="faq-item__hint">Edit</span>
-  </summary>
-  <form method="post" action="{{ url_for('admin.faq_save', item_id=item.id) }}" style="margin-top: 16px;">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <div class="field">
-      <label>Question</label>
-      <input type="text" name="question" maxlength="240" value="{{ item.question }}">
-    </div>
-    <div class="field">
-      <label>Answer (Markdown)</label>
-      <textarea name="answer_md" rows="4">{{ item.answer_md }}</textarea>
-    </div>
-    <div class="field" style="max-width: 160px;">
-      <label>Sort order</label>
-      <input type="number" name="sort_order" value="{{ item.sort_order }}">
-    </div>
-    <button class="btn btn--primary btn--sm" type="submit">Save</button>
-  </form>
-  <form class="inline-form" method="post" action="{{ url_for('admin.faq_delete', item_id=item.id) }}"
-        data-confirm="Delete this FAQ item?" style="margin-top: 8px; display: inline-block;">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <button class="btn btn--danger btn--sm" type="submit">Delete</button>
-  </form>
-</details>
-{% else %}
-<p>No FAQ items yet.</p>
-{% endfor %}
 {% endblock %}

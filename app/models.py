@@ -860,9 +860,11 @@ class Announcement(db.Model):
 
 # --- marketplace ------------------------------------------------------------
 
-MARKETPLACE_KINDS = ("product", "service")
-MARKETPLACE_KIND_LABELS = {"product": "Digital product", "service": "Service"}
-#: how many active listings each tier may run at once (creator = unlimited)
+MARKETPLACE_KINDS = ("product", "service", "business")
+MARKETPLACE_KIND_LABELS = {
+    "product": "Digital product", "service": "Service", "business": "Business",
+}
+#: how many active listings each tier may run at once
 MARKETPLACE_LIMITS = {"none": 0, "healing": 1, "creator": 5}
 #: how many tags a single listing may carry
 MARKETPLACE_TAG_MAX = 24
@@ -907,7 +909,7 @@ class MarketplaceListing(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
-    kind = db.Column(db.String(20), nullable=False, default="product")  # product / service
+    kind = db.Column(db.String(20), nullable=False, default="product")  # product / service / business
     title = db.Column(db.String(140), nullable=False)
     description = db.Column(db.Text, nullable=False, default="")
     location = db.Column(db.String(120))     # services only
@@ -1062,6 +1064,58 @@ class ContentReport(db.Model):
 
 SUPPORT_APP_STATUSES = ("pending", "selected", "cancelled", "attended")
 SUPPORT_MEETING_STATUSES = ("draft", "scheduled", "completed", "cancelled")
+SUPPORT_CIRCLE_TRACKS = ("healing", "building")
+
+# Seed catalogue for peer circles shown on /support-groups and in Studio.
+SUPPORT_CIRCLE_SEED = (
+    ("divorce-recovery", "healing", "Divorce Recovery",
+     "Process endings, paperwork, and the quiet after — with women who get it.",
+     12, "Mondays, 8pm", "heart"),
+    ("co-parenting", "healing", "Co-Parenting Circle",
+     "Navigate shared parenting, boundaries, and hard conversations with care.",
+     12, "Tuesdays, 7pm", "people"),
+    ("starting-over", "healing", "Starting Over",
+     "Rebuild identity, routines, and confidence when life looks nothing like before.",
+     12, "Wednesdays, 8pm", "sun"),
+    ("grief-loss", "healing", "Grief & Loss",
+     "Hold space for what was lost — without having to rush toward fine.",
+     12, "Thursdays, 7pm", "candle"),
+    ("new-creators", "building", "New Creators Circle",
+     "Launch your first posts, offers, and habits without spinning alone.",
+     10, "Mondays, 7pm", "plant"),
+    ("digital-products", "building", "Digital Product Builders",
+     "Ship guides, templates, and downloads with peers who understand the messy middle.",
+     10, "Tuesdays, 8pm", "box"),
+    ("scaling-up", "building", "Scaling Up",
+     "Systems, launches, and sustainable growth when ready to level up.",
+     10, "Wednesdays, 7pm", "arrow"),
+    ("money-investing", "building", "Money & Investing",
+     "Normalize talking numbers, pricing, and building wealth on your terms.",
+     10, "Thursdays, 8pm", "wallet"),
+)
+
+
+class SupportGroupCircle(db.Model):
+    """A named peer circle category (Divorce Recovery, New Creators, etc.)."""
+    __tablename__ = "support_group_circles"
+
+    id = db.Column(db.Integer, primary_key=True)
+    slug = db.Column(db.String(60), nullable=False, unique=True, index=True)
+    track = db.Column(db.String(20), nullable=False, index=True)  # healing / building
+    title = db.Column(db.String(120), nullable=False)
+    blurb = db.Column(db.String(400), nullable=False, default="")
+    capacity = db.Column(db.Integer, nullable=False, default=12)
+    meets_label = db.Column(db.String(80), nullable=False, default="")
+    icon = db.Column(db.String(40), nullable=False, default="heart")
+    sort_order = db.Column(db.Integer, nullable=False, default=0)
+    active = db.Column(db.Boolean, nullable=False, default=True)
+
+    applications = db.relationship(
+        "SupportGroupApplication", back_populates="circle", lazy="dynamic",
+    )
+    meetings = db.relationship(
+        "SupportGroupMeeting", back_populates="circle", lazy="dynamic",
+    )
 
 
 class SupportGroupMeeting(db.Model):
@@ -1069,6 +1123,9 @@ class SupportGroupMeeting(db.Model):
     __tablename__ = "support_group_meetings"
 
     id = db.Column(db.Integer, primary_key=True)
+    circle_id = db.Column(
+        db.Integer, db.ForeignKey("support_group_circles.id"), index=True,
+    )
     capacity = db.Column(db.Integer, nullable=False, default=6)
     scheduled_at = db.Column(db.DateTime)  # stored UTC (naive)
     zoom_url = db.Column(db.String(500))
@@ -1079,6 +1136,7 @@ class SupportGroupMeeting(db.Model):
     notes = db.Column(db.String(500))
     created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
 
+    circle = db.relationship("SupportGroupCircle", back_populates="meetings")
     applications = db.relationship(
         "SupportGroupApplication", back_populates="meeting", lazy="dynamic",
     )
@@ -1088,11 +1146,14 @@ class SupportGroupMeeting(db.Model):
 
 
 class SupportGroupApplication(db.Model):
-    """Healing/Creator request to join the next support-group circle."""
+    """Healing/Creator request to join a specific support-group circle."""
     __tablename__ = "support_group_applications"
 
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    circle_id = db.Column(
+        db.Integer, db.ForeignKey("support_group_circles.id"), index=True,
+    )
     meeting_id = db.Column(
         db.Integer, db.ForeignKey("support_group_meetings.id"), index=True,
     )
@@ -1101,4 +1162,5 @@ class SupportGroupApplication(db.Model):
     created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
 
     author = db.relationship("User")
+    circle = db.relationship("SupportGroupCircle", back_populates="applications")
     meeting = db.relationship("SupportGroupMeeting", back_populates="applications")

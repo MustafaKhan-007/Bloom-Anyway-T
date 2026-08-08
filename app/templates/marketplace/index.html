@@ -1,6 +1,7 @@
 {% extends "base.html" %}
-{% from "partials/avatar.html" import avatar, author_name %}
+{% from "partials/avatar.html" import author_name %}
 {% block title %}Showcase — {{ site.site_title }}{% endblock %}
+{% block meta_description %}Discover member-built products, services, and businesses. Visibility only — purchases happen on each maker's own site.{% endblock %}
 
 {% macro qs(overrides) -%}
   {%- set args = {'kind': kind, 'q': q, 'tag': tag, 'location': location, 'sort': sort, 'view': view} -%}
@@ -8,41 +9,61 @@
   {{- url_for('main.showcase', **args) -}}
 {%- endmacro %}
 
+{% set band_colors = ['lavender', 'gold', 'teal', 'salmon', 'sky', 'peach'] %}
+{% set shown = listings|length %}
+{% set total_count = total if total is defined and total is not none else shown %}
+
 {% block content %}
 <div class="show-page">
   <header class="show-page__hero">
     <div class="container">
-      <div class="show-page__head">
-        <div>
-          <p class="show-page__eyebrow">By the community</p>
-          <h1>Showcase</h1>
-          <p class="show-page__subline">Products and services from our members. We point you to the maker &mdash; you buy on their own site.</p>
-        </div>
-        {% if current_user.is_authenticated and current_user.is_member() %}
-        <a class="btn btn--primary" href="{{ url_for('main.my_listings') }}">Your listings</a>
-        {% endif %}
-      </div>
+      <p class="show-page__eyebrow">By the community</p>
+      <h1>Showcase</h1>
+      <p class="show-page__intro">
+        Discover products, services, and businesses built by women in our community.
+        We help you find them &mdash; you buy or book on their own site. No transactions here.
+      </p>
       <div class="show-page__notice" role="note">
-        <strong>Visibility notice:</strong> Listings are public to browse. Only Healing &amp; Creator members can publish;
-        purchases happen on each maker's own website.
+        <span class="show-page__notice-icon" aria-hidden="true">i</span>
+        <p><strong>This is a visibility space, not a store.</strong>
+          Click through to visit each member's website, store, or social media directly.</p>
       </div>
     </div>
   </header>
 
-  <section class="show-page__tiers">
+  <section class="show-page__tiers" aria-label="Listing perks by membership">
     <div class="container">
       <div class="show-page__tier-grid">
-        <article class="show-page__tier">
-          <h2>Free</h2>
-          <p>Browse every listing, discover makers, and save favorites for later.</p>
+        <article class="show-tier show-tier--free">
+          <p class="show-tier__label">Visitors &amp; Free members</p>
+          <h2>Browse &amp; discover</h2>
+          <ul class="show-tier__list">
+            <li class="is-yes">Browse every listing</li>
+            <li class="is-yes">Click through to makers</li>
+            <li class="is-no">Submit a listing</li>
+          </ul>
         </article>
-        <article class="show-page__tier show-page__tier--heal">
-          <h2>Healing</h2>
-          <p>Publish <strong>1 active listing</strong> for your product or service.</p>
+
+        <article class="show-tier show-tier--heal">
+          <p class="show-tier__label">Healing membership</p>
+          <h2>1 listing per month</h2>
+          <ul class="show-tier__list">
+            <li class="is-yes">1 digital or service listing</li>
+            <li class="is-yes">Full community visibility</li>
+            <li class="is-no">Multiple listings</li>
+          </ul>
+          <p class="show-tier__note">We encourage healing members to showcase one thing &mdash; a gentle first step toward building while you heal.</p>
         </article>
-        <article class="show-page__tier show-page__tier--creator">
-          <h2>Creator</h2>
-          <p>Publish up to <strong>5 active listings</strong> and get spotlight eligibility.</p>
+
+        <article class="show-tier show-tier--creator">
+          <p class="show-tier__label">Creator membership</p>
+          <h2>5 listings per month</h2>
+          <ul class="show-tier__list">
+            <li class="is-yes">Up to 5 active listings</li>
+            <li class="is-yes">Products, services &amp; businesses</li>
+            <li class="is-yes">Eligible for Product of the Day &amp; Creator of the Month</li>
+          </ul>
+          <a class="btn btn--gold show-tier__cta" href="{{ url_for('main.membership', next=url_for('main.showcase')) }}">Join Creator Membership &rarr;</a>
         </article>
       </div>
     </div>
@@ -50,33 +71,32 @@
 
   <section class="show-page__browse">
     <div class="container">
-      <!-- category tabs -->
-      <div class="filter-tabs">
-        <a href="{{ qs({'kind': none}) }}" class="{{ 'active' if not kind }}">Everything</a>
-        <a href="{{ qs({'kind': 'product'}) }}" class="{{ 'active' if kind == 'product' }}">Digital products</a>
-        <a href="{{ qs({'kind': 'service'}) }}" class="{{ 'active' if kind == 'service' }}">Services</a>
+      <div class="show-filters" role="tablist" aria-label="Listing kind">
+        <a href="{{ qs({'kind': none}) }}" class="show-filters__tab {{ 'is-active' if not kind }}">Everything</a>
+        <a href="{{ qs({'kind': 'product'}) }}" class="show-filters__tab {{ 'is-active' if kind == 'product' }}">Digital Products</a>
+        <a href="{{ qs({'kind': 'service'}) }}" class="show-filters__tab {{ 'is-active' if kind == 'service' }}">Services</a>
+        <a href="{{ qs({'kind': 'business'}) }}" class="show-filters__tab {{ 'is-active' if kind == 'business' }}">Businesses</a>
       </div>
 
-      <!-- filters row -->
-      <form class="market-filters" method="get" action="{{ url_for('main.showcase') }}">
+      <form class="show-toolbar" method="get" action="{{ url_for('main.showcase') }}">
         {% if kind %}<input type="hidden" name="kind" value="{{ kind }}">{% endif %}
         {% if tag %}<input type="hidden" name="tag" value="{{ tag }}">{% endif %}
-        <input type="hidden" name="view" value="{{ view }}">
-        <input type="search" name="q" value="{{ q }}" placeholder="Search listings">
-        {% if kind != 'product' %}
-        <input type="text" name="location" value="{{ location }}"
-               placeholder="Filter by location" aria-label="Filter by location">
-        {% endif %}
-        <select name="sort" data-autosubmit>
+        {% if location %}<input type="hidden" name="location" value="{{ location }}">{% endif %}
+        <input type="hidden" name="view" value="{{ view or 'tiles' }}">
+        <input type="search" name="q" value="{{ q or '' }}" placeholder="Search listings..." aria-label="Search listings">
+        <select name="sort" data-autosubmit aria-label="Sort listings">
           {% for key, label in sorts.items() %}
           <option value="{{ key }}" {{ 'selected' if sort == key }}>{{ label }}</option>
           {% endfor %}
         </select>
         <button class="btn btn--secondary btn--sm" type="submit">Filter</button>
-        <span class="view-toggle">
-          <a href="{{ qs({'view': 'tiles'}) }}" class="{{ 'active' if view != 'list' }}" title="Tiles" aria-label="Tile view">&#9638;</a>
-          <a href="{{ qs({'view': 'list'}) }}" class="{{ 'active' if view == 'list' }}" title="List" aria-label="List view">&#9776;</a>
-        </span>
+        <p class="show-toolbar__count">
+          {% if total is defined and total is not none %}
+          Showing {{ shown }} of {{ total }} listing{{ '' if total == 1 else 's' }}
+          {% else %}
+          Showing {{ shown }} listing{{ '' if shown == 1 else 's' }}
+          {% endif %}
+        </p>
       </form>
 
       {% if kind != 'product' and locations %}
@@ -104,45 +124,98 @@
       </details>
       {% endif %}
 
+      <div class="show-submit">
+        <div>
+          <h2>Submit your listing</h2>
+          <p>Drive traffic to your product, service, or business from women who already care about this work.</p>
+        </div>
+        <div class="show-submit__actions">
+          {% if current_user.is_authenticated and current_user.is_member() %}
+          <a class="btn btn--secondary" href="{{ url_for('main.listing_form') }}">
+            {% if current_user.is_creator() %}Creator Member — Add listing{% else %}Healing Member — Add 1 listing{% endif %}
+          </a>
+          {% if not current_user.is_creator() %}
+          <a class="btn btn--primary" href="{{ url_for('main.membership', next=url_for('main.listing_form')) }}">Creator Member — Add listing</a>
+          {% else %}
+          <a class="btn btn--primary" href="{{ url_for('main.my_listings') }}">Your listings</a>
+          {% endif %}
+          {% else %}
+          <a class="btn btn--secondary" href="{{ url_for('main.membership', next=url_for('main.showcase')) }}">Healing Member — Add 1 listing</a>
+          <a class="btn btn--primary" href="{{ url_for('main.membership', next=url_for('main.showcase')) }}">Creator Member — Add listing</a>
+          {% endif %}
+        </div>
+      </div>
+
+      {% if all_tags %}
+      <details class="tag-fold" style="margin: 18px 0;">
+        <summary>Browse tags</summary>
+        <div class="tag-fold__grid">
+          {% for t in all_tags %}
+          <a class="tag-chip {{ 'is-active' if tag == t }}" href="{{ qs({'tag': t}) }}">{{ t }}</a>
+          {% endfor %}
+        </div>
+      </details>
+      {% endif %}
+
+      <div class="show-view-toggle" style="margin: 12px 0 18px;">
+        <a href="{{ qs({'view': 'tiles'}) }}" class="{{ 'is-active' if view != 'list' }}">Tiles</a>
+        <a href="{{ qs({'view': 'list'}) }}" class="{{ 'is-active' if view == 'list' }}">List</a>
+      </div>
+
       {% if not listings %}
-      <div class="empty-state"><p>Nothing here yet. {% if current_user.is_authenticated and current_user.is_member() %}<a href="{{ url_for('main.listing_form') }}">Be the first to list something.</a>{% else %}Check back soon.{% endif %}</p></div>
+      <div class="empty-state">
+        <p>Nothing here yet.
+          {% if current_user.is_authenticated and current_user.is_member() %}
+          <a href="{{ url_for('main.listing_form') }}">Be the first to list something.</a>
+          {% else %}Check back soon.{% endif %}
+        </p>
+      </div>
       {% elif view == 'list' %}
-      <div class="market-list">
+      <div class="market-list" aria-label="Showcase listings">
         {% for ln in listings %}
         <article class="market-row">
           <a class="market-row__thumb" href="{{ url_for('main.listing_detail', listing_id=ln.id) }}">
-            {% if ln.thumb() %}<img src="{{ url_for('main.listing_image', image_id=ln.thumb().id) }}" alt="{{ ln.title }}" loading="lazy">
-            {% else %}<span class="market-row__ph">{{ '&#128230;'|safe if ln.kind == 'product' else '&#128736;'|safe }}</span>{% endif %}
+            {% if ln.thumb() %}<img src="{{ url_for('main.listing_image', image_id=ln.thumb().id) }}" alt="" loading="lazy">
+            {% else %}<span class="market-row__ph">&#128230;</span>{% endif %}
           </a>
           <div class="market-row__body">
             <span class="type-pill">{{ ln.kind_label() }}</span>
             <h3><a href="{{ url_for('main.listing_detail', listing_id=ln.id) }}">{{ ln.title }}</a></h3>
-            <p>{{ ln.description|truncate(140) }}</p>
-            <div class="market-row__meta">
-              {% if ln.location %}<span class="market-loc">{{ ln.location }}</span>{% endif %}
-              {% if ln.price %}<span class="market-price">{{ ln.price }}</span>{% endif %}
-              {{ author_name(ln.author, false) }}
-            </div>
+            <p class="field-help">{{ ln.description|truncate(140) }}</p>
+            <a class="btn btn--secondary btn--sm" href="{{ url_for('main.listing_go', listing_id=ln.id) }}"
+               rel="noopener nofollow">Visit &rarr;</a>
           </div>
         </article>
         {% endfor %}
       </div>
       {% else %}
-      <div class="market-grid">
+      <div class="show-grid" aria-label="Featured listings">
         {% for ln in listings %}
-        <article class="market-card">
-          <a class="market-card__thumb" href="{{ url_for('main.listing_detail', listing_id=ln.id) }}">
-            {% if ln.thumb() %}<img src="{{ url_for('main.listing_image', image_id=ln.thumb().id) }}" alt="{{ ln.title }}" loading="lazy">
-            {% else %}<span class="market-card__ph">{{ '&#128230;'|safe if ln.kind == 'product' else '&#128736;'|safe }}</span>{% endif %}
-            <span class="market-card__pill">{{ ln.kind_label() }}</span>
-          </a>
-          <div class="market-card__body">
+        {% set band = band_colors[loop.index0 % band_colors|length] %}
+        {% set mem = ln.author.membership_label() if ln.author else 'Member' %}
+        {% if ln.kind == 'service' %}
+          {% set cta = 'Book with her →' %}
+        {% elif ln.kind == 'business' %}
+          {% set cta = 'Visit her site →' %}
+        {% else %}
+          {% set cta = 'Visit her store →' %}
+        {% endif %}
+        <article class="show-card show-card--{{ band }}">
+          <div class="show-card__band">
+            <span class="show-card__pill">{{ ln.kind_label() }}</span>
+            <span class="show-card__pill show-card__pill--mem">{{ mem }}</span>
+          </div>
+          <div class="show-card__body">
             <h3><a href="{{ url_for('main.listing_detail', listing_id=ln.id) }}">{{ ln.title }}</a></h3>
-            <p>{{ ln.description|truncate(96) }}</p>
-            <div class="market-card__meta">
-              {% if ln.location %}<span class="market-loc">{{ ln.location }}</span>{% endif %}
-              {% if ln.price %}<span class="market-price">{{ ln.price }}</span>{% endif %}
-            </div>
+            <p class="show-card__by">
+              by {{ ln.author.public_name() if ln.author else 'Member' }}
+              {% if ln.author and ln.author.username %}
+              &middot; {{ author_name(ln.author, false) }}
+              {% endif %}
+            </p>
+            <p class="show-card__desc">{{ ln.description|truncate(120) }}</p>
+            <a class="show-card__cta" href="{{ url_for('main.listing_go', listing_id=ln.id) }}"
+               rel="noopener nofollow">{{ cta }}</a>
           </div>
         </article>
         {% endfor %}
@@ -151,25 +224,9 @@
     </div>
   </section>
 
-  <section class="show-page__cta">
-    <div class="container">
-      <div class="show-page__cta-inner">
-        <div>
-          <h2>Have something to share?</h2>
-          <p>Healing &amp; Creator members can list products and services for the community to discover.</p>
-        </div>
-        {% if current_user.is_authenticated and current_user.is_member() %}
-        <a class="btn btn--gold" href="{{ url_for('main.listing_form') }}">Submit a listing</a>
-        {% else %}
-        <a class="btn btn--gold" href="{{ url_for('main.membership', next=url_for('main.showcase')) }}">Get membership to list</a>
-        {% endif %}
-      </div>
-    </div>
-  </section>
-
   <footer class="show-page__footer">
     <div class="container">
-      <p>Bloom Anyway does not process Showcase purchases. Each listing links to the maker's own checkout or contact page.</p>
+      <p>Bloom Anyway does not process any sales or transactions. All purchases and bookings happen directly on each member's own platform. We are a visibility space only.</p>
     </div>
   </footer>
 </div>

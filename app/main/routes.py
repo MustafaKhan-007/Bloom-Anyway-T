@@ -526,15 +526,18 @@ def account():
         db.session.commit()
     from ..services.social_graph import follow_counts, unread_notification_count
     from ..services import support_groups as sg_svc
+    from ..services.listings import active_listing_count, listing_limit
     followers_n, following_n = follow_counts(current_user)
-    my_support = []
-    active_support = None
-    owner_support_pending = 0
+    owner_support_pending = (
+        sg_svc.pending_count() if current_user.is_admin else 0
+    )
+    my_listings = []
     if current_user.is_member():
-        my_support = sg_svc.applications_for(current_user.id)
-        active_support = sg_svc.active_application(current_user.id)
-    if current_user.is_admin:
-        owner_support_pending = sg_svc.pending_count()
+        from ..models import MarketplaceListing
+        my_listings = (MarketplaceListing.query
+                       .filter_by(user_id=current_user.id, active=True)
+                       .order_by(MarketplaceListing.created_at.desc())
+                       .limit(5).all())
     return render_template(
         "main/account.html", greeting=greeting, orders=orders,
         favorites=favorites,
@@ -547,9 +550,10 @@ def account():
         unread_notes=unread_notification_count(current_user),
         followers_n=followers_n,
         following_n=following_n,
-        my_support=my_support,
-        active_support=active_support,
         owner_support_pending=owner_support_pending,
+        my_listings=my_listings,
+        listing_count=active_listing_count(current_user),
+        listing_cap=listing_limit(current_user),
     )
 
 
@@ -1164,25 +1168,46 @@ def contact():
 
 @bp.route("/support-groups")
 def support_groups_page():
-    return render_template("main/support_groups.html")
+    from ..services import support_groups as sg_svc
+    stats = sg_svc.circle_stats()
+    healing = [s for s in stats if s["circle"].track == "healing"]
+    building = [s for s in stats if s["circle"].track == "building"]
+    my_circle_ids = set()
+    if current_user.is_authenticated and current_user.is_member():
+        for app in sg_svc.applications_for(current_user.id, limit=40):
+            if app.status in ("pending", "selected") and app.circle_id:
+                my_circle_ids.add(app.circle_id)
+    return render_template(
+        "main/support_groups.html",
+        healing_circles=healing,
+        building_circles=building,
+        my_circle_ids=my_circle_ids,
+    )
 
 
-@bp.route("/account/support-groups", methods=["POST"])
+@bp.route("/support-groups/join", methods=["POST"])
 @login_required
-def request_support_group():
+def join_support_circle():
     from ..services import support_groups as sg_svc
     if not current_user.is_member():
         flash("Support groups are for Healing and Creator members.", "error")
-        return redirect(url_for("main.membership", next=url_for("main.account")))
-    _, err = sg_svc.apply(current_user, request.form.get("message") or "")
+        return redirect(url_for("main.membership", next=url_for("main.support_groups_page")))
+    circle_id = request.form.get("circle_id", type=int)
+    slug = (request.form.get("circle_slug") or "").strip() or None
+    _, err = sg_svc.apply(
+        current_user,
+        request.form.get("message") or "",
+        circle_id=circle_id,
+        circle_slug=slug,
+    )
     if err:
         flash(err, "error")
     else:
         flash("You're on the list. We'll email and notify you when a circle opens.", "success")
-    return redirect(url_for("main.account") + "#support-groups")
+    return redirect(url_for("main.support_groups_page"))
 
 
-@bp.route("/account/support-groups/<int:app_id>/withdraw", methods=["POST"])
+@bp.route("/support-groups/<int:app_id>/withdraw", methods=["POST"])
 @login_required
 def withdraw_support_group(app_id):
     from ..services import support_groups as sg_svc
@@ -1191,7 +1216,20 @@ def withdraw_support_group(app_id):
         flash(err, "error")
     else:
         flash("Application withdrawn.", "success")
-    return redirect(url_for("main.account") + "#support-groups")
+    return redirect(url_for("main.support_groups_page"))
+
+
+# Legacy aliases — keep old form posts from breaking
+@bp.route("/account/support-groups", methods=["POST"])
+@login_required
+def request_support_group():
+    return join_support_circle()
+
+
+@bp.route("/account/support-groups/<int:app_id>/withdraw", methods=["POST"])
+@login_required
+def withdraw_support_group_legacy(app_id):
+    return withdraw_support_group(app_id)
 
 
 @bp.route("/privacy")

@@ -2,69 +2,131 @@
 {% block title %}Dashboard{% endblock %}
 
 {% block content %}
-<div class="page-head">
-  <h1>Dashboard</h1>
-</div>
+<div class="studio-dash">
+  <div class="page-head studio-dash__head">
+    <div>
+      <h1>Dashboard</h1>
+      <p class="field-help" style="margin: 6px 0 0; max-width: 62ch;">
+        Sales and checkout live in
+        <a href="https://app.lemonsqueezy.com" target="_blank" rel="noopener">Lemon Squeezy</a>.
+        This studio is for the community, quotes, and content you run here.
+      </p>
+    </div>
+    <span class="studio-pill">Owner access only</span>
+  </div>
 
-<p class="field-help" style="margin: -8px 0 20px; max-width: 62ch;">
-  Sales and checkout live in
-  <a href="https://app.lemonsqueezy.com" target="_blank" rel="noopener">Lemon Squeezy</a>.
-  This studio is for the community, quotes, and content you run here.
-</p>
+  <div class="admin-cards">
+    <div class="stat-card studio-card">
+      <div class="label">Forum posts (30d)</div>
+      <div class="value">{{ cards.forum_posts }}</div>
+    </div>
+    <div class="stat-card studio-card">
+      <div class="label">Members (Healing / Creator)</div>
+      <div class="value">{{ memberships.healing }} / {{ memberships.creator }}</div>
+      <span class="delta">{{ memberships.none }} free &middot; {{ memberships.total }} total</span>
+    </div>
+    <div class="stat-card studio-card">
+      <div class="label">Content Hub</div>
+      <div class="value">{{ video_count }}</div>
+      <span class="delta"><a href="{{ url_for('admin.videos') }}">Manage &rarr;</a></span>
+    </div>
+    <div class="stat-card studio-card">
+      <div class="label">Showcase listings</div>
+      <div class="value">{{ marketplace.active }}</div>
+      <span class="delta">{{ marketplace.total }} total &middot; <a href="{{ url_for('admin.marketplace') }}">Manage &rarr;</a></span>
+    </div>
+  </div>
 
-<div class="admin-cards">
-  <div class="stat-card">
-    <div class="label">Forum posts (30d)</div>
-    <div class="value">{{ cards.forum_posts }}</div>
+  {% if cards.revenue or cards.founder_price or site.founder_price_ends %}
+  <div class="admin-grid-2 studio-dash__money">
+    {% if cards.revenue %}
+    <div class="admin-panel studio-card">
+      <h2>Revenue</h2>
+      <p class="studio-card__metric">{{ cards.revenue }}</p>
+      {% if cards.revenue_note %}<p class="field-help">{{ cards.revenue_note }}</p>{% endif %}
+    </div>
+    {% endif %}
+    {% if cards.founder_price or site.founder_price_ends %}
+    <div class="admin-panel studio-card">
+      <h2>Founder pricing</h2>
+      {% if cards.founder_price %}
+      <p class="studio-card__metric">{{ cards.founder_price }}</p>
+      {% endif %}
+      {% if site.founder_price_ends %}
+      <p class="field-help">Ends {{ site.founder_price_ends }}</p>
+      {% endif %}
+      <a class="btn btn--secondary btn--sm" href="{{ url_for('admin.settings') }}">Edit in Settings</a>
+    </div>
+    {% endif %}
   </div>
-  <div class="stat-card">
-    <div class="label">Members (Healing / Creator)</div>
-    <div class="value">{{ memberships.healing }} / {{ memberships.creator }}</div>
-    <span class="delta">{{ memberships.none }} free &middot; {{ memberships.total }} total</span>
-  </div>
-  <div class="stat-card">
-    <div class="label">Content Hub</div>
-    <div class="value">{{ video_count }}</div>
-    <span class="delta"><a href="{{ url_for('admin.videos') }}">Manage &rarr;</a></span>
-  </div>
-  <div class="stat-card">
-    <div class="label">Showcase listings</div>
-    <div class="value">{{ marketplace.active }}</div>
-    <span class="delta">{{ marketplace.total }} total &middot; <a href="{{ url_for('admin.marketplace') }}">Manage &rarr;</a></span>
-  </div>
-</div>
-
-<div class="admin-panel" style="border-left: 4px solid var(--gold);">
-  <h2>Today's quote</h2>
-  {% if today_quote %}
-    <p style="font-family: var(--font-display); font-style: italic; font-size: 18px; margin: 0 0 6px;">
-      &ldquo;{{ today_quote.text }}&rdquo;</p>
-    <p class="field-help" style="margin: 0 0 12px;">
-      {{ today_quote.category }}{% if tomorrow_quote %} &middot; tomorrow: &ldquo;{{ tomorrow_quote.text[:70] }}{{ '…' if tomorrow_quote.text|length > 70 }}&rdquo;{% endif %}
-    </p>
-  {% else %}
-    <p>No active quotes yet.</p>
   {% endif %}
-  <a class="btn btn--gold btn--sm" href="{{ url_for('admin.quotes') }}">Manage quotes — add, remove, pin</a>
-</div>
 
-<div class="admin-grid-2">
-  <div class="chart-panel">
-    <h2>New accounts by week</h2>
-    <canvas id="chart-signups"></canvas>
-  </div>
-  <div class="admin-panel">
-    <h2>Most visited pages (7 days)</h2>
+  <div class="admin-panel studio-card">
+    <h2>Member activity</h2>
+    {% if member_activity is defined and member_activity %}
     <table class="admin-table">
-      <thead><tr><th>Path</th><th>Views</th></tr></thead>
+      <thead><tr><th>Member</th><th>Action</th><th>When</th></tr></thead>
       <tbody>
-        {% for path, views in most_visited %}
-        <tr><td>{{ path }}</td><td>{{ views }}</td></tr>
-        {% else %}
-        <tr><td colspan="2">No views recorded yet.</td></tr>
+        {% for row in member_activity %}
+        <tr>
+          <td>{{ row.member }}</td>
+          <td>{{ row.action }}</td>
+          <td>{{ row.when }}</td>
+        </tr>
         {% endfor %}
       </tbody>
     </table>
+    {% else %}
+    <p class="field-help" style="margin:0;">
+      Recent member actions will show here. For now, use
+      <a href="{{ url_for('admin.members') }}">Members</a> and
+      <a href="{{ url_for('admin.community') }}">Community</a>.
+    </p>
+    {% endif %}
+  </div>
+
+  <div class="admin-panel studio-card studio-dash__occupancy">
+    <div class="sg-panel__head" style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+      <h2 style="margin:0;">Support group occupancy</h2>
+      <a class="btn btn--secondary btn--sm" href="{{ url_for('admin.support_groups') }}">Open circles</a>
+    </div>
+    <p class="field-help" style="margin: 8px 0 0;">
+      Per-circle waiting lists and seating live on the Support groups page.
+    </p>
+  </div>
+
+  <div class="admin-grid-2">
+    <div class="chart-panel studio-card">
+      <h2>New accounts by week</h2>
+      <canvas id="chart-signups"></canvas>
+    </div>
+    <div class="admin-panel studio-card">
+      <h2>Most visited pages (7 days)</h2>
+      <table class="admin-table">
+        <thead><tr><th>Path</th><th>Views</th></tr></thead>
+        <tbody>
+          {% for path, views in most_visited %}
+          <tr><td>{{ path }}</td><td>{{ views }}</td></tr>
+          {% else %}
+          <tr><td colspan="2">No views recorded yet.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="admin-panel studio-card studio-dash__quote" style="border-left: 4px solid var(--gold);">
+    <h2>Today’s quote</h2>
+    {% if today_quote %}
+      <p style="font-family: var(--font-display); font-style: italic; font-size: 18px; margin: 0 0 6px;">
+        &ldquo;{{ today_quote.text }}&rdquo;</p>
+      <p class="field-help" style="margin: 0 0 12px;">
+        {{ today_quote.category }}{% if tomorrow_quote %} &middot; tomorrow: &ldquo;{{ tomorrow_quote.text[:70] }}{{ '…' if tomorrow_quote.text|length > 70 }}&rdquo;{% endif %}
+      </p>
+    {% else %}
+      <p>No active quotes yet.</p>
+    {% endif %}
+    <a class="btn btn--gold btn--sm" href="{{ url_for('admin.quotes') }}">Manage quotes — add, remove, pin</a>
   </div>
 </div>
 

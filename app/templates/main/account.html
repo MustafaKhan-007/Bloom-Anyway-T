@@ -83,143 +83,223 @@
 {% if active_tab == 'profile' %}
 <section class="section section--tight">
   <div class="container">
-    <div class="streak-card">
-      <div class="streak-card__body">
-        <p class="eyebrow">Showing up</p>
-        <p class="streak-card__count"><strong>{{ current_user.streak_display() }}</strong>
-          <span>day{{ '' if current_user.streak_display() == 1 else 's' }} in a row</span></p>
-        <p class="field-help" style="margin:0;">
-          {% if current_user.longest_streak %}Longest streak: {{ current_user.longest_streak }} days.{% endif %}
-          One small return, every day. That's how it's built.
-        </p>
-      </div>
-      <div class="streak-card__action">
-        {% if current_user.checked_in_today() %}
-        <span class="streak-done">&#10003; You showed up today</span>
-        <p class="field-help" style="margin-top: 8px;"><a href="{{ url_for('main.account', tab='journal') }}">Open your journal</a></p>
-        {% else %}
-        <form method="post" action="{{ url_for('main.checkin') }}" class="checkin-journal">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <input type="hidden" name="next" value="{{ url_for('main.account', tab='journal') }}">
-          <input type="hidden" name="prompt" value="{{ today_prompt[0] }}">
-          <p class="checkin-journal__q">{{ today_prompt[1] }}</p>
-          <textarea name="journal" rows="3" maxlength="4000"
-                    placeholder="A few words is plenty. Or leave this blank."
-                    aria-label="{{ today_prompt[1] }}"></textarea>
-          <button class="btn btn--primary btn--sm" type="submit">I showed up today</button>
-        </form>
-        {% endif %}
-      </div>
-    </div>
-
-    {% set my_badges = profile_badges(current_user) %}
-    {% if my_badges %}
-    <div class="badge-strip">
-      <div class="badge-strip__items">
-        {% for b in my_badges %}{{ badge_svg(b, "md") }}{% endfor %}
-      </div>
-      <p class="field-help" style="margin:0;">Your badges &mdash; hover to see each milestone. <a href="{{ url_for('main.settings') }}#badges">Choose which show on your profile</a>.</p>
-    </div>
-    {% else %}
-    <p class="field-help" style="margin-top:18px;">Earn badges by showing up, posting, and being helpful in <a href="{{ url_for('forums.index') }}">the community</a>.</p>
-    {% endif %}
-
-    <div class="journey-card{% if not premium %} journey-card--locked{% endif %}" style="margin-top: 28px;">
-      <div class="journey-card__body">
-        <p class="eyebrow">My Journey</p>
-        <h3>Your story, as a keepsake</h3>
-        {% if premium %}
-        <p>A beautifully laid-out PDF of your streaks, the days you showed up, and the
-          lines you held onto.</p>
-        <a class="btn btn--primary" href="{{ url_for('main.journey_pdf') }}">Download my journey (PDF)</a>
-        {% else %}
-        <p>Members can generate a keepsake PDF of their whole journey
-          &mdash; streaks, check-ins, and favorite lines.</p>
-        <a class="btn btn--secondary journey-card__cta" href="{{ url_for('main.membership', next=url_for('main.account')) }}">See memberships</a>
-        {% endif %}
-      </div>
-      <div class="journey-card__mark" aria-hidden="true">&#10022;</div>
-    </div>
-
-    {% if current_user.is_member() %}
-    <div class="journey-card coaching-card" id="support-groups">
-      <div class="journey-card__body" style="width: 100%;">
-        <p class="eyebrow">Coaching &amp; support groups</p>
-        <button type="button" class="coaching-fold__toggle" data-coaching-toggle
-                aria-expanded="false" aria-controls="support-panel">
-          <span>Join a small Zoom circle</span>
-          <span class="coaching-fold__arrow" aria-hidden="true">&#9662;</span>
-        </button>
-        <div class="coaching-fold__panel" id="support-panel" aria-hidden="true">
-          <p>Healing &amp; Creator members can apply for the next support group.
-            Seats go to the earliest applicants. When you're booked, you'll get an
-            email and a Bloom Anyway notification with the time in your timezone —
-            plus a reminder 24 hours before with the Zoom link.</p>
-
-          {% if active_support and active_support.status == 'selected' and active_support.meeting %}
-          {% set m = active_support.meeting %}
-          <div class="sg-booked">
-            {% if m.scheduled_at and m.zoom_url %}
-            <p class="sg-booked__label">You're booked</p>
-            <p class="sg-booked__when">{{ m.scheduled_at|localtime('%A, %b %d, %Y at %I:%M %p') }}
-              <span class="field-help">({{ current_user.timezone or 'UTC' }})</span></p>
-            <a class="btn btn--primary btn--sm" href="{{ m.zoom_url }}" target="_blank" rel="noopener">Open Zoom</a>
-            {% else %}
-            <p class="sg-booked__label">You're seated</p>
-            <p>You're in for the next circle. We'll email and notify you once the date and Zoom link are set.</p>
-            {% endif %}
+    <div class="ms-overview">
+      <div class="ms-overview__main">
+        <div class="ms-card ms-checkin">
+          <p class="eyebrow">Daily check-in</p>
+          {% if current_user.checked_in_today() %}
+          <div class="ms-checkin__bar ms-checkin__bar--done">
+            <span class="streak-done">&#10003; You showed up today</span>
+            <a href="{{ url_for('main.account', tab='journal') }}">Open your journal</a>
           </div>
-          {% elif active_support and active_support.status == 'pending' %}
-          <p class="sg-pending">You're on the waiting list
-            (applied {{ active_support.created_at|localtime('%b %d, %Y') }}).</p>
-          <form method="post" action="{{ url_for('main.withdraw_support_group', app_id=active_support.id) }}"
-                style="margin-top: 10px;">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <button class="btn btn--secondary btn--sm" type="submit">Withdraw</button>
-          </form>
           {% else %}
-          <form method="post" action="{{ url_for('main.request_support_group') }}"
-                class="stack-form coaching-form" style="margin-top: 14px; max-width: 480px;">
+          <form method="post" action="{{ url_for('main.checkin') }}" class="ms-checkin__form">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <label>Anything you'd like the circle to hold space for?
-              <span class="field-help">Optional</span>
-              <textarea name="message" rows="3" maxlength="2000"
-                        placeholder="e.g. Boundaries with family, showing up online…"></textarea>
-            </label>
-            <button class="btn btn--primary" type="submit">Apply for the next group</button>
+            <input type="hidden" name="next" value="{{ url_for('main.account', tab='journal') }}">
+            <input type="hidden" name="prompt" value="{{ today_prompt[0] }}">
+            <p class="ms-checkin__q">{{ today_prompt[1] }}</p>
+            <div class="ms-checkin__bar">
+              <textarea name="journal" rows="2" maxlength="4000"
+                        placeholder="A few words is plenty. Or leave this blank."
+                        aria-label="{{ today_prompt[1] }}"></textarea>
+              <button class="btn btn--primary btn--sm" type="submit">I showed up today</button>
+            </div>
           </form>
           {% endif %}
+        </div>
 
-          {% if my_support %}
-          <ul class="spotlight-list" style="margin-top: 18px;">
-            {% for c in my_support[:6] %}
-            <li>
-              <strong>{{ c.status|capitalize }}</strong>
-              &mdash; {{ c.created_at|localtime('%b %d, %Y') }}
-              {% if c.meeting and c.meeting.scheduled_at %}
-              <br><span>{{ c.meeting.scheduled_at|localtime('%b %d · %I:%M %p') }}</span>
+        <div class="ms-streaks">
+          <div class="ms-card ms-streaks__card">
+            <p class="eyebrow">Login streak</p>
+            <p class="ms-side-card__stat"><strong>{{ current_user.streak_display() }}</strong> day{{ '' if current_user.streak_display() == 1 else 's' }}</p>
+            <p class="field-help" style="margin:0;">
+              {% if current_user.longest_streak %}Longest: {{ current_user.longest_streak }} days.{% else %}One small return, every day.{% endif %}
+            </p>
+          </div>
+          <div class="ms-card ms-streaks__card">
+            <p class="eyebrow">Showing up</p>
+            <p class="ms-side-card__stat">
+              {% if current_user.checked_in_today() %}
+              <strong>Done</strong> for today
+              {% else %}
+              <strong>Open</strong> check-in
               {% endif %}
+            </p>
+            <p class="field-help" style="margin:0;">That’s how the streak is built.</p>
+          </div>
+        </div>
+
+        <div class="ms-card ms-challenge">
+          <p class="eyebrow">Challenge</p>
+          {% if reel_streak is defined and reel_streak %}
+          <h3>Reel streak: {{ reel_streak }} day{{ '' if reel_streak == 1 else 's' }}</h3>
+          <p>Keep posting and entering the Content Hub draw.</p>
+          {% else %}
+          <h3>{{ current_user.streak_display() }}-day login streak</h3>
+          <p>Show up once a day — check in, journal, or open the community.</p>
+          {% endif %}
+          <a class="btn btn--secondary btn--sm" href="{{ url_for('main.videos') }}">Open Content Hub</a>
+        </div>
+
+        <div class="ms-card ms-journal-preview">
+          <div class="ms-card__head">
+            <p class="eyebrow">Journal</p>
+            <a href="{{ url_for('main.account', tab='journal') }}">Open full journal</a>
+          </div>
+          {% if journal_entries %}
+          {% set latest = journal_entries[0] %}
+          <p class="field-help">{{ latest.day.strftime('%A, %b %d') }}</p>
+          <h3>{{ latest.prompt_label or 'Note' }}</h3>
+          <div class="forum-body">{{ latest.body|truncate(220)|nl2br }}</div>
+          {% else %}
+          <p>No journal pages yet — check in above whenever you’re ready.</p>
+          {% endif %}
+        </div>
+
+        <div class="ms-card">
+          <div class="ms-card__head">
+            <p class="eyebrow">Saved</p>
+            <a href="{{ url_for('main.account', tab='saved') }}">Courses &amp; favorites</a>
+          </div>
+          {% if favorites %}
+          <ul class="ms-saved-list">
+            {% for quote in favorites[:3] %}
+            <li>&ldquo;{{ quote.text|truncate(90) }}&rdquo;</li>
+            {% endfor %}
+          </ul>
+          {% else %}
+          <p class="field-help" style="margin:0;">
+            Heart a line on the <a href="{{ url_for('main.quotes') }}">daily quotes</a> page,
+            or browse the <a href="{{ url_for('forums.index') }}">community</a>.
+          </p>
+          {% endif %}
+        </div>
+
+        <div class="ms-card">
+          <div class="ms-card__head">
+            <p class="eyebrow">Free guide &amp; shop</p>
+            <a href="{{ shop_url }}" target="_blank" rel="noopener">Browse shop</a>
+          </div>
+          {% if shop_purchases %}
+          <ul class="ms-saved-list">
+            {% for item in shop_purchases[:4] %}
+            <li>
+              <strong>{{ item.product_name }}</strong>
+              <span class="field-help">{{ item.purchased_at|localtime('%b %d, %Y') }}</span>
             </li>
             {% endfor %}
           </ul>
+          {% else %}
+          <p class="field-help" style="margin:0;">
+            Courses and guides from
+            <a href="{{ shop_url }}" target="_blank" rel="noopener">shop.bloomanyway.online</a>
+            show up here when linked to this email.
+          </p>
           {% endif %}
         </div>
-      </div>
-      <div class="journey-card__mark" aria-hidden="true">&#128101;</div>
-    </div>
-    {% else %}
-    <div class="journey-card coaching-card journey-card--locked" id="support-groups" style="margin-top: 16px;">
-      <div class="journey-card__body">
-        <p class="eyebrow">Coaching &amp; support groups</p>
-        <h3 style="margin: 4px 0 10px;">Small Zoom circles</h3>
-        <p>Healing &amp; Creator members can apply for facilitated support groups.</p>
-        <a class="btn btn--secondary journey-card__cta"
-           href="{{ url_for('main.membership', next=url_for('main.account')) }}">See memberships</a>
-      </div>
-      <div class="journey-card__mark" aria-hidden="true">&#128101;</div>
-    </div>
-    {% endif %}
 
+        {% set my_badges = profile_badges(current_user) %}
+        {% if my_badges %}
+        <div class="badge-strip">
+          <div class="badge-strip__items">
+            {% for b in my_badges %}{{ badge_svg(b, "md") }}{% endfor %}
+          </div>
+          <p class="field-help" style="margin:0;">Your badges — <a href="{{ url_for('main.settings') }}#badges">choose which show on your profile</a>.</p>
+        </div>
+        {% endif %}
+
+        <div class="journey-card{% if not premium %} journey-card--locked{% endif %}">
+          <div class="journey-card__body">
+            <p class="eyebrow">My Journey</p>
+            <h3>Your story, as a keepsake</h3>
+            {% if premium %}
+            <p>A beautifully laid-out PDF of your streaks, the days you showed up, and the
+              lines you held onto.</p>
+            <a class="btn btn--primary" href="{{ url_for('main.journey_pdf') }}">Download my journey (PDF)</a>
+            {% else %}
+            <p>Members can generate a keepsake PDF of their whole journey
+              — streaks, check-ins, and favorite lines.</p>
+            <a class="btn btn--secondary journey-card__cta" href="{{ url_for('main.membership', next=url_for('main.account')) }}">See memberships</a>
+            {% endif %}
+          </div>
+          <div class="journey-card__mark" aria-hidden="true">&#10022;</div>
+        </div>
+      </div>
+
+      <aside class="ms-overview__side">
+        <div class="ms-card ms-membership-card">
+          <p class="eyebrow">Membership</p>
+          {% if current_user.is_admin %}
+          <h3>Owner</h3>
+          <p>Full Studio access and every Creator perk.</p>
+          {% elif current_user.is_creator() %}
+          <h3>Creator</h3>
+          <p>Content Hub, reel reviews, and Showcase listings.</p>
+          {% elif current_user.is_member() %}
+          <h3>Healing</h3>
+          <p>Full community access and member circles.</p>
+          <a class="btn btn--gold btn--sm" href="{{ url_for('main.membership', next=url_for('main.account')) }}">Upgrade to Creator</a>
+          {% else %}
+          <h3>Free</h3>
+          <p>Daily quotes and a peek at the community.</p>
+          <a class="btn btn--primary btn--sm" href="{{ url_for('main.membership', next=url_for('main.account')) }}">See memberships</a>
+          {% endif %}
+        </div>
+
+        <div class="ms-card">
+          <p class="eyebrow">Upcoming</p>
+          <p class="field-help" style="margin:0;">Nothing scheduled right now.</p>
+        </div>
+
+        <div class="ms-card">
+          <p class="eyebrow">My groups</p>
+          <p>Peer circles and Creator accountability live on Support Groups.</p>
+          <a class="btn btn--secondary btn--sm" href="{{ url_for('main.support_groups_page') }}">Open Support Groups</a>
+        </div>
+
+        <div class="ms-card">
+          <div class="ms-card__head">
+            <p class="eyebrow">Courses in progress</p>
+            <a href="{{ url_for('main.account', tab='saved') }}">All</a>
+          </div>
+          {% if shop_purchases %}
+          <ul class="ms-saved-list">
+            {% for item in shop_purchases[:3] %}
+            <li><strong>{{ item.product_name }}</strong></li>
+            {% endfor %}
+          </ul>
+          {% else %}
+          <p class="field-help" style="margin:0;">No courses linked yet.</p>
+          {% endif %}
+        </div>
+
+        <div class="ms-card">
+          <div class="ms-card__head">
+            <p class="eyebrow">My Showcase</p>
+            <a href="{{ url_for('main.my_listings') }}">Manage</a>
+          </div>
+          <p class="ms-side-card__stat" style="font-size: 1.25rem;">
+            <strong>{{ listing_count }}</strong>
+            <span class="field-help"> of {{ listing_cap }} listing{{ '' if listing_cap == 1 else 's' }}</span>
+          </p>
+          {% if my_listings %}
+          <ul class="ms-saved-list">
+            {% for listing in my_listings[:4] %}
+            <li>{{ listing.title }}</li>
+            {% endfor %}
+          </ul>
+          {% else %}
+          <p class="field-help" style="margin:0;">
+            {% if current_user.is_member() %}
+            Add a listing when you’re ready.
+            {% else %}
+            Membership unlocks Showcase listings.
+            {% endif %}
+          </p>
+          {% endif %}
+        </div>
+      </aside>
+    </div>
   </div>
 </section>
 {% endif %}
@@ -227,74 +307,80 @@
 {% if active_tab == 'saved' %}
 <section class="section section--band section--tight">
   <div class="container">
-    <h2>Courses &amp; guides</h2>
-    <p style="color: var(--ink-soft); margin-top: -6px;">
-      Shop purchases from
-      <a href="{{ shop_url }}" target="_blank" rel="noopener">shop.bloomanyway.online</a>
-      with this email.
-    </p>
-    {% if shop_purchases %}
-    <div class="grid grid--3" style="margin-top: 20px;">
-      {% for item in shop_purchases %}
-      <div class="library-card">
-        <h3>{{ item.product_name }}</h3>
-        <p class="field-help" style="margin-top: 4px;">
-          {{ item.purchased_at|localtime('%b %d, %Y') }}
-        </p>
-        {% if item.download_url %}
-        <a class="btn btn--primary btn--sm" href="{{ item.download_url }}" target="_blank" rel="noopener">Download</a>
-        {% elif item.file_key %}
-        <a class="btn btn--primary btn--sm" href="{{ url_for('main.shop_download', purchase_id=item.id) }}">Download</a>
-        {% else %}
-        <p class="field-help" style="margin-top: 8px;">Check your Lemon Squeezy receipt email for the file.</p>
-        {% endif %}
+    <div class="ms-card">
+      <h2>Courses &amp; guides</h2>
+      <p class="field-help" style="margin-top: -6px;">
+        Shop purchases from
+        <a href="{{ shop_url }}" target="_blank" rel="noopener">shop.bloomanyway.online</a>
+        with this email.
+      </p>
+      {% if shop_purchases %}
+      <div class="grid grid--3" style="margin-top: 20px;">
+        {% for item in shop_purchases %}
+        <div class="library-card">
+          <h3>{{ item.product_name }}</h3>
+          <p class="field-help" style="margin-top: 4px;">
+            {{ item.purchased_at|localtime('%b %d, %Y') }}
+          </p>
+          {% if item.download_url %}
+          <a class="btn btn--primary btn--sm" href="{{ item.download_url }}" target="_blank" rel="noopener">Download</a>
+          {% elif item.file_key %}
+          <a class="btn btn--primary btn--sm" href="{{ url_for('main.shop_download', purchase_id=item.id) }}">Download</a>
+          {% else %}
+          <p class="field-help" style="margin-top: 8px;">Check your Lemon Squeezy receipt email for the file.</p>
+          {% endif %}
+        </div>
+        {% endfor %}
       </div>
-      {% endfor %}
+      {% else %}
+      <p style="margin-top: 16px;">Nothing saved yet.
+        <a href="{{ shop_url }}" target="_blank" rel="noopener">Browse the shop</a>.</p>
+      {% endif %}
     </div>
-    {% else %}
-    <p style="margin-top: 16px;">Nothing saved yet.
-      <a href="{{ shop_url }}" target="_blank" rel="noopener">Browse the shop</a>.</p>
-    {% endif %}
 
     {% if orders %}
-    <h2 style="margin-top: 40px;">Order history</h2>
-    <table class="admin-table">
-      <thead><tr><th>Date</th><th>Product</th><th>Amount</th><th>Status</th></tr></thead>
-      <tbody>
-        {% for order in orders %}
-        <tr>
-          <td>{{ order.created_at|localtime('%b %d, %Y') }}</td>
-          <td>{% if order.product %}{{ order.product.title }}{% else %}Order {{ order.ls_order_id }}{% endif %}</td>
-          <td>{{ order.total_display() }}</td>
-          <td><span class="status-pill status-pill--{{ order.status }}">{{ order.status }}</span></td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+    <div class="ms-card" style="margin-top: 24px;">
+      <h2>Order history</h2>
+      <table class="admin-table">
+        <thead><tr><th>Date</th><th>Product</th><th>Amount</th><th>Status</th></tr></thead>
+        <tbody>
+          {% for order in orders %}
+          <tr>
+            <td>{{ order.created_at|localtime('%b %d, %Y') }}</td>
+            <td>{% if order.product %}{{ order.product.title }}{% else %}Order {{ order.ls_order_id }}{% endif %}</td>
+            <td>{{ order.total_display() }}</td>
+            <td><span class="status-pill status-pill--{{ order.status }}">{{ order.status }}</span></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
     {% endif %}
   </div>
 </section>
 
 <section class="section section--tight">
   <div class="container">
-    <h2>Quotes you kept</h2>
-    {% if favorites %}
-      <div class="grid grid--3">
-        {% for quote in favorites %}
-        <div class="quote-mini">
-          <p class="text">&ldquo;{{ quote.text }}&rdquo;</p>
-          {% if quote.author %}<span style="color: var(--ink-soft); font-size: 14px;">&mdash; {{ quote.author }}</span>{% endif %}
-          <form method="post" action="{{ url_for('main.toggle_favorite', quote_id=quote.id) }}">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <input type="hidden" name="next" value="{{ url_for('main.account', tab='saved') }}">
-            <button class="heart-btn on" type="submit" aria-label="Remove from favorites">&#9829;</button>
-          </form>
+    <div class="ms-card">
+      <h2>Quotes you kept</h2>
+      {% if favorites %}
+        <div class="grid grid--3">
+          {% for quote in favorites %}
+          <div class="quote-mini">
+            <p class="text">&ldquo;{{ quote.text }}&rdquo;</p>
+            {% if quote.author %}<span style="color: var(--ink-soft); font-size: 14px;">&mdash; {{ quote.author }}</span>{% endif %}
+            <form method="post" action="{{ url_for('main.toggle_favorite', quote_id=quote.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="next" value="{{ url_for('main.account', tab='saved') }}">
+              <button class="heart-btn on" type="submit" aria-label="Remove from favorites">&#9829;</button>
+            </form>
+          </div>
+          {% endfor %}
         </div>
-        {% endfor %}
-      </div>
-    {% else %}
-      <p>Heart a line on the <a href="{{ url_for('main.quotes') }}">daily quotes page</a> and it'll live here.</p>
-    {% endif %}
+      {% else %}
+        <p>Heart a line on the <a href="{{ url_for('main.quotes') }}">daily quotes page</a> and it’ll live here.</p>
+      {% endif %}
+    </div>
   </div>
 </section>
 {% endif %}
@@ -336,7 +422,7 @@
         {% endfor %}
       </div>
       {% else %}
-      <p style="margin-top: 12px;">No journal pages yet — check in above whenever you're ready.</p>
+      <p style="margin-top: 12px;">No journal pages yet — check in above whenever you’re ready.</p>
       {% endif %}
     </div>
     <aside class="ms-journal__side">
@@ -361,29 +447,31 @@
 
 {% if active_tab == 'activity' %}
 <section class="section section--tight">
-  <div class="container" style="max-width: 680px;">
-    <h2>Activity</h2>
-    <p style="color: var(--ink-soft); margin-top: -6px;">
-      Mentions, follows, posts from people you follow, Content Hub updates, and site news.
-    </p>
-    {% if notifications %}
-    <ul class="activity-list">
-      {% for n in notifications %}
-      <li class="activity-list__item {{ 'is-unread' if not n.read_at }}">
-        <p>{{ n.body }}</p>
-        <p class="field-help">
-          {{ n.created_at|localtime }}
-          {% set href = n.href() %}
-          {% if href %}
-          &middot; <a href="{{ href }}">Open</a>
-          {% endif %}
-        </p>
-      </li>
-      {% endfor %}
-    </ul>
-    {% else %}
-    <p style="margin-top: 18px;">Quiet for now. Follow someone to hear when they post, or keep an eye out for Content Hub and Showcase updates.</p>
-    {% endif %}
+  <div class="container" style="max-width: 720px;">
+    <div class="ms-card">
+      <h2>Activity</h2>
+      <p class="field-help" style="margin-top: -6px;">
+        Mentions, follows, posts from people you follow, Content Hub updates, and site news.
+      </p>
+      {% if notifications %}
+      <ul class="activity-list">
+        {% for n in notifications %}
+        <li class="activity-list__item {{ 'is-unread' if not n.read_at }}">
+          <p>{{ n.body }}</p>
+          <p class="field-help">
+            {{ n.created_at|localtime }}
+            {% set href = n.href() %}
+            {% if href %}
+            &middot; <a href="{{ href }}">Open</a>
+            {% endif %}
+          </p>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p style="margin-top: 18px;">Quiet for now. Follow someone to hear when they post, or keep an eye out for Content Hub and Showcase updates.</p>
+      {% endif %}
+    </div>
   </div>
 </section>
 {% endif %}

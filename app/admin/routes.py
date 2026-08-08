@@ -1180,18 +1180,19 @@ def reel_reviews_unpublish(review_id):
 def support_groups():
     from ..services import support_groups as sg_svc
     sg_svc.maybe_sweep_reminders(force=True)
-    pending = sg_svc.pending_queue()
+    stats = sg_svc.circle_stats()
     open_rows = sg_svc.open_meetings()
     past = sg_svc.recent_meetings()
     seat_map = {m.id: sg_svc.meeting_seats(m) for m in open_rows + past}
     owner_tz = (current_user.timezone or "UTC").strip() or "UTC"
     return render_template(
         "admin/support_groups.html",
-        pending=pending,
+        circle_stats=stats,
         open_meetings=open_rows,
         past_meetings=past,
         seat_map=seat_map,
         owner_tz=owner_tz,
+        pending_total=sg_svc.pending_count(),
     )
 
 
@@ -1200,15 +1201,17 @@ def support_groups():
 def support_groups_form():
     from ..services import support_groups as sg_svc
     capacity = request.form.get("capacity") or "6"
-    meeting, err = sg_svc.form_next_meeting(capacity)
+    circle_id = request.form.get("circle_id", type=int)
+    meeting, err = sg_svc.form_next_meeting(capacity, circle_id=circle_id)
     if err:
         flash(err, "error")
     else:
         n = sg_svc.meeting_seats(meeting)
+        label = meeting.circle.title if meeting.circle else "circle"
         flash(
             f"Seated {len(n)} earliest applicant{'s' if len(n) != 1 else ''} "
-            f"(capacity {meeting.capacity}). Pick a date and time below — "
-            f"Zoom is created automatically.",
+            f"for {label} (capacity {meeting.capacity}). Pick a date and time "
+            f"below — Zoom is created automatically.",
             "success",
         )
     return redirect(url_for("admin.support_groups"))
