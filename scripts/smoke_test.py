@@ -276,7 +276,8 @@ r = client.get("/courses", follow_redirects=False)
 cbody = r.get_data(as_text=True)
 ok("/courses renders on-site catalogue",
    r.status_code == 200 and "Courses &amp; Guides" in cbody
-   and "Healing Bundle" in cbody and "Creator Bundle" in cbody)
+   and "Healing resources by" in cbody and "Creator resources by" in cbody
+   and "Rebuild Workbook" not in cbody and "50 Hooks" not in cbody)
 r = client.get("/")
 home = r.get_data(as_text=True)
 ok("Home includes creator membership CTA",

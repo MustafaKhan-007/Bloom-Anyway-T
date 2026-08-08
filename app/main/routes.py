@@ -22,7 +22,7 @@ from ..services import reel_reviews as reel_svc
 from ..services import settings as settings_service
 from ..services.avatars import AvatarError, process_avatar
 from ..services.badges import CATEGORIES, category_progress, earned_badges
-from ..services.catalog import ensure_catalog
+from ..services.catalog import remove_demo_catalog
 from ..services import dodo as dodo_svc
 from ..services.journey import build_journey_pdf
 from ..services.mailer import send_contact_notification
@@ -154,8 +154,8 @@ def _courses_lane(track: str, type_filter: str, sort: str):
 def courses():
     """On-site Courses & Guides catalogue (two founder lanes)."""
     try:
-        ensure_catalog()
-        db.session.commit()
+        if remove_demo_catalog():
+            db.session.commit()
     except Exception:
         db.session.rollback()
 

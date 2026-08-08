@@ -146,11 +146,11 @@ def seed():
         if mem_added:
             print(f"Added {mem_added} membership plans")
 
-        # 6. Courses & Guides catalogue (idempotent)
-        from app.services.catalog import ensure_catalog
-        cat_added = ensure_catalog()
-        if cat_added:
-            print(f"Added {cat_added} catalogue products")
+        # 6. Remove leftover mock Courses & Guides rows (if any)
+        from app.services.catalog import remove_demo_catalog
+        cat_removed = remove_demo_catalog()
+        if cat_removed:
+            print(f"Removed {cat_removed} demo catalogue products")
 
         # 7. brand rename (First Light → Bloom Anyway) if the stored title
         #    is still a legacy name. Custom titles the owner set are left alone.

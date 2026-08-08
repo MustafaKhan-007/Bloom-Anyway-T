@@ -158,58 +158,43 @@
     </div>
   </section>
 
+  {% set hb = bundles.healing %}
+  {% set cb = bundles.building %}
+  {% if hb or cb %}
   <section class="cg-bundles">
     <div class="container">
       <h2>Get everything at once</h2>
       <p class="cg-bundles__lede">Save when you buy all resources in a track.</p>
       <div class="cg-bundles__grid">
-        {% set hb = bundles.healing %}
+        {% if hb %}
         <article class="cg-bundle cg-bundle--healing">
-          <h3>Healing Bundle</h3>
-          <p class="cg-bundle__items">
-            {% if hb and hb.description_md %}{{ hb.description_md }}{% else %}
-            The Rebuild Workbook / Custody with Confidence / Boundaries Blueprint / All future healing resources added free.
-            {% endif %}
-          </p>
+          <h3>{{ hb.title }}</h3>
+          <p class="cg-bundle__items">{{ hb.description_md or hb.promise or '' }}</p>
           <div class="cg-bundle__foot">
             <p class="cg-bundle__price">
-              <strong>{{ hb.price_display() if hb else '$79' }}</strong>
-              {% if hb and hb.compare_at_display() %}
-              <s>{{ hb.compare_at_display() }}</s>
-              {% else %}<s>$103</s>{% endif %}
+              <strong>{{ hb.price_display() }}</strong>
+              {% if hb.compare_at_display() %}<s>{{ hb.compare_at_display() }}</s>{% endif %}
             </p>
-            {% if hb %}
             <a class="btn cg-bundle__btn" href="{{ url_for('main.checkout_product', slug=hb.slug) }}">Get the Healing Bundle &rarr;</a>
-            {% else %}
-            <span class="btn cg-bundle__btn is-disabled">Coming soon</span>
-            {% endif %}
           </div>
         </article>
-
-        {% set cb = bundles.building %}
+        {% endif %}
+        {% if cb %}
         <article class="cg-bundle cg-bundle--building">
-          <h3>Creator Bundle</h3>
-          <p class="cg-bundle__items">
-            {% if cb and cb.description_md %}{{ cb.description_md }}{% else %}
-            50 Hooks / 0 to 10k / Your First Digital Product / All future creator resources added free.
-            {% endif %}
-          </p>
+          <h3>{{ cb.title }}</h3>
+          <p class="cg-bundle__items">{{ cb.description_md or cb.promise or '' }}</p>
           <div class="cg-bundle__foot">
             <p class="cg-bundle__price">
-              <strong>{{ cb.price_display() if cb else '$89' }}</strong>
-              {% if cb and cb.compare_at_display() %}
-              <s>{{ cb.compare_at_display() }}</s>
-              {% else %}<s>$106</s>{% endif %}
+              <strong>{{ cb.price_display() }}</strong>
+              {% if cb.compare_at_display() %}<s>{{ cb.compare_at_display() }}</s>{% endif %}
             </p>
-            {% if cb %}
             <a class="btn cg-bundle__btn cg-bundle__btn--gold" href="{{ url_for('main.checkout_product', slug=cb.slug) }}">Get the Creator Bundle &rarr;</a>
-            {% else %}
-            <span class="btn cg-bundle__btn is-disabled">Coming soon</span>
-            {% endif %}
           </div>
         </article>
+        {% endif %}
       </div>
     </div>
   </section>
+  {% endif %}
 </div>
 {% endblock %}

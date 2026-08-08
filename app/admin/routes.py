@@ -119,9 +119,9 @@ def dashboard():
 @bp.route("/products", methods=["GET", "POST"])
 @admin_required
 def products():
-    from ..services.catalog import ensure_catalog
-    ensure_catalog()
-    db.session.commit()
+    from ..services.catalog import remove_demo_catalog
+    if remove_demo_catalog():
+        db.session.commit()
     items = (Product.query
              .order_by(Product.track, Product.sort_order, Product.id).all())
     if request.method == "POST":
