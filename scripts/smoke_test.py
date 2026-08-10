@@ -1489,7 +1489,8 @@ ok("Page loader uses an animated sunflower",
    'id="page-loader"' in r.get_data(as_text=True)
    and "page-loader.js" in r.get_data(as_text=True)
    and "page-loader__petal" in r.get_data(as_text=True)
-   and "page-loader__sun" in r.get_data(as_text=True))
+   and "page-loader__leaf" in r.get_data(as_text=True)
+   and "page-loader__spin" in r.get_data(as_text=True))
 
 # support / coaching groups
 from app.models import (Notification, SupportGroupApplication, SupportGroupCircle,
