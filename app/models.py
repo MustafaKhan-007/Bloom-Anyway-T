@@ -525,13 +525,13 @@ def random_journal_prompt():
 
 
 # 5-point mood scale for the day's journal (bloom-themed, not yellow smileys).
-# key, emoji, short a11y / UI label
+# key, emoji, short a11y / hover label
 MOODS = (
-    ("sad", "\U0001f940", "Sad"),            # wilted flower
-    ("low", "\U0001f342", "A little sad"),    # fallen leaf
-    ("neutral", "\U0001f33f", "Neutral"),     # herb
-    ("soft", "\U0001f338", "A little happy"), # cherry blossom
-    ("bloom", "\U0001f33b", "Happy"),         # sunflower
+    ("sad", "\U0001f940", "Heavy"),       # wilted flower
+    ("low", "\U0001f342", "Tender"),      # fallen leaf
+    ("neutral", "\U0001f33f", "Steady"),  # herb
+    ("soft", "\U0001f338", "Soft"),       # cherry blossom
+    ("bloom", "\U0001f33b", "Radiant"),   # sunflower
 )
 MOOD_KEYS = frozenset(k for k, _, _ in MOODS)
 MOOD_BY_KEY = {k: (emoji, label) for k, emoji, label in MOODS}

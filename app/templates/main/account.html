@@ -99,13 +99,15 @@
         <input type="hidden" name="next" value="{{ url_for('main.account', tab='profile') }}">
         <input type="hidden" name="prompt" value="{{ today_prompt[0] }}">
         <div class="ms-exact__checkin-copy">
-          <p class="ms-exact__checkin-q">How are you showing up today?</p>
-          <div class="ms-mood" role="radiogroup" aria-label="Today's mood">
+          <p class="ms-exact__checkin-q">You showed up! How do you feel?</p>
+          <div class="ms-mood" role="radiogroup" aria-label="How do you feel today?">
             {% for key, emoji, label in moods %}
-            <label class="ms-mood__opt {{ 'is-selected' if today_entry and today_entry.mood == key }}">
+            <label class="ms-mood__opt {{ 'is-selected' if today_entry and today_entry.mood == key }}"
+                   title="{{ label }}" data-mood-label="{{ label }}">
               <input type="radio" name="mood" value="{{ key }}"
                      {{ 'checked' if today_entry and today_entry.mood == key }}>
               <span class="ms-mood__emoji" aria-hidden="true">{{ emoji }}</span>
+              <span class="ms-mood__tip" aria-hidden="true">{{ label }}</span>
               <span class="visually-hidden">{{ label }}</span>
             </label>
             {% endfor %}
@@ -180,12 +182,14 @@
             <input type="hidden" name="prompt" value="{{ today_prompt[0] }}">
             <p class="field-help">{{ today_prompt[1] }}</p>
             <h3>{{ today_prompt[1] }}</h3>
-            <div class="ms-mood ms-mood--compact" role="radiogroup" aria-label="Today's mood">
+            <div class="ms-mood ms-mood--compact" role="radiogroup" aria-label="How do you feel today?">
               {% for key, emoji, label in moods %}
-              <label class="ms-mood__opt {{ 'is-selected' if today_entry and today_entry.mood == key }}">
+              <label class="ms-mood__opt {{ 'is-selected' if today_entry and today_entry.mood == key }}"
+                     title="{{ label }}" data-mood-label="{{ label }}">
                 <input type="radio" name="mood" value="{{ key }}"
                        {{ 'checked' if today_entry and today_entry.mood == key }}>
                 <span class="ms-mood__emoji" aria-hidden="true">{{ emoji }}</span>
+                <span class="ms-mood__tip" aria-hidden="true">{{ label }}</span>
                 <span class="visually-hidden">{{ label }}</span>
               </label>
               {% endfor %}
@@ -521,13 +525,15 @@
         <input type="hidden" name="next" value="{{ url_for('main.account', tab='journal') }}">
         <input type="hidden" name="prompt" value="{{ today_prompt[0] }}">
         <p class="checkin-journal__q">{{ today_prompt[1] }}</p>
-        <p class="field-help" style="margin: 0 0 8px;">How are you showing up?</p>
-        <div class="ms-mood" role="radiogroup" aria-label="Today's mood">
+        <p class="field-help" style="margin: 0 0 8px;">You showed up! How do you feel?</p>
+        <div class="ms-mood" role="radiogroup" aria-label="How do you feel today?">
           {% for key, emoji, label in moods %}
-          <label class="ms-mood__opt {{ 'is-selected' if today_entry and today_entry.mood == key }}">
+          <label class="ms-mood__opt {{ 'is-selected' if today_entry and today_entry.mood == key }}"
+                 title="{{ label }}" data-mood-label="{{ label }}">
             <input type="radio" name="mood" value="{{ key }}"
                    {{ 'checked' if today_entry and today_entry.mood == key }}>
             <span class="ms-mood__emoji" aria-hidden="true">{{ emoji }}</span>
+            <span class="ms-mood__tip" aria-hidden="true">{{ label }}</span>
             <span class="visually-hidden">{{ label }}</span>
           </label>
           {% endfor %}

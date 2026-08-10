@@ -1485,9 +1485,10 @@ ok("New draw entries are blocked once the week's review is published",
 r = app.test_client().get("/")
 ok("Sunflower favicon is linked in the tab",
    "favicon.svg" in r.get_data(as_text=True))
-ok("Page loader uses the sunflower favicon",
+ok("Page loader uses an animated sunflower",
    'id="page-loader"' in r.get_data(as_text=True)
    and "page-loader.js" in r.get_data(as_text=True)
+   and "page-loader__petal" in r.get_data(as_text=True)
    and "page-loader__sun" in r.get_data(as_text=True))
 
 # support / coaching groups
