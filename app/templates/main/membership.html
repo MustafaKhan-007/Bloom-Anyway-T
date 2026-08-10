@@ -47,9 +47,7 @@
 
       <div class="mem-toggle" data-billing-toggle>
         <button type="button" class="mem-toggle__btn is-active" data-billing="monthly" aria-pressed="true">Monthly</button>
-        <button type="button" class="mem-toggle__btn" data-billing="annual" aria-pressed="false">
-          Annual <span class="mem-toggle__badge">Best value</span>
-        </button>
+        <button type="button" class="mem-toggle__btn" data-billing="annual" aria-pressed="false">Annual (best value)</button>
       </div>
     </div>
   </section>
@@ -205,20 +203,6 @@
     </div>
   </section>
 
-  <section class="mem-page__annual mem-page__annual--hint">
-    <div class="container mem-page__annual-inner">
-      <div>
-        <p class="mem-page__annual-eyebrow">Annual plans &mdash; best value</p>
-        <h2>Pay once a year and save</h2>
-        <p>Use the <strong>Annual</strong> toggle above to switch the cards to yearly pricing and checkout.
-          Healing {{ healing_year }}/year &middot; Creator {{ creator_year }}/year.</p>
-      </div>
-      <div class="mem-page__annual-actions">
-        <button type="button" class="btn btn--primary" data-billing-jump="annual">Switch to Annual &rarr;</button>
-      </div>
-    </div>
-  </section>
-
   <section class="mem-page__addons">
     <div class="container">
       <h2 class="mem-page__addons-title">Add-ons</h2>
@@ -340,12 +324,6 @@
   buttons.forEach(function (btn) {
     btn.addEventListener("click", function () {
       setBilling(btn.getAttribute("data-billing"));
-    });
-  });
-  document.querySelectorAll("[data-billing-jump]").forEach(function (el) {
-    el.addEventListener("click", function () {
-      setBilling(el.getAttribute("data-billing-jump"));
-      root.scrollIntoView({ behavior: "smooth", block: "center" });
     });
   });
 

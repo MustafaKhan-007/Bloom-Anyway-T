@@ -4357,18 +4357,6 @@ a.at-handle:hover { text-decoration: underline; }
   background: var(--rm-plum);
   color: #fff;
 }
-.mem-toggle__badge {
-  display: inline-flex;
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: #2f7d4a;
-  color: #fff;
-  font-size: 10px; font-weight: 800;
-  letter-spacing: 0.04em; text-transform: uppercase;
-}
-.mem-toggle__btn.is-active .mem-toggle__badge {
-  background: #fff; color: #2f7d4a;
-}
 
 /* monthly/annual price + CTA swap */
 .mem-page .mem-price--year,
@@ -4381,7 +4369,6 @@ a.at-handle:hover { text-decoration: underline; }
 .mem-page[data-billing="annual"] .mem-cta--year,
 .mem-page[data-billing="annual"] .mem-trial--year { display: block; }
 .mem-cta { display: block; }
-.mem-page[data-billing="annual"] .mem-page__annual--hint { opacity: 0.55; }
 
 /* --- Plan cards --- */
 .mem-page__plans { padding: clamp(20px, 3vw, 36px) 0 12px; }
@@ -4504,33 +4491,6 @@ a.at-handle:hover { text-decoration: underline; }
   text-align: center;
   font-size: 13px;
   color: var(--rm-ink);
-}
-
-/* --- Annual savings banner --- */
-.mem-page__annual {
-  padding: 12px 0 28px;
-}
-.mem-page__annual-inner {
-  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
-  gap: 18px;
-  padding: 22px 24px;
-  border-radius: 18px;
-  background: var(--rm-lavender);
-  border: 1px solid rgba(61, 20, 49, 0.08);
-}
-.mem-page__annual-eyebrow {
-  margin: 0 0 4px;
-  font-size: 11px; font-weight: 800;
-  letter-spacing: 0.1em; text-transform: uppercase;
-  color: var(--rm-gold);
-}
-.mem-page__annual-inner h2 {
-  margin: 0 0 4px;
-  font-size: 22px;
-}
-.mem-page__annual-inner p { margin: 0; font-size: 14.5px; }
-.mem-page__annual-actions {
-  display: flex; flex-wrap: wrap; gap: 10px;
 }
 
 /* --- Add-ons --- */
