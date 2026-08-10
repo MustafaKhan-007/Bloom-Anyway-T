@@ -475,6 +475,8 @@ JOURNAL_PROMPTS = (
     ("body", "How is your body asking to be treated?"),
     ("rest", "Where could you rest a little more?"),
     ("brave", "Where were you brave in a small way?"),
+    ("courage", "What is one thing you did today that took courage?"),
+    ("space", "Where did you make space for yourself?"),
     ("release", "What are you ready to put down for tonight?"),
     ("keep", "What do you want to keep from today?"),
     ("truth", "What's one honest sentence about how you feel?"),
@@ -515,6 +517,14 @@ JOURNAL_PROMPTS = (
     ("play", "Did you make any room for play or ease?"),
     ("breathe", "When did you remember to breathe today?"),
     ("tomorrow", "What intention do you want to carry into tomorrow?"),
+    ("tender", "What part of you needs a little tenderness tonight?"),
+    ("celebrate", "What deserves a quiet celebration from today?"),
+    ("honest", "What are you ready to be honest about with yourself?"),
+    ("nourish", "What nourished you today — even a little?"),
+    ("setdown", "What can you set down without explaining it?"),
+    ("root", "What rooted you when things felt shaky?"),
+    ("open", "Where did you stay open when it would have been easier to close?"),
+    ("kind", "Where did kindness find you today?"),
 )
 
 
@@ -522,6 +532,16 @@ def random_journal_prompt():
     """Pick one prompt at random for the streak / journal UI."""
     import random
     return random.choice(JOURNAL_PROMPTS)
+
+
+def sample_journal_prompts(n: int = 4) -> list:
+    """Return ``n`` random prompts for the journal sidebar."""
+    import random
+    pool = list(JOURNAL_PROMPTS)
+    if n >= len(pool):
+        random.shuffle(pool)
+        return pool
+    return random.sample(pool, n)
 
 
 # 5-point mood scale for the day's journal (bloom-themed, not yellow smileys).

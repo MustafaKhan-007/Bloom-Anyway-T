@@ -692,6 +692,20 @@ ok("Mood and journal body stay on the same day entry",
    je is not None and je.mood == "bloom"
    and "Blooming a little today." in (je.body or ""),
    f"mood={getattr(je, 'mood', None)} body={getattr(je, 'body', None)!r}")
+r = client.get("/account?tab=journal")
+jbody = r.get_data(as_text=True)
+ok("Journal tab shows clickable prompt ideas",
+   r.status_code == 200
+   and "ms-prompt-list__btn" in jbody
+   and "journal-prompt-ideas" in jbody
+   and jbody.count("ms-prompt-list__btn") == 4)
+ok("Journal previous entries use a stretch grid",
+   "journal-list" in jbody and "ms-journal__prev" in jbody)
+with app.app_context():
+    from app.models import sample_journal_prompts
+    ideas = sample_journal_prompts(4)
+ok("Prompt idea sampler returns four unique prompts",
+   len(ideas) == 4 and len({k for k, _ in ideas}) == 4, f"got {ideas}")
 
 # --- 5b3. badges: earn, display (max 3), byline, profile, owner --------------
 from app.services.badges import earned_badges, primary_badge

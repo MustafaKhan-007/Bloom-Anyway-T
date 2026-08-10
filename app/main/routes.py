@@ -16,7 +16,7 @@ from ..models import (JOURNAL_PROMPTS, MARKETPLACE_KINDS, MARKETPLACE_KIND_LABEL
                       Notification, Order, Page, Product, Quote, QuoteFavorite,
                       ReelReview, ReelReviewApplication, ShopPurchase,
                       Subscriber, User, Video, utcnow,
-                      random_journal_prompt)
+                      random_journal_prompt, sample_journal_prompts)
 from ..services import quotes as quotes_service
 from ..services import reel_reviews as reel_svc
 from ..services import settings as settings_service
@@ -671,6 +671,7 @@ def account():
         journal_entries=journal,
         today_entry=today_entry,
         today_prompt=random_journal_prompt(),
+        prompt_ideas=sample_journal_prompts(4),
         moods=MOODS,
         community_participation=participation_n,
         community_participation_pct=participation_bar_pct(participation_n),

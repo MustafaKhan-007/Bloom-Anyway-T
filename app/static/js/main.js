@@ -793,4 +793,34 @@
     });
     setKind("feedback");
   })();
+
+  // Journal: sidebar prompt ideas replace today's prompt question
+  (function () {
+    var list = document.getElementById("journal-prompt-ideas");
+    if (!list) return;
+    var keyInput = document.getElementById("journal-prompt-key");
+    var labelEl = document.getElementById("journal-prompt-label");
+    var body = document.getElementById("journal-body");
+    list.addEventListener("click", function (e) {
+      var btn = e.target.closest(".ms-prompt-list__btn");
+      if (!btn || !list.contains(btn)) return;
+      var key = btn.getAttribute("data-prompt-key") || "";
+      var label = btn.getAttribute("data-prompt-label") || btn.textContent.trim();
+      if (keyInput) keyInput.value = key;
+      if (labelEl) {
+        labelEl.textContent = label;
+        labelEl.classList.add("is-swapped");
+        window.setTimeout(function () {
+          labelEl.classList.remove("is-swapped");
+        }, 450);
+      }
+      if (body) {
+        body.setAttribute("aria-label", label);
+        body.focus();
+      }
+      list.querySelectorAll(".ms-prompt-list__btn").forEach(function (b) {
+        b.classList.toggle("is-active", b === btn);
+      });
+    });
+  })();
 })();

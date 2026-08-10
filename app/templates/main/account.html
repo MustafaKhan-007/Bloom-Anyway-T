@@ -520,11 +520,11 @@
       <h2>Your journal</h2>
       <p class="field-help" style="margin-top: -6px;">Private notes from the days you showed up. Only you can see these.</p>
 
-      <form method="post" action="{{ url_for('main.checkin') }}" class="checkin-journal ms-journal__today">
+      <form method="post" action="{{ url_for('main.checkin') }}" class="checkin-journal ms-journal__today" id="journal-today-form">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="next" value="{{ url_for('main.account', tab='journal') }}">
-        <input type="hidden" name="prompt" value="{{ today_prompt[0] }}">
-        <p class="checkin-journal__q">{{ today_prompt[1] }}</p>
+        <input type="hidden" name="prompt" id="journal-prompt-key" value="{{ today_prompt[0] }}">
+        <p class="checkin-journal__q" id="journal-prompt-label">{{ today_prompt[1] }}</p>
         <p class="field-help" style="margin: 0 0 8px;">You showed up! How do you feel?</p>
         <div class="ms-mood" role="radiogroup" aria-label="How do you feel today?">
           {% for key, emoji, label in moods %}
@@ -538,7 +538,7 @@
           </label>
           {% endfor %}
         </div>
-        <textarea name="journal" rows="6" maxlength="4000"
+        <textarea name="journal" id="journal-body" rows="6" maxlength="4000"
                   placeholder="Write as much or as little as you like."
                   aria-label="{{ today_prompt[1] }}">{% if today_entry and today_entry.body %}{{ today_entry.body }}{% endif %}</textarea>
         {% if current_user.checked_in_today() %}
@@ -548,7 +548,29 @@
         <button class="btn btn--primary" type="submit">I showed up today &#10003;</button>
         {% endif %}
       </form>
+    </div>
+    <aside class="ms-journal__side">
+      <div class="ms-side-card">
+        <p class="eyebrow">Journal streak</p>
+        <p class="ms-side-card__stat"><strong>{{ current_user.streak_display() }}</strong> days in a row</p>
+        <p class="field-help">One small return, every day.</p>
+      </div>
+      <div class="ms-side-card">
+        <p class="eyebrow">Need a prompt?</p>
+        <ul class="ms-prompt-list" id="journal-prompt-ideas">
+          {% for key, label in prompt_ideas %}
+          <li>
+            <button type="button" class="ms-prompt-list__btn"
+                    data-prompt-key="{{ key }}" data-prompt-label="{{ label }}">
+              {{ label }}
+            </button>
+          </li>
+          {% endfor %}
+        </ul>
+      </div>
+    </aside>
 
+    <div class="ms-journal__prev">
       <h3 class="ms-journal__prev-title">Previous entries</h3>
       {% if journal_entries %}
       <div class="journal-list">
@@ -569,22 +591,6 @@
       <p style="margin-top: 12px;">No journal pages yet — check in above whenever you’re ready.</p>
       {% endif %}
     </div>
-    <aside class="ms-journal__side">
-      <div class="ms-side-card">
-        <p class="eyebrow">Journal streak</p>
-        <p class="ms-side-card__stat"><strong>{{ current_user.streak_display() }}</strong> days in a row</p>
-        <p class="field-help">One small return, every day.</p>
-      </div>
-      <div class="ms-side-card">
-        <p class="eyebrow">Need a prompt?</p>
-        <ul class="ms-prompt-list">
-          <li>What is one thing you did today that took courage?</li>
-          <li>Where did you make space for yourself?</li>
-          <li>What would you tell a friend in your shoes?</li>
-          <li>What are you ready to put down for tonight?</li>
-        </ul>
-      </div>
-    </aside>
   </div>
 </section>
 {% endif %}
