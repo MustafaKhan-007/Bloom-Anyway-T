@@ -175,7 +175,9 @@
       </div>
       {% if current_user.is_member() and not current_user.is_admin %}
       <form method="post" action="{{ url_for('main.cancel_membership') }}"
-            data-confirm="Cancel your membership? Your marketplace listings will be hidden." style="margin-top: 12px;">
+            data-confirm="Cancel your membership? Your marketplace listings will be hidden."
+            data-confirm-title="Cancel membership?"
+            data-confirm-ok="Yes, cancel it" style="margin-top: 12px;">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button class="btn--quiet" type="submit">Cancel membership</button>
       </form>
@@ -191,13 +193,16 @@
     <div class="settings-block">
       <h3>Leaving?</h3>
       <p class="field-help">Closing your account scrubs your profile details, removes your login, and hides your forum posts and comments. Purchase records may remain with Dodo Payments.</p>
-      <form method="post" action="{{ url_for('main.delete_account') }}"
-            data-confirm="Close your account? This can't be undone from here.">
+      <form method="post" action="{{ url_for('main.delete_account') }}" id="close-account-form"
+            data-confirm="Close your account permanently? This can't be undone from here."
+            data-confirm-title="Close your account?"
+            data-confirm-ok="Yes, close it"
+            data-require-sure>
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <label class="checkline checkline--sm checkline--danger checkline--stack">
-          <input type="checkbox" name="confirm" value="yes"> Yes, I'm sure
+          <input type="checkbox" name="confirm" value="yes" data-sure-check> Yes, I'm sure
         </label>
-        <button class="btn btn--danger btn--sm" type="submit">Close my account</button>
+        <button class="btn btn--danger btn--sm" type="submit" data-sure-submit disabled>Close my account</button>
       </form>
       <form method="post" action="{{ url_for('auth.logout') }}" style="margin-top: 24px;">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

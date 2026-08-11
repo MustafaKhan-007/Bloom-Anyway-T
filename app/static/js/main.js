@@ -85,12 +85,88 @@
     window.addEventListener("pageshow", clearAuthPasswords);
   }
 
-  /* ---- confirm dialogs (delete account etc.) ---- */
-  document.querySelectorAll("form[data-confirm]").forEach(function (form) {
-    form.addEventListener("submit", function (e) {
-      if (!window.confirm(form.dataset.confirm)) e.preventDefault();
+  /* ---- in-page confirm dialogs (no browser popups) ---- */
+  (function () {
+    var dialog = document.getElementById("site-confirm");
+    if (!dialog) {
+      dialog = document.createElement("dialog");
+      dialog.id = "site-confirm";
+      dialog.className = "site-confirm";
+      dialog.setAttribute("aria-labelledby", "site-confirm-title");
+      dialog.innerHTML =
+        '<div class="site-confirm__panel">' +
+        '<h2 id="site-confirm-title" data-confirm-title>Are you sure?</h2>' +
+        '<p class="site-confirm__body" data-confirm-body></p>' +
+        '<div class="site-confirm__actions">' +
+        '<button type="button" class="btn btn--secondary btn--sm" data-confirm-cancel>Cancel</button>' +
+        '<button type="button" class="btn btn--danger btn--sm" data-confirm-ok>Confirm</button>' +
+        "</div></div>";
+      document.body.appendChild(dialog);
+    }
+
+    var titleEl = dialog.querySelector("[data-confirm-title]");
+    var bodyEl = dialog.querySelector("[data-confirm-body]");
+    var okBtn = dialog.querySelector("[data-confirm-ok]");
+    var cancelBtn = dialog.querySelector("[data-confirm-cancel]");
+    var pendingForm = null;
+
+    function openDialog(form) {
+      pendingForm = form;
+      titleEl.textContent = form.getAttribute("data-confirm-title") || "Are you sure?";
+      bodyEl.textContent = form.getAttribute("data-confirm") || "Please confirm to continue.";
+      okBtn.textContent = form.getAttribute("data-confirm-ok") || "Confirm";
+      if (typeof dialog.showModal === "function") dialog.showModal();
+      else dialog.setAttribute("open", "");
+    }
+
+    function closeDialog() {
+      pendingForm = null;
+      if (typeof dialog.close === "function") dialog.close();
+      else dialog.removeAttribute("open");
+    }
+
+    cancelBtn.addEventListener("click", closeDialog);
+    dialog.addEventListener("cancel", function () {
+      pendingForm = null;
     });
-  });
+    okBtn.addEventListener("click", function () {
+      var form = pendingForm;
+      closeDialog();
+      if (!form) return;
+      form.dataset.confirmAccepted = "1";
+      if (typeof form.requestSubmit === "function") form.requestSubmit();
+      else form.submit();
+    });
+
+    document.querySelectorAll("form[data-confirm]").forEach(function (form) {
+      form.addEventListener("submit", function (e) {
+        if (form.dataset.confirmAccepted === "1") {
+          delete form.dataset.confirmAccepted;
+          return;
+        }
+        e.preventDefault();
+        if (form.hasAttribute("data-require-sure")) {
+          var sure = form.querySelector("[data-sure-check]");
+          if (!sure || !sure.checked) {
+            sure && sure.focus();
+            return;
+          }
+        }
+        openDialog(form);
+      });
+    });
+
+    document.querySelectorAll("form[data-require-sure]").forEach(function (form) {
+      var sure = form.querySelector("[data-sure-check]");
+      var submit = form.querySelector("[data-sure-submit]");
+      if (!sure || !submit) return;
+      function sync() {
+        submit.disabled = !sure.checked;
+      }
+      sure.addEventListener("change", sync);
+      sync();
+    });
+  })();
 
   /* ---- avatar crop / resize before upload ---- */
   (function () {

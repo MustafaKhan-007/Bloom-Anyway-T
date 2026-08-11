@@ -1254,8 +1254,8 @@ def change_password():
 @login_required
 def delete_account():
     if request.form.get("confirm") != "yes":
-        flash("Account not deleted \u2014 the confirmation box wasn't ticked.", "error")
-        return redirect(url_for("main.account"))
+        flash("Account not deleted \u2014 tick \u201cYes, I'm sure\u201d first.", "error")
+        return redirect(url_for("main.settings"))
     if current_user.is_admin:
         flash("The owner account can't be closed from here.", "error")
         return redirect(url_for("main.settings"))

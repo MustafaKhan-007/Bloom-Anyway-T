@@ -636,6 +636,18 @@ ok("Settings page renders with intents + upload",
    r.status_code == 200 and "What brings you here?" in sbody and 'name="avatar_file"' in sbody)
 ok("Settings offers a change-password button (no inline fields)",
    'href="/account/password"' in sbody and 'name="current_password"' not in sbody)
+ok("Close-account needs Yes I'm sure before submit is enabled",
+   'data-require-sure' in sbody
+   and 'data-sure-submit' in sbody
+   and 'disabled' in sbody
+   and "Yes, I'm sure" in sbody)
+r = client.post("/account/delete", data={}, follow_redirects=True)
+del_body = r.get_data(as_text=True)
+with app.app_context():
+    still_here = User.query.filter_by(email="newperson@example.com").first()
+ok("Unconfirmed delete is rejected and keeps the account",
+   still_here is not None and still_here.deleted_at is None
+   and ("tick" in del_body.lower() or "sure" in del_body.lower()))
 
 r = client.get("/account/password")
 ok("Change-password subpage renders",

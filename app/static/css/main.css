@@ -2558,6 +2558,31 @@ a.at-handle:hover { text-decoration: underline; }
 .feedback-dialog__actions {
   display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px;
 }
+
+/* In-page confirm (replaces window.confirm) */
+.site-confirm {
+  border: 0; border-radius: 18px; padding: 0; max-width: 420px; width: calc(100% - 32px);
+  box-shadow: 0 24px 60px rgba(40, 20, 30, 0.28);
+  background: #faf5ee;
+  color: #3d1431;
+}
+.site-confirm::backdrop { background: rgba(45, 16, 36, 0.45); }
+.site-confirm__panel { padding: 22px 22px 18px; }
+.site-confirm__panel h2 {
+  margin: 0 0 8px;
+  font-family: var(--font-display, "Fraunces", Georgia, serif);
+  font-size: 1.35rem;
+  color: #3d1431;
+}
+.site-confirm__body {
+  margin: 0;
+  font-size: 14.5px;
+  line-height: 1.55;
+  color: #5a4f56;
+}
+.site-confirm__actions {
+  display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; margin-top: 18px;
+}
 .report-toggle { display: inline-block; }
 .report-toggle__btn {
   list-style: none; cursor: pointer; font-size: 13px; font-weight: 700;
