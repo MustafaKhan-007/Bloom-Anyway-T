@@ -200,9 +200,6 @@
     document.querySelectorAll(".is-tour-hot").forEach(function (el) {
       el.classList.remove("is-tour-hot");
     });
-    document.querySelectorAll(".is-tour-front").forEach(function (el) {
-      el.classList.remove("is-tour-front");
-    });
     activeEl = null;
   }
 
@@ -317,17 +314,22 @@
     var left;
     var inHeader = !!(el.closest && el.closest(".site-header, .nav, .nav-drawer, .myspace-tabs"));
 
+    // Keep tip clear of the sticky header so the title never sits under the nav
+    var headerEl = document.querySelector(".site-header");
+    var headerBottom = headerEl ? Math.ceil(headerEl.getBoundingClientRect().bottom) + 8 : 12;
+    var minTop = Math.max(12, inHeader ? headerBottom : 12);
+
     if (inHeader && box.right + gap + bw <= window.innerWidth - 12) {
       left = box.right + gap;
-      top = Math.min(Math.max(12, box.top), window.innerHeight - bh - 12);
+      top = Math.min(Math.max(minTop, box.bottom + 6), window.innerHeight - bh - 12);
     } else if (box.bottom + gap + bh <= window.innerHeight - 12) {
-      top = box.bottom + gap;
+      top = Math.max(minTop, box.bottom + gap);
       left = box.midX - bw / 2;
     } else if (box.left - gap - bw >= 12) {
       left = box.left - gap - bw;
-      top = Math.min(Math.max(12, box.top), window.innerHeight - bh - 12);
+      top = Math.min(Math.max(minTop, box.top), window.innerHeight - bh - 12);
     } else {
-      top = Math.max(12, box.top - bh - gap);
+      top = Math.max(minTop, box.top - bh - gap);
       left = box.midX - bw / 2;
     }
     left = Math.max(12, Math.min(left, window.innerWidth - bw - 12));
@@ -377,8 +379,6 @@
       openMobileNavIfNeeded(el);
       el.classList.add("is-tour-hot");
       activeEl = el;
-      var front = el.closest(".site-header, .myspace-tabs, .nav-drawer");
-      if (front) front.classList.add("is-tour-front");
       el.scrollIntoView({ block: "nearest", behavior: "smooth" });
     }
 
