@@ -5404,9 +5404,7 @@ html.is-touring .tour-ui * {
 }
 html.is-touring .is-tour-hot {
   position: relative;
-  z-index: 5002 !important;
-  border-radius: 12px;
-  box-shadow: 0 0 0 3px #faf5ee, 0 0 0 6px rgba(199, 154, 65, 0.85);
+  z-index: 1;
 }
 .tour-ui {
   position: relative;
@@ -5433,16 +5431,31 @@ html.is-touring .is-tour-hot {
 .tour-skip:hover {
   background: #3d1431;
 }
-.tour-hole {
-  position: absolute;
+.tour-veil {
+  position: fixed;
+  inset: 0;
   z-index: 5001;
-  border-radius: 14px;
-  box-shadow: 0 0 0 9999px rgba(45, 16, 36, 0.62);
+  width: 100%;
+  height: 100%;
   pointer-events: none;
-  transition: top 0.2s ease, left 0.2s ease, width 0.2s ease, height 0.2s ease;
+  display: block;
+}
+.tour-veil__dim {
+  fill: rgba(45, 16, 36, 0.64);
+}
+.tour-ring {
+  position: fixed;
+  z-index: 5002;
+  pointer-events: none;
+  box-sizing: border-box;
+  border: 2.5px solid #c79a41;
+  box-shadow:
+    0 0 0 3px rgba(250, 245, 238, 0.95),
+    0 8px 24px rgba(61, 20, 49, 0.18);
+  background: transparent;
 }
 .tour-bubble {
-  position: absolute;
+  position: fixed;
   z-index: 5004;
   width: min(340px, calc(100vw - 28px));
   padding: 18px 18px 16px;
@@ -5453,7 +5466,6 @@ html.is-touring .is-tour-hot {
   box-shadow: 0 16px 40px rgba(61, 20, 49, 0.22);
 }
 .tour-bubble--center {
-  position: fixed;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
@@ -5488,10 +5500,11 @@ html.is-touring .is-tour-hot {
 }
 .tour-bubble__hint {
   margin: 0 !important;
+  flex: 1 1 auto;
   font-size: 12.5px !important;
   font-style: italic;
   color: #8a7a82 !important;
 }
 @media (prefers-reduced-motion: reduce) {
-  .tour-hole { transition: none; }
+  .tour-ring { transition: none; }
 }
