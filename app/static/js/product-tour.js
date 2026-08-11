@@ -205,12 +205,25 @@
 
   function targetRect(el) {
     var r = el.getBoundingClientRect();
-    var padX = el.closest(".nav-links, .nav-drawer, .myspace-tabs") ? 12 : 10;
-    var padY = el.closest(".nav-links, .nav-drawer, .myspace-tabs") ? 8 : 10;
+    var inNav = !!(el.closest && el.closest(".nav-links, .nav-drawer, .myspace-tabs, .site-header"));
+    var padX = inNav ? 12 : 10;
+    var padY = inNav ? 8 : 10;
     var top = Math.round(r.top - padY);
     var left = Math.round(r.left - padX);
     var width = Math.max(44, Math.round(r.width + padX * 2));
     var height = Math.max(32, Math.round(r.height + padY * 2));
+
+    // Large page surfaces: soft-rounded square around the top of the section,
+    // not a giant pill across the whole page
+    if (el.hasAttribute && el.hasAttribute("data-tour-surface")) {
+      var maxW = Math.min(Math.round(window.innerWidth - 32), 920);
+      var maxH = Math.min(Math.round(window.innerHeight * 0.42), 320);
+      width = Math.min(width, maxW);
+      height = Math.min(height, maxH);
+      left = Math.round((window.innerWidth - width) / 2);
+      top = Math.max(12, top);
+    }
+
     return {
       top: top,
       left: left,
@@ -218,8 +231,8 @@
       height: height,
       right: left + width,
       bottom: top + height,
-      midY: r.top + r.height / 2,
-      midX: r.left + r.width / 2
+      midY: top + height / 2,
+      midX: left + width / 2
     };
   }
 
@@ -237,8 +250,8 @@
     spot.style.left = box.left + "px";
     spot.style.width = box.width + "px";
     spot.style.height = box.height + "px";
-    // Exact pill: radius is half the height so border matches the clear cutout
-    spot.style.borderRadius = Math.round(box.height / 2) + "px";
+    // Soft-rounded square (not a pill)
+    spot.style.borderRadius = "12px";
   }
 
   function fillActions(step) {
@@ -269,21 +282,17 @@
       hint.className = "tour-bubble__hint";
       hint.textContent = "Click the highlighted control to continue";
       actions.appendChild(hint);
-      if (step.go) {
-        var goBtn = document.createElement("button");
-        goBtn.type = "button";
-        goBtn.className = "btn btn--primary btn--sm";
-        goBtn.textContent = "Open it";
-        goBtn.addEventListener("click", function () {
-          try {
-            sessionStorage.setItem(STEP_KEY, String(stepIndex + 1));
-            sessionStorage.setItem(ACTIVE_KEY, "1");
-          } catch (err) {}
-          window.location.href = step.go;
-        });
-        actions.appendChild(goBtn);
-      }
     }
+  }
+
+  function rectsOverlap(a, b, pad) {
+    var p = pad || 0;
+    return !(
+      a.right + p < b.left ||
+      a.left - p > b.right ||
+      a.bottom + p < b.top ||
+      a.top - p > b.bottom
+    );
   }
 
   function placeBubble(el, step) {
@@ -305,33 +314,44 @@
 
     bubble.classList.remove("tour-bubble--center");
     bubble.style.transform = "none";
-    var bw = Math.min(340, window.innerWidth - 28);
+    var bw = Math.min(320, window.innerWidth - 28);
     bubble.style.width = bw + "px";
     var bh = bubble.offsetHeight || 180;
-    var box = targetRect(el);
-    var gap = 14;
-    var top;
-    var left;
-    var inHeader = !!(el.closest && el.closest(".site-header, .nav, .nav-drawer, .myspace-tabs"));
 
-    // Keep tip clear of the sticky header so the title never sits under the nav
     var headerEl = document.querySelector(".site-header");
-    var headerBottom = headerEl ? Math.ceil(headerEl.getBoundingClientRect().bottom) + 8 : 12;
-    var minTop = Math.max(12, inHeader ? headerBottom : 12);
-
-    if (inHeader && box.right + gap + bw <= window.innerWidth - 12) {
-      left = box.right + gap;
-      top = Math.min(Math.max(minTop, box.bottom + 6), window.innerHeight - bh - 12);
-    } else if (box.bottom + gap + bh <= window.innerHeight - 12) {
-      top = Math.max(minTop, box.bottom + gap);
-      left = box.midX - bw / 2;
-    } else if (box.left - gap - bw >= 12) {
-      left = box.left - gap - bw;
-      top = Math.min(Math.max(minTop, box.top), window.innerHeight - bh - 12);
-    } else {
-      top = Math.max(minTop, box.top - bh - gap);
-      left = box.midX - bw / 2;
+    var headerBottom = headerEl ? Math.ceil(headerEl.getBoundingClientRect().bottom) + 10 : 16;
+    var skip = document.querySelector(".tour-skip-wrap");
+    var skipBox = skip ? skip.getBoundingClientRect() : null;
+    // Park tip top-right, under Skip, clear of the sticky nav
+    var top = Math.max(headerBottom, skipBox ? Math.ceil(skipBox.bottom) + 10 : 16);
+    var left = window.innerWidth - bw - 16;
+    if (skipBox && left + bw > skipBox.left - 8) {
+      left = Math.max(12, skipBox.left - bw - 12);
+      if (left < 12) {
+        left = window.innerWidth - bw - 16;
+        top = Math.max(top, Math.ceil(skipBox.bottom) + 10);
+      }
     }
+
+    var tip = { top: top, left: left, right: left + bw, bottom: top + bh };
+    if (el) {
+      var box = targetRect(el);
+      // If we cover the highlighted control, drop just below the header on the right
+      // but outside the hot rect when possible
+      if (rectsOverlap(tip, box, 8)) {
+        if (box.left - 12 - bw >= 12) {
+          left = box.left - 12 - bw;
+          top = Math.max(headerBottom, Math.min(box.top, window.innerHeight - bh - 12));
+        } else if (box.bottom + 12 + bh <= window.innerHeight - 12) {
+          top = box.bottom + 12;
+          left = window.innerWidth - bw - 16;
+        } else {
+          top = headerBottom;
+          left = window.innerWidth - bw - 16;
+        }
+      }
+    }
+
     left = Math.max(12, Math.min(left, window.innerWidth - bw - 12));
     top = Math.max(12, Math.min(top, window.innerHeight - bh - 12));
     bubble.style.top = top + "px";

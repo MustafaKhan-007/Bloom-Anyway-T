@@ -5485,15 +5485,16 @@ html.is-touring .tour-ui .tour-bubble summary,
   pointer-events: none !important;
   box-sizing: border-box;
   border: 2.5px solid #c79a41;
+  border-radius: 12px;
   background: transparent;
   box-shadow: 0 0 0 9999px rgba(45, 16, 36, 0.64);
 }
 .tour-bubble {
   position: fixed;
   z-index: 6004;
-  width: min(340px, calc(100vw - 28px));
+  width: min(320px, calc(100vw - 28px));
   padding: 20px 18px 16px;
-  border-radius: 18px;
+  border-radius: 12px;
   background: #faf5ee;
   color: #3d1431;
   border: 1px solid rgba(61, 20, 49, 0.1);
