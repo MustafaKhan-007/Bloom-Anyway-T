@@ -5422,14 +5422,25 @@ html.is-touring label,
 html.is-touring summary {
   pointer-events: none !important;
 }
-html.is-touring .is-tour-hot,
-html.is-touring .tour-ui,
-html.is-touring .tour-ui * {
+html.is-touring .is-tour-hot {
   pointer-events: auto !important;
+  position: relative;
+  z-index: 5003 !important;
+}
+html.is-touring .is-tour-front {
+  position: relative;
+  z-index: 5002 !important;
 }
 .tour-ui {
   position: relative;
   z-index: 5000;
+  pointer-events: none;
+}
+.tour-ui .tour-skip-wrap,
+.tour-ui .tour-skip,
+.tour-ui .tour-bubble,
+.tour-ui .tour-bubble * {
+  pointer-events: auto;
 }
 .tour-skip-wrap {
   position: fixed;
@@ -5458,16 +5469,16 @@ html.is-touring .tour-ui * {
   inset: 0;
   z-index: 5001;
   background: rgba(45, 16, 36, 0.64);
-  pointer-events: none;
+  pointer-events: none !important;
 }
 /*
   One element = clear cutout + gold border + vignette.
-  box-shadow paints the dim outside this box; the box itself stays clear.
+  Must never capture clicks — the real control underneath stays clickable.
 */
 .tour-spot {
   position: fixed;
   z-index: 5001;
-  pointer-events: none;
+  pointer-events: none !important;
   box-sizing: border-box;
   border: 2.5px solid #c79a41;
   background: transparent;

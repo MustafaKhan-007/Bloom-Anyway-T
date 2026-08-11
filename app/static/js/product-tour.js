@@ -200,6 +200,9 @@
     document.querySelectorAll(".is-tour-hot").forEach(function (el) {
       el.classList.remove("is-tour-hot");
     });
+    document.querySelectorAll(".is-tour-front").forEach(function (el) {
+      el.classList.remove("is-tour-front");
+    });
     activeEl = null;
   }
 
@@ -269,6 +272,20 @@
       hint.className = "tour-bubble__hint";
       hint.textContent = "Click the highlighted control to continue";
       actions.appendChild(hint);
+      if (step.go) {
+        var goBtn = document.createElement("button");
+        goBtn.type = "button";
+        goBtn.className = "btn btn--primary btn--sm";
+        goBtn.textContent = "Open it";
+        goBtn.addEventListener("click", function () {
+          try {
+            sessionStorage.setItem(STEP_KEY, String(stepIndex + 1));
+            sessionStorage.setItem(ACTIVE_KEY, "1");
+          } catch (err) {}
+          window.location.href = step.go;
+        });
+        actions.appendChild(goBtn);
+      }
     }
   }
 
@@ -360,6 +377,8 @@
       openMobileNavIfNeeded(el);
       el.classList.add("is-tour-hot");
       activeEl = el;
+      var front = el.closest(".site-header, .myspace-tabs, .nav-drawer");
+      if (front) front.classList.add("is-tour-front");
       el.scrollIntoView({ block: "nearest", behavior: "smooth" });
     }
 
