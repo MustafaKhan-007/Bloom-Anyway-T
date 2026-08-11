@@ -154,9 +154,8 @@
   ];
 
   var stepIndex = 0;
-  var hole = null;
-  var cut = null;
-  var ring = null;
+  var spot = null;
+  var dim = null;
   var ui = null;
   var bubble = null;
   var resizeTimer = null;
@@ -166,9 +165,7 @@
     if (!step.path) return true;
     var path = window.location.pathname.replace(/\/$/, "") || "/";
     var want = step.path.replace(/\/$/, "") || "/";
-    if (want === "/account") {
-      return path === "/account";
-    }
+    if (want === "/account") return path === "/account";
     if (want === "/") return path === "/";
     return path === want || path.indexOf(want + "/") === 0;
   }
@@ -208,71 +205,40 @@
 
   function targetRect(el) {
     var r = el.getBoundingClientRect();
-    // Prefer full text width for links/buttons that may be tight in the layout.
-    var w = Math.max(r.width, el.scrollWidth || 0);
-    var h = Math.max(r.height, el.scrollHeight || 0);
-    var padX = el.closest(".nav-links, .nav-drawer, .myspace-tabs") ? 14 : 12;
-    var padY = el.closest(".nav-links, .nav-drawer, .myspace-tabs") ? 10 : 12;
+    var padX = el.closest(".nav-links, .nav-drawer, .myspace-tabs") ? 12 : 10;
+    var padY = el.closest(".nav-links, .nav-drawer, .myspace-tabs") ? 8 : 10;
+    var top = Math.round(r.top - padY);
+    var left = Math.round(r.left - padX);
+    var width = Math.max(44, Math.round(r.width + padX * 2));
+    var height = Math.max(32, Math.round(r.height + padY * 2));
     return {
-      top: r.top - padY,
-      left: r.left - padX,
-      width: w + padX * 2,
-      height: h + padY * 2,
-      right: r.left - padX + w + padX * 2,
-      bottom: r.top - padY + h + padY * 2,
+      top: top,
+      left: left,
+      width: width,
+      height: height,
+      right: left + width,
+      bottom: top + height,
       midY: r.top + r.height / 2,
       midX: r.left + r.width / 2
     };
   }
 
-  function syncVeilSize() {
-    if (!hole) return;
-    var w = window.innerWidth;
-    var h = window.innerHeight;
-    hole.setAttribute("width", String(w));
-    hole.setAttribute("height", String(h));
-    hole.setAttribute("viewBox", "0 0 " + w + " " + h);
-    var bg = hole.querySelector("[data-tour-mask-bg]");
-    var dim = hole.querySelector("[data-tour-dim]");
-    if (bg) {
-      bg.setAttribute("width", String(w));
-      bg.setAttribute("height", String(h));
-    }
-    if (dim) {
-      dim.setAttribute("width", String(w));
-      dim.setAttribute("height", String(h));
-    }
-  }
-
-  function placeHole(el) {
-    if (!hole || !cut || !ring) return;
-    syncVeilSize();
+  function placeSpot(el) {
+    if (!spot || !dim) return;
     if (!el) {
-      hole.hidden = false;
-      ring.hidden = true;
-      cut.setAttribute("width", "0");
-      cut.setAttribute("height", "0");
+      spot.hidden = true;
+      dim.hidden = false;
       return;
     }
-    hole.hidden = false;
-    ring.hidden = false;
+    dim.hidden = true;
+    spot.hidden = false;
     var box = targetRect(el);
-    var x = Math.max(0, box.left);
-    var y = Math.max(0, box.top);
-    var w = Math.max(48, box.width);
-    var h = Math.max(36, box.height);
-    cut.setAttribute("x", String(x));
-    cut.setAttribute("y", String(y));
-    cut.setAttribute("width", String(w));
-    cut.setAttribute("height", String(h));
-    var radius = el.closest(".nav-links, .myspace-tabs") ? 999 : 14;
-    cut.setAttribute("rx", String(radius));
-    cut.setAttribute("ry", String(radius));
-    ring.style.top = y + "px";
-    ring.style.left = x + "px";
-    ring.style.width = w + "px";
-    ring.style.height = h + "px";
-    ring.style.borderRadius = radius >= 100 ? "999px" : "14px";
+    spot.style.top = box.top + "px";
+    spot.style.left = box.left + "px";
+    spot.style.width = box.width + "px";
+    spot.style.height = box.height + "px";
+    // Exact pill: radius is half the height so border matches the clear cutout
+    spot.style.borderRadius = Math.round(box.height / 2) + "px";
   }
 
   function fillActions(step) {
@@ -284,9 +250,7 @@
       back.type = "button";
       back.className = "btn btn--secondary btn--sm";
       back.textContent = "Back";
-      back.addEventListener("click", function () {
-        goBack();
-      });
+      back.addEventListener("click", goBack);
       actions.appendChild(back);
     }
 
@@ -321,13 +285,12 @@
       bubble.style.left = "";
       bubble.style.right = "";
       bubble.style.transform = "";
-      placeHole(null);
+      placeSpot(null);
       return;
     }
 
     bubble.classList.remove("tour-bubble--center");
     bubble.style.transform = "none";
-    // Measure after content is in
     var bw = Math.min(340, window.innerWidth - 28);
     bubble.style.width = bw + "px";
     var bh = bubble.offsetHeight || 180;
@@ -335,9 +298,8 @@
     var gap = 14;
     var top;
     var left;
-
-    // Prefer to the right of nav/header targets; otherwise below.
     var inHeader = !!(el.closest && el.closest(".site-header, .nav, .nav-drawer, .myspace-tabs"));
+
     if (inHeader && box.right + gap + bw <= window.innerWidth - 12) {
       left = box.right + gap;
       top = Math.min(Math.max(12, box.top), window.innerHeight - bh - 12);
@@ -359,7 +321,15 @@
   }
 
   function layoutSpotlight(el, step) {
-    placeHole(step && (step.mode === "click" || step.surface) ? el : null);
+    if (el && step && (step.mode === "click" || step.surface)) {
+      placeSpot(el);
+    } else if (step && (step.id === "welcome" || step.id === "finish")) {
+      placeSpot(null);
+    } else if (el) {
+      placeSpot(el);
+    } else {
+      placeSpot(null);
+    }
     placeBubble(el, step);
   }
 
@@ -395,7 +365,7 @@
 
     window.setTimeout(function () {
       layoutSpotlight(el, step);
-    }, 100);
+    }, 120);
   }
 
   function advance(delta) {
@@ -406,8 +376,6 @@
   function goBack() {
     if (stepIndex <= 0) return;
     stepIndex -= 1;
-    // Skip landing on a click-step whose destination is the current page
-    // when going back from a page-explain — still fine to show the click prompt.
     renderStep();
   }
 
@@ -443,16 +411,8 @@
       '<div class="tour-skip-wrap">' +
       '<button type="button" class="tour-skip" data-tour-skip>Skip tour</button>' +
       "</div>" +
-      '<svg class="tour-veil" data-tour-hole hidden xmlns="http://www.w3.org/2000/svg" width="0" height="0">' +
-      "<defs>" +
-      '<mask id="ba-tour-mask" maskUnits="userSpaceOnUse">' +
-      '<rect data-tour-mask-bg x="0" y="0" width="0" height="0" fill="white"></rect>' +
-      '<rect data-tour-cut x="0" y="0" width="0" height="0" rx="14" ry="14" fill="black"></rect>' +
-      "</mask>" +
-      "</defs>" +
-      '<rect data-tour-dim class="tour-veil__dim" x="0" y="0" width="0" height="0" mask="url(#ba-tour-mask)"></rect>' +
-      "</svg>" +
-      '<div class="tour-ring" data-tour-ring hidden></div>' +
+      '<div class="tour-dim" data-tour-dim hidden></div>' +
+      '<div class="tour-spot" data-tour-spot hidden></div>' +
       '<div class="tour-bubble" data-tour-bubble hidden role="dialog" aria-modal="true">' +
       '<p class="tour-bubble__eyebrow">Quick tour</p>' +
       "<h3 data-tour-title></h3>" +
@@ -460,9 +420,8 @@
       '<div class="tour-bubble__actions" data-tour-actions></div>' +
       "</div>";
     document.body.appendChild(ui);
-    hole = ui.querySelector("[data-tour-hole]");
-    cut = ui.querySelector("[data-tour-cut]");
-    ring = ui.querySelector("[data-tour-ring]");
+    dim = ui.querySelector("[data-tour-dim]");
+    spot = ui.querySelector("[data-tour-spot]");
     bubble = ui.querySelector("[data-tour-bubble]");
     ui.querySelector("[data-tour-skip]").addEventListener("click", finishTour);
 
@@ -472,7 +431,6 @@
         if (!document.documentElement.classList.contains("is-touring")) return;
         var step = STEPS[stepIndex];
         if (!step || step.mode !== "click") {
-          // Allow Back / Next / Skip inside the bubble
           if (e.target.closest && e.target.closest(".tour-ui")) return;
           if (step && (step.mode === "next" || step.mode === "done")) {
             e.preventDefault();
@@ -525,22 +483,15 @@
       saved = parseInt(sessionStorage.getItem(STEP_KEY) || "0", 10) || 0;
     } catch (e) {}
 
-    // Fresh signup lands on /account — auto-start
     var path = window.location.pathname.replace(/\/$/, "") || "/";
     var onAccount = path === "/account";
     var forced = /(?:\?|&)tour=1(?:&|$)/.test(window.location.search);
 
-    if (!active && !forced && !onAccount) {
-      // Pending users who aren't mid-tour and aren't on account: wait until they hit account
-      // Still allow start if they just verified onto account only
-      return;
-    }
-    if (!active && onAccount) {
-      stepIndex = 0;
-    } else {
-      stepIndex = Math.max(0, Math.min(STEPS.length - 1, saved));
-    }
-    // If we're on a page that matches a later explain step, snap to it
+    if (!active && !forced && !onAccount) return;
+
+    if (!active && onAccount) stepIndex = 0;
+    else stepIndex = Math.max(0, Math.min(STEPS.length - 1, saved));
+
     if (active || forced) {
       for (var i = stepIndex; i < STEPS.length; i++) {
         if (STEPS[i].path && pathMatches(STEPS[i])) {
