@@ -28,7 +28,7 @@
 {% set creator_year = creator.annual_price_display() if creator and creator.annual_price_cents is not none else '$150' %}
 {% set ends = site.founder_price_ends %}
 
-<div class="mem-page">
+<div class="mem-page" data-billing="monthly">
   {% if ends %}
   <section class="mem-page__founder" aria-label="Founder pricing">
     <div class="container mem-page__founder-inner">
@@ -303,36 +303,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script>
-(function () {
-  var root = document.querySelector("[data-billing-toggle]");
-  var page = document.querySelector(".mem-page");
-  if (!root || !page) return;
-  var buttons = root.querySelectorAll("[data-billing]");
-
-  function setBilling(mode) {
-    mode = mode === "annual" ? "annual" : "monthly";
-    buttons.forEach(function (b) {
-      var on = b.getAttribute("data-billing") === mode;
-      b.classList.toggle("is-active", on);
-      b.setAttribute("aria-pressed", on ? "true" : "false");
-    });
-    page.setAttribute("data-billing", mode);
-    try { history.replaceState(null, "", "?billing=" + mode); } catch (e) {}
-  }
-
-  buttons.forEach(function (btn) {
-    btn.addEventListener("click", function () {
-      setBilling(btn.getAttribute("data-billing"));
-    });
-  });
-
-  var start = "monthly";
-  try {
-    var q = new URLSearchParams(window.location.search).get("billing");
-    if (q === "annual" || q === "yearly" || q === "year") start = "annual";
-  } catch (e) {}
-  setBilling(start);
-})();
-</script>
+<script src="{{ url_for('static', filename='js/membership-billing.js') }}" defer></script>
 {% endblock %}

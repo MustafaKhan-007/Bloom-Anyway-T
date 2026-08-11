@@ -1079,7 +1079,9 @@ ok("Membership page shows comparison + Creator buy button",
 ok("Membership page wires annual Creator checkout",
    "billing=annual" in mbody and "Get Creator annually" in mbody)
 ok("Membership page has Monthly/Annual billing toggle",
-   'data-billing="monthly"' in mbody and 'data-billing="annual"' in mbody)
+   'data-billing="monthly"' in mbody and 'data-billing="annual"' in mbody
+   and "membership-billing.js" in mbody
+   and "Annual (best value)" in mbody)
 
 
 def _order_webhook(order_id, email, product_id, event="payment.succeeded"):

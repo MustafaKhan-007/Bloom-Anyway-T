@@ -4361,14 +4361,13 @@ a.at-handle:hover { text-decoration: underline; }
 /* monthly/annual price + CTA swap */
 .mem-page .mem-price--year,
 .mem-page .mem-cta--year,
-.mem-page .mem-trial--year { display: none; }
+.mem-page .mem-trial--year { display: none !important; }
 .mem-page[data-billing="annual"] .mem-price--month,
 .mem-page[data-billing="annual"] .mem-cta--month,
-.mem-page[data-billing="annual"] .mem-trial--month { display: none; }
-.mem-page[data-billing="annual"] .mem-price--year { display: inline; }
+.mem-page[data-billing="annual"] .mem-trial--month { display: none !important; }
+.mem-page[data-billing="annual"] .mem-price--year { display: inline !important; }
 .mem-page[data-billing="annual"] .mem-cta--year,
-.mem-page[data-billing="annual"] .mem-trial--year { display: block; }
-.mem-cta { display: block; }
+.mem-page[data-billing="annual"] .mem-trial--year { display: block !important; }
 
 /* --- Plan cards --- */
 .mem-page__plans { padding: clamp(20px, 3vw, 36px) 0 12px; }
