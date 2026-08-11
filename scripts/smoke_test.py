@@ -202,6 +202,22 @@ ok("Correct code confirms and logs in (spaces/dashes ok)",
    r.status_code == 302 and "/account" in r.headers["Location"])
 r = client.get("/account")
 ok("Account page accessible after confirmation", r.status_code == 200)
+abody = r.get_data(as_text=True)
+ok("New member gets the product tour script",
+   'data-product-tour="1"' in abody and "product-tour.js" in abody
+   and 'data-tour-target="nav-courses"' in abody)
+r = client.post("/account/tour-complete",
+                headers={"X-Requested-With": "fetch", "Accept": "application/json"},
+                follow_redirects=False)
+ok("Tour complete endpoint marks the walkthrough done", r.status_code == 200)
+with app.app_context():
+    toured = User.query.filter_by(email="newperson@example.com").first()
+ok("Tour completion is stored on the user",
+   toured is not None and toured.tour_completed_at is not None)
+r = client.get("/account")
+ok("Completed tour no longer injects the tour script",
+   "product-tour.js" not in r.get_data(as_text=True)
+   and 'data-product-tour="1"' not in r.get_data(as_text=True))
 
 # password checks
 fresh = app.test_client()

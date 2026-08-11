@@ -702,6 +702,23 @@ def mark_notifications_read():
     return redirect(url_for("main.account", tab="activity"))
 
 
+@bp.route("/account/tour-complete", methods=["POST"])
+@login_required
+def tour_complete():
+    """Mark the post-signup product tour as finished (or skipped)."""
+    if current_user.tour_completed_at is None:
+        current_user.tour_completed_at = utcnow()
+        db.session.commit()
+    wants_json = (
+        request.accept_mimetypes.best == "application/json"
+        or request.headers.get("X-Requested-With") == "fetch"
+        or request.is_json
+    )
+    if wants_json:
+        return {"ok": True}
+    return redirect(url_for("main.account"))
+
+
 @bp.route("/account/shop/<int:purchase_id>/download")
 @login_required
 def shop_download(purchase_id):

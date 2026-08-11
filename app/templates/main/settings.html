@@ -4,7 +4,7 @@
 {% block title %}Settings — {{ site.site_title }}{% endblock %}
 
 {% block content %}
-<div class="ms-page">
+<div class="ms-page" data-tour-surface="settings">
 <section class="section section--tight">
   <div class="container">
     <p class="eyebrow"><a href="{{ url_for('main.account', tab='profile') }}">&larr; My space</a></p>
@@ -14,7 +14,7 @@
       <a class="myspace-tabs__tab" href="{{ url_for('main.account', tab='activity') }}">Activity</a>
       <a class="myspace-tabs__tab" href="{{ url_for('main.account', tab='saved') }}">Courses</a>
       <a class="myspace-tabs__tab" href="{{ url_for('main.my_listings') }}">Showcase</a>
-      <a class="myspace-tabs__tab is-active" href="{{ url_for('main.settings') }}">Settings</a>
+      <a class="myspace-tabs__tab is-active" href="{{ url_for('main.settings') }}" data-tour-target="nav-settings">Settings</a>
     </nav>
   </div>
 </section>

@@ -85,6 +85,9 @@ class User(UserMixin, db.Model):
     # up to 3 badge category keys the member chose to feature on their profile
     displayed_badges_json = db.Column(db.Text)
 
+    # product tour after signup (None = not finished; existing users grandfathered)
+    tour_completed_at = db.Column(db.DateTime)
+
     codes = db.relationship("VerificationCode", backref="user", lazy="dynamic",
                             cascade="all, delete-orphan")
     favorites = db.relationship("QuoteFavorite", backref="user", lazy="dynamic",

@@ -3,7 +3,7 @@
 
 {% block content %}
 {% set is_creator = current_user.is_authenticated and current_user.is_creator() %}
-<div class="hub-exact">
+<div class="hub-exact" data-tour-surface="watch">
   <div class="hub-exact__banner {{ 'hub-exact__banner--soft' if is_creator }}">
     <div class="container hub-exact__banner-inner">
       {% if not is_creator %}
