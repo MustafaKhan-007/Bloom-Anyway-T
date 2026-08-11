@@ -5436,11 +5436,21 @@ html.is-touring .is-tour-front {
   z-index: 5000;
   pointer-events: none;
 }
+/* Must beat html.is-touring button { pointer-events: none !important } */
+html.is-touring .tour-ui .tour-skip,
+html.is-touring .tour-ui .tour-bubble,
+html.is-touring .tour-ui .tour-bubble a,
+html.is-touring .tour-ui .tour-bubble button,
+html.is-touring .tour-ui .tour-bubble input,
+html.is-touring .tour-ui .tour-bubble select,
+html.is-touring .tour-ui .tour-bubble textarea,
+html.is-touring .tour-ui .tour-bubble label,
+html.is-touring .tour-ui .tour-bubble summary,
 .tour-ui .tour-skip-wrap,
 .tour-ui .tour-skip,
 .tour-ui .tour-bubble,
 .tour-ui .tour-bubble * {
-  pointer-events: auto;
+  pointer-events: auto !important;
 }
 .tour-skip-wrap {
   position: fixed;
