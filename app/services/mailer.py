@@ -104,7 +104,9 @@ def _brevo_error_hint(status: int, body: str) -> str:
 
 
 def _send_via_brevo(to: str, subject: str, text_body: str,
-                    html_body: str | None = None) -> bool:
+                    html_body: str | None = None,
+                    template_id: int | None = None,
+                    params: dict | None = None) -> bool:
     """Send through Brevo's transactional HTTP API."""
     key = _brevo_api_key()
     if not key:
@@ -121,19 +123,27 @@ def _send_via_brevo(to: str, subject: str, text_body: str,
         )
         return False
 
-    if not html_body:
-        html_body = (
-            "<pre style=\"font-family:ui-monospace,monospace;white-space:pre-wrap;"
-            "font-size:15px;line-height:1.5;\">"
-            f"{escape(text_body)}</pre>"
-        )
     payload = {
         "sender": {"name": name, "email": email},
         "to": [{"email": to}],
-        "subject": subject,
-        "textContent": text_body,
-        "htmlContent": html_body,
     }
+    if template_id:
+        payload["templateId"] = int(template_id)
+        if params:
+            payload["params"] = params
+        # Subject in the Brevo template wins unless we override
+        if subject:
+            payload["subject"] = subject
+    else:
+        if not html_body:
+            html_body = (
+                "<pre style=\"font-family:ui-monospace,monospace;white-space:pre-wrap;"
+                "font-size:15px;line-height:1.5;\">"
+                f"{escape(text_body)}</pre>"
+            )
+        payload["subject"] = subject
+        payload["textContent"] = text_body
+        payload["htmlContent"] = html_body
     try:
         resp = requests.post(
             BREVO_SEND_URL,
@@ -179,7 +189,8 @@ def _send_via_smtp(to: str, msg: EmailMessage) -> bool:
         return False
 
 
-def send_email(to: str, subject: str, text_body: str, html_body: str | None = None) -> bool:
+def send_email(to: str, subject: str, text_body: str, html_body: str | None = None,
+               template_id: int | None = None, params: dict | None = None) -> bool:
     """Send email. Prefer Brevo; fall back to SMTP; else console in local dev."""
     cfg = current_app.config
     to = (to or "").strip()
@@ -188,12 +199,19 @@ def send_email(to: str, subject: str, text_body: str, html_body: str | None = No
         return False
 
     if _brevo_api_key():
-        return _send_via_brevo(to, subject, text_body, html_body=html_body)
+        return _send_via_brevo(
+            to, subject, text_body,
+            html_body=html_body,
+            template_id=template_id,
+            params=params,
+        )
 
     if not cfg["SMTP_HOST"]:
         log.warning("No email transport configured; printing email to console.")
         print("\n===== EMAIL (console fallback) =====")
         print(f"To: {to}\nSubject: {subject}\n\n{text_body}")
+        if template_id:
+            print(f"(Brevo template #{template_id} params={params!r})")
         print("====================================\n")
         _set_error("")
         return True
@@ -222,7 +240,29 @@ def send_verification_code(to: str, code: str, purpose: str) -> bool:
         "If you didn't request it, you can safely ignore this email.\n\n"
         "— Bloom Anyway"
     )
-    return send_email(to, subject, text)
+
+    template_id = None
+    params = None
+    if purpose == "confirm":
+        raw_id = current_app.config.get("BREVO_TEMPLATE_CONFIRM") or 0
+        try:
+            template_id = int(raw_id) or None
+        except (TypeError, ValueError):
+            template_id = None
+        if template_id:
+            # Brevo templates read these as {{ params.CODE }} / {{ params.MINUTES }}
+            params = {
+                "CODE": code,
+                "code": code,
+                "MINUTES": str(minutes),
+                "minutes": str(minutes),
+            }
+
+    return send_email(
+        to, subject, text,
+        template_id=template_id if purpose == "confirm" else None,
+        params=params,
+    )
 
 
 def send_contact_notification(name: str, email: str, body: str) -> bool:
