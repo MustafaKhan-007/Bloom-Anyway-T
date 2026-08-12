@@ -306,7 +306,11 @@ def verify_email():
     _log_in(user)
     session.pop("pending_verify_email", None)
     next_path = session.pop("auth_next", "")
-    send_welcome_email(user.email, first_name=user.first_name or None)
+    # Never block account access if Brevo/template send fails
+    try:
+        send_welcome_email(user.email, first_name=user.first_name() or None)
+    except Exception:
+        log.exception("Welcome email failed for %s", user.email)
     flash("Welcome in. Your account is confirmed.", "success")
     if next_path:
         return redirect(_safe_next(next_path))
