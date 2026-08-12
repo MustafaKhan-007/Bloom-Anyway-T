@@ -260,6 +260,9 @@ def handle_payment_event(event_type: str, data: dict) -> Order | None:
     if not email and status == "paid":
         raise ValueError("customer email missing from paid payment")
 
+    prior = Order.query.filter_by(ls_order_id=str(payment_id)).first()
+    send_receipt = status == "paid" and (prior is None or prior.status != "paid")
+
     order = upsert_order_from_payment(
         payment_id=str(payment_id),
         product_id=str(product_id) if product_id else None,
@@ -273,8 +276,19 @@ def handle_payment_event(event_type: str, data: dict) -> Order | None:
     # Digital goods → My Space library (skip membership-only products).
     from .shop_purchases import upsert_shop_purchase
     product = _product_for_payment_id(product_id) if product_id else None
+    plan = None
+    if product_id and not product:
+        key = str(product_id).strip()
+        plan = (MembershipPlan.query
+                .filter(
+                    (MembershipPlan.dodo_product_id == key)
+                    | (MembershipPlan.dodo_product_id_annual == key)
+                    | (MembershipPlan.ls_variant_id == key)
+                )
+                .first())
     name = (
         (product.title if product else None)
+        or (plan.name if plan else None)
         or (meta or {}).get("product_name")
         or "Course purchase"
     )
@@ -287,6 +301,22 @@ def handle_payment_event(event_type: str, data: dict) -> Order | None:
         download_url=None,
         refunded=(status == "refunded"),
     )
+
+    if send_receipt and order.buyer_email and "@" in order.buyer_email:
+        try:
+            from .mailer import send_order_receipt
+            when = order.created_at
+            order_date = when.strftime("%b %d, %Y") if when else ""
+            send_order_receipt(
+                order.buyer_email,
+                order_id=order.ls_order_id,
+                product_name=name,
+                amount=order.total_display(),
+                order_date=order_date,
+            )
+        except Exception:
+            log.exception("Order receipt email failed for %s", order.ls_order_id)
+
     return order
 
 

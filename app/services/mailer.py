@@ -297,6 +297,51 @@ def send_welcome_email(to: str, *, first_name: str | None = None) -> bool:
     )
 
 
+def send_order_receipt(
+    to: str,
+    *,
+    order_id: str,
+    product_name: str,
+    amount: str,
+    order_date: str,
+) -> bool:
+    """Send Brevo order-receipt template after a successful payment."""
+    raw_id = current_app.config.get("BREVO_TEMPLATE_RECEIPT") or 0
+    try:
+        template_id = int(raw_id) or None
+    except (TypeError, ValueError):
+        template_id = None
+
+    oid = str(order_id or "").strip()
+    product = (product_name or "").strip() or "Purchase"
+    paid = (amount or "").strip() or "—"
+    when = (order_date or "").strip() or "—"
+    text = (
+        "Thanks for your purchase on Bloom Anyway.\n\n"
+        f"Order #: {oid}\n"
+        f"Item: {product}\n"
+        f"Amount paid: {paid}\n"
+        f"Date: {when}\n\n"
+        "— Bloom Anyway"
+    )
+    if not template_id:
+        return send_email(to, "Your Bloom Anyway receipt", text)
+
+    params = {
+        "ORDER_ID": oid,
+        "PRODUCT_NAME": product,
+        "AMOUNT": paid,
+        "ORDER_DATE": when,
+    }
+    return send_email(
+        to,
+        "Your Bloom Anyway receipt",
+        text,
+        template_id=template_id,
+        params=params,
+    )
+
+
 def send_contact_notification(name: str, email: str, body: str) -> bool:
     from ..models import User
     owner = (User.query.filter_by(is_admin=True)

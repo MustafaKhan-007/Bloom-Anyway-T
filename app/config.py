@@ -74,6 +74,9 @@ class Config:
     BREVO_TEMPLATE_CONFIRM = int(
         os.environ.get("BREVO_TEMPLATE_CONFIRM", "3") or 0
     )
+    BREVO_TEMPLATE_RECEIPT = int(
+        os.environ.get("BREVO_TEMPLATE_RECEIPT", "4") or 0
+    )
     SMTP_HOST = os.environ.get("SMTP_HOST", "").strip()
     SMTP_PORT = int(os.environ.get("SMTP_PORT", "587") or 587)
     SMTP_USER = os.environ.get("SMTP_USER", "")
