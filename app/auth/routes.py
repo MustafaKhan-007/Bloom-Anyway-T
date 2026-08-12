@@ -20,7 +20,7 @@ from flask_login import current_user, login_required, login_user, logout_user
 
 from ..extensions import db, limiter
 from ..models import User, VerificationCode, utcnow
-from ..services.mailer import last_send_error, send_verification_code
+from ..services.mailer import last_send_error, send_verification_code, send_welcome_email
 from ..services.recommend import INTENTS, valid_intent_keys
 from . import bp
 
@@ -306,6 +306,7 @@ def verify_email():
     _log_in(user)
     session.pop("pending_verify_email", None)
     next_path = session.pop("auth_next", "")
+    send_welcome_email(user.email, first_name=user.first_name or None)
     flash("Welcome in. Your account is confirmed.", "success")
     if next_path:
         return redirect(_safe_next(next_path))

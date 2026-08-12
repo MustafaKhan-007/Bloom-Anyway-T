@@ -240,27 +240,37 @@ def send_verification_code(to: str, code: str, purpose: str) -> bool:
         "If you didn't request it, you can safely ignore this email.\n\n"
         "— Bloom Anyway"
     )
+    return send_email(to, subject, text)
 
-    template_id = None
-    params = None
-    if purpose == "confirm":
-        raw_id = current_app.config.get("BREVO_TEMPLATE_CONFIRM") or 0
-        try:
-            template_id = int(raw_id) or None
-        except (TypeError, ValueError):
-            template_id = None
-        if template_id:
-            # Brevo templates read these as {{ params.CODE }} / {{ params.MINUTES }}
-            params = {
-                "CODE": code,
-                "code": code,
-                "MINUTES": str(minutes),
-                "minutes": str(minutes),
-            }
 
+def send_welcome_email(to: str, *, first_name: str | None = None) -> bool:
+    """Send the Brevo welcome template after the account is fully created/verified."""
+    raw_id = current_app.config.get("BREVO_TEMPLATE_WELCOME") or 0
+    try:
+        template_id = int(raw_id) or None
+    except (TypeError, ValueError):
+        template_id = None
+
+    name = (first_name or "").strip()
+    text = (
+        "Welcome to Bloom Anyway.\n\n"
+        "Your account is ready — take a breath, look around, and bloom at your own pace.\n\n"
+        "— Bloom Anyway"
+    )
+    if not template_id:
+        return send_email(to, "Welcome to Bloom Anyway", text)
+
+    params = {
+        "FIRSTNAME": name,
+        "firstName": name,
+        "EMAIL": to,
+        "email": to,
+    }
     return send_email(
-        to, subject, text,
-        template_id=template_id if purpose == "confirm" else None,
+        to,
+        "Welcome to Bloom Anyway",
+        text,
+        template_id=template_id,
         params=params,
     )
 
