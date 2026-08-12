@@ -89,6 +89,9 @@ class Config:
     BREVO_TEMPLATE_CANCEL = int(
         os.environ.get("BREVO_TEMPLATE_CANCEL", "8") or 0
     )
+    BREVO_TEMPLATE_NEWSLETTER = int(
+        os.environ.get("BREVO_TEMPLATE_NEWSLETTER", "9") or 0
+    )
     # Days of access kept after a failed membership renewal charge.
     MEMBERSHIP_GRACE_DAYS = int(
         os.environ.get("MEMBERSHIP_GRACE_DAYS", "3") or 3

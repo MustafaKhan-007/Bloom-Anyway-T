@@ -1326,6 +1326,11 @@ def subscribe():
     else:
         db.session.add(Subscriber(email=email))
         db.session.commit()
+        try:
+            from ..services.mailer import send_newsletter_welcome
+            send_newsletter_welcome(email)
+        except Exception:
+            log.exception("Newsletter welcome email failed for %s", email)
         flash("You're in. One small step, every Sunday.", "subscribe-success")
     return redirect(url_for("main.index") + "#letter")
 

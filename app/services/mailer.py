@@ -493,6 +493,31 @@ def send_membership_cancelled(
     )
 
 
+def send_newsletter_welcome(to: str) -> bool:
+    """Send Brevo template when someone joins the Sunday letter list."""
+    raw_id = current_app.config.get("BREVO_TEMPLATE_NEWSLETTER") or 0
+    try:
+        template_id = int(raw_id) or None
+    except (TypeError, ValueError):
+        template_id = None
+
+    text = (
+        "You're in — welcome to the Bloom Anyway Sunday letter.\n\n"
+        "One small step, every Sunday.\n\n"
+        "— Bloom Anyway"
+    )
+    if not template_id:
+        return send_email(to, "You're on the Sunday letter", text)
+
+    return send_email(
+        to,
+        "You're on the Sunday letter",
+        text,
+        template_id=template_id,
+        params=None,
+    )
+
+
 def send_contact_notification(name: str, email: str, body: str) -> bool:
     from ..models import User
     owner = (User.query.filter_by(is_admin=True)
