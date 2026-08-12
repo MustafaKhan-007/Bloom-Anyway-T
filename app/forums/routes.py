@@ -1,6 +1,7 @@
 """Community forums: Reddit-style categories, posts, comments and likes.
 
-- Members can post and comment (optionally anonymously).
+- Healing and Creator members can browse, post, and comment.
+- Free accounts (and guests) see a membership gate — no read, post, or reply.
 - A profanity guard blocks unkind language, warns, then removes posting access.
 - Likes are one-per-member toggles, mirroring the quote "heart" pattern.
 """
@@ -21,21 +22,42 @@ log = logging.getLogger(__name__)
 
 BANNED_NOTICE = ("Posting is paused for your account after repeated unkind "
                  "language. You can still read the community.")
-JOIN_NOTICE = ("Sign in to join the conversation — Free members can post once "
-               "a week and reply five times; Healing and Creator are unlimited.")
+MEMBER_NOTICE = ("Community is a members' circle — Healing or Creator unlocks "
+                 "the rooms where we talk, listen, and bloom together.")
+
+
+@bp.before_request
+def _require_community_member():
+    """Healing / Creator (or owner) only — free and guests see the gate."""
+    if getattr(current_user, "is_authenticated", False) and current_user.is_member():
+        return None
+    if request.method != "GET":
+        if not getattr(current_user, "is_authenticated", False):
+            flash("Sign in, then choose a membership to join the community.", "info")
+            return redirect(url_for("auth.login", next=url_for("forums.index")))
+        flash(MEMBER_NOTICE, "info")
+        return redirect(url_for("main.membership", next=url_for("forums.index")))
+    return render_template(
+        "forums/gate.html",
+        signed_in=bool(getattr(current_user, "is_authenticated", False)),
+    )
 
 
 def _can_participate() -> bool:
-    """True if the current user may like (any signed-in member, including Free)."""
+    """True if the current user may like / interact in community."""
     return bool(getattr(current_user, "is_authenticated", False)
+                and current_user.is_member()
                 and not getattr(current_user, "forum_banned", False))
 
 
 def _require_participant(redirect_to):
     """Flash + redirect if the current user can't interact; else None."""
     if not getattr(current_user, "is_authenticated", False):
-        flash(JOIN_NOTICE, "info")
+        flash("Sign in to join the conversation.", "info")
         return redirect(url_for("auth.login", next=request.path))
+    if not current_user.is_member():
+        flash(MEMBER_NOTICE, "info")
+        return redirect(url_for("main.membership", next=request.path))
     if current_user.forum_banned:
         flash(BANNED_NOTICE, "error")
         return redirect(redirect_to)

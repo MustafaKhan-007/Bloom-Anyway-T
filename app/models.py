@@ -21,8 +21,8 @@ PRODUCT_TYPES = ("course", "guide")
 PRODUCT_STATUSES = ("draft", "published", "archived")
 QUOTE_CATEGORIES = ("comfort", "determination", "renewal")
 
-#: membership tiers. "none" = free (full community browse + weekly post/reply
-#: quotas + shop); "healing" = unlimited community post/reply + links + journey;
+#: membership tiers. "none" = free (quotes, shop, Content Hub free picks);
+#: "healing" = community + links + journey + support groups;
 #: "creator" = healing perks + videos, reel reviews, showcase.
 MEMBERSHIPS = ("none", "healing", "creator")
 MEMBERSHIP_LABELS = {"none": "Free", "healing": "Healing", "creator": "Creator"}

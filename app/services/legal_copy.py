@@ -61,7 +61,7 @@ Bloom Anyway offers daily quotes, community forums, member Showcase listings, a 
 - You may close your account in Settings. Closing does not automatically refund purchases (see Refunds).
 
 ## Memberships
-- Free accounts can browse and use limited community posting.
+- Free accounts can browse courses, quotes, and free Content Hub picks. Community access requires a Healing or Creator membership.
 - **Healing** and **Creator** memberships unlock the perks described on the Membership page at the time of purchase.
 - Memberships are billed through Dodo Payments. Prices, billing interval, and taxes are shown at checkout.
 - Benefits apply while a membership is active. Refunds or cancellations through Dodo Payments may remove the related tier.

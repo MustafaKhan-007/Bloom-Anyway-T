@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Community — members only — {{ site.site_title }}{% endblock %}
+{% block meta_description %}The Bloom Anyway community is for Healing and Creator members — a kind circle to be heard, supported, and seen.{% endblock %}
+
+{% block content %}
+<section class="comm-gate">
+  <div class="container comm-gate__inner">
+    <p class="comm-gate__eyebrow">Members&rsquo; circle</p>
+    <h1>This room is for those who&rsquo;ve stepped in.</h1>
+    <p class="comm-gate__lede">
+      Community is where we talk honestly &mdash; divorce, custody, grief, building,
+      and everything in between. To keep it soft and safe, it&rsquo;s open to
+      <strong>Healing</strong> and <strong>Creator</strong> members only.
+    </p>
+    <p class="comm-gate__soft">
+      Free accounts still get daily quotes, badges, courses &amp; guides, and a look
+      at the Content Hub. When you&rsquo;re ready for the conversation, we&rsquo;ll be here.
+    </p>
+
+    <ul class="comm-gate__perks" aria-label="What membership unlocks">
+      <li>Read every thread</li>
+      <li>Post &amp; reply without weekly limits</li>
+      <li>A kinder room, held for members</li>
+    </ul>
+
+    <div class="comm-gate__actions">
+      <a class="btn btn--primary" href="{{ url_for('main.membership', next=url_for('forums.index')) }}">See memberships</a>
+      {% if not signed_in %}
+      <a class="btn btn--secondary" href="{{ url_for('auth.login', next=url_for('forums.index')) }}">Sign in</a>
+      {% else %}
+      <a class="btn btn--quiet" href="{{ url_for('main.account') }}">Back to My space</a>
+      {% endif %}
+    </div>
+  </div>
+</section>
+{% endblock %}

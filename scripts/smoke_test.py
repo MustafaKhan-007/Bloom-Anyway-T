@@ -434,12 +434,12 @@ with app.app_context():
 
 r = client.get("/forums/")
 comm_body = r.get_data(as_text=True)
-ok("Forums index renders", r.status_code == 200 and "The Community" in comm_body)
+ok("Forums index renders for members", r.status_code == 200 and "The Community" in comm_body)
 ok("Community page shows healing / building hubs",
    "Healing community" in comm_body
    and "Building community" in comm_body
-   and "Join the Healing Community" in comm_body
-   and "get full access" in comm_body.lower())
+   and ("Enter the Healing Community" in comm_body
+        or "Join the Healing Community" in comm_body))
 
 # category page shows topic filter chips
 r = client.get("/forums/c/healing")
@@ -892,35 +892,25 @@ r = client.get("/")
 ok("No announcement markup after removal", "hero-announcement" not in r.get_data(as_text=True))
 
 # --- 5e. memberships, videos, subjects, spotlight ---------------------------
-# free member: 1 post/week, 5 replies/week, unlimited likes; full browse
+# free member: community is members-only (Healing / Creator)
+r = free_client.get("/forums/")
+free_gate = r.get_data(as_text=True)
+ok("Free member sees community gate (not threads)",
+   r.status_code == 200
+   and "members" in free_gate.lower()
+   and ("Healing" in free_gate or "membership" in free_gate.lower())
+   and "The Community" not in free_gate)
+r = free_client.get("/forums/c/healing")
+ok("Free member cannot browse category threads",
+   "Enter the Healing" not in r.get_data(as_text=True)
+   and ("See memberships" in r.get_data(as_text=True)
+        or "membership" in r.get_data(as_text=True).lower()))
 r = free_client.post("/forums/c/healing/new",
-                     data={"title": "free weekly post", "body": "one gentle post"},
+                     data={"title": "free weekly post", "body": "should be blocked"},
                      follow_redirects=True)
-body = r.get_data(as_text=True)
 with app.app_context():
     free_posts = ForumPost.query.filter_by(title="free weekly post").count()
-ok("Free member can post once per week",
-   free_posts == 1 or "Posted" in body)
-ok("Free member's first weekly post was created", free_posts == 1)
-r = free_client.post("/forums/c/healing/new",
-                     data={"title": "second try", "body": "should be blocked"},
-                     follow_redirects=True)
-ok("Free member's second post in the same week is blocked",
-   "you've used this week's free post" in r.get_data(as_text=True).lower()
-   or "this week's free post" in r.get_data(as_text=True).lower())
-with app.app_context():
-    blocked = ForumPost.query.filter_by(title="second try").count()
-ok("Blocked free post was not created", blocked == 0)
-r = free_client.get("/forums/c/healing")
-free_cat = r.get_data(as_text=True)
-ok("Free member compose UI is replaced by a weekly quota message",
-   "quota-locked" in free_cat
-   and "this week's free post is used" in free_cat.lower())
-ok("Free member browse is not soft-gated",
-   "member-gate--soft" not in free_cat
-   and "Showing a few recent threads" not in free_cat)
-ok("Community post rows spread meta into an aside",
-   "post-row__aside" in free_cat)
+ok("Free member cannot create posts", free_posts == 0)
 
 # /courses stays on-site (query params ignored / filters via h=)
 r = client.get("/courses?h=workbook", follow_redirects=False)
