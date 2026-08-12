@@ -456,6 +456,43 @@ def send_card_declined(
     )
 
 
+def send_membership_cancelled(
+    to: str,
+    *,
+    plan_name: str,
+    access_end_date: str,
+) -> bool:
+    """Send Brevo template when a member cancels their subscription."""
+    raw_id = current_app.config.get("BREVO_TEMPLATE_CANCEL") or 0
+    try:
+        template_id = int(raw_id) or None
+    except (TypeError, ValueError):
+        template_id = None
+
+    plan = (plan_name or "").strip() or "your membership"
+    ends = (access_end_date or "").strip() or "—"
+    text = (
+        "Your Bloom Anyway membership has been cancelled.\n\n"
+        f"Plan: {plan}\n"
+        f"Access ends: {ends}\n\n"
+        "— Bloom Anyway"
+    )
+    if not template_id:
+        return send_email(to, "Your membership is cancelled", text)
+
+    params = {
+        "PLAN_NAME": plan,
+        "ACCESS_END_DATE": ends,
+    }
+    return send_email(
+        to,
+        "Your membership is cancelled",
+        text,
+        template_id=template_id,
+        params=params,
+    )
+
+
 def send_contact_notification(name: str, email: str, body: str) -> bool:
     from ..models import User
     owner = (User.query.filter_by(is_admin=True)

@@ -791,10 +791,34 @@ def cancel_membership():
     if current_user.membership == "none":
         flash("You're on the free plan already.", "info")
         return redirect(url_for("main.settings"))
+
+    from ..models import MembershipPlan
+    from ..services.mailer import send_membership_cancelled
+
+    tier = current_user.membership or "none"
+    plan = MembershipPlan.query.filter_by(tier=tier).first()
+    plan_name = (
+        (plan.name if plan else None)
+        or current_user.membership_label()
+        or "Membership"
+    )
+    # Cancel takes effect immediately in-app; access ends today.
+    access_end = date.today().strftime("%b %d, %Y")
+
     current_user.membership = "none"
     from ..services.listings import enforce_listing_limits
     enforce_listing_limits(current_user)
     db.session.commit()
+
+    try:
+        send_membership_cancelled(
+            current_user.email,
+            plan_name=plan_name,
+            access_end_date=access_end,
+        )
+    except Exception:
+        log.exception("Cancel email failed for user %s", current_user.id)
+
     flash("Your membership is cancelled. If you were billed through Dodo Payments, "
           "also cancel the subscription there so you're not charged again.", "success")
     return redirect(url_for("main.settings"))
