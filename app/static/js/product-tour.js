@@ -154,11 +154,8 @@
   ];
 
   var stepIndex = 0;
-  var spot = null;
-  var dim = null;
   var ui = null;
   var bubble = null;
-  var resizeTimer = null;
   var activeEl = null;
 
   function pathMatches(step) {
@@ -203,57 +200,6 @@
     activeEl = null;
   }
 
-  function targetRect(el) {
-    var r = el.getBoundingClientRect();
-    var inNav = !!(el.closest && el.closest(".nav-links, .nav-drawer, .myspace-tabs, .site-header"));
-    var padX = inNav ? 12 : 10;
-    var padY = inNav ? 8 : 10;
-    var top = Math.round(r.top - padY);
-    var left = Math.round(r.left - padX);
-    var width = Math.max(44, Math.round(r.width + padX * 2));
-    var height = Math.max(32, Math.round(r.height + padY * 2));
-
-    // Large page surfaces: soft-rounded square around the top of the section,
-    // not a giant pill across the whole page
-    if (el.hasAttribute && el.hasAttribute("data-tour-surface")) {
-      var maxW = Math.min(Math.round(window.innerWidth - 32), 920);
-      var maxH = Math.min(Math.round(window.innerHeight * 0.42), 320);
-      width = Math.min(width, maxW);
-      height = Math.min(height, maxH);
-      left = Math.round((window.innerWidth - width) / 2);
-      top = Math.max(12, top);
-    }
-
-    return {
-      top: top,
-      left: left,
-      width: width,
-      height: height,
-      right: left + width,
-      bottom: top + height,
-      midY: top + height / 2,
-      midX: left + width / 2
-    };
-  }
-
-  function placeSpot(el) {
-    if (!spot || !dim) return;
-    if (!el) {
-      spot.hidden = true;
-      dim.hidden = false;
-      return;
-    }
-    dim.hidden = true;
-    spot.hidden = false;
-    var box = targetRect(el);
-    spot.style.top = box.top + "px";
-    spot.style.left = box.left + "px";
-    spot.style.width = box.width + "px";
-    spot.style.height = box.height + "px";
-    // Soft-rounded square (not a pill)
-    spot.style.borderRadius = "12px";
-  }
-
   function fillActions(step) {
     var actions = bubble.querySelector("[data-tour-actions]");
     actions.innerHTML = "";
@@ -285,91 +231,22 @@
     }
   }
 
-  function rectsOverlap(a, b, pad) {
-    var p = pad || 0;
-    return !(
-      a.right + p < b.left ||
-      a.left - p > b.right ||
-      a.bottom + p < b.top ||
-      a.top - p > b.bottom
-    );
-  }
-
-  function placeBubble(el, step) {
+  function showBubble(step) {
     if (!bubble) return;
     bubble.querySelector("[data-tour-title]").textContent = step.title;
     bubble.querySelector("[data-tour-body]").textContent = step.body;
     fillActions(step);
     bubble.hidden = false;
-
-    if (!el || step.id === "welcome" || step.id === "finish") {
+    bubble.style.top = "";
+    bubble.style.left = "";
+    bubble.style.right = "";
+    bubble.style.transform = "";
+    bubble.style.width = "";
+    if (step.id === "welcome" || step.id === "finish") {
       bubble.classList.add("tour-bubble--center");
-      bubble.style.top = "";
-      bubble.style.left = "";
-      bubble.style.right = "";
-      bubble.style.transform = "";
-      placeSpot(null);
-      return;
-    }
-
-    bubble.classList.remove("tour-bubble--center");
-    bubble.style.transform = "none";
-    var bw = Math.min(320, window.innerWidth - 28);
-    bubble.style.width = bw + "px";
-    var bh = bubble.offsetHeight || 180;
-
-    var headerEl = document.querySelector(".site-header");
-    var headerBottom = headerEl ? Math.ceil(headerEl.getBoundingClientRect().bottom) + 10 : 16;
-    var skip = document.querySelector(".tour-skip-wrap");
-    var skipBox = skip ? skip.getBoundingClientRect() : null;
-    // Park tip top-right, under Skip, clear of the sticky nav
-    var top = Math.max(headerBottom, skipBox ? Math.ceil(skipBox.bottom) + 10 : 16);
-    var left = window.innerWidth - bw - 16;
-    if (skipBox && left + bw > skipBox.left - 8) {
-      left = Math.max(12, skipBox.left - bw - 12);
-      if (left < 12) {
-        left = window.innerWidth - bw - 16;
-        top = Math.max(top, Math.ceil(skipBox.bottom) + 10);
-      }
-    }
-
-    var tip = { top: top, left: left, right: left + bw, bottom: top + bh };
-    if (el) {
-      var box = targetRect(el);
-      // If we cover the highlighted control, drop just below the header on the right
-      // but outside the hot rect when possible
-      if (rectsOverlap(tip, box, 8)) {
-        if (box.left - 12 - bw >= 12) {
-          left = box.left - 12 - bw;
-          top = Math.max(headerBottom, Math.min(box.top, window.innerHeight - bh - 12));
-        } else if (box.bottom + 12 + bh <= window.innerHeight - 12) {
-          top = box.bottom + 12;
-          left = window.innerWidth - bw - 16;
-        } else {
-          top = headerBottom;
-          left = window.innerWidth - bw - 16;
-        }
-      }
-    }
-
-    left = Math.max(12, Math.min(left, window.innerWidth - bw - 12));
-    top = Math.max(12, Math.min(top, window.innerHeight - bh - 12));
-    bubble.style.top = top + "px";
-    bubble.style.left = left + "px";
-    bubble.style.right = "auto";
-  }
-
-  function layoutSpotlight(el, step) {
-    if (el && step && (step.mode === "click" || step.surface)) {
-      placeSpot(el);
-    } else if (step && (step.id === "welcome" || step.id === "finish")) {
-      placeSpot(null);
-    } else if (el) {
-      placeSpot(el);
     } else {
-      placeSpot(null);
+      bubble.classList.remove("tour-bubble--center");
     }
-    placeBubble(el, step);
   }
 
   function renderStep() {
@@ -389,22 +266,21 @@
     }
 
     document.documentElement.classList.add("is-touring");
+    document.documentElement.classList.toggle("is-touring--click", step.mode === "click");
     clearHot();
 
-    var el = null;
-    if (step.surface) el = findTarget(step.target, true);
-    else if (step.target) el = findTarget(step.target, false);
-
-    if (el) {
-      openMobileNavIfNeeded(el);
-      el.classList.add("is-tour-hot");
-      activeEl = el;
-      el.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    // Only nav/control click-steps get a color pop — page explain steps are bubble-only
+    if (step.mode === "click" && step.target) {
+      var el = findTarget(step.target, false);
+      if (el) {
+        openMobileNavIfNeeded(el);
+        el.classList.add("is-tour-hot");
+        activeEl = el;
+        el.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      }
     }
 
-    window.setTimeout(function () {
-      layoutSpotlight(el, step);
-    }, 120);
+    showBubble(step);
   }
 
   function advance(delta) {
@@ -421,6 +297,7 @@
   function finishTour() {
     clearHot();
     document.documentElement.classList.remove("is-touring");
+    document.documentElement.classList.remove("is-touring--click");
     if (ui) ui.hidden = true;
     try {
       sessionStorage.removeItem(STEP_KEY);
@@ -450,8 +327,6 @@
       '<div class="tour-skip-wrap">' +
       '<button type="button" class="tour-skip" data-tour-skip>Skip tour</button>' +
       "</div>" +
-      '<div class="tour-dim" data-tour-dim hidden></div>' +
-      '<div class="tour-spot" data-tour-spot hidden></div>' +
       '<div class="tour-bubble" data-tour-bubble hidden role="dialog" aria-modal="true">' +
       '<p class="tour-bubble__eyebrow">Quick tour</p>' +
       "<h3 data-tour-title></h3>" +
@@ -459,8 +334,6 @@
       '<div class="tour-bubble__actions" data-tour-actions></div>' +
       "</div>";
     document.body.appendChild(ui);
-    dim = ui.querySelector("[data-tour-dim]");
-    spot = ui.querySelector("[data-tour-spot]");
     bubble = ui.querySelector("[data-tour-bubble]");
     ui.querySelector("[data-tour-skip]").addEventListener("click", finishTour);
 
@@ -469,14 +342,7 @@
       function (e) {
         if (!document.documentElement.classList.contains("is-touring")) return;
         var step = STEPS[stepIndex];
-        if (!step || step.mode !== "click") {
-          if (e.target.closest && e.target.closest(".tour-ui")) return;
-          if (step && (step.mode === "next" || step.mode === "done")) {
-            e.preventDefault();
-            e.stopPropagation();
-          }
-          return;
-        }
+        if (!step || step.mode !== "click") return;
         var hot = e.target && e.target.closest ? e.target.closest(".is-tour-hot") : null;
         if (!hot) {
           if (e.target.closest && e.target.closest(".tour-ui")) return;
@@ -490,26 +356,6 @@
         } catch (err) {}
       },
       true
-    );
-
-    window.addEventListener("resize", function () {
-      clearTimeout(resizeTimer);
-      resizeTimer = setTimeout(function () {
-        if (!document.documentElement.classList.contains("is-touring")) return;
-        var step = STEPS[stepIndex];
-        if (!step) return;
-        layoutSpotlight(activeEl, step);
-      }, 120);
-    });
-    window.addEventListener(
-      "scroll",
-      function () {
-        if (!document.documentElement.classList.contains("is-touring")) return;
-        var step = STEPS[stepIndex];
-        if (!step) return;
-        layoutSpotlight(activeEl, step);
-      },
-      { passive: true }
     );
   }
 

@@ -5409,37 +5409,39 @@ a.at-handle:hover { text-decoration: underline; }
 .cg-bundle__btn.is-disabled { opacity: 0.55; pointer-events: none; }
 
 /* ======================== Product tour ================================ */
-html.is-touring,
-html.is-touring body {
-  overflow-x: hidden;
-}
-html.is-touring a,
-html.is-touring button,
-html.is-touring input,
-html.is-touring select,
-html.is-touring textarea,
-html.is-touring label,
-html.is-touring summary {
+/* No vignette — tip bubble + color pop on the hot control only. */
+html.is-touring--click a,
+html.is-touring--click button,
+html.is-touring--click input,
+html.is-touring--click select,
+html.is-touring--click textarea,
+html.is-touring--click label,
+html.is-touring--click summary {
   pointer-events: none !important;
 }
 html.is-touring .is-tour-hot {
   pointer-events: auto !important;
+  color: #3d1431 !important;
+  background: #f6e7b0 !important;
+  border-radius: 999px;
+  box-shadow: 0 0 0 3px #c79a41;
+  outline: none;
+  text-decoration: none !important;
+  animation: tour-hot-pulse 1.6s ease-in-out infinite;
+}
+@keyframes tour-hot-pulse {
+  0%, 100% { box-shadow: 0 0 0 3px #c79a41; }
+  50% { box-shadow: 0 0 0 5px #c79a41, 0 0 0 10px rgba(199, 154, 65, 0.28); }
 }
 .tour-ui {
   position: relative;
   z-index: 6000;
   pointer-events: none;
 }
-/* Must beat html.is-touring button { pointer-events: none !important } */
 html.is-touring .tour-ui .tour-skip,
 html.is-touring .tour-ui .tour-bubble,
 html.is-touring .tour-ui .tour-bubble a,
 html.is-touring .tour-ui .tour-bubble button,
-html.is-touring .tour-ui .tour-bubble input,
-html.is-touring .tour-ui .tour-bubble select,
-html.is-touring .tour-ui .tour-bubble textarea,
-html.is-touring .tour-ui .tour-bubble label,
-html.is-touring .tour-ui .tour-bubble summary,
 .tour-ui .tour-skip-wrap,
 .tour-ui .tour-skip,
 .tour-ui .tour-bubble,
@@ -5450,60 +5452,41 @@ html.is-touring .tour-ui .tour-bubble summary,
   position: fixed;
   top: 16px;
   right: 16px;
-  z-index: 5005;
+  z-index: 6005;
 }
 .tour-skip {
-  border: 1px solid rgba(250, 245, 238, 0.35);
-  background: rgba(61, 20, 49, 0.88);
-  color: #faf5ee;
+  border: 1px solid rgba(61, 20, 49, 0.2);
+  background: #faf5ee;
+  color: #3d1431;
   font: inherit;
   font-size: 13px;
   font-weight: 700;
   padding: 8px 14px;
   border-radius: 999px;
   cursor: pointer;
-  box-shadow: 0 8px 24px rgba(61, 20, 49, 0.25);
+  box-shadow: 0 8px 24px rgba(61, 20, 49, 0.12);
 }
 .tour-skip:hover {
-  background: #3d1431;
-}
-/* Full-page dim when there's no spotlight target (welcome / finish) */
-.tour-dim {
-  position: fixed;
-  inset: 0;
-  z-index: 5001;
-  background: rgba(45, 16, 36, 0.64);
-  pointer-events: none !important;
-}
-/*
-  One element = clear cutout + gold border + vignette.
-  Must never capture clicks — the real control underneath stays clickable.
-*/
-.tour-spot {
-  position: fixed;
-  z-index: 5001;
-  pointer-events: none !important;
-  box-sizing: border-box;
-  border: 2.5px solid #c79a41;
-  border-radius: 12px;
-  background: transparent;
-  box-shadow: 0 0 0 9999px rgba(45, 16, 36, 0.64);
+  background: #fff;
 }
 .tour-bubble {
   position: fixed;
   z-index: 6004;
+  top: 64px;
+  right: 16px;
+  left: auto;
   width: min(320px, calc(100vw - 28px));
   padding: 20px 18px 16px;
   border-radius: 12px;
   background: #faf5ee;
   color: #3d1431;
-  border: 1px solid rgba(61, 20, 49, 0.1);
-  box-shadow: 0 16px 40px rgba(61, 20, 49, 0.22);
-  overflow: visible;
+  border: 1px solid rgba(61, 20, 49, 0.12);
+  box-shadow: 0 16px 40px rgba(61, 20, 49, 0.18);
 }
 .tour-bubble--center {
   top: 50%;
   left: 50%;
+  right: auto;
   transform: translate(-50%, -50%);
   width: min(400px, calc(100vw - 32px));
 }
@@ -5522,7 +5505,6 @@ html.is-touring .tour-ui .tour-bubble summary,
   font-size: 1.35rem;
   line-height: 1.25;
   color: #3d1431;
-  overflow: visible;
 }
 .tour-bubble p {
   margin: 0;
