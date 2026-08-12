@@ -342,6 +342,47 @@ def send_order_receipt(
     )
 
 
+def send_healing_welcome(
+    to: str,
+    *,
+    trial_end_date: str,
+    plan_price: str,
+    billing_interval: str,
+) -> bool:
+    """Send Brevo template when someone newly joins Healing membership."""
+    raw_id = current_app.config.get("BREVO_TEMPLATE_HEALING") or 0
+    try:
+        template_id = int(raw_id) or None
+    except (TypeError, ValueError):
+        template_id = None
+
+    trial = (trial_end_date or "").strip() or "—"
+    price = (plan_price or "").strip() or "—"
+    interval = (billing_interval or "").strip() or "monthly"
+    text = (
+        "Welcome to Healing membership on Bloom Anyway.\n\n"
+        f"Your trial ends: {trial}\n"
+        f"Plan price: {price}\n"
+        f"Billing: {interval}\n\n"
+        "— Bloom Anyway"
+    )
+    if not template_id:
+        return send_email(to, "Welcome to Healing membership", text)
+
+    params = {
+        "TRIAL_END_DATE": trial,
+        "PLAN_PRICE": price,
+        "BILLING_INTERVAL": interval,
+    }
+    return send_email(
+        to,
+        "Welcome to Healing membership",
+        text,
+        template_id=template_id,
+        params=params,
+    )
+
+
 def send_contact_notification(name: str, email: str, body: str) -> bool:
     from ..models import User
     owner = (User.query.filter_by(is_admin=True)

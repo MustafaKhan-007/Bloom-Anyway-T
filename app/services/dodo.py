@@ -232,6 +232,13 @@ def upsert_order_from_payment(
 
 def handle_payment_event(event_type: str, data: dict) -> Order | None:
     """Fulfill or refund from a Dodo payment webhook payload ``data`` object."""
+    from datetime import timedelta
+
+    from sqlalchemy import func
+
+    from ..models import User, utcnow
+    from .memberships import _plan_for_product_id
+
     payment_id = (
         data.get("payment_id")
         or data.get("id")
@@ -263,6 +270,16 @@ def handle_payment_event(event_type: str, data: dict) -> Order | None:
     prior = Order.query.filter_by(ls_order_id=str(payment_id)).first()
     send_receipt = status == "paid" and (prior is None or prior.status != "paid")
 
+    plan = _plan_for_product_id(product_id) if product_id else None
+    prev_tier = "none"
+    if email:
+        buyer = (User.query
+                 .filter(func.lower(User.email) == email.strip().lower(),
+                         User.deleted_at.is_(None))
+                 .first())
+        if buyer:
+            prev_tier = buyer.effective_membership()
+
     order = upsert_order_from_payment(
         payment_id=str(payment_id),
         product_id=str(product_id) if product_id else None,
@@ -276,16 +293,6 @@ def handle_payment_event(event_type: str, data: dict) -> Order | None:
     # Digital goods → My Space library (skip membership-only products).
     from .shop_purchases import upsert_shop_purchase
     product = _product_for_payment_id(product_id) if product_id else None
-    plan = None
-    if product_id and not product:
-        key = str(product_id).strip()
-        plan = (MembershipPlan.query
-                .filter(
-                    (MembershipPlan.dodo_product_id == key)
-                    | (MembershipPlan.dodo_product_id_annual == key)
-                    | (MembershipPlan.ls_variant_id == key)
-                )
-                .first())
     name = (
         (product.title if product else None)
         or (plan.name if plan else None)
@@ -316,6 +323,32 @@ def handle_payment_event(event_type: str, data: dict) -> Order | None:
             )
         except Exception:
             log.exception("Order receipt email failed for %s", order.ls_order_id)
+
+    # First-time Healing join (not renewals / already-member upgrades from Creator)
+    if (send_receipt and plan and plan.tier == "healing"
+            and prev_tier not in ("healing", "creator")
+            and order.buyer_email and "@" in order.buyer_email):
+        try:
+            from .mailer import send_healing_welcome
+            key = str(product_id or "").strip()
+            annual_id = (plan.dodo_product_id_annual or "").strip()
+            is_annual = bool(annual_id and key == annual_id)
+            if is_annual:
+                billing_interval = "annually"
+                plan_price = plan.annual_price_display() or order.total_display()
+            else:
+                billing_interval = "monthly"
+                plan_price = plan.price_display() or order.total_display()
+            # Healing marketing copy: 2-week free trial
+            trial_end = (utcnow() + timedelta(days=14)).strftime("%b %d, %Y")
+            send_healing_welcome(
+                order.buyer_email,
+                trial_end_date=trial_end,
+                plan_price=plan_price,
+                billing_interval=billing_interval,
+            )
+        except Exception:
+            log.exception("Healing welcome email failed for %s", order.ls_order_id)
 
     return order
 
