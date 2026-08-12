@@ -80,6 +80,9 @@ class Config:
     BREVO_TEMPLATE_HEALING = int(
         os.environ.get("BREVO_TEMPLATE_HEALING", "5") or 0
     )
+    BREVO_TEMPLATE_CREATOR = int(
+        os.environ.get("BREVO_TEMPLATE_CREATOR", "6") or 0
+    )
     SMTP_HOST = os.environ.get("SMTP_HOST", "").strip()
     SMTP_PORT = int(os.environ.get("SMTP_PORT", "587") or 587)
     SMTP_USER = os.environ.get("SMTP_USER", "")

@@ -324,31 +324,40 @@ def handle_payment_event(event_type: str, data: dict) -> Order | None:
         except Exception:
             log.exception("Order receipt email failed for %s", order.ls_order_id)
 
-    # First-time Healing join (not renewals / already-member upgrades from Creator)
-    if (send_receipt and plan and plan.tier == "healing"
-            and prev_tier not in ("healing", "creator")
+    # First-time Healing / Creator join (not renewals)
+    if (send_receipt and plan and plan.tier in ("healing", "creator")
             and order.buyer_email and "@" in order.buyer_email):
-        try:
-            from .mailer import send_healing_welcome
-            key = str(product_id or "").strip()
-            annual_id = (plan.dodo_product_id_annual or "").strip()
-            is_annual = bool(annual_id and key == annual_id)
-            if is_annual:
-                billing_interval = "annually"
-                plan_price = plan.annual_price_display() or order.total_display()
-            else:
-                billing_interval = "monthly"
-                plan_price = plan.price_display() or order.total_display()
-            # Healing marketing copy: 2-week free trial
-            trial_end = (utcnow() + timedelta(days=14)).strftime("%b %d, %Y")
-            send_healing_welcome(
-                order.buyer_email,
-                trial_end_date=trial_end,
-                plan_price=plan_price,
-                billing_interval=billing_interval,
-            )
-        except Exception:
-            log.exception("Healing welcome email failed for %s", order.ls_order_id)
+        already = (
+            (plan.tier == "healing" and prev_tier in ("healing", "creator"))
+            or (plan.tier == "creator" and prev_tier == "creator")
+        )
+        if not already:
+            try:
+                from .mailer import send_creator_welcome, send_healing_welcome
+                key = str(product_id or "").strip()
+                annual_id = (plan.dodo_product_id_annual or "").strip()
+                is_annual = bool(annual_id and key == annual_id)
+                if is_annual:
+                    billing_interval = "annually"
+                    plan_price = plan.annual_price_display() or order.total_display()
+                else:
+                    billing_interval = "monthly"
+                    plan_price = plan.price_display() or order.total_display()
+                # Marketing copy: Healing 2-week trial, Creator 1-week trial
+                trial_days = 14 if plan.tier == "healing" else 7
+                trial_end = (utcnow() + timedelta(days=trial_days)).strftime("%b %d, %Y")
+                sender = send_healing_welcome if plan.tier == "healing" else send_creator_welcome
+                sender(
+                    order.buyer_email,
+                    trial_end_date=trial_end,
+                    plan_price=plan_price,
+                    billing_interval=billing_interval,
+                )
+            except Exception:
+                log.exception(
+                    "%s welcome email failed for %s",
+                    plan.tier.title(), order.ls_order_id,
+                )
 
     return order
 

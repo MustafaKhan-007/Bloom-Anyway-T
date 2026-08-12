@@ -350,7 +350,47 @@ def send_healing_welcome(
     billing_interval: str,
 ) -> bool:
     """Send Brevo template when someone newly joins Healing membership."""
-    raw_id = current_app.config.get("BREVO_TEMPLATE_HEALING") or 0
+    return _send_membership_welcome(
+        to,
+        tier="healing",
+        subject="Welcome to Healing membership",
+        config_key="BREVO_TEMPLATE_HEALING",
+        trial_end_date=trial_end_date,
+        plan_price=plan_price,
+        billing_interval=billing_interval,
+    )
+
+
+def send_creator_welcome(
+    to: str,
+    *,
+    trial_end_date: str,
+    plan_price: str,
+    billing_interval: str,
+) -> bool:
+    """Send Brevo template when someone newly joins Creator membership."""
+    return _send_membership_welcome(
+        to,
+        tier="creator",
+        subject="Welcome to Creator membership",
+        config_key="BREVO_TEMPLATE_CREATOR",
+        trial_end_date=trial_end_date,
+        plan_price=plan_price,
+        billing_interval=billing_interval,
+    )
+
+
+def _send_membership_welcome(
+    to: str,
+    *,
+    tier: str,
+    subject: str,
+    config_key: str,
+    trial_end_date: str,
+    plan_price: str,
+    billing_interval: str,
+) -> bool:
+    raw_id = current_app.config.get(config_key) or 0
     try:
         template_id = int(raw_id) or None
     except (TypeError, ValueError):
@@ -359,28 +399,23 @@ def send_healing_welcome(
     trial = (trial_end_date or "").strip() or "—"
     price = (plan_price or "").strip() or "—"
     interval = (billing_interval or "").strip() or "monthly"
+    label = "Healing" if tier == "healing" else "Creator"
     text = (
-        "Welcome to Healing membership on Bloom Anyway.\n\n"
+        f"Welcome to {label} membership on Bloom Anyway.\n\n"
         f"Your trial ends: {trial}\n"
         f"Plan price: {price}\n"
         f"Billing: {interval}\n\n"
         "— Bloom Anyway"
     )
     if not template_id:
-        return send_email(to, "Welcome to Healing membership", text)
+        return send_email(to, subject, text)
 
     params = {
         "TRIAL_END_DATE": trial,
         "PLAN_PRICE": price,
         "BILLING_INTERVAL": interval,
     }
-    return send_email(
-        to,
-        "Welcome to Healing membership",
-        text,
-        template_id=template_id,
-        params=params,
-    )
+    return send_email(to, subject, text, template_id=template_id, params=params)
 
 
 def send_contact_notification(name: str, email: str, body: str) -> bool:
