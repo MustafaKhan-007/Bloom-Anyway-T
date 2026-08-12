@@ -95,4 +95,4 @@ def apply_from_order(order: Order) -> None:
     plan = _plan_for_product_id(order.ls_variant_id)
     if not plan or plan.tier not in ("healing", "creator"):
         return
-    reconcile_email(order.buyer_email, downgrade=(order.status != "paid"))
+    reconcile_email(order.buyer_email, downgrade=(order.status == "refunded"))

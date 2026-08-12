@@ -418,6 +418,44 @@ def _send_membership_welcome(
     return send_email(to, subject, text, template_id=template_id, params=params)
 
 
+def send_card_declined(
+    to: str,
+    *,
+    plan_name: str,
+    grace_days: str | int,
+) -> bool:
+    """Send Brevo template when a membership renewal card is declined."""
+    raw_id = current_app.config.get("BREVO_TEMPLATE_CARD_DECLINED") or 0
+    try:
+        template_id = int(raw_id) or None
+    except (TypeError, ValueError):
+        template_id = None
+
+    plan = (plan_name or "").strip() or "your membership"
+    days = str(grace_days).strip() or "3"
+    text = (
+        "We couldn't charge the card on file for your Bloom Anyway membership.\n\n"
+        f"Plan: {plan}\n"
+        f"You still have {days} day(s) to update your payment method "
+        "before access may pause.\n\n"
+        "— Bloom Anyway"
+    )
+    if not template_id:
+        return send_email(to, "Update your payment method", text)
+
+    params = {
+        "PLAN_NAME": plan,
+        "GRACE_DAYS": days,
+    }
+    return send_email(
+        to,
+        "Update your payment method",
+        text,
+        template_id=template_id,
+        params=params,
+    )
+
+
 def send_contact_notification(name: str, email: str, body: str) -> bool:
     from ..models import User
     owner = (User.query.filter_by(is_admin=True)

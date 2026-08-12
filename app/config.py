@@ -83,6 +83,13 @@ class Config:
     BREVO_TEMPLATE_CREATOR = int(
         os.environ.get("BREVO_TEMPLATE_CREATOR", "6") or 0
     )
+    BREVO_TEMPLATE_CARD_DECLINED = int(
+        os.environ.get("BREVO_TEMPLATE_CARD_DECLINED", "7") or 0
+    )
+    # Days of access kept after a failed membership renewal charge.
+    MEMBERSHIP_GRACE_DAYS = int(
+        os.environ.get("MEMBERSHIP_GRACE_DAYS", "3") or 3
+    )
     SMTP_HOST = os.environ.get("SMTP_HOST", "").strip()
     SMTP_PORT = int(os.environ.get("SMTP_PORT", "587") or 587)
     SMTP_USER = os.environ.get("SMTP_USER", "")

@@ -258,17 +258,28 @@ def handle_payment_event(event_type: str, data: dict) -> Order | None:
         if event_type != "payment.succeeded":
             return None
         status = "paid"
-    elif event_type in ("payment.failed", "payment.cancelled", "refund.succeeded",
-                        "payment.refunded"):
+    elif event_type == "payment.failed":
+        # Card decline — keep access during grace; do not revoke like a refund.
+        status = "failed"
+    elif event_type in ("payment.cancelled", "refund.succeeded", "payment.refunded"):
         status = "refunded"
     else:
         return None
 
-    if not email and status == "paid":
-        raise ValueError("customer email missing from paid payment")
+    if not email and status in ("paid", "failed"):
+        if status == "paid":
+            raise ValueError("customer email missing from paid payment")
+        # Decline without email: nothing we can notify
+        if not email:
+            log.warning("dodo: payment.failed missing customer email (%s)", payment_id)
+            return None
 
     prior = Order.query.filter_by(ls_order_id=str(payment_id)).first()
     send_receipt = status == "paid" and (prior is None or prior.status != "paid")
+    send_decline = (
+        status == "failed"
+        and (prior is None or prior.status != "failed")
+    )
 
     plan = _plan_for_product_id(product_id) if product_id else None
     prev_tier = "none"
@@ -358,6 +369,25 @@ def handle_payment_event(event_type: str, data: dict) -> Order | None:
                     "%s welcome email failed for %s",
                     plan.tier.title(), order.ls_order_id,
                 )
+
+    if send_decline and plan and plan.tier in ("healing", "creator"):
+        to = (email or order.buyer_email or "").strip()
+        if to and "@" in to:
+            try:
+                from .mailer import send_card_declined
+                grace = current_app.config.get("MEMBERSHIP_GRACE_DAYS") or 3
+                plan_name = (
+                    plan.name
+                    or ("Healing membership" if plan.tier == "healing"
+                        else "Creator membership")
+                )
+                send_card_declined(
+                    to,
+                    plan_name=plan_name,
+                    grace_days=grace,
+                )
+            except Exception:
+                log.exception("Card-declined email failed for %s", payment_id)
 
     return order
 

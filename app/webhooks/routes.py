@@ -15,6 +15,7 @@ log = logging.getLogger(__name__)
 
 HANDLED = {
     "payment.succeeded",
+    "payment.failed",
     "refund.succeeded",
     "payment.refunded",
 }
