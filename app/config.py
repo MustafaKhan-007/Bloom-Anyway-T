@@ -65,11 +65,14 @@ class Config:
     # 2. SMTP_*: classic SMTP relay (optional fallback)
     BREVO_API_KEY = os.environ.get("BREVO_API_KEY", "").strip()
     # Transactional template IDs (Brevo → Transactional → Templates, number after #).
-    # Sent once after email is verified / account is ready — not the 6-digit code email.
+    # Welcome: sent once after email is verified. Confirm: 6-digit signup code email.
     BREVO_TEMPLATE_WELCOME = int(
         os.environ.get("BREVO_TEMPLATE_WELCOME")
-        or os.environ.get("BREVO_TEMPLATE_CONFIRM", "2")
+        or os.environ.get("BREVO_TEMPLATE_CONFIRM_LEGACY", "2")
         or 0
+    )
+    BREVO_TEMPLATE_CONFIRM = int(
+        os.environ.get("BREVO_TEMPLATE_CONFIRM", "3") or 0
     )
     SMTP_HOST = os.environ.get("SMTP_HOST", "").strip()
     SMTP_PORT = int(os.environ.get("SMTP_PORT", "587") or 587)

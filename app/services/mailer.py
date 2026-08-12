@@ -240,7 +240,29 @@ def send_verification_code(to: str, code: str, purpose: str) -> bool:
         "If you didn't request it, you can safely ignore this email.\n\n"
         "— Bloom Anyway"
     )
-    return send_email(to, subject, text)
+
+    template_id = None
+    params = None
+    if purpose == "confirm":
+        raw_id = current_app.config.get("BREVO_TEMPLATE_CONFIRM") or 0
+        try:
+            template_id = int(raw_id) or None
+        except (TypeError, ValueError):
+            template_id = None
+        if template_id:
+            # Brevo: {{ params.CODE }} (and optional {{ params.MINUTES }})
+            params = {
+                "CODE": code,
+                "code": code,
+                "MINUTES": str(minutes),
+                "minutes": str(minutes),
+            }
+
+    return send_email(
+        to, subject, text,
+        template_id=template_id if purpose == "confirm" else None,
+        params=params,
+    )
 
 
 def send_welcome_email(to: str, *, first_name: str | None = None) -> bool:
