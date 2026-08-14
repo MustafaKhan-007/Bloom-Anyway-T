@@ -1664,10 +1664,12 @@ html.is-page-loading { cursor: progress; }
   overflow-x: auto;
 }
 #reader-pdf-canvas {
-  max-width: 100%;
+  max-width: none;
+  width: auto;
   height: auto;
   border-radius: 8px;
   background: #fff;
+  display: block;
 }
 .course-reader__h5p {
   min-height: 360px;

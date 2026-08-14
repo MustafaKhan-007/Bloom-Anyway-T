@@ -234,7 +234,6 @@
     root.setAttribute("data-font", prefs.font || "md");
     root.setAttribute("data-line", prefs.line || "normal");
     root.setAttribute("data-zoom", prefs.zoom || "md");
-    root.setAttribute("data-width", prefs.width || "standard");
     if (appearancePanel) {
       appearancePanel.querySelectorAll("[data-theme]").forEach(function (btn) {
         btn.classList.toggle("is-active", btn.getAttribute("data-theme") === (prefs.theme || "light"));
@@ -247,9 +246,6 @@
       });
       appearancePanel.querySelectorAll("[data-zoom]").forEach(function (btn) {
         btn.classList.toggle("is-active", btn.getAttribute("data-zoom") === (prefs.zoom || "md"));
-      });
-      appearancePanel.querySelectorAll("[data-width]").forEach(function (btn) {
-        btn.classList.toggle("is-active", btn.getAttribute("data-width") === (prefs.width || "standard"));
       });
     }
     if (typeof state.rerender === "function") state.rerender();
@@ -277,13 +273,11 @@
       var fontBtn = e.target.closest("[data-font]");
       var lineBtn = e.target.closest("[data-line]");
       var zoomBtn = e.target.closest("[data-zoom]");
-      var widthBtn = e.target.closest("[data-width]");
       if (themeBtn) prefs.theme = themeBtn.getAttribute("data-theme");
       if (fontBtn) prefs.font = fontBtn.getAttribute("data-font");
       if (lineBtn) prefs.line = lineBtn.getAttribute("data-line");
       if (zoomBtn) prefs.zoom = zoomBtn.getAttribute("data-zoom");
-      if (widthBtn) prefs.width = widthBtn.getAttribute("data-width");
-      if (themeBtn || fontBtn || lineBtn || zoomBtn || widthBtn) {
+      if (themeBtn || fontBtn || lineBtn || zoomBtn) {
         savePrefs(prefs);
         applyPrefs(prefs);
       }
@@ -415,20 +409,20 @@
       return state.pdf.getPage(num).then(function (page) {
         if (token !== state.renderToken) return;
         var wrap = canvas.parentElement;
-        var widthCaps = { narrow: 620, standard: 860, wide: 1120 };
-        var zoomScales = { sm: 0.78, md: 1, lg: 1.35 };
-        var cap = widthCaps[prefs.width || "standard"] || 860;
+        var zoomScales = { sm: 0.82, md: 1, lg: 1.4 };
         var zoom = zoomScales[prefs.zoom || "md"] || 1;
-        var base = Math.min((wrap && wrap.clientWidth) || 800, cap);
-        var maxWidth = Math.max(280, Math.round(base * zoom));
+        // Fit = page width matches the stage; Smaller/Larger scale from that.
+        var fitWidth = Math.max(280, (wrap && wrap.clientWidth) || 800);
+        var targetWidth = Math.round(fitWidth * zoom);
         var unscaled = page.getViewport({ scale: 1 });
-        var scale = maxWidth / unscaled.width;
+        var scale = targetWidth / unscaled.width;
         var viewport = page.getViewport({ scale: scale });
         var outputScale = window.devicePixelRatio || 1;
         canvas.width = Math.floor(viewport.width * outputScale);
         canvas.height = Math.floor(viewport.height * outputScale);
+        // Width only — height:auto keeps the PDF aspect ratio (avoids CSS stretch).
         canvas.style.width = Math.floor(viewport.width) + "px";
-        canvas.style.height = Math.floor(viewport.height) + "px";
+        canvas.style.height = "auto";
         var ctx = canvas.getContext("2d");
         var transform =
           outputScale !== 1 ? [outputScale, 0, 0, outputScale, 0, 0] : null;
