@@ -9,10 +9,13 @@
   {%- endif -%}
 {%- endmacro %}
 
-{% macro product_card(product, lane) %}
-<article class="cg-card cg-card--{{ lane }}">
+{% macro product_card(product, lane, owned_purchase_id=none) %}
+<article class="cg-card cg-card--{{ lane }}{% if product.accent_hex() %} cg-card--custom{% endif %}{% if owned_purchase_id %} cg-card--owned{% endif %}"
+         {% if product.card_style() %}style="{{ product.card_style() }}"{% endif %}>
   <div class="cg-card__art">
-    {% if product.badge %}
+    {% if owned_purchase_id %}
+    <span class="cg-card__tag cg-card__tag--badge">Purchased</span>
+    {% elif product.badge %}
     <span class="cg-card__tag cg-card__tag--badge">{{ product.badge }}</span>
     {% endif %}
     <span class="cg-card__tag cg-card__tag--type">{{ product.type_pill() }}</span>
@@ -30,10 +33,11 @@
     <p class="cg-card__meta">{{ product.meta_line }}</p>
     {% endif %}
     <div class="cg-card__foot">
-      <span class="cg-card__price">{{ product.price_display() or '—' }}</span>
-      {% if product.dodo_product_id %}
-      <a class="btn cg-card__btn" href="{{ url_for('main.checkout_product', slug=product.slug) }}">{{ cta_label(product) }} &rarr;</a>
+      {% if owned_purchase_id %}
+      <span class="cg-card__price cg-card__price--owned">Purchased</span>
+      <a class="btn cg-card__btn" href="{{ url_for('main.course_reader', purchase_id=owned_purchase_id) }}">Open &rarr;</a>
       {% else %}
+      <span class="cg-card__price">{{ product.price_display() or '—' }}</span>
       <a class="btn cg-card__btn" href="{{ url_for('main.checkout_product', slug=product.slug) }}">{{ cta_label(product) }} &rarr;</a>
       {% endif %}
     </div>
@@ -91,7 +95,7 @@
 
         <div class="cg-lane__list">
           {% for product in healing %}
-            {{ product_card(product, 'healing') }}
+            {{ product_card(product, 'healing', owned_purchases.get(product.id) if owned_purchases else none) }}
           {% else %}
             <p class="cg-empty">No healing resources in this filter yet.</p>
           {% endfor %}
@@ -140,7 +144,7 @@
 
         <div class="cg-lane__list">
           {% for product in building %}
-            {{ product_card(product, 'building') }}
+            {{ product_card(product, 'building', owned_purchases.get(product.id) if owned_purchases else none) }}
           {% else %}
             <p class="cg-empty">No creator resources in this filter yet.</p>
           {% endfor %}

@@ -452,36 +452,60 @@
         with this email.
       </p>
       {% if shop_purchases %}
-      <div class="grid grid--3" style="margin-top: 20px;">
+      <div class="cg-lane__list ms-owned-grid" style="margin-top: 20px;">
         {% for item in shop_purchases %}
         {% set prog = course_progress.get(item.id) if course_progress else none %}
         {% set pct = prog.percent if prog else 0 %}
-        <div class="library-card">
-          <h3>{{ item.product_name }}</h3>
-          <p class="field-help" style="margin-top: 4px;">
-            {{ item.purchased_at|localtime('%b %d, %Y') }}
-            {% if prog and prog.current_page and prog.total_pages %}
-            · page {{ prog.current_page }} of {{ prog.total_pages }}
+        {% set catalog = purchase_catalog.get(item.id) if purchase_catalog else none %}
+        {% set lane = (catalog.track if catalog and catalog.track in ('healing', 'building') else 'building') %}
+        <article class="cg-card cg-card--{{ lane }}{% if catalog and catalog.accent_hex() %} cg-card--custom{% endif %} cg-card--owned"
+                 {% if catalog and catalog.card_style() %}style="{{ catalog.card_style() }}"{% endif %}>
+          <div class="cg-card__art">
+            <span class="cg-card__tag cg-card__tag--badge">Purchased</span>
+            {% if catalog %}
+            <span class="cg-card__tag cg-card__tag--type">{{ catalog.type_pill() }}</span>
+            <h3 class="cg-card__art-title">{{ catalog.promise or item.product_name }}</h3>
+            {% else %}
+            <span class="cg-card__tag cg-card__tag--type">Guide</span>
+            <h3 class="cg-card__art-title">{{ item.product_name }}</h3>
             {% endif %}
-          </p>
-          {% if course_readable.get(item.id) %}
-          <div class="library-card__progress" aria-label="{{ pct }} percent complete">
-            <div class="ms-exact__bar"><span style="width: {{ pct }}%;"></span></div>
-            <span class="field-help">{{ pct }}% complete</span>
           </div>
-          <a class="btn btn--primary btn--sm" href="{{ url_for('main.course_reader', purchase_id=item.id) }}">
-            {% if pct > 0 and pct < 100 %}Continue reading{% else %}Open &amp; read{% endif %}
-          </a>
-          {% elif item.download_url %}
-          <a class="btn btn--primary btn--sm" href="{{ item.download_url }}" target="_blank" rel="noopener">Download</a>
-          {% elif item.file_key %}
-          <a class="btn btn--primary btn--sm" href="{{ url_for('main.shop_download', purchase_id=item.id) }}">Download</a>
-          {% else %}
-          <p class="field-help" style="margin-top: 8px;">
-            Linked to your account — upload the reading file in Studio → Courses &amp; Guides to open it here.
-          </p>
-          {% endif %}
-        </div>
+          <div class="cg-card__body">
+            <h3 class="cg-card__title">{{ item.product_name }}</h3>
+            <p class="cg-card__meta">
+              {{ item.purchased_at|localtime('%b %d, %Y') }}
+              {% if prog and prog.current_page and prog.total_pages %}
+              · page {{ prog.current_page }} of {{ prog.total_pages }}
+              {% endif %}
+            </p>
+            {% if course_readable.get(item.id) %}
+            <div class="library-card__progress" aria-label="{{ pct }} percent complete">
+              <div class="ms-exact__bar"><span style="width: {{ pct }}%;"></span></div>
+              <span class="field-help">{{ pct }}% complete</span>
+            </div>
+            <div class="cg-card__foot" style="margin-top: 14px;">
+              <span class="cg-card__price cg-card__price--owned">{{ pct }}%</span>
+              <a class="btn cg-card__btn" href="{{ url_for('main.course_reader', purchase_id=item.id) }}">
+                {% if pct > 0 and pct < 100 %}Continue reading{% elif pct >= 100 %}Read again{% else %}Open &amp; read{% endif %}
+              </a>
+            </div>
+            {% elif item.download_url %}
+            <div class="cg-card__foot">
+              <span class="cg-card__price cg-card__price--owned">Purchased</span>
+              <a class="btn cg-card__btn" href="{{ item.download_url }}" target="_blank" rel="noopener">Download</a>
+            </div>
+            {% elif item.file_key %}
+            <div class="cg-card__foot">
+              <span class="cg-card__price cg-card__price--owned">Purchased</span>
+              <a class="btn cg-card__btn" href="{{ url_for('main.shop_download', purchase_id=item.id) }}">Download</a>
+            </div>
+            {% else %}
+            <p class="field-help" style="margin-top: 8px;">
+              Linked to your account — upload the reading file in Studio → Courses &amp; Guides to open it here.
+            </p>
+            {% endif %}
+          </div>
+        </article>
         {% endfor %}
       </div>
       {% else %}

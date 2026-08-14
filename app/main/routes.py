@@ -181,6 +181,13 @@ def courses():
         "building": Product.query.filter_by(
             status="published", track="building", type="bundle").first(),
     }
+    owned_purchases = {}
+    if current_user.is_authenticated:
+        from ..services import course_reader as reader_svc
+        for purchase in linked_purchases_for(current_user):
+            prod = reader_svc.catalog_product_for_purchase(purchase)
+            if prod is not None:
+                owned_purchases[prod.id] = purchase.id
     return render_template(
         "main/courses.html",
         healing=healing,
@@ -191,6 +198,7 @@ def courses():
         h_filter=h_filter,
         b_filter=b_filter,
         sort=sort,
+        owned_purchases=owned_purchases,
     )
 
 
@@ -708,12 +716,16 @@ def account():
     for p in shop_list:
         prod = reader_svc.catalog_product_for_purchase(p)
         readable[p.id] = bool(prod and prod.has_assets())
+    purchase_catalog = {}
+    for p in shop_list:
+        purchase_catalog[p.id] = reader_svc.catalog_product_for_purchase(p)
     return render_template(
         "main/account.html", greeting=greeting, orders=orders,
         favorites=favorites,
         shop_purchases=shop_list,
         course_progress=progress_by_purchase,
         course_readable=readable,
+        purchase_catalog=purchase_catalog,
         premium=is_premium(current_user),
         active_tab=tab,
         journal_entries=journal,

@@ -169,9 +169,22 @@ def sync_purchases():
 
 # =============================== PRODUCTS ====================================
 
+def _parse_accent(raw: str | None) -> str | None:
+    """Normalize a #RRGGBB colour or return None."""
+    value = (raw or "").strip()
+    if len(value) == 7 and value.startswith("#"):
+        try:
+            int(value[1:], 16)
+            return value.upper()
+        except ValueError:
+            return None
+    return None
+
+
 @bp.route("/products", methods=["GET", "POST"])
 @admin_required
 def products():
+    from ..services.assets import AssetError, add_asset
     from ..services.catalog import unique_product_slug
 
     if request.method == "POST":
@@ -202,9 +215,28 @@ def products():
             product.promise = (request.form.get("promise") or "").strip()[:120] or None
             product.description_md = (request.form.get("description") or "").strip() or None
             product.meta_line = (request.form.get("meta_line") or "").strip()[:200] or None
+            if request.form.get("use_accent"):
+                product.accent_color = _parse_accent(request.form.get("accent"))
+            else:
+                product.accent_color = None
             db.session.add(product)
+            db.session.flush()
+            upload = request.files.get("asset")
+            asset_note = ""
+            if upload and getattr(upload, "filename", None):
+                try:
+                    asset = add_asset(
+                        product, upload,
+                        title=(request.form.get("asset_title") or "").strip()[:160] or None,
+                    )
+                    asset_note = f" File “{asset.display_title()}” ready for on-site reading."
+                except AssetError as exc:
+                    flash(str(exc), "error")
+                except Exception:
+                    log.exception("create product asset upload failed")
+                    flash("Product saved, but the reading file didn’t upload. Try again below.", "error")
             db.session.commit()
-            flash(f"“{title}” added — set it live when ready.", "success")
+            flash(f"“{title}” added — set it live when ready.{asset_note}", "success")
             return redirect(url_for("admin.products"))
 
         items = Product.query.order_by(Product.track, Product.sort_order, Product.id).all()
@@ -221,6 +253,15 @@ def products():
             p.promise = (request.form.get(prefix + "promise") or "").strip()[:120] or None
             p.description_md = (request.form.get(prefix + "description") or "").strip() or None
             p.meta_line = (request.form.get(prefix + "meta_line") or "").strip()[:200] or None
+            accent = _parse_accent(request.form.get(prefix + "accent"))
+            track_defaults = {"healing": "#5A3158", "building": "#B58A3F"}
+            if (accent
+                    and accent == track_defaults.get((p.track or "").strip())
+                    and not p.accent_hex()):
+                # Leaving the track default selected → keep using CSS lane colours.
+                p.accent_color = None
+            else:
+                p.accent_color = accent
             raw = (request.form.get(prefix + "price") or "").strip().replace(",", "")
             try:
                 p.price_cents = round(float(raw) * 100) if raw else p.price_cents

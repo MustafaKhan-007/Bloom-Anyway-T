@@ -268,6 +268,8 @@ class Product(db.Model):
     track = db.Column(db.String(20), index=True)
     meta_line = db.Column(db.String(200))  # e.g. "80 daily pages • PDF + printable"
     category_label = db.Column(db.String(80))  # e.g. "DIVORCE RECOVERY"
+    # Optional card accent (#RRGGBB). Empty → track default (plum / gold).
+    accent_color = db.Column(db.String(7))
 
     meta_title = db.Column(db.String(160))
     meta_description = db.Column(db.String(200))
@@ -286,6 +288,32 @@ class Product(db.Model):
 
     def has_assets(self) -> bool:
         return len(self.assets) > 0
+
+    def accent_hex(self) -> str | None:
+        raw = (self.accent_color or "").strip()
+        if len(raw) == 7 and raw.startswith("#"):
+            try:
+                int(raw[1:], 16)
+                return raw.upper()
+            except ValueError:
+                return None
+        return None
+
+    @staticmethod
+    def _shade(hex_color: str, factor: float) -> str:
+        h = hex_color.lstrip("#")
+        r = max(0, min(255, int(int(h[0:2], 16) * factor)))
+        g = max(0, min(255, int(int(h[2:4], 16) * factor)))
+        b = max(0, min(255, int(int(h[4:6], 16) * factor)))
+        return f"#{r:02X}{g:02X}{b:02X}"
+
+    def card_style(self) -> str:
+        """Inline CSS variables for a custom card accent (empty if unset)."""
+        accent = self.accent_hex()
+        if not accent:
+            return ""
+        deep = self._shade(accent, 0.62)
+        return f"--cg-accent:{accent};--cg-accent-deep:{deep};"
 
     def tags(self) -> list:
         try:

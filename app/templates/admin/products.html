@@ -16,7 +16,7 @@
 
   <section class="admin-panel studio-card">
     <h2 style="margin-top:0;">Add a product</h2>
-    <form method="post">
+    <form method="post" enctype="multipart/form-data">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="action" value="create">
       <div class="form-row">
@@ -54,6 +54,31 @@
           <label for="new_promise">One-line promise</label>
           <input type="text" id="new_promise" name="promise" maxlength="120"
                  placeholder="What they walk away with">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="field">
+          <label for="new_accent">Card colour</label>
+          <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+            <label class="checkline checkline--sm" style="margin:0;">
+              <input type="checkbox" name="use_accent" value="1" id="new_use_accent">
+              Custom
+            </label>
+            <input type="color" id="new_accent" name="accent" value="#B58A3F"
+                   title="Banner &amp; button colour on Courses / My space">
+          </div>
+          <p class="field-help" style="margin:6px 0 0;">Optional — shown on Courses cards and in My space.</p>
+        </div>
+        <div class="field" style="flex: 2;">
+          <label for="new_asset">On-site reading file</label>
+          <input type="file" id="new_asset" name="asset"
+                 accept=".pdf,.h5p,.zip,.png,.jpg,.jpeg,.webp,.gif,.mp4,.webm,.mp3,.wav,.txt,.md,.html,.doc,.docx">
+          <p class="field-help" style="margin:6px 0 0;">PDF or H5P preferred — buyers open it in My space.</p>
+        </div>
+        <div class="field">
+          <label for="new_asset_title">File label (optional)</label>
+          <input type="text" id="new_asset_title" name="asset_title" maxlength="160"
+                 placeholder="Main workbook">
         </div>
       </div>
       <div class="field">
@@ -140,6 +165,11 @@
                 <label for="p{{ p.id }}_badge">Badge</label>
                 <input type="text" id="p{{ p.id }}_badge" name="p{{ p.id }}_badge"
                        value="{{ p.badge or '' }}" placeholder="NEW">
+              </div>
+              <div class="field">
+                <label for="p{{ p.id }}_accent">Card colour</label>
+                <input type="color" id="p{{ p.id }}_accent" name="p{{ p.id }}_accent"
+                       value="{{ p.accent_hex() or ('#5A3158' if p.track == 'healing' else '#B58A3F') }}">
               </div>
               <div class="field" style="padding-top: 28px;">
                 <label class="checkline checkline--sm">
