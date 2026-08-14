@@ -1387,6 +1387,86 @@ html.is-page-loading { cursor: progress; }
 }
 .library-card h3 { margin: 0; font-size: 20px; }
 .library-card .btn { margin-top: auto; }
+.library-card__progress {
+  margin: 12px 0 4px;
+  display: grid;
+  gap: 6px;
+}
+.ms-exact__courses-row a {
+  color: inherit;
+  text-decoration: none;
+}
+.ms-exact__courses-row a:hover { text-decoration: underline; }
+
+.course-reader-page { padding-top: 12px; }
+.course-reader__head {
+  display: flex; flex-wrap: wrap; align-items: flex-start;
+  justify-content: space-between; gap: 12px 20px; margin-bottom: 16px;
+}
+.course-reader__head h1 {
+  margin: 0 0 6px;
+  font-size: clamp(1.6rem, 3vw, 2.2rem);
+  color: #3d1431;
+}
+.course-reader__meta { margin: 0; }
+.course-reader__progress-pill {
+  padding: 8px 14px; border-radius: 999px;
+  background: rgba(61, 20, 49, 0.08); color: #3d1431;
+  font-size: 13px; font-weight: 800; letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+.course-reader__toolbar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px;
+  margin: 0 0 14px;
+}
+.course-reader__page-field {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: 14px; font-weight: 700; color: #5a4f56;
+}
+.course-reader__page-field input {
+  width: 64px; padding: 6px 8px; border-radius: 8px;
+  border: 1px solid rgba(61, 20, 49, 0.18);
+  font-weight: 700; color: #3d1431;
+}
+.course-reader__stage {
+  padding: clamp(12px, 2vw, 22px);
+  overflow: hidden;
+}
+.course-reader__pdf-wrap {
+  display: grid; justify-items: center; gap: 10px;
+  min-height: 320px;
+}
+#reader-pdf-canvas {
+  max-width: 100%;
+  height: auto;
+  border-radius: 12px;
+  box-shadow: 0 8px 28px rgba(61, 20, 49, 0.08);
+  background: #fff;
+}
+.course-reader__h5p {
+  min-height: 360px;
+  background: #fff;
+  border-radius: 12px;
+  overflow: hidden;
+}
+.course-reader__image {
+  display: block; max-width: 100%; height: auto; margin: 0 auto;
+  border-radius: 12px;
+}
+.course-reader__video {
+  display: block; width: 100%; max-height: 70vh; border-radius: 12px;
+  background: #1a0f16;
+}
+.course-reader__audio {
+  padding: 28px 12px; display: grid; place-items: center;
+}
+.course-reader__audio audio { width: min(100%, 480px); }
+.course-reader__empty {
+  text-align: center; padding: clamp(28px, 5vw, 48px) 20px;
+}
+.course-reader__footer-actions {
+  display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px;
+}
 
 .reader-block { margin-top: 28px; }
 .reader-block__title { margin-bottom: 12px; }

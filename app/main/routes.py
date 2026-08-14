@@ -14,9 +14,9 @@ from ..models import (JOURNAL_PROMPTS, MARKETPLACE_KINDS, MARKETPLACE_KIND_LABEL
                       MARKETPLACE_TAG_MAX, MARKETPLACE_TAGS, MOOD_KEYS, MOODS,
                       ContactMessage, FaqItem, JournalEntry,
                       ListingImage, MarketplaceListing, MembershipPlan,
-                      Notification, Order, Page, Product, Quote, QuoteFavorite,
-                      ReelReview, ReelReviewApplication, ShopPurchase,
-                      Subscriber, User, Video, utcnow,
+                      Notification, Order, Page, Product, ProductAsset,
+                      Quote, QuoteFavorite, ReelReview, ReelReviewApplication,
+                      ShopPurchase, Subscriber, User, Video, utcnow,
                       random_journal_prompt, sample_journal_prompts)
 from ..services import quotes as quotes_service
 from ..services import reel_reviews as reel_svc
@@ -681,10 +681,20 @@ def account():
                        .limit(5).all())
     today_entry = next((e for e in journal if e.day == date.today()), None)
     participation_n = community_participation_count(current_user)
+    from ..services import course_reader as reader_svc
+    shop_list = linked_purchases_for(current_user)
+    progress_by_purchase = reader_svc.progress_map_for(
+        current_user.id, [p.id for p in shop_list])
+    readable = {}
+    for p in shop_list:
+        prod = reader_svc.catalog_product_for_purchase(p)
+        readable[p.id] = bool(prod and prod.has_assets())
     return render_template(
         "main/account.html", greeting=greeting, orders=orders,
         favorites=favorites,
-        shop_purchases=linked_purchases_for(current_user),
+        shop_purchases=shop_list,
+        course_progress=progress_by_purchase,
+        course_readable=readable,
         premium=is_premium(current_user),
         active_tab=tab,
         journal_entries=journal,
@@ -759,6 +769,114 @@ def shop_download(purchase_id):
     if not os.path.isfile(path):
         abort(404)
     return send_file(path, as_attachment=True, download_name=key)
+
+
+@bp.route("/account/courses/<int:purchase_id>")
+@login_required
+def course_reader(purchase_id):
+    """Themed on-site reader for a purchased course/guide."""
+    from ..services import course_reader as reader_svc
+
+    purchase = reader_svc.owned_purchase(current_user, purchase_id)
+    if purchase is None:
+        abort(404)
+    product = reader_svc.catalog_product_for_purchase(purchase)
+    asset = reader_svc.primary_asset(product)
+    progress = reader_svc.get_progress(current_user.id, purchase.id)
+    return render_template(
+        "main/course_reader.html",
+        purchase=purchase,
+        product=product,
+        asset=asset,
+        progress=progress,
+        start_page=(progress.current_page if progress and progress.current_page else 1),
+        start_percent=(progress.percent if progress else 0),
+    )
+
+
+@bp.route("/account/courses/<int:purchase_id>/file/<int:asset_id>")
+@login_required
+def course_file(purchase_id, asset_id):
+    """Stream a course file inline to the owner (PDF.js / media / etc.)."""
+    from ..services import course_reader as reader_svc
+
+    purchase = reader_svc.owned_purchase(current_user, purchase_id)
+    if purchase is None:
+        abort(404)
+    product = reader_svc.catalog_product_for_purchase(purchase)
+    asset = db.session.get(ProductAsset, asset_id)
+    if product is None or asset is None or asset.product_id != product.id:
+        abort(404)
+    resp = Response(bytes(asset.data), mimetype=asset.mime or "application/octet-stream")
+    resp.headers["Content-Disposition"] = f'inline; filename="{asset.filename}"'
+    resp.headers["Cache-Control"] = "private, max-age=300"
+    resp.headers["Accept-Ranges"] = "none"
+    return resp
+
+
+@bp.route("/account/courses/<int:purchase_id>/h5p/<int:asset_id>/<path:filename>")
+@login_required
+def course_h5p_file(purchase_id, asset_id, filename):
+    """Serve extracted H5P package files to the purchase owner."""
+    from ..services import course_reader as reader_svc
+
+    purchase = reader_svc.owned_purchase(current_user, purchase_id)
+    if purchase is None:
+        abort(404)
+    product = reader_svc.catalog_product_for_purchase(purchase)
+    asset = db.session.get(ProductAsset, asset_id)
+    if (product is None or asset is None or asset.product_id != product.id
+            or asset.kind != "h5p"):
+        abort(404)
+    try:
+        reader_svc.ensure_h5p_extracted(asset)
+    except Exception:
+        log.exception("h5p extract failed for asset %s", asset_id)
+        abort(500)
+    path = reader_svc.safe_h5p_file(asset_id, filename)
+    if path is None:
+        abort(404)
+    return send_file(path)
+
+
+@bp.route("/account/courses/<int:purchase_id>/progress", methods=["POST"])
+@login_required
+@limiter.limit("120 per minute")
+def course_progress(purchase_id):
+    """Save reading position (page + percent) for resume later."""
+    from ..services import course_reader as reader_svc
+
+    purchase = reader_svc.owned_purchase(current_user, purchase_id)
+    if purchase is None:
+        abort(404)
+    product = reader_svc.catalog_product_for_purchase(purchase)
+    payload = request.get_json(silent=True) or {}
+    try:
+        page = int(payload.get("page") or payload.get("current_page") or 1)
+        total = int(payload.get("total") or payload.get("total_pages") or 0)
+    except (TypeError, ValueError):
+        return {"ok": False, "error": "bad page"}, 400
+    # Allow percent override for non-paged kinds (H5P).
+    percent_raw = payload.get("percent")
+    row = reader_svc.save_progress(
+        user_id=current_user.id,
+        purchase_id=purchase.id,
+        product_id=product.id if product else None,
+        current_page=page,
+        total_pages=total,
+    )
+    if percent_raw is not None and (not total or total <= 1):
+        try:
+            row.percent = max(0, min(100, int(percent_raw)))
+        except (TypeError, ValueError):
+            pass
+    db.session.commit()
+    return {
+        "ok": True,
+        "page": row.current_page,
+        "total": row.total_pages,
+        "percent": row.percent,
+    }
 
 
 @bp.route("/media/site/<key>")

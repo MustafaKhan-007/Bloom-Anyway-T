@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% block title %}{{ purchase.product_name }} — {{ site.site_title }}{% endblock %}
+
+{% block content %}
+<section class="section section--tight course-reader-page"
+         data-purchase-id="{{ purchase.id }}"
+         data-start-page="{{ start_page }}"
+         data-start-percent="{{ start_percent }}"
+         {% if asset %}
+         data-asset-kind="{{ asset.kind }}"
+         data-file-url="{{ url_for('main.course_file', purchase_id=purchase.id, asset_id=asset.id) }}"
+         data-progress-url="{{ url_for('main.course_progress', purchase_id=purchase.id) }}"
+         {% if asset.kind == 'h5p' %}
+         data-h5p-path="/account/courses/{{ purchase.id }}/h5p/{{ asset.id }}"
+         {% endif %}
+         {% endif %}>
+  <div class="container course-reader">
+    <p class="eyebrow">
+      <a href="{{ url_for('main.account', tab='saved') }}">&larr; Back to Courses</a>
+    </p>
+    <header class="course-reader__head">
+      <div>
+        <h1>{{ purchase.product_name }}</h1>
+        {% if asset %}
+        <p class="field-help course-reader__meta">
+          {{ asset.display_title() }}
+          <span aria-hidden="true">·</span>
+          {{ asset.kind|upper }}
+        </p>
+        {% endif %}
+      </div>
+      <div class="course-reader__progress-pill" id="reader-progress-pill" aria-live="polite">
+        <span id="reader-progress-label">{{ start_percent }}% complete</span>
+      </div>
+    </header>
+
+    {% if not asset %}
+    <div class="ms-card course-reader__empty">
+      <h2>Content coming soon</h2>
+      <p class="field-help">
+        This purchase is linked to your account. The on-site file hasn’t been uploaded in Studio yet —
+        check your Dodo receipt email, or come back once the guide is ready to read here.
+      </p>
+      {% if purchase.download_url %}
+      <a class="btn btn--primary" href="{{ purchase.download_url }}" target="_blank" rel="noopener">Open receipt download</a>
+      {% elif purchase.file_key %}
+      <a class="btn btn--primary" href="{{ url_for('main.shop_download', purchase_id=purchase.id) }}">Download file</a>
+      {% endif %}
+    </div>
+    {% else %}
+
+    <div class="course-reader__toolbar" id="reader-toolbar" {% if asset.kind != 'pdf' %}hidden{% endif %}>
+      <button type="button" class="btn btn--secondary btn--sm" id="reader-prev" aria-label="Previous page">← Prev</button>
+      <label class="course-reader__page-field">
+        Page
+        <input type="number" id="reader-page" min="1" value="{{ start_page }}" inputmode="numeric">
+        <span>of <span id="reader-total">—</span></span>
+      </label>
+      <button type="button" class="btn btn--secondary btn--sm" id="reader-next" aria-label="Next page">Next →</button>
+    </div>
+
+    <div class="course-reader__stage ms-card" id="reader-stage">
+      {% if asset.kind == 'pdf' %}
+      <div class="course-reader__pdf-wrap">
+        <canvas id="reader-pdf-canvas"></canvas>
+        <p class="field-help" id="reader-pdf-status">Loading pages…</p>
+      </div>
+
+      {% elif asset.kind == 'h5p' %}
+      <div id="reader-h5p" class="course-reader__h5p" aria-live="polite">
+        <p class="field-help">Loading interactive content…</p>
+      </div>
+
+      {% elif asset.kind == 'image' %}
+      <img class="course-reader__image" src="{{ url_for('main.course_file', purchase_id=purchase.id, asset_id=asset.id) }}"
+           alt="{{ asset.display_title() }}">
+
+      {% elif asset.kind == 'video' %}
+      <video class="course-reader__video" controls playsinline
+             src="{{ url_for('main.course_file', purchase_id=purchase.id, asset_id=asset.id) }}"></video>
+
+      {% elif asset.kind == 'audio' %}
+      <div class="course-reader__audio">
+        <audio controls src="{{ url_for('main.course_file', purchase_id=purchase.id, asset_id=asset.id) }}"></audio>
+      </div>
+
+      {% elif asset.kind in ('text', 'html') %}
+      <div class="reader-doc" id="reader-text">Loading…</div>
+
+      {% else %}
+      <div class="course-reader__empty">
+        <p>This file type opens best as a download.</p>
+        <a class="btn btn--primary"
+           href="{{ url_for('main.course_file', purchase_id=purchase.id, asset_id=asset.id) }}"
+           download="{{ asset.filename }}">Download {{ asset.filename }}</a>
+      </div>
+      {% endif %}
+    </div>
+
+    {% if asset.kind not in ('pdf',) %}
+    <div class="course-reader__footer-actions">
+      <button type="button" class="btn btn--gold" id="reader-mark-done">Mark complete</button>
+      <a class="btn btn--secondary" href="{{ url_for('main.account', tab='saved') }}">Save &amp; close</a>
+    </div>
+    {% endif %}
+
+    {% endif %}
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+{% if asset and asset.kind == 'pdf' %}
+<script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js" defer></script>
+{% endif %}
+{% if asset and asset.kind == 'h5p' %}
+<script src="https://cdn.jsdelivr.net/npm/h5p-standalone@3.7.0/dist/main.bundle.js" defer></script>
+{% endif %}
+<script src="{{ url_for('static', filename='js/course-reader.js') }}" defer></script>
+{% endblock %}

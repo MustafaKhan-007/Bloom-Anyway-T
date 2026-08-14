@@ -258,7 +258,9 @@
               <h3>{{ guide.product_name }}</h3>
               <p class="field-help">{{ guide.purchased_at|localtime('%b %d, %Y') }}</p>
             </div>
-            {% if guide.download_url %}
+            {% if course_readable.get(guide.id) %}
+            <a class="btn btn--primary btn--sm" href="{{ url_for('main.course_reader', purchase_id=guide.id) }}">Open</a>
+            {% elif guide.download_url %}
             <a class="btn btn--primary btn--sm" href="{{ guide.download_url }}" target="_blank" rel="noopener">Download</a>
             {% elif guide.file_key %}
             <a class="btn btn--primary btn--sm" href="{{ url_for('main.shop_download', purchase_id=guide.id) }}">Download</a>
@@ -363,10 +365,17 @@
           {% if shop_purchases %}
           <ul class="ms-exact__courses">
             {% for item in shop_purchases[:3] %}
-            {% set pct = ([((loop.index0 + 1) * 28), 92]|min) %}
+            {% set prog = course_progress.get(item.id) if course_progress else none %}
+            {% set pct = prog.percent if prog else 0 %}
             <li>
               <div class="ms-exact__courses-row">
-                <strong>{{ item.product_name }}</strong>
+                <strong>
+                  {% if course_readable.get(item.id) %}
+                  <a href="{{ url_for('main.course_reader', purchase_id=item.id) }}">{{ item.product_name }}</a>
+                  {% else %}
+                  {{ item.product_name }}
+                  {% endif %}
+                </strong>
                 <span>{{ pct }}%</span>
               </div>
               <div class="ms-exact__bar" aria-hidden="true"><span style="width: {{ pct }}%;"></span></div>
@@ -445,17 +454,32 @@
       {% if shop_purchases %}
       <div class="grid grid--3" style="margin-top: 20px;">
         {% for item in shop_purchases %}
+        {% set prog = course_progress.get(item.id) if course_progress else none %}
+        {% set pct = prog.percent if prog else 0 %}
         <div class="library-card">
           <h3>{{ item.product_name }}</h3>
           <p class="field-help" style="margin-top: 4px;">
             {{ item.purchased_at|localtime('%b %d, %Y') }}
+            {% if prog and prog.current_page and prog.total_pages %}
+            · page {{ prog.current_page }} of {{ prog.total_pages }}
+            {% endif %}
           </p>
-          {% if item.download_url %}
+          {% if course_readable.get(item.id) %}
+          <div class="library-card__progress" aria-label="{{ pct }} percent complete">
+            <div class="ms-exact__bar"><span style="width: {{ pct }}%;"></span></div>
+            <span class="field-help">{{ pct }}% complete</span>
+          </div>
+          <a class="btn btn--primary btn--sm" href="{{ url_for('main.course_reader', purchase_id=item.id) }}">
+            {% if pct > 0 and pct < 100 %}Continue reading{% else %}Open &amp; read{% endif %}
+          </a>
+          {% elif item.download_url %}
           <a class="btn btn--primary btn--sm" href="{{ item.download_url }}" target="_blank" rel="noopener">Download</a>
           {% elif item.file_key %}
           <a class="btn btn--primary btn--sm" href="{{ url_for('main.shop_download', purchase_id=item.id) }}">Download</a>
           {% else %}
-          <p class="field-help" style="margin-top: 8px;">Check your Dodo Payments receipt email for the file.</p>
+          <p class="field-help" style="margin-top: 8px;">
+            Linked to your account — upload the reading file in Studio → Courses &amp; Guides to open it here.
+          </p>
           {% endif %}
         </div>
         {% endfor %}

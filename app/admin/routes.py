@@ -20,9 +20,9 @@ from sqlalchemy.orm import joinedload
 from ..extensions import db
 from ..models import (Announcement, ContentReport, FaqItem, ForumComment,
                       ForumPost, MEMBERSHIPS, MarketplaceListing, MembershipPlan,
-                      Page, Product, Quote, QuoteFavorite, QuotePin, ReelReview,
-                      ReelReviewApplication, SiteFeedback, Testimonial, User,
-                      Video, QUOTE_CATEGORIES)
+                      Page, Product, ProductAsset, Quote, QuoteFavorite, QuotePin,
+                      ReelReview, ReelReviewApplication, SiteFeedback, Testimonial,
+                      User, Video, QUOTE_CATEGORIES)
 from ..services import badges as badges_service
 from ..services import quotes as quotes_service
 from ..services import reel_reviews as reel_svc
@@ -237,8 +237,49 @@ def products():
         return redirect(url_for("admin.products"))
 
     items = (Product.query
+             .options(joinedload(Product.assets))
              .order_by(Product.track, Product.sort_order, Product.id).all())
     return render_template("admin/products.html", items=items)
+
+
+@bp.route("/products/<int:product_id>/assets", methods=["POST"])
+@admin_required
+def product_asset_upload(product_id):
+    from ..services.assets import AssetError, add_asset
+
+    product = db.session.get(Product, product_id)
+    if product is None:
+        flash("That product was already gone.", "info")
+        return redirect(url_for("admin.products"))
+    upload = request.files.get("asset")
+    title = (request.form.get("asset_title") or "").strip()[:160] or None
+    try:
+        asset = add_asset(product, upload, title=title)
+        db.session.commit()
+        flash(f"Uploaded “{asset.display_title()}” for on-site reading.", "success")
+    except AssetError as exc:
+        db.session.rollback()
+        flash(str(exc), "error")
+    except Exception:
+        db.session.rollback()
+        log.exception("product asset upload failed")
+        flash("Could not upload that file. Try a smaller PDF or H5P.", "error")
+    return redirect(url_for("admin.products"))
+
+
+@bp.route("/products/<int:product_id>/assets/<int:asset_id>/delete", methods=["POST"])
+@admin_required
+def product_asset_delete(product_id, asset_id):
+    product = db.session.get(Product, product_id)
+    asset = db.session.get(ProductAsset, asset_id)
+    if product is None or asset is None or asset.product_id != product.id:
+        flash("That file was already gone.", "info")
+        return redirect(url_for("admin.products"))
+    label = asset.display_title()
+    db.session.delete(asset)
+    db.session.commit()
+    flash(f"Removed “{label}”.", "success")
+    return redirect(url_for("admin.products"))
 
 
 @bp.route("/products/<int:product_id>/delete", methods=["POST"])

@@ -158,6 +158,44 @@
                      value="{{ p.meta_line or '' }}" maxlength="200"
                      placeholder="e.g. 80 daily pages • PDF + printable">
             </div>
+
+            <div class="cg-studio-assets">
+              <p class="eyebrow" style="margin: 18px 0 8px;">On-site reading file</p>
+              <p class="field-help" style="margin: 0 0 10px;">
+                Upload a PDF or H5P (also images, audio, video, text). Buyers open it in My space — not only via email.
+              </p>
+              {% if p.assets %}
+              <ul class="asset-list">
+                {% for a in p.assets %}
+                <li class="asset-list__row">
+                  <div class="asset-list__name">
+                    <strong>{{ a.display_title() }}</strong>
+                    <small>{{ a.kind|upper }} · {{ a.size_mb() }} MB</small>
+                  </div>
+                  <button class="btn btn--danger btn--sm" type="submit"
+                          form="del-asset-{{ a.id }}"
+                          data-confirm="Remove “{{ a.display_title() }}”?">Remove</button>
+                </li>
+                {% endfor %}
+              </ul>
+              {% endif %}
+              <div class="form-row" style="align-items: end; margin-top: 8px;">
+                <div class="field" style="flex: 2;">
+                  <label for="asset_{{ p.id }}">Add file</label>
+                  <input type="file" id="asset_{{ p.id }}" name="asset" form="upload-asset-{{ p.id }}"
+                         accept=".pdf,.h5p,.zip,.png,.jpg,.jpeg,.webp,.gif,.mp4,.webm,.mp3,.wav,.txt,.md,.html,.doc,.docx">
+                </div>
+                <div class="field">
+                  <label for="asset_title_{{ p.id }}">Label (optional)</label>
+                  <input type="text" id="asset_title_{{ p.id }}" name="asset_title"
+                         form="upload-asset-{{ p.id }}" maxlength="160" placeholder="Main workbook">
+                </div>
+                <div class="field">
+                  <button class="btn btn--secondary" type="submit" form="upload-asset-{{ p.id }}">Upload</button>
+                </div>
+              </div>
+            </div>
+
             <div class="cg-studio-item__actions">
               <button class="btn btn--danger btn--sm" type="submit" form="del-{{ p.id }}"
                       data-confirm="Delete “{{ p.title }}”?">Delete</button>
@@ -175,6 +213,17 @@
   <form id="del-{{ p.id }}" method="post" action="{{ url_for('admin.product_delete', product_id=p.id) }}" hidden>
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   </form>
+  <form id="upload-asset-{{ p.id }}" method="post"
+        action="{{ url_for('admin.product_asset_upload', product_id=p.id) }}"
+        enctype="multipart/form-data" hidden>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  </form>
+  {% for a in p.assets %}
+  <form id="del-asset-{{ a.id }}" method="post"
+        action="{{ url_for('admin.product_asset_delete', product_id=p.id, asset_id=a.id) }}" hidden>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  </form>
+  {% endfor %}
   {% endfor %}
   {% else %}
   <p class="field-help">No products yet — add your first one above.</p>

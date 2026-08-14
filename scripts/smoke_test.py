@@ -359,6 +359,45 @@ abody = r.get_data(as_text=True)
 ok("Linked shop purchase appears in My space",
    r.status_code == 200 and "Begin Again" in abody and "Courses" in abody)
 
+# On-site reader + progress resume
+with app.app_context():
+    hist = Product.query.filter_by(slug="begin-again").first()
+    from app.models import ProductAsset, CourseProgress
+    asset = ProductAsset(
+        product_id=hist.id,
+        title="Begin Again PDF",
+        filename="begin-again.pdf",
+        mime="application/pdf",
+        kind="pdf",
+        size=12,
+        data=b"%PDF-1.4 fake",
+        sort_order=0,
+    )
+    db.session.add(asset)
+    db.session.commit()
+    purchase = ShopPurchase.query.filter_by(lemon_squeezy_order_id="9001").first()
+    purchase_id = purchase.id
+r = buyer_client.get(f"/account/courses/{purchase_id}")
+ok("Course reader opens for owned purchase",
+   r.status_code == 200 and b"Begin Again" in r.data and b"reader-pdf-canvas" in r.data)
+r = buyer_client.post(
+    f"/account/courses/{purchase_id}/progress",
+    json={"page": 5, "total": 20},
+    headers={"Content-Type": "application/json"},
+)
+ok("Reading progress saves", r.status_code == 200 and r.get_json().get("percent") == 25)
+with app.app_context():
+    prog = CourseProgress.query.filter_by(shop_purchase_id=purchase_id).first()
+ok("Progress row stores page 5",
+   prog is not None and prog.current_page == 5 and prog.total_pages == 20)
+r = buyer_client.get("/account?tab=saved")
+abody = r.get_data(as_text=True)
+ok("Courses tab shows real progress percent",
+   "25% complete" in abody and "Continue reading" in abody)
+r = buyer_client.get(f"/account/courses/{purchase_id}")
+ok("Reader resumes at saved page",
+   r.status_code == 200 and b'data-start-page="5"' in r.data)
+
 # purchase for an email that already has an account links immediately
 with app.app_context():
     known = User.query.filter_by(email="newperson@example.com").first()

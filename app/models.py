@@ -346,14 +346,15 @@ class ProductAsset(db.Model):
     """
     __tablename__ = "product_assets"
 
-    KINDS = ("pdf", "doc", "docx")
+    KINDS = ("pdf", "h5p", "image", "video", "audio", "text", "html",
+             "doc", "docx", "other")
 
     id = db.Column(db.Integer, primary_key=True)
     product_id = db.Column(db.Integer, db.ForeignKey("products.id"), nullable=False, index=True)
     title = db.Column(db.String(160))
     filename = db.Column(db.String(255), nullable=False)
     mime = db.Column(db.String(120), nullable=False)
-    kind = db.Column(db.String(10), nullable=False)   # pdf / doc / docx
+    kind = db.Column(db.String(20), nullable=False)   # pdf / h5p / image / …
     size = db.Column(db.Integer, nullable=False, default=0)
     data = db.Column(db.LargeBinary, nullable=False)
     sort_order = db.Column(db.Integer, nullable=False, default=0)
@@ -364,6 +365,24 @@ class ProductAsset(db.Model):
 
     def size_mb(self):
         return round((self.size or 0) / 1024 / 1024, 1)
+
+
+class CourseProgress(db.Model):
+    """How far a member has read through a purchased course/guide."""
+    __tablename__ = "course_progress"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    shop_purchase_id = db.Column(
+        db.Integer, db.ForeignKey("shop_purchases.id"), nullable=False, unique=True, index=True)
+    product_id = db.Column(db.Integer, db.ForeignKey("products.id"), index=True)
+    current_page = db.Column(db.Integer, nullable=False, default=1)
+    total_pages = db.Column(db.Integer, nullable=False, default=0)
+    percent = db.Column(db.Integer, nullable=False, default=0)
+    updated_at = db.Column(db.DateTime, nullable=False, default=utcnow)
+
+    purchase = db.relationship("ShopPurchase")
+    product = db.relationship("Product")
 
 
 class MembershipPlan(db.Model):
