@@ -1535,8 +1535,8 @@ html.is-page-loading { cursor: progress; }
   padding: clamp(16px, 2.4vw, 28px);
   box-shadow: 0 4px 24px rgba(43, 38, 34, 0.06);
   border: 1px solid rgba(61, 20, 49, 0.06);
-  height: min(72vh, 820px);
-  max-height: min(72vh, 820px);
+  height: min(78vh, 920px);
+  max-height: min(78vh, 920px);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -1548,14 +1548,12 @@ html.is-page-loading { cursor: progress; }
   flex: 1 1 auto;
   min-height: 0;
   width: 100%;
-  padding-top: 10px;
+  padding-top: 8px;
   overflow: hidden;
 }
 #reader-pdf-canvas {
   display: block;
   flex: 0 0 auto;
-  max-width: 100%;
-  max-height: 100%;
   border-radius: 8px;
   background: #fff;
 }

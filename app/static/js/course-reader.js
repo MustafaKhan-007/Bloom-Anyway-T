@@ -409,23 +409,18 @@
       return state.pdf.getPage(num).then(function (page) {
         if (token !== state.renderToken) return;
         var stage = document.getElementById("reader-stage");
-        var wrap = canvas.parentElement;
-        // Always fit the full page inside the pane (no scrollbars). Zoom is relative
-        // to that max fit — Larger = biggest that still fits, Smaller = scaled down.
-        var zoomMult = { sm: 0.78, md: 0.9, lg: 1 }[prefs.zoom || "md"] || 0.9;
+        // Zoom is relative to the largest size that still fits the pane.
+        var zoomMult = { sm: 0.82, md: 0.92, lg: 1 }[prefs.zoom || "md"] || 0.92;
         var availW = 800;
-        var availH = 600;
+        var availH = 700;
         if (stage) {
           var cs = window.getComputedStyle(stage);
           var padX = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
           var padY = (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
-          availW = Math.max(240, stage.clientWidth - padX);
-          availH = Math.max(240, stage.clientHeight - padY - 12);
-        }
-        if (wrap) {
-          // Prefer the wrap’s live box once laid out.
-          availW = Math.max(240, Math.min(availW, wrap.clientWidth || availW));
-          availH = Math.max(240, Math.min(availH, wrap.clientHeight || availH));
+          // Use the stage’s fixed box only — measuring the wrap was returning a
+          // near-zero height and crushing the page.
+          availW = Math.max(320, stage.clientWidth - padX);
+          availH = Math.max(320, stage.clientHeight - padY - 8);
         }
         var unscaled = page.getViewport({ scale: 1 });
         var fitScale = Math.min(availW / unscaled.width, availH / unscaled.height);
