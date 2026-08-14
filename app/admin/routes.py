@@ -29,7 +29,7 @@ from ..services import reel_reviews as reel_svc
 from ..services import stats
 from ..services.mailer import last_send_error, send_email
 from ..services.settings import DEFAULTS as SETTING_DEFAULTS
-from ..services.settings import all_settings, get_setting, set_setting
+from ..services.settings import all_settings, set_setting
 from ..services.social import (fetch_instagram_preview, instagram_handle,
                                instagram_profile_url, platform_for)
 from ..services.videos import (VideoError, delete_stored, process_thumb,
