@@ -43,19 +43,16 @@
         <a href="{{ url_for('admin.support_groups') }}" class="{{ 'active' if here.startswith('/admin/support-groups') }}">Support groups</a>
         <a href="{{ url_for('admin.marketplace') }}" class="{{ 'active' if here.startswith('/admin/marketplace') }}">Showcase</a>
         <a href="{{ url_for('admin.badges') }}" class="{{ 'active' if here.startswith('/admin/badges') }}">Badges</a>
+        <a href="{{ url_for('admin.inbox') }}" class="{{ 'active' if here.startswith('/admin/inbox') }}">Member Feedback</a>
 
-        <p class="admin-nav__label">New</p>
-        <a href="{{ url_for('admin.inbox') }}" class="{{ 'active' if here.startswith('/admin/inbox') }}">
-          Member Feedback
-          <span class="admin-nav__badge">new</span>
-        </a>
-      </nav>
-      <nav class="admin-nav admin-nav--footer" aria-label="Studio footer">
+        <hr class="admin-nav__rule" aria-hidden="true">
         <a href="{{ url_for('admin.settings') }}" class="{{ 'active' if here.startswith('/admin/settings') }}">Settings</a>
-        <a href="{{ url_for('main.index') }}">&larr; View site</a>
       </nav>
     </aside>
     <main class="admin-main">
+      <p class="eyebrow admin-back-site">
+        <a href="{{ url_for('main.index') }}">&larr; Back to site</a>
+      </p>
       {% with messages = get_flashed_messages(with_categories=true) %}
         {% for category, message in messages %}
           <div class="flash flash--{{ category }}" role="status">{{ message }}</div>

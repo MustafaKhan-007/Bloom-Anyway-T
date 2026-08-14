@@ -722,7 +722,7 @@ p.text-center { margin-left: auto; margin-right: auto; }
     position: sticky; top: 0; height: 100vh; height: 100dvh;
     overflow: hidden;
   }
-  .admin-nav:not(.admin-nav--footer) {
+  .admin-nav {
     flex: 1 1 auto; min-height: 0; overflow-y: auto;
     scrollbar-width: thin;
     scrollbar-color: rgba(250, 245, 238, 0.35) transparent;
@@ -4128,10 +4128,27 @@ a.at-handle:hover { text-decoration: underline; }
   text-transform: uppercase; padding: 2px 7px; border-radius: 999px;
   background: #c79a41; color: #3d1431;
 }
-.admin-nav--footer {
-  margin-top: auto; flex-shrink: 0;
+.admin-nav__rule {
+  border: 0;
   border-top: 1px solid rgba(250, 245, 238, 0.16);
-  padding-top: 16px;
+  margin: 14px 12px 10px;
+}
+.admin-back-site {
+  margin: 0 0 16px;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.admin-back-site a {
+  color: inherit;
+  text-decoration: none;
+}
+.admin-back-site a:hover {
+  color: var(--plum);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 .admin-main h1, .admin-main h2 { color: #3d1431; }
 .admin-panel {
