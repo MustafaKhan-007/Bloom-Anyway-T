@@ -1535,25 +1535,27 @@ html.is-page-loading { cursor: progress; }
   padding: clamp(16px, 2.4vw, 28px);
   box-shadow: 0 4px 24px rgba(43, 38, 34, 0.06);
   border: 1px solid rgba(61, 20, 49, 0.06);
-  min-height: 320px;
-  overflow: auto;
+  height: min(72vh, 820px);
+  max-height: min(72vh, 820px);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 .course-reader__pdf-wrap {
   display: flex;
+  align-items: center;
   justify-content: center;
-  min-height: 320px;
-  padding-top: 18px;
+  flex: 1 1 auto;
+  min-height: 0;
   width: 100%;
-}
-.course-reader-page[data-zoom="lg"] .course-reader__pdf-wrap {
-  justify-content: flex-start;
-  width: max-content;
-  min-width: 100%;
+  padding-top: 10px;
+  overflow: hidden;
 }
 #reader-pdf-canvas {
   display: block;
   flex: 0 0 auto;
-  max-width: none;
+  max-width: 100%;
+  max-height: 100%;
   border-radius: 8px;
   background: #fff;
 }

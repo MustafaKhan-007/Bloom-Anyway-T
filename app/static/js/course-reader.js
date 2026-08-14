@@ -409,23 +409,31 @@
       return state.pdf.getPage(num).then(function (page) {
         if (token !== state.renderToken) return;
         var stage = document.getElementById("reader-stage");
-        var zoomScales = { sm: 0.82, md: 1, lg: 1.4 };
-        var zoom = zoomScales[prefs.zoom || "md"] || 1;
-        // Measure the stage pane (not the canvas wrap) so Larger doesn't compound.
-        var fitWidth = 800;
+        var wrap = canvas.parentElement;
+        // Always fit the full page inside the pane (no scrollbars). Zoom is relative
+        // to that max fit — Larger = biggest that still fits, Smaller = scaled down.
+        var zoomMult = { sm: 0.78, md: 0.9, lg: 1 }[prefs.zoom || "md"] || 0.9;
+        var availW = 800;
+        var availH = 600;
         if (stage) {
           var cs = window.getComputedStyle(stage);
           var padX = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
-          fitWidth = Math.max(280, stage.clientWidth - padX);
+          var padY = (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
+          availW = Math.max(240, stage.clientWidth - padX);
+          availH = Math.max(240, stage.clientHeight - padY - 12);
         }
-        var cssWidth = Math.round(fitWidth * zoom);
+        if (wrap) {
+          // Prefer the wrap’s live box once laid out.
+          availW = Math.max(240, Math.min(availW, wrap.clientWidth || availW));
+          availH = Math.max(240, Math.min(availH, wrap.clientHeight || availH));
+        }
         var unscaled = page.getViewport({ scale: 1 });
-        var scale = cssWidth / unscaled.width;
+        var fitScale = Math.min(availW / unscaled.width, availH / unscaled.height);
+        var scale = fitScale * zoomMult;
         var viewport = page.getViewport({ scale: scale });
+        var cssWidth = Math.floor(viewport.width);
         var cssHeight = Math.floor(viewport.height);
-        cssWidth = Math.floor(viewport.width);
         var outputScale = window.devicePixelRatio || 1;
-        // Bitmap can be sharper than CSS size; CSS size must keep PDF aspect ratio.
         canvas.width = Math.floor(cssWidth * outputScale);
         canvas.height = Math.floor(cssHeight * outputScale);
         canvas.style.width = cssWidth + "px";
