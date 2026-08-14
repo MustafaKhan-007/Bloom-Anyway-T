@@ -157,15 +157,11 @@
     searchInput.addEventListener("input", function () {
       var q = (searchInput.value || "").trim().toLowerCase();
       if (!toc) return;
-      var asNum = parseInt(q, 10);
+      // Page-number filter only (not PDF body text — that made "2" match every page with a "2" in it).
       toc.querySelectorAll(".reader__toc-item").forEach(function (el) {
         var p = parseInt(el.getAttribute("data-page"), 10);
-        var label = ("page " + p).toLowerCase();
-        var textHit = false;
-        if (q && state.pageText[p]) {
-          textHit = state.pageText[p].indexOf(q) >= 0;
-        }
-        var show = !q || label.indexOf(q) >= 0 || (asNum === p) || textHit;
+        var pageStr = String(p);
+        var show = !q || pageStr.indexOf(q) >= 0 || ("page " + pageStr).indexOf(q) >= 0;
         el.hidden = !show;
       });
     });
@@ -173,10 +169,14 @@
       if (e.key !== "Enter") return;
       var q = (searchInput.value || "").trim();
       var asNum = parseInt(q, 10);
-      if (asNum && state.go) {
-        e.preventDefault();
+      if (!state.go) return;
+      e.preventDefault();
+      if (asNum && state.total && asNum >= 1 && asNum <= state.total) {
         state.go(asNum);
+        return;
       }
+      var first = toc && toc.querySelector(".reader__toc-item:not([hidden])");
+      if (first) state.go(parseInt(first.getAttribute("data-page"), 10) || 1);
     });
   }
 
