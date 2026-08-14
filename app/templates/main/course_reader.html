@@ -169,6 +169,7 @@
           <button type="button" data-theme="dark">Dark</button>
         </div>
       </fieldset>
+      {% if asset.kind in ('text', 'html') %}
       <fieldset class="reader__fieldset">
         <legend>Font size</legend>
         <div class="reader__seg" data-reader-font>
@@ -185,6 +186,7 @@
           <button type="button" data-line="loose">Loose</button>
         </div>
       </fieldset>
+      {% endif %}
     </div>
 
     <dialog class="reader__dialog" id="reader-shortcuts-dialog">
