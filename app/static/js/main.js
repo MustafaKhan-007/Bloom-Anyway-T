@@ -899,4 +899,32 @@
       });
     });
   })();
+
+  /* ---- My space library filters ---- */
+  (function () {
+    var bar = document.querySelector("[data-lib-filters]");
+    if (!bar) return;
+    var cards = Array.prototype.slice.call(document.querySelectorAll(".lib-card[data-lib-bucket]"));
+    var empty = document.querySelector("[data-lib-empty]");
+    var setFilter = function (filter) {
+      var shown = 0;
+      cards.forEach(function (card) {
+        var match = filter === "all" || card.getAttribute("data-lib-bucket") === filter;
+        card.hidden = !match;
+        if (match) shown += 1;
+      });
+      bar.querySelectorAll("[data-lib-filter]").forEach(function (btn) {
+        var on = btn.getAttribute("data-lib-filter") === filter;
+        btn.classList.toggle("is-active", on);
+        btn.setAttribute("aria-selected", on ? "true" : "false");
+      });
+      if (empty) empty.hidden = shown > 0;
+    };
+    document.addEventListener("click", function (e) {
+      var btn = e.target.closest("[data-lib-filter]");
+      if (!btn) return;
+      e.preventDefault();
+      setFilter(btn.getAttribute("data-lib-filter") || "all");
+    });
+  })();
 })();

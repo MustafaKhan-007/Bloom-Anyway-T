@@ -393,7 +393,7 @@ ok("Progress row stores page 5",
 r = buyer_client.get("/account?tab=saved")
 abody = r.get_data(as_text=True)
 ok("Courses tab shows real progress percent",
-   "25% complete" in abody and "Continue reading" in abody)
+   "25%" in abody and "Continue reading" in abody and "Reading progress" in abody)
 r = buyer_client.get(f"/account/courses/{purchase_id}")
 ok("Reader resumes at saved page",
    r.status_code == 200 and b'data-start-page="5"' in r.data)

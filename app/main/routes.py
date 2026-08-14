@@ -838,8 +838,11 @@ def course_file(purchase_id, asset_id):
     asset = db.session.get(ProductAsset, asset_id)
     if product is None or asset is None or asset.product_id != product.id:
         abort(404)
+    raw_name = (asset.filename or "file").replace('"', "")
+    as_download = (request.args.get("download") or "").strip().lower() in ("1", "true", "yes")
+    disposition = "attachment" if as_download else "inline"
     resp = Response(bytes(asset.data), mimetype=asset.mime or "application/octet-stream")
-    resp.headers["Content-Disposition"] = f'inline; filename="{asset.filename}"'
+    resp.headers["Content-Disposition"] = f'{disposition}; filename="{raw_name}"'
     resp.headers["Cache-Control"] = "private, max-age=300"
     resp.headers["Accept-Ranges"] = "none"
     return resp
