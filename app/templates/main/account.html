@@ -410,7 +410,7 @@
           <ul class="ms-showcase-list">
             {% for listing in my_listings[:4] %}
             <li>
-              <a class="ms-showcase-list__thumb" href="{{ url_for('main.listing_form', listing_id=listing.id) }}">
+              <a class="ms-showcase-list__thumb" href="{{ url_for('main.listing_form', listing_id=listing.id, **{'from': 'myspace'}) }}">
                 {% if listing.thumb() %}
                 <img src="{{ url_for('main.listing_image', image_id=listing.thumb().id) }}" alt="" loading="lazy">
                 {% else %}
@@ -421,7 +421,7 @@
                 <strong>{{ listing.title }}</strong>
                 <span class="field-help">{{ listing.clicks }} click{{ '' if listing.clicks == 1 else 's' }} this month</span>
               </div>
-              <a class="ms-showcase-list__edit" href="{{ url_for('main.listing_form', listing_id=listing.id) }}">Edit</a>
+              <a class="ms-showcase-list__edit" href="{{ url_for('main.listing_form', listing_id=listing.id, **{'from': 'myspace'}) }}">Edit</a>
             </li>
             {% endfor %}
           </ul>

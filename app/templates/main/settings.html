@@ -170,7 +170,7 @@
         <a class="btn btn--secondary btn--sm" href="{{ url_for('main.membership') }}">
           {{ 'Change plan' if current_user.is_member() else 'See memberships' }}</a>
         {% if current_user.is_member() %}
-        <a class="btn btn--secondary btn--sm" href="{{ url_for('main.my_listings') }}">Your listings</a>
+        <a class="btn btn--secondary btn--sm" href="{{ url_for('main.my_listings', **{'from': 'myspace'}) }}">Your listings</a>
         {% endif %}
       </div>
       {% if current_user.is_member() and not current_user.is_admin %}
