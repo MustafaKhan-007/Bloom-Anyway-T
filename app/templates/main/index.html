@@ -158,13 +158,45 @@
         Curated from our Creator Membership community — scroll to discover the top products of the past 30 days
       </p>
     </header>
+    {% if product_of_the_day %}
+    {% set potd = product_of_the_day %}
+    <article class="home-potd reveal">
+      <div class="home-potd__media">
+        {% if potd.thumb() %}
+        <img src="{{ url_for('main.listing_image', image_id=potd.thumb().id) }}"
+             alt="" loading="lazy">
+        {% else %}
+        <div class="home-potd__ph" aria-hidden="true">★</div>
+        {% endif %}
+        <p class="home-potd__badge">★ Featured today</p>
+      </div>
+      <div class="home-potd__copy">
+        <p class="home-potd__kind">{{ potd.kind_label() }}</p>
+        <h3>{{ potd.title }}</h3>
+        {% if potd.author %}
+        <p class="home-potd__by">by {{ potd.author.public_name() }}</p>
+        {% endif %}
+        {% if potd.description %}
+        <p class="home-potd__desc">{{ potd.description[:220] }}{% if potd.description|length > 220 %}…{% endif %}</p>
+        {% endif %}
+        {% if potd.price %}
+        <p class="home-potd__price">{{ potd.price }}</p>
+        {% endif %}
+        <a class="btn btn--primary" href="{{ url_for('main.listing_detail', listing_id=potd.id) }}">
+          View listing &rarr;
+        </a>
+      </div>
+    </article>
+    {% else %}
     <div class="home-soon home-soon--feature reveal">
       <p class="home-soon__badge">★ Featured today</p>
       <p class="home-soon__title">Coming soon</p>
       <p class="home-soon__copy">
-        Creator members will be able to submit digital products for a chance to be featured here.
+        Creator members can submit digital products in Showcase — when listings go live, one will be featured here each day.
       </p>
+      <a class="btn btn--secondary btn--sm" href="{{ url_for('main.showcase') }}" style="margin-top:16px;">Browse Showcase</a>
     </div>
+    {% endif %}
   </div>
 </section>
 
@@ -172,11 +204,42 @@
   <div class="container">
     <header class="home-products__head">
       <h2 id="products-heading">Top products — last 30 days</h2>
+      {% if top_products %}
+      <a class="home-products__all" href="{{ url_for('main.showcase', kind='product') }}">See all &rarr;</a>
+      {% endif %}
     </header>
+    {% if top_products %}
+    <div class="home-top-grid">
+      {% for ln in top_products %}
+      <article class="home-top-card reveal">
+        <a class="home-top-card__media" href="{{ url_for('main.listing_detail', listing_id=ln.id) }}">
+          {% if ln.thumb() %}
+          <img src="{{ url_for('main.listing_image', image_id=ln.thumb().id) }}" alt="" loading="lazy">
+          {% else %}
+          <span class="home-top-card__ph" aria-hidden="true">★</span>
+          {% endif %}
+        </a>
+        <div class="home-top-card__body">
+          <h3><a href="{{ url_for('main.listing_detail', listing_id=ln.id) }}">{{ ln.title }}</a></h3>
+          {% if ln.author %}
+          <p class="home-top-card__by">{{ ln.author.public_name() }}</p>
+          {% endif %}
+          {% if ln.price %}
+          <p class="home-top-card__price">{{ ln.price }}</p>
+          {% endif %}
+        </div>
+      </article>
+      {% endfor %}
+    </div>
+    {% else %}
     <div class="home-soon home-soon--row reveal">
       <p class="home-soon__title">Coming soon</p>
-      <p class="home-soon__copy">A rotating gallery of community favourites will live here.</p>
+      <p class="home-soon__copy">
+        Top community digital products will appear here as Showcase listings gather attention.
+      </p>
+      <a class="btn btn--secondary btn--sm" href="{{ url_for('main.showcase') }}" style="margin-top:16px;">Browse Showcase</a>
     </div>
+    {% endif %}
   </div>
 </section>
 

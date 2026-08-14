@@ -135,9 +135,11 @@ ok("Home shows Their Story with reserved photo space",
    and "Society told us to suffer quietly" in home1
    and "home-story__ph" in home1
    and "Ayesha &amp; Saman" in home1)
-ok("Home product sections are coming soon",
-   home1.count("Coming soon") >= 2
-   and "Digital Product of the Day" in home1)
+ok("Home shows Product of the Day + top products sections",
+   "Digital Product of the Day" in home1
+   and "Top products — last 30 days" in home1
+   and ("home-potd" in home1 or "Coming soon" in home1)
+   and ("home-top-grid" in home1 or "Coming soon" in home1))
 r2 = client.get("/")
 ok("Home still renders on refresh", r2.status_code == 200)
 

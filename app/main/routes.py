@@ -114,9 +114,12 @@ def _video_notice():
 
 @bp.route("/")
 def index():
+    from ..services import homepage as home_svc
     return render_template(
         "main/index.html",
         latest_video=_video_notice(),
+        product_of_the_day=home_svc.product_of_the_day(),
+        top_products=home_svc.top_products(6),
         **_spotlight_context(),
     )
 
