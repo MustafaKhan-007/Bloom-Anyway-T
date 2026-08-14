@@ -6024,21 +6024,6 @@ a.at-handle:hover { text-decoration: underline; }
 }
 
 /* ---- My space library (purchased courses) ---- */
-.lib-filters {
-  display: flex; flex-wrap: wrap; gap: 8px 18px;
-  margin-top: 16px; border-bottom: 1px solid rgba(61, 20, 49, 0.1);
-}
-.lib-filters__btn {
-  appearance: none; background: none; border: 0; cursor: pointer;
-  font-family: var(--font-body); font-size: 14px; font-weight: 700;
-  color: var(--ink-soft); padding: 10px 2px 12px; margin: 0;
-  border-bottom: 3px solid transparent; margin-bottom: -1px;
-}
-.lib-filters__btn:hover { color: var(--plum-deep); }
-.lib-filters__btn.is-active {
-  color: var(--plum-deep);
-  border-bottom-color: var(--plum-deep);
-}
 .lib-shelf {
   display: flex; flex-direction: column; gap: 16px;
 }

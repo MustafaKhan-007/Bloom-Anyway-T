@@ -920,8 +920,14 @@
       });
       if (empty) empty.hidden = shown > 0;
     };
-    document.addEventListener("click", function (e) {
+    bar.addEventListener("click", function (e) {
       var btn = e.target.closest("[data-lib-filter]");
+      if (!btn || !bar.contains(btn)) return;
+      e.preventDefault();
+      setFilter(btn.getAttribute("data-lib-filter") || "all");
+    });
+    document.addEventListener("click", function (e) {
+      var btn = e.target.closest("[data-lib-empty] [data-lib-filter]");
       if (!btn) return;
       e.preventDefault();
       setFilter(btn.getAttribute("data-lib-filter") || "all");

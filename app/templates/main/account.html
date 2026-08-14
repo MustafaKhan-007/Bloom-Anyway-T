@@ -452,11 +452,11 @@
         with this email.
       </p>
       {% if shop_purchases %}
-      <div class="lib-filters" role="tablist" aria-label="Filter your library" data-lib-filters>
-        <button type="button" class="lib-filters__btn is-active" role="tab" aria-selected="true" data-lib-filter="all">All</button>
-        <button type="button" class="lib-filters__btn" role="tab" aria-selected="false" data-lib-filter="ebook">Ebooks</button>
-        <button type="button" class="lib-filters__btn" role="tab" aria-selected="false" data-lib-filter="document">Documents</button>
-        <button type="button" class="lib-filters__btn" role="tab" aria-selected="false" data-lib-filter="guide">Guides</button>
+      <div class="cg-filters__pills" style="margin-top: 16px;" role="tablist" aria-label="Filter your library" data-lib-filters>
+        <button type="button" class="cg-pill cg-pill--gold is-active" role="tab" aria-selected="true" data-lib-filter="all">All</button>
+        <button type="button" class="cg-pill cg-pill--gold" role="tab" aria-selected="false" data-lib-filter="guide">Guides</button>
+        <button type="button" class="cg-pill cg-pill--gold" role="tab" aria-selected="false" data-lib-filter="course">Courses</button>
+        <button type="button" class="cg-pill cg-pill--gold" role="tab" aria-selected="false" data-lib-filter="template">Templates</button>
       </div>
       <div class="lib-shelf" style="margin-top: 18px;">
         {% for item in shop_purchases %}
@@ -467,10 +467,8 @@
         {% set asset = (catalog.assets[0] if catalog and catalog.assets else none) %}
         {% set kind = (asset.kind if asset else '') %}
         {% set ptype = ((catalog.type if catalog else '') or 'guide')|lower %}
-        {% if kind == 'pdf' or ptype == 'course' %}
-          {% set lib_bucket = 'ebook' %}
-        {% elif kind in ('doc', 'docx', 'text', 'html') or ptype == 'template' %}
-          {% set lib_bucket = 'document' %}
+        {% if ptype in ('course', 'template', 'guide', 'workbook', 'audio', 'bundle') %}
+          {% set lib_bucket = 'course' if ptype == 'course' else ('template' if ptype == 'template' else 'guide') %}
         {% else %}
           {% set lib_bucket = 'guide' %}
         {% endif %}
