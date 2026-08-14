@@ -96,31 +96,22 @@ def _spotlight_candidates():
 @admin_required
 def dashboard():
     today = date.today()
-    # Quietly pull any Dodo payments that webhooks may have missed (throttled).
+    # Every Studio open: pull recent Dodo payments so sales show up even if
+    # webhooks were missed.
     from ..services import dodo as dodo_svc
-    sync_info = None
     if dodo_svc.configured():
-        last_raw = (get_setting("dodo_last_sync_at") or "").strip()
-        should = True
-        if last_raw:
-            try:
-                last = datetime.fromisoformat(last_raw)
-                should = (datetime.utcnow() - last).total_seconds() > 5 * 60
-            except ValueError:
-                should = True
-        if should:
-            try:
-                sync_info = dodo_svc.sync_recent_payments(days=60, max_pages=2)
-                set_setting(
-                    "dodo_last_sync_at", datetime.utcnow().isoformat(timespec="seconds"))
-                if sync_info.get("imported"):
-                    flash(
-                        f"Synced {sync_info['imported']} purchase"
-                        f"{'' if sync_info['imported'] == 1 else 's'} from Dodo.",
-                        "success",
-                    )
-            except Exception:
-                log.exception("dashboard: dodo purchase sync failed")
+        try:
+            sync_info = dodo_svc.sync_recent_payments(days=60, max_pages=2)
+            set_setting(
+                "dodo_last_sync_at", datetime.utcnow().isoformat(timespec="seconds"))
+            if sync_info.get("imported"):
+                flash(
+                    f"Synced {sync_info['imported']} purchase"
+                    f"{'' if sync_info['imported'] == 1 else 's'} from Dodo.",
+                    "success",
+                )
+        except Exception:
+            log.exception("dashboard: dodo purchase sync failed")
     return render_template(
         "admin/dashboard.html",
         today_quote=quotes_service.quote_for(today),
