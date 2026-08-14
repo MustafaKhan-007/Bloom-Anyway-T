@@ -119,33 +119,107 @@ def dashboard():
 @bp.route("/products", methods=["GET", "POST"])
 @admin_required
 def products():
-    from ..services.catalog import remove_demo_catalog
-    if remove_demo_catalog():
+    from ..services.catalog import remove_demo_catalog, unique_product_slug
+    purged = remove_demo_catalog()
+    if purged:
         db.session.commit()
-    items = (Product.query
-             .order_by(Product.track, Product.sort_order, Product.id).all())
+        flash(f"Removed {purged} leftover test/placeholder product(s).", "info")
+
     if request.method == "POST":
+        action = (request.form.get("action") or "save").strip()
+        if action == "create":
+            title = (request.form.get("title") or "").strip()[:160]
+            if not title:
+                flash("Give the new product a title.", "error")
+                return redirect(url_for("admin.products"))
+            track = (request.form.get("track") or "healing").strip()
+            if track not in ("healing", "building"):
+                track = "healing"
+            ptype = (request.form.get("type") or "guide").strip() or "guide"
+            product = Product(
+                title=title,
+                slug=unique_product_slug(title),
+                type=ptype,
+                track=track,
+                status="draft",
+                currency="USD",
+            )
+            raw = (request.form.get("price") or "").strip().replace(",", "")
+            try:
+                product.price_cents = round(float(raw) * 100) if raw else None
+            except ValueError:
+                product.price_cents = None
+            product.dodo_product_id = (request.form.get("dodo") or "").strip() or None
+            product.promise = (request.form.get("promise") or "").strip()[:120] or None
+            product.description_md = (request.form.get("description") or "").strip() or None
+            product.meta_line = (request.form.get("meta_line") or "").strip()[:200] or None
+            db.session.add(product)
+            db.session.commit()
+            flash(f"“{title}” added — set it live when ready.", "success")
+            return redirect(url_for("admin.products"))
+
+        items = Product.query.order_by(Product.track, Product.sort_order, Product.id).all()
         for p in items:
             prefix = f"p{p.id}_"
+            title = (request.form.get(prefix + "title") or "").strip()[:160]
+            if title:
+                p.title = title
             p.dodo_product_id = (request.form.get(prefix + "dodo") or "").strip() or None
             p.track = (request.form.get(prefix + "track") or p.track or "").strip() or None
             p.type = (request.form.get(prefix + "type") or p.type or "guide").strip()
             p.status = "published" if request.form.get(prefix + "live") else "draft"
             p.badge = (request.form.get(prefix + "badge") or "").strip() or None
+            p.promise = (request.form.get(prefix + "promise") or "").strip()[:120] or None
+            p.description_md = (request.form.get(prefix + "description") or "").strip() or None
+            p.meta_line = (request.form.get(prefix + "meta_line") or "").strip()[:200] or None
             raw = (request.form.get(prefix + "price") or "").strip().replace(",", "")
             try:
                 p.price_cents = round(float(raw) * 100) if raw else p.price_cents
             except ValueError:
                 pass
+            # Optional slug override
+            new_slug = (request.form.get(prefix + "slug") or "").strip().lower()
+            if new_slug:
+                from ..services.catalog import slugify_title, unique_product_slug
+                cleaned = slugify_title(new_slug)
+                if cleaned and cleaned != p.slug:
+                    p.slug = unique_product_slug(cleaned, exclude_id=p.id)
         db.session.commit()
         flash("Courses & guides saved.", "success")
         return redirect(url_for("admin.products"))
+
+    items = (Product.query
+             .order_by(Product.track, Product.sort_order, Product.id).all())
     return render_template("admin/products.html", items=items)
+
+
+@bp.route("/products/<int:product_id>/delete", methods=["POST"])
+@admin_required
+def product_delete(product_id):
+    product = db.session.get(Product, product_id)
+    if product is None:
+        flash("That product was already gone.", "info")
+        return redirect(url_for("admin.products"))
+    title = product.title
+    if product.orders.count():
+        product.status = "draft"
+        product.track = None
+        db.session.commit()
+        flash(
+            f"“{title}” has orders, so it was unpublished instead of deleted.",
+            "info",
+        )
+    else:
+        for asset in list(product.assets):
+            db.session.delete(asset)
+        db.session.delete(product)
+        db.session.commit()
+        flash(f"Deleted “{title}”.", "success")
+    return redirect(url_for("admin.products"))
 
 
 @bp.route("/products/new")
 @bp.route("/products/<int:product_id>/edit")
-@bp.route("/products/<int:product_id>/delete", methods=["POST"])
 @bp.route("/products/reorder", methods=["POST"])
 @admin_required
 def products_legacy(product_id=None):

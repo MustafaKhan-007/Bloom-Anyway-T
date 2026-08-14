@@ -9,18 +9,85 @@
       <h1>Courses &amp; Guides</h1>
       <p class="field-help" style="margin: 6px 0 0; max-width: 640px;">
         Public page: <a href="{{ url_for('main.courses') }}" target="_blank">/courses</a>.
-        Paste each item’s <strong>Dodo product ID</strong> so checkout can open.
-        Add real courses and guides here — demo placeholders are not seeded.
+        Create a product here, paste its <strong>Dodo product ID</strong>, then mark it live.
       </p>
     </div>
   </div>
 
+  <section class="admin-panel studio-card">
+    <h2 style="margin-top:0;">Add a product</h2>
+    <form method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="create">
+      <div class="form-row">
+        <div class="field" style="flex: 2;">
+          <label for="new_title">Title</label>
+          <input type="text" id="new_title" name="title" maxlength="160" required
+                 placeholder="e.g. Custody with Confidence">
+        </div>
+        <div class="field">
+          <label for="new_track">Track</label>
+          <select id="new_track" name="track">
+            <option value="healing">Healing</option>
+            <option value="building">Building</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="new_type">Type</label>
+          <select id="new_type" name="type">
+            {% for t in ['workbook','course','guide','audio','template','bundle'] %}
+            <option value="{{ t }}" {{ 'selected' if t == 'guide' }}>{{ t }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="field">
+          <label for="new_price">Price (USD)</label>
+          <input type="text" id="new_price" name="price" placeholder="29.00">
+        </div>
+        <div class="field">
+          <label for="new_dodo">Dodo product ID</label>
+          <input type="text" id="new_dodo" name="dodo" placeholder="prod_…">
+        </div>
+        <div class="field" style="flex: 2;">
+          <label for="new_promise">One-line promise</label>
+          <input type="text" id="new_promise" name="promise" maxlength="120"
+                 placeholder="What they walk away with">
+        </div>
+      </div>
+      <div class="field">
+        <label for="new_description">Short description</label>
+        <textarea id="new_description" name="description" rows="3"
+                  placeholder="Optional — shown on the Courses page"></textarea>
+      </div>
+      <button class="btn btn--primary" type="submit">Add product</button>
+    </form>
+  </section>
+
+  {% if items %}
   <form method="post">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="action" value="save">
     {% for p in items %}
     <section class="admin-panel studio-card">
-      <h2 style="margin-top:0;">{{ p.title }}</h2>
-      <p class="field-help" style="margin-top:0;">{{ p.slug }} · {{ p.track or '—' }} · {{ p.type }}</p>
+      <div class="form-row" style="align-items: flex-end;">
+        <div class="field" style="flex: 2;">
+          <label for="p{{ p.id }}_title">Title</label>
+          <input type="text" id="p{{ p.id }}_title" name="p{{ p.id }}_title"
+                 value="{{ p.title }}" maxlength="160" required>
+        </div>
+        <div class="field">
+          <label for="p{{ p.id }}_slug">URL slug</label>
+          <input type="text" id="p{{ p.id }}_slug" name="p{{ p.id }}_slug"
+                 value="{{ p.slug }}" maxlength="160">
+        </div>
+        <div class="field" style="padding-bottom: 8px;">
+          <span class="status-pill status-pill--{{ 'published' if p.status == 'published' else 'draft' }}">
+            {{ 'live' if p.status == 'published' else 'draft' }}
+          </span>
+        </div>
+      </div>
       <div class="form-row">
         <div class="field">
           <label for="p{{ p.id }}_dodo">Dodo product ID</label>
@@ -49,6 +116,11 @@
         </div>
       </div>
       <div class="form-row">
+        <div class="field" style="flex: 2;">
+          <label for="p{{ p.id }}_promise">One-line promise</label>
+          <input type="text" id="p{{ p.id }}_promise" name="p{{ p.id }}_promise"
+                 value="{{ p.promise or '' }}" maxlength="120">
+        </div>
         <div class="field">
           <label for="p{{ p.id }}_badge">Badge</label>
           <input type="text" id="p{{ p.id }}_badge" name="p{{ p.id }}_badge"
@@ -61,11 +133,32 @@
           </label>
         </div>
       </div>
+      <div class="field">
+        <label for="p{{ p.id }}_description">Short description</label>
+        <textarea id="p{{ p.id }}_description" name="p{{ p.id }}_description" rows="3">{{ p.description_md or '' }}</textarea>
+      </div>
+      <div class="field">
+        <label for="p{{ p.id }}_meta_line">Meta line</label>
+        <input type="text" id="p{{ p.id }}_meta_line" name="p{{ p.id }}_meta_line"
+               value="{{ p.meta_line or '' }}" maxlength="200"
+               placeholder="e.g. 80 daily pages • PDF + printable">
+      </div>
+      <div style="margin-top: 12px; display: flex; gap: 10px; flex-wrap: wrap;">
+        <button class="btn btn--danger btn--sm" type="submit" form="del-{{ p.id }}"
+                data-confirm="Delete “{{ p.title }}”?">Delete</button>
+      </div>
     </section>
-    {% else %}
-    <p class="field-help">No catalogue rows yet — reload after seed.</p>
     {% endfor %}
-    <button class="btn btn--primary" type="submit">Save catalogue</button>
+    <button class="btn btn--primary" type="submit">Save all changes</button>
   </form>
+
+  {% for p in items %}
+  <form id="del-{{ p.id }}" method="post" action="{{ url_for('admin.product_delete', product_id=p.id) }}" hidden>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  </form>
+  {% endfor %}
+  {% else %}
+  <p class="field-help">No products yet — add your first one above.</p>
+  {% endif %}
 </div>
 {% endblock %}

@@ -287,7 +287,8 @@ ok("Active admin stays signed in (sliding window)", r.status_code == 200)
 r = admin.get("/admin/products", follow_redirects=True)
 _pbody = r.get_data(as_text=True)
 ok("Studio products UI loads",
-   r.status_code == 200 and ("Dodo product ID" in _pbody or "Courses" in _pbody))
+   r.status_code == 200
+   and ("Add a product" in _pbody or "Dodo product ID" in _pbody or "Courses" in _pbody))
 r = client.get("/courses", follow_redirects=False)
 cbody = r.get_data(as_text=True)
 ok("/courses renders on-site catalogue",
