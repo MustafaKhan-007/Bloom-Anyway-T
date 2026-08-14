@@ -1631,15 +1631,6 @@ html.is-page-loading { cursor: progress; }
 .course-reader-page[data-theme="sepia"] .reader-doc {
   background: #F4E7D0;
 }
-.course-reader-page[data-theme="dark"] {
-  color: #F3EDE8;
-}
-.course-reader-page[data-theme="dark"] .reader__title,
-.course-reader-page[data-theme="dark"] .reader__back,
-.course-reader-page[data-theme="dark"] .reader__toc-item,
-.course-reader-page[data-theme="dark"] .reader__page-field {
-  color: #F3EDE8;
-}
 .course-reader-page[data-theme="dark"] .reader__stage,
 .course-reader-page[data-theme="dark"] .reader-doc {
   background: #2A1C26; color: #F3EDE8;
