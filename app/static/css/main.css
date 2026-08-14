@@ -693,11 +693,15 @@ p.text-center { margin-left: auto; margin-right: auto; }
    ========================================================================== */
 .admin-body { font-size: 15px; background: var(--dawn-ivory); }
 .admin-shell { display: grid; min-height: 100vh; grid-template-columns: 1fr; }
-.admin-sidebar { background: var(--plum); color: var(--dawn-ivory); padding: 24px 16px; }
+.admin-sidebar {
+  background: var(--plum); color: var(--dawn-ivory); padding: 24px 16px;
+  display: flex; flex-direction: column; min-height: 0;
+}
 .admin-sidebar .brand {
   font-family: var(--font-display); font-size: 22px; display: flex;
   align-items: baseline; flex-wrap: wrap; gap: 6px;
   color: var(--dawn-ivory); text-decoration: none; margin-bottom: 24px; padding: 0 12px;
+  flex-shrink: 0;
 }
 .admin-sidebar .wordmark { color: var(--dawn-ivory); font-size: 22px; }
 .admin-sidebar .wordmark__any { color: var(--rose-soft); }
@@ -712,7 +716,18 @@ p.text-center { margin-left: auto; margin-right: auto; }
 .admin-nav a.active { background: var(--plum-deep); box-shadow: inset 3px 0 0 var(--gold); }
 .admin-main { padding: 28px 24px 64px; max-width: 1140px; width: 100%; }
 .admin-main h1 { font-size: 30px; }
-@media (min-width: 900px) { .admin-shell { grid-template-columns: 220px 1fr; } }
+@media (min-width: 900px) {
+  .admin-shell { grid-template-columns: 220px 1fr; align-items: start; }
+  .admin-sidebar {
+    position: sticky; top: 0; height: 100vh; height: 100dvh;
+    overflow: hidden;
+  }
+  .admin-nav:not(.admin-nav--footer) {
+    flex: 1 1 auto; min-height: 0; overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(250, 245, 238, 0.35) transparent;
+  }
+}
 
 .admin-cards { display: grid; gap: 16px; grid-template-columns: repeat(2, 1fr); margin-bottom: 28px; }
 @media (min-width: 900px) { .admin-cards { grid-template-columns: repeat(4, 1fr); } }
@@ -4114,7 +4129,8 @@ a.at-handle:hover { text-decoration: underline; }
   background: #c79a41; color: #3d1431;
 }
 .admin-nav--footer {
-  margin-top: auto; border-top: 1px solid rgba(250, 245, 238, 0.16);
+  margin-top: auto; flex-shrink: 0;
+  border-top: 1px solid rgba(250, 245, 238, 0.16);
   padding-top: 16px;
 }
 .admin-main h1, .admin-main h2 { color: #3d1431; }
