@@ -1,7 +1,8 @@
 """Courses & Guides catalogue helpers.
 
-Demo/mock products from the initial layout are removed on deploy so the
-page stays empty until the owner adds real resources in Studio.
+Old mock-catalogue rows (fixed slugs from the initial layout) are removed if
+still present. Do not delete by title heuristics — that would wipe real
+products named with words like "test".
 """
 from __future__ import annotations
 
@@ -22,12 +23,6 @@ DEMO_SLUGS = (
     "creator-bundle",
 )
 
-# Titles that look like leftover test/placeholder rows.
-_PLACEHOLDER_TITLE = re.compile(
-    r"\b(test|demo|placeholder|sample|lorem)\b|this is a test",
-    re.IGNORECASE,
-)
-
 
 def _purge_product(product: Product) -> str:
     """Delete a product, or demote to draft if it has orders. Returns action."""
@@ -44,28 +39,14 @@ def _purge_product(product: Product) -> str:
 
 
 def remove_demo_catalog() -> int:
-    """Delete leftover mock/test catalogue rows. Returns how many were removed."""
+    """Delete leftover mock catalogue rows by known slug only."""
     removed = 0
-    seen_ids: set[int] = set()
-
     for slug in DEMO_SLUGS:
         product = Product.query.filter_by(slug=slug).first()
-        if product is None or product.id in seen_ids:
+        if product is None:
             continue
         _purge_product(product)
-        seen_ids.add(product.id)
         removed += 1
-
-    for product in Product.query.all():
-        if product.id in seen_ids:
-            continue
-        title = (product.title or "").strip()
-        if not title or not _PLACEHOLDER_TITLE.search(title):
-            continue
-        _purge_product(product)
-        seen_ids.add(product.id)
-        removed += 1
-
     if removed:
         db.session.flush()
     return removed

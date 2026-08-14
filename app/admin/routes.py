@@ -119,11 +119,7 @@ def dashboard():
 @bp.route("/products", methods=["GET", "POST"])
 @admin_required
 def products():
-    from ..services.catalog import remove_demo_catalog, unique_product_slug
-    purged = remove_demo_catalog()
-    if purged:
-        db.session.commit()
-        flash(f"Removed {purged} leftover test/placeholder product(s).", "info")
+    from ..services.catalog import unique_product_slug
 
     if request.method == "POST":
         action = (request.form.get("action") or "save").strip()
@@ -177,13 +173,12 @@ def products():
                 p.price_cents = round(float(raw) * 100) if raw else p.price_cents
             except ValueError:
                 pass
-            # Optional slug override
             new_slug = (request.form.get(prefix + "slug") or "").strip().lower()
             if new_slug:
-                from ..services.catalog import slugify_title, unique_product_slug
+                from ..services.catalog import slugify_title, unique_product_slug as uniq
                 cleaned = slugify_title(new_slug)
                 if cleaned and cleaned != p.slug:
-                    p.slug = unique_product_slug(cleaned, exclude_id=p.id)
+                    p.slug = uniq(cleaned, exclude_id=p.id)
         db.session.commit()
         flash("Courses & guides saved.", "success")
         return redirect(url_for("admin.products"))
