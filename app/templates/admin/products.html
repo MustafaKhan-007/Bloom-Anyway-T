@@ -66,91 +66,110 @@
   </section>
 
   {% if items %}
-  <form method="post">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <input type="hidden" name="action" value="save">
-    {% for p in items %}
-    <section class="admin-panel studio-card">
-      <div class="form-row" style="align-items: flex-end;">
-        <div class="field" style="flex: 2;">
-          <label for="p{{ p.id }}_title">Title</label>
-          <input type="text" id="p{{ p.id }}_title" name="p{{ p.id }}_title"
-                 value="{{ p.title }}" maxlength="160" required>
-        </div>
-        <div class="field">
-          <label for="p{{ p.id }}_slug">URL slug</label>
-          <input type="text" id="p{{ p.id }}_slug" name="p{{ p.id }}_slug"
-                 value="{{ p.slug }}" maxlength="160">
-        </div>
-        <div class="field" style="padding-bottom: 8px;">
-          <span class="status-pill status-pill--{{ 'published' if p.status == 'published' else 'draft' }}">
-            {{ 'live' if p.status == 'published' else 'draft' }}
-          </span>
-        </div>
+  <section class="admin-panel studio-card">
+    <h2 style="margin-top:0;">All products ({{ items|length }})</h2>
+    <p class="field-help" style="margin-top:0;">Click a row to edit details.</p>
+
+    <form method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="save">
+
+      <div class="cg-studio-list">
+        {% for p in items %}
+        <details class="cg-studio-item">
+          <summary>
+            <span class="cg-studio-item__title">{{ p.title }}</span>
+            <span class="cg-studio-item__meta">
+              <span class="status-pill status-pill--{{ 'published' if p.status == 'published' else 'draft' }}">
+                {{ 'live' if p.status == 'published' else 'draft' }}
+              </span>
+              <span>{{ p.track or '—' }}</span>
+              <span>{{ p.type }}</span>
+              <span>{{ p.price_display() or 'no price' }}</span>
+            </span>
+            <span class="cg-studio-item__hint">Edit</span>
+          </summary>
+
+          <div class="cg-studio-item__body">
+            <div class="form-row">
+              <div class="field" style="flex: 2;">
+                <label for="p{{ p.id }}_title">Title</label>
+                <input type="text" id="p{{ p.id }}_title" name="p{{ p.id }}_title"
+                       value="{{ p.title }}" maxlength="160" required>
+              </div>
+              <div class="field">
+                <label for="p{{ p.id }}_slug">URL slug</label>
+                <input type="text" id="p{{ p.id }}_slug" name="p{{ p.id }}_slug"
+                       value="{{ p.slug }}" maxlength="160">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="field">
+                <label for="p{{ p.id }}_dodo">Dodo product ID</label>
+                <input type="text" id="p{{ p.id }}_dodo" name="p{{ p.id }}_dodo"
+                       value="{{ p.dodo_product_id or '' }}" placeholder="prod_…">
+              </div>
+              <div class="field">
+                <label for="p{{ p.id }}_price">Price (USD)</label>
+                <input type="text" id="p{{ p.id }}_price" name="p{{ p.id }}_price"
+                       value="{{ '%.2f'|format(p.price_cents / 100) if p.price_cents is not none else '' }}">
+              </div>
+              <div class="field">
+                <label for="p{{ p.id }}_track">Track</label>
+                <select id="p{{ p.id }}_track" name="p{{ p.id }}_track">
+                  <option value="healing" {{ 'selected' if p.track == 'healing' }}>Healing</option>
+                  <option value="building" {{ 'selected' if p.track == 'building' }}>Building</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="p{{ p.id }}_type">Type</label>
+                <select id="p{{ p.id }}_type" name="p{{ p.id }}_type">
+                  {% for t in ['workbook','course','guide','audio','template','bundle'] %}
+                  <option value="{{ t }}" {{ 'selected' if p.type == t }}>{{ t }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="field" style="flex: 2;">
+                <label for="p{{ p.id }}_promise">One-line promise</label>
+                <input type="text" id="p{{ p.id }}_promise" name="p{{ p.id }}_promise"
+                       value="{{ p.promise or '' }}" maxlength="120">
+              </div>
+              <div class="field">
+                <label for="p{{ p.id }}_badge">Badge</label>
+                <input type="text" id="p{{ p.id }}_badge" name="p{{ p.id }}_badge"
+                       value="{{ p.badge or '' }}" placeholder="NEW">
+              </div>
+              <div class="field" style="padding-top: 28px;">
+                <label class="checkline checkline--sm">
+                  <input type="checkbox" name="p{{ p.id }}_live" value="1" {{ 'checked' if p.status == 'published' }}>
+                  Live on /courses
+                </label>
+              </div>
+            </div>
+            <div class="field">
+              <label for="p{{ p.id }}_description">Short description</label>
+              <textarea id="p{{ p.id }}_description" name="p{{ p.id }}_description" rows="3">{{ p.description_md or '' }}</textarea>
+            </div>
+            <div class="field">
+              <label for="p{{ p.id }}_meta_line">Meta line</label>
+              <input type="text" id="p{{ p.id }}_meta_line" name="p{{ p.id }}_meta_line"
+                     value="{{ p.meta_line or '' }}" maxlength="200"
+                     placeholder="e.g. 80 daily pages • PDF + printable">
+            </div>
+            <div class="cg-studio-item__actions">
+              <button class="btn btn--danger btn--sm" type="submit" form="del-{{ p.id }}"
+                      data-confirm="Delete “{{ p.title }}”?">Delete</button>
+            </div>
+          </div>
+        </details>
+        {% endfor %}
       </div>
-      <div class="form-row">
-        <div class="field">
-          <label for="p{{ p.id }}_dodo">Dodo product ID</label>
-          <input type="text" id="p{{ p.id }}_dodo" name="p{{ p.id }}_dodo"
-                 value="{{ p.dodo_product_id or '' }}" placeholder="prod_…">
-        </div>
-        <div class="field">
-          <label for="p{{ p.id }}_price">Price (USD)</label>
-          <input type="text" id="p{{ p.id }}_price" name="p{{ p.id }}_price"
-                 value="{{ '%.2f'|format(p.price_cents / 100) if p.price_cents is not none else '' }}">
-        </div>
-        <div class="field">
-          <label for="p{{ p.id }}_track">Track</label>
-          <select id="p{{ p.id }}_track" name="p{{ p.id }}_track">
-            <option value="healing" {{ 'selected' if p.track == 'healing' }}>Healing</option>
-            <option value="building" {{ 'selected' if p.track == 'building' }}>Building</option>
-          </select>
-        </div>
-        <div class="field">
-          <label for="p{{ p.id }}_type">Type</label>
-          <select id="p{{ p.id }}_type" name="p{{ p.id }}_type">
-            {% for t in ['workbook','course','guide','audio','template','bundle'] %}
-            <option value="{{ t }}" {{ 'selected' if p.type == t }}>{{ t }}</option>
-            {% endfor %}
-          </select>
-        </div>
-      </div>
-      <div class="form-row">
-        <div class="field" style="flex: 2;">
-          <label for="p{{ p.id }}_promise">One-line promise</label>
-          <input type="text" id="p{{ p.id }}_promise" name="p{{ p.id }}_promise"
-                 value="{{ p.promise or '' }}" maxlength="120">
-        </div>
-        <div class="field">
-          <label for="p{{ p.id }}_badge">Badge</label>
-          <input type="text" id="p{{ p.id }}_badge" name="p{{ p.id }}_badge"
-                 value="{{ p.badge or '' }}" placeholder="NEW">
-        </div>
-        <div class="field" style="padding-top: 28px;">
-          <label class="checkline checkline--sm">
-            <input type="checkbox" name="p{{ p.id }}_live" value="1" {{ 'checked' if p.status == 'published' }}>
-            Live on /courses
-          </label>
-        </div>
-      </div>
-      <div class="field">
-        <label for="p{{ p.id }}_description">Short description</label>
-        <textarea id="p{{ p.id }}_description" name="p{{ p.id }}_description" rows="3">{{ p.description_md or '' }}</textarea>
-      </div>
-      <div class="field">
-        <label for="p{{ p.id }}_meta_line">Meta line</label>
-        <input type="text" id="p{{ p.id }}_meta_line" name="p{{ p.id }}_meta_line"
-               value="{{ p.meta_line or '' }}" maxlength="200"
-               placeholder="e.g. 80 daily pages • PDF + printable">
-      </div>
-      <div style="margin-top: 12px; display: flex; gap: 10px; flex-wrap: wrap;">
-        <button class="btn btn--danger btn--sm" type="submit" form="del-{{ p.id }}"
-                data-confirm="Delete “{{ p.title }}”?">Delete</button>
-      </div>
-    </section>
-    {% endfor %}
-    <button class="btn btn--primary" type="submit">Save all changes</button>
-  </form>
+
+      <button class="btn btn--primary" type="submit" style="margin-top: 16px;">Save all changes</button>
+    </form>
+  </section>
 
   {% for p in items %}
   <form id="del-{{ p.id }}" method="post" action="{{ url_for('admin.product_delete', product_id=p.id) }}" hidden>
