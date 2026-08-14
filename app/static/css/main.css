@@ -1539,15 +1539,20 @@ html.is-page-loading { cursor: progress; }
   overflow: auto;
 }
 .course-reader__pdf-wrap {
-  display: block;
+  display: flex;
+  justify-content: center;
   min-height: 320px;
   padding-top: 18px;
+  width: 100%;
+}
+.course-reader-page[data-zoom="lg"] .course-reader__pdf-wrap {
+  justify-content: flex-start;
   width: max-content;
-  max-width: 100%;
-  margin: 0 auto;
+  min-width: 100%;
 }
 #reader-pdf-canvas {
   display: block;
+  flex: 0 0 auto;
   max-width: none;
   border-radius: 8px;
   background: #fff;
