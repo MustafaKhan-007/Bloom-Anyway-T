@@ -4,7 +4,13 @@
 {% block content %}
 <section class="section">
   <div class="container" style="max-width: 720px;">
-    <p class="eyebrow"><a href="{{ url_for('main.my_listings') }}">&larr; Your listings</a></p>
+    <p class="eyebrow">
+      {% if back_from == 'myspace' %}
+      <a href="{{ url_for('main.my_listings', **{'from': 'myspace'}) }}">&larr; Your listings</a>
+      {% else %}
+      <a href="{{ url_for('main.my_listings') }}">&larr; Your listings</a>
+      {% endif %}
+    </p>
     <h1>{{ 'Edit your listing' if listing else 'Advertise in the marketplace' }}</h1>
     <p class="field-help">We only advertise here and send buyers to your own website &mdash; nothing is sold on Bloom Anyway.</p>
 
@@ -13,6 +19,7 @@
           class="listing-form {{ 'is-service' if start_kind == 'service' else 'is-product' }}"
           data-tag-max="{{ tag_max }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      {% if back_from == 'myspace' %}<input type="hidden" name="from" value="myspace">{% endif %}
 
       <fieldset class="kind-picker">
         <legend>What is it?</legend>

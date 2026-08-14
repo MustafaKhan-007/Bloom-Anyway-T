@@ -57,7 +57,7 @@
       <a class="myspace-tabs__tab {{ 'is-active' if active_tab == 'saved' }}"
          href="{{ url_for('main.account', tab='saved') }}">Courses</a>
       <a class="myspace-tabs__tab"
-         href="{{ url_for('main.my_listings') }}">Showcase</a>
+         href="{{ url_for('main.my_listings', **{'from': 'myspace'}) }}">Showcase</a>
       <a class="myspace-tabs__tab"
          href="{{ url_for('main.settings') }}" data-tour-target="nav-settings">Settings</a>
     </nav>
@@ -390,7 +390,7 @@
         <div class="ms-card ms-showcase-card">
           <div class="ms-card__head">
             <p class="eyebrow">My Showcase</p>
-            <a href="{{ url_for('main.my_listings') }}">Manage</a>
+            <a href="{{ url_for('main.my_listings', **{'from': 'myspace'}) }}">Manage</a>
           </div>
           {% set cap_n = listing_cap if listing_cap is not none else none %}
           <p class="ms-showcase-card__count">

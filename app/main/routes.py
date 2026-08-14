@@ -434,9 +434,18 @@ def my_listings():
     mine = (MarketplaceListing.query.filter_by(user_id=current_user.id)
             .order_by(MarketplaceListing.active.desc(),
                       MarketplaceListing.created_at.desc()).all())
+    back_from = (request.args.get("from") or "").strip().lower()
+    if back_from not in ("myspace", "showcase"):
+        # Referrer hint when opened without an explicit from=
+        ref = (request.referrer or "")
+        if "/account" in ref or "/settings" in ref:
+            back_from = "myspace"
+        else:
+            back_from = "showcase"
     return render_template("marketplace/mine.html", listings=mine,
                            limit=listing_limit(current_user),
-                           can_add=can_add_listing(current_user))
+                           can_add=can_add_listing(current_user),
+                           back_from=back_from)
 
 
 _TAG_LOOKUP = {t.lower(): t for t in MARKETPLACE_TAGS}
@@ -551,17 +560,24 @@ def listing_form(listing_id=None):
                 notify_followers_of_listing(current_user, listing)
             db.session.commit()
             flash("Listing saved. It's live in the marketplace.", "success")
+            back_from = (request.form.get("from") or request.args.get("from") or "").strip().lower()
+            if back_from == "myspace":
+                return redirect(url_for("main.my_listings", **{"from": "myspace"}))
             return redirect(url_for("main.my_listings"))
 
     chosen = set(listing.tags()) if listing else set()
     # keep any custom tags the listing already has, even if not in the catalogue
     custom_existing = [t for t in chosen if t not in MARKETPLACE_TAGS]
+    back_from = (request.args.get("from") or "").strip().lower()
+    if back_from not in ("myspace", "showcase"):
+        back_from = "showcase"
     return render_template("marketplace/form.html", listing=listing,
                            kinds=MARKETPLACE_KIND_LABELS,
                            tag_catalog=MARKETPLACE_TAGS,
                            tag_max=MARKETPLACE_TAG_MAX,
                            chosen_tags=chosen,
-                           tags_custom=", ".join(custom_existing))
+                           tags_custom=", ".join(custom_existing),
+                           back_from=back_from)
 
 
 @bp.route("/marketplace/<int:listing_id>/delete", methods=["POST"])
@@ -573,6 +589,9 @@ def listing_delete(listing_id):
     db.session.delete(listing)
     db.session.commit()
     flash("Listing removed.", "success")
+    back_from = (request.form.get("from") or request.args.get("from") or "").strip().lower()
+    if back_from == "myspace":
+        return redirect(url_for("main.my_listings", **{"from": "myspace"}))
     return redirect(url_for("main.my_listings"))
 
 

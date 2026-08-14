@@ -13,7 +13,7 @@
       <a class="myspace-tabs__tab" href="{{ url_for('main.account', tab='journal') }}">Journal</a>
       <a class="myspace-tabs__tab" href="{{ url_for('main.account', tab='activity') }}">Activity</a>
       <a class="myspace-tabs__tab" href="{{ url_for('main.account', tab='saved') }}">Courses</a>
-      <a class="myspace-tabs__tab" href="{{ url_for('main.my_listings') }}">Showcase</a>
+      <a class="myspace-tabs__tab" href="{{ url_for('main.my_listings', **{'from': 'myspace'}) }}">Showcase</a>
       <a class="myspace-tabs__tab is-active" href="{{ url_for('main.settings') }}" data-tour-target="nav-settings">Settings</a>
     </nav>
   </div>

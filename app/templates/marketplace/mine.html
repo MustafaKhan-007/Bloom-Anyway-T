@@ -2,9 +2,16 @@
 {% block title %}Your listings — Showcase{% endblock %}
 
 {% block content %}
+{% set from_myspace = back_from == 'myspace' %}
 <section class="section">
   <div class="container" style="max-width: 760px;">
-    <p class="eyebrow"><a href="{{ url_for('main.showcase') }}">&larr; Showcase</a></p>
+    <p class="eyebrow">
+      {% if from_myspace %}
+      <a href="{{ url_for('main.account', tab='profile') }}">&larr; My space</a>
+      {% else %}
+      <a href="{{ url_for('main.showcase') }}">&larr; Showcase</a>
+      {% endif %}
+    </p>
     <div class="market-head">
       <div>
         <h1>Your listings</h1>
@@ -14,14 +21,14 @@
         </p>
       </div>
       {% if can_add %}
-      <a class="btn btn--primary" href="{{ url_for('main.listing_form') }}">New listing</a>
+      <a class="btn btn--primary" href="{{ url_for('main.listing_form', **({'from': 'myspace'} if from_myspace else {})) }}">New listing</a>
       {% else %}
       <a class="btn btn--secondary" href="{{ url_for('main.membership') }}">Upgrade for more</a>
       {% endif %}
     </div>
 
     {% if not listings %}
-    <div class="empty-state"><p>No listings yet. <a href="{{ url_for('main.listing_form') }}">Create your first one.</a></p></div>
+    <div class="empty-state"><p>No listings yet. <a href="{{ url_for('main.listing_form', **({'from': 'myspace'} if from_myspace else {})) }}">Create your first one.</a></p></div>
     {% else %}
     <div class="market-list">
       {% for ln in listings %}
@@ -36,10 +43,11 @@
           <h3>{{ ln.title }}</h3>
           <p class="field-help">{{ ln.clicks }} click{{ 's' if ln.clicks != 1 }} to your site</p>
           <div class="market-row__meta">
-            <a class="btn btn--secondary btn--sm" href="{{ url_for('main.listing_form', listing_id=ln.id) }}">Edit</a>
+            <a class="btn btn--secondary btn--sm" href="{{ url_for('main.listing_form', listing_id=ln.id, **({'from': 'myspace'} if from_myspace else {})) }}">Edit</a>
             <form method="post" action="{{ url_for('main.listing_delete', listing_id=ln.id) }}"
                   data-confirm="Remove this listing?" style="display:inline">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              {% if from_myspace %}<input type="hidden" name="from" value="myspace">{% endif %}
               <button class="btn btn--danger btn--sm" type="submit">Delete</button>
             </form>
           </div>
