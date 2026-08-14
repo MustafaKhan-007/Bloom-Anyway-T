@@ -233,6 +233,8 @@
     root.setAttribute("data-theme", prefs.theme || "light");
     root.setAttribute("data-font", prefs.font || "md");
     root.setAttribute("data-line", prefs.line || "normal");
+    root.setAttribute("data-zoom", prefs.zoom || "md");
+    root.setAttribute("data-width", prefs.width || "standard");
     if (appearancePanel) {
       appearancePanel.querySelectorAll("[data-theme]").forEach(function (btn) {
         btn.classList.toggle("is-active", btn.getAttribute("data-theme") === (prefs.theme || "light"));
@@ -243,7 +245,14 @@
       appearancePanel.querySelectorAll("[data-line]").forEach(function (btn) {
         btn.classList.toggle("is-active", btn.getAttribute("data-line") === (prefs.line || "normal"));
       });
+      appearancePanel.querySelectorAll("[data-zoom]").forEach(function (btn) {
+        btn.classList.toggle("is-active", btn.getAttribute("data-zoom") === (prefs.zoom || "md"));
+      });
+      appearancePanel.querySelectorAll("[data-width]").forEach(function (btn) {
+        btn.classList.toggle("is-active", btn.getAttribute("data-width") === (prefs.width || "standard"));
+      });
     }
+    if (typeof state.rerender === "function") state.rerender();
   }
 
   var prefs = loadPrefs();
@@ -267,10 +276,14 @@
       var themeBtn = e.target.closest("[data-theme]");
       var fontBtn = e.target.closest("[data-font]");
       var lineBtn = e.target.closest("[data-line]");
+      var zoomBtn = e.target.closest("[data-zoom]");
+      var widthBtn = e.target.closest("[data-width]");
       if (themeBtn) prefs.theme = themeBtn.getAttribute("data-theme");
       if (fontBtn) prefs.font = fontBtn.getAttribute("data-font");
       if (lineBtn) prefs.line = lineBtn.getAttribute("data-line");
-      if (themeBtn || fontBtn || lineBtn) {
+      if (zoomBtn) prefs.zoom = zoomBtn.getAttribute("data-zoom");
+      if (widthBtn) prefs.width = widthBtn.getAttribute("data-width");
+      if (themeBtn || fontBtn || lineBtn || zoomBtn || widthBtn) {
         savePrefs(prefs);
         applyPrefs(prefs);
       }
@@ -402,7 +415,12 @@
       return state.pdf.getPage(num).then(function (page) {
         if (token !== state.renderToken) return;
         var wrap = canvas.parentElement;
-        var maxWidth = Math.min((wrap && wrap.clientWidth) || 800, 860);
+        var widthCaps = { narrow: 620, standard: 860, wide: 1120 };
+        var zoomScales = { sm: 0.78, md: 1, lg: 1.35 };
+        var cap = widthCaps[prefs.width || "standard"] || 860;
+        var zoom = zoomScales[prefs.zoom || "md"] || 1;
+        var base = Math.min((wrap && wrap.clientWidth) || 800, cap);
+        var maxWidth = Math.max(280, Math.round(base * zoom));
         var unscaled = page.getViewport({ scale: 1 });
         var scale = maxWidth / unscaled.width;
         var viewport = page.getViewport({ scale: scale });
@@ -438,6 +456,9 @@
       renderPage(state.page).then(saveSoon);
     }
     state.go = go;
+    state.rerender = function () {
+      if (state.pdf && state.page) renderPage(state.page);
+    };
 
     var prev = document.getElementById("reader-prev");
     var nextBtn = document.getElementById("reader-next");
@@ -448,6 +469,12 @@
         go(parseInt(pageInput.value, 10) || 1);
       });
     }
+    window.addEventListener("resize", function () {
+      if (state.rerenderTimer) window.clearTimeout(state.rerenderTimer);
+      state.rerenderTimer = window.setTimeout(function () {
+        state.rerender();
+      }, 180);
+    });
   }
 
   /* ---- Text / HTML ---- */

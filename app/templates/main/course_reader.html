@@ -169,7 +169,24 @@
           <button type="button" data-theme="dark">Dark</button>
         </div>
       </fieldset>
-      {% if asset.kind in ('text', 'html') %}
+      {% if asset.kind == 'pdf' %}
+      <fieldset class="reader__fieldset">
+        <legend>Zoom</legend>
+        <div class="reader__seg" data-reader-zoom>
+          <button type="button" data-zoom="sm">Smaller</button>
+          <button type="button" data-zoom="md" class="is-active">Fit</button>
+          <button type="button" data-zoom="lg">Larger</button>
+        </div>
+      </fieldset>
+      <fieldset class="reader__fieldset">
+        <legend>Page width</legend>
+        <div class="reader__seg" data-reader-width>
+          <button type="button" data-width="narrow">Narrow</button>
+          <button type="button" data-width="standard" class="is-active">Standard</button>
+          <button type="button" data-width="wide">Wide</button>
+        </div>
+      </fieldset>
+      {% elif asset.kind in ('text', 'html') %}
       <fieldset class="reader__fieldset">
         <legend>Font size</legend>
         <div class="reader__seg" data-reader-font>

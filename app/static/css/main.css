@@ -1661,6 +1661,7 @@ html.is-page-loading { cursor: progress; }
 .course-reader__pdf-wrap {
   display: grid; justify-items: center; gap: 10px;
   min-height: 320px; padding-top: 18px;
+  overflow-x: auto;
 }
 #reader-pdf-canvas {
   max-width: 100%;
