@@ -8,6 +8,7 @@
   var kind = root.getAttribute("data-asset-kind") || "";
   var fileUrl = root.getAttribute("data-file-url") || "";
   var progressUrl = root.getAttribute("data-progress-url") || "";
+  var bookmarkUrl = root.getAttribute("data-bookmark-url") || "";
   var startPage = parseInt(root.getAttribute("data-start-page") || "1", 10) || 1;
   var startPercent = parseInt(root.getAttribute("data-start-percent") || "0", 10) || 0;
   var csrf = (document.body && document.body.getAttribute("data-csrf")) || "";
@@ -15,8 +16,23 @@
   var pill = document.getElementById("reader-progress-label");
   var pageInput = document.getElementById("reader-page");
   var totalEl = document.getElementById("reader-total");
+  var chipPage = document.getElementById("reader-chip-page");
+  var chipTotal = document.getElementById("reader-chip-total");
   var statusEl = document.getElementById("reader-pdf-status");
   var canvas = document.getElementById("reader-pdf-canvas");
+  var toc = document.getElementById("reader-toc");
+  var tocLoading = document.getElementById("reader-toc-loading");
+  var searchInput = document.getElementById("reader-search");
+  var bookmarkBtn = document.getElementById("reader-bookmark-btn");
+  var appearanceBtn = document.getElementById("reader-appearance-btn");
+  var appearancePanel = document.getElementById("reader-appearance-panel");
+
+  var bookmarks = [];
+  try {
+    bookmarks = JSON.parse(root.getAttribute("data-bookmarks") || "[]") || [];
+  } catch (e) {
+    bookmarks = [];
+  }
 
   var state = {
     page: Math.max(1, startPage),
@@ -25,11 +41,24 @@
     saving: false,
     pdf: null,
     renderToken: 0,
+    pageText: {},
+    go: null,
   };
+
+  var PREF_KEY = "ba-reader-prefs";
 
   function setPill() {
     if (!pill) return;
     pill.textContent = state.percent + "% complete";
+  }
+
+  function syncPageUi() {
+    if (pageInput) pageInput.value = String(state.page);
+    if (chipPage) chipPage.textContent = String(state.page);
+    if (totalEl) totalEl.textContent = state.total ? String(state.total) : "—";
+    if (chipTotal) chipTotal.textContent = state.total ? String(state.total) : "—";
+    highlightToc();
+    syncBookmarkBtn();
   }
 
   function computePercent() {
@@ -54,10 +83,6 @@
       state.percent = opts.percent;
       setPill();
     }
-    // fire-and-forget; keep UI snappy
-    try {
-      navigator.sendBeacon && false; // prefer fetch with keepalive
-    } catch (e) {}
     fetch(progressUrl, {
       method: "POST",
       headers: {
@@ -87,6 +112,242 @@
     if (document.visibilityState === "hidden") saveProgress();
   });
 
+  function buildToc() {
+    if (!toc) return;
+    if (tocLoading) tocLoading.remove();
+    toc.innerHTML = "";
+    if (!state.total) {
+      toc.innerHTML = "<p class=\"field-help\">No pages yet.</p>";
+      return;
+    }
+    var frag = document.createDocumentFragment();
+    for (var i = 1; i <= state.total; i++) {
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "reader__toc-item";
+      btn.setAttribute("data-page", String(i));
+      btn.textContent = "Page " + i;
+      if (bookmarks.indexOf(i) >= 0) {
+        btn.classList.add("is-bookmarked");
+      }
+      frag.appendChild(btn);
+    }
+    toc.appendChild(frag);
+    highlightToc();
+  }
+
+  function highlightToc() {
+    if (!toc) return;
+    toc.querySelectorAll(".reader__toc-item").forEach(function (el) {
+      var p = parseInt(el.getAttribute("data-page"), 10);
+      el.classList.toggle("is-active", p === state.page);
+      el.classList.toggle("is-bookmarked", bookmarks.indexOf(p) >= 0);
+    });
+  }
+
+  if (toc) {
+    toc.addEventListener("click", function (e) {
+      var btn = e.target.closest(".reader__toc-item");
+      if (!btn || !state.go) return;
+      state.go(parseInt(btn.getAttribute("data-page"), 10) || 1);
+    });
+  }
+
+  if (searchInput) {
+    searchInput.addEventListener("input", function () {
+      var q = (searchInput.value || "").trim().toLowerCase();
+      if (!toc) return;
+      var asNum = parseInt(q, 10);
+      toc.querySelectorAll(".reader__toc-item").forEach(function (el) {
+        var p = parseInt(el.getAttribute("data-page"), 10);
+        var label = ("page " + p).toLowerCase();
+        var textHit = false;
+        if (q && state.pageText[p]) {
+          textHit = state.pageText[p].indexOf(q) >= 0;
+        }
+        var show = !q || label.indexOf(q) >= 0 || (asNum === p) || textHit;
+        el.hidden = !show;
+      });
+    });
+    searchInput.addEventListener("keydown", function (e) {
+      if (e.key !== "Enter") return;
+      var q = (searchInput.value || "").trim();
+      var asNum = parseInt(q, 10);
+      if (asNum && state.go) {
+        e.preventDefault();
+        state.go(asNum);
+      }
+    });
+  }
+
+  function syncBookmarkBtn() {
+    if (!bookmarkBtn) return;
+    var on = bookmarks.indexOf(state.page) >= 0;
+    bookmarkBtn.classList.toggle("is-active", on);
+    bookmarkBtn.setAttribute("aria-pressed", on ? "true" : "false");
+    bookmarkBtn.title = on ? "Remove bookmark" : "Bookmark this page";
+  }
+
+  function toggleBookmark() {
+    if (!bookmarkUrl || !csrf) return;
+    fetch(bookmarkUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRFToken": csrf,
+        "X-Requested-With": "fetch",
+      },
+      body: JSON.stringify({ page: state.page }),
+      credentials: "same-origin",
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (!data || !data.ok) return;
+        bookmarks = data.bookmarks || [];
+        syncBookmarkBtn();
+        highlightToc();
+      })
+      .catch(function () {});
+  }
+
+  if (bookmarkBtn) {
+    bookmarkBtn.addEventListener("click", toggleBookmark);
+  }
+
+  /* ---- Appearance prefs ---- */
+  function loadPrefs() {
+    try {
+      return JSON.parse(localStorage.getItem(PREF_KEY) || "{}") || {};
+    } catch (e) {
+      return {};
+    }
+  }
+
+  function savePrefs(prefs) {
+    try {
+      localStorage.setItem(PREF_KEY, JSON.stringify(prefs));
+    } catch (e) {}
+  }
+
+  function applyPrefs(prefs) {
+    root.setAttribute("data-theme", prefs.theme || "light");
+    root.setAttribute("data-font", prefs.font || "md");
+    root.setAttribute("data-line", prefs.line || "normal");
+    if (appearancePanel) {
+      appearancePanel.querySelectorAll("[data-theme]").forEach(function (btn) {
+        btn.classList.toggle("is-active", btn.getAttribute("data-theme") === (prefs.theme || "light"));
+      });
+      appearancePanel.querySelectorAll("[data-font]").forEach(function (btn) {
+        btn.classList.toggle("is-active", btn.getAttribute("data-font") === (prefs.font || "md"));
+      });
+      appearancePanel.querySelectorAll("[data-line]").forEach(function (btn) {
+        btn.classList.toggle("is-active", btn.getAttribute("data-line") === (prefs.line || "normal"));
+      });
+    }
+  }
+
+  var prefs = loadPrefs();
+  applyPrefs(prefs);
+
+  function setAppearanceOpen(open) {
+    if (!appearancePanel || !appearanceBtn) return;
+    appearancePanel.hidden = !open;
+    appearanceBtn.setAttribute("aria-expanded", open ? "true" : "false");
+    appearanceBtn.classList.toggle("is-active", open);
+  }
+
+  if (appearanceBtn) {
+    appearanceBtn.addEventListener("click", function () {
+      setAppearanceOpen(appearancePanel && appearancePanel.hidden);
+    });
+  }
+
+  if (appearancePanel) {
+    appearancePanel.addEventListener("click", function (e) {
+      var themeBtn = e.target.closest("[data-theme]");
+      var fontBtn = e.target.closest("[data-font]");
+      var lineBtn = e.target.closest("[data-line]");
+      if (themeBtn) prefs.theme = themeBtn.getAttribute("data-theme");
+      if (fontBtn) prefs.font = fontBtn.getAttribute("data-font");
+      if (lineBtn) prefs.line = lineBtn.getAttribute("data-line");
+      if (themeBtn || fontBtn || lineBtn) {
+        savePrefs(prefs);
+        applyPrefs(prefs);
+      }
+    });
+  }
+
+  document.addEventListener("click", function (e) {
+    if (!appearancePanel || appearancePanel.hidden) return;
+    if (appearancePanel.contains(e.target) || (appearanceBtn && appearanceBtn.contains(e.target))) {
+      return;
+    }
+    setAppearanceOpen(false);
+  });
+
+  /* ---- More menu actions ---- */
+  var printBtn = document.getElementById("reader-print");
+  if (printBtn) {
+    printBtn.addEventListener("click", function () {
+      window.print();
+    });
+  }
+
+  var shareBtn = document.getElementById("reader-share");
+  if (shareBtn) {
+    shareBtn.addEventListener("click", function () {
+      var url = window.location.href;
+      if (navigator.share) {
+        navigator.share({ title: document.title, url: url }).catch(function () {});
+        return;
+      }
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(url).then(function () {
+          shareBtn.textContent = "Link copied";
+          window.setTimeout(function () { shareBtn.textContent = "Share"; }, 1600);
+        }).catch(function () {});
+      }
+    });
+  }
+
+  var shortcutsDialog = document.getElementById("reader-shortcuts-dialog");
+  var shortcutsBtn = document.getElementById("reader-shortcuts-btn");
+  var shortcutsClose = document.getElementById("reader-shortcuts-close");
+  if (shortcutsBtn && shortcutsDialog) {
+    shortcutsBtn.addEventListener("click", function () {
+      var more = document.getElementById("reader-more");
+      if (more) more.open = false;
+      if (shortcutsDialog.showModal) shortcutsDialog.showModal();
+      else shortcutsDialog.setAttribute("open", "");
+    });
+  }
+  if (shortcutsClose && shortcutsDialog) {
+    shortcutsClose.addEventListener("click", function () {
+      if (shortcutsDialog.close) shortcutsDialog.close();
+      else shortcutsDialog.removeAttribute("open");
+    });
+  }
+
+  document.addEventListener("keydown", function (e) {
+    if (e.target && /input|textarea|select/i.test(e.target.tagName)) return;
+    if (e.key === "Escape") {
+      setAppearanceOpen(false);
+      var more = document.getElementById("reader-more");
+      if (more) more.open = false;
+      return;
+    }
+    if (e.key === "ArrowLeft" && state.go) {
+      e.preventDefault();
+      state.go(state.page - 1);
+    } else if (e.key === "ArrowRight" && state.go) {
+      e.preventDefault();
+      state.go(state.page + 1);
+    } else if ((e.key === "b" || e.key === "B") && bookmarkBtn) {
+      e.preventDefault();
+      toggleBookmark();
+    }
+  });
+
   /* ---- PDF (pdf.js, one page at a time) ---- */
   function bootPdf() {
     if (!canvas || !fileUrl || !window.pdfjsLib) {
@@ -102,13 +363,11 @@
       .promise.then(function (pdf) {
         state.pdf = pdf;
         state.total = pdf.numPages || 0;
-        if (totalEl) totalEl.textContent = String(state.total || "—");
         if (state.page > state.total && state.total > 0) state.page = state.total;
-        if (pageInput) {
-          pageInput.max = String(state.total || 1);
-          pageInput.value = String(state.page);
-        }
+        syncPageUi();
+        buildToc();
         computePercent();
+        prefetchText(1, Math.min(state.total, 12));
         return renderPage(state.page);
       })
       .then(function () {
@@ -118,6 +377,24 @@
         if (statusEl) statusEl.textContent = "Could not open this PDF.";
       });
 
+    function prefetchText(from, to) {
+      if (!state.pdf) return;
+      var i = from;
+      function next() {
+        if (i > to || i > state.total) return;
+        var pageNum = i++;
+        state.pdf.getPage(pageNum).then(function (page) {
+          return page.getTextContent();
+        }).then(function (content) {
+          var text = (content.items || []).map(function (it) {
+            return it.str || "";
+          }).join(" ").toLowerCase();
+          state.pageText[pageNum] = text;
+        }).catch(function () {}).then(next);
+      }
+      next();
+    }
+
     function renderPage(num) {
       if (!state.pdf) return Promise.resolve();
       var token = ++state.renderToken;
@@ -125,7 +402,7 @@
       return state.pdf.getPage(num).then(function (page) {
         if (token !== state.renderToken) return;
         var wrap = canvas.parentElement;
-        var maxWidth = Math.min((wrap && wrap.clientWidth) || 800, 920);
+        var maxWidth = Math.min((wrap && wrap.clientWidth) || 800, 860);
         var unscaled = page.getViewport({ scale: 1 });
         var scale = maxWidth / unscaled.width;
         var viewport = page.getViewport({ scale: scale });
@@ -141,6 +418,13 @@
           .render({ canvasContext: ctx, viewport: viewport, transform: transform })
           .promise.then(function () {
             if (statusEl) statusEl.textContent = "";
+            if (!state.pageText[num]) {
+              page.getTextContent().then(function (content) {
+                state.pageText[num] = (content.items || []).map(function (it) {
+                  return it.str || "";
+                }).join(" ").toLowerCase();
+              }).catch(function () {});
+            }
           });
       });
     }
@@ -149,10 +433,11 @@
       if (!state.total) return;
       var next = Math.max(1, Math.min(state.total, to));
       state.page = next;
-      if (pageInput) pageInput.value = String(state.page);
       computePercent();
+      syncPageUi();
       renderPage(state.page).then(saveSoon);
     }
+    state.go = go;
 
     var prev = document.getElementById("reader-prev");
     var nextBtn = document.getElementById("reader-next");
@@ -181,6 +466,9 @@
         state.total = 1;
         state.page = 1;
         if (state.percent < 5) state.percent = 5;
+        state.go = function () {};
+        syncPageUi();
+        buildToc();
         computePercent();
         saveProgress();
       })
@@ -212,6 +500,9 @@
         if (state.percent < 8) {
           state.percent = Math.max(state.percent, 8);
         }
+        state.go = function () {};
+        syncPageUi();
+        buildToc();
         setPill();
         saveProgress();
       })
@@ -225,6 +516,9 @@
     state.total = 1;
     state.page = 1;
     if (state.percent < 5) state.percent = 5;
+    state.go = function () {};
+    syncPageUi();
+    buildToc();
     setPill();
     saveProgress();
   }
@@ -241,6 +535,7 @@
   }
 
   setPill();
+  syncBookmarkBtn();
 
   if (kind === "pdf") {
     function waitPdf() {
@@ -258,5 +553,7 @@
     bootText();
   } else if (kind === "image" || kind === "video" || kind === "audio") {
     bootSimpleMedia();
+  } else if (tocLoading) {
+    tocLoading.textContent = "Open the file to continue.";
   }
 })();

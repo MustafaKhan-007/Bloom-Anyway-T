@@ -814,12 +814,23 @@ def course_reader(purchase_id):
     product = reader_svc.catalog_product_for_purchase(purchase)
     asset = reader_svc.primary_asset(product)
     progress = reader_svc.get_progress(current_user.id, purchase.id)
+    bookmarks = progress.bookmarks() if progress else []
+    download_url = None
+    if asset:
+        download_url = url_for(
+            "main.course_file", purchase_id=purchase.id, asset_id=asset.id, download=1)
+    elif purchase.download_url:
+        download_url = purchase.download_url
+    elif purchase.file_key:
+        download_url = url_for("main.shop_download", purchase_id=purchase.id)
     return render_template(
         "main/course_reader.html",
         purchase=purchase,
         product=product,
         asset=asset,
         progress=progress,
+        bookmarks=bookmarks,
+        download_url=download_url,
         start_page=(progress.current_page if progress and progress.current_page else 1),
         start_percent=(progress.percent if progress else 0),
     )
@@ -910,6 +921,37 @@ def course_progress(purchase_id):
         "page": row.current_page,
         "total": row.total_pages,
         "percent": row.percent,
+    }
+
+
+@bp.route("/account/courses/<int:purchase_id>/bookmarks", methods=["POST"])
+@login_required
+@limiter.limit("60 per minute")
+def course_bookmarks(purchase_id):
+    """Toggle a bookmarked page for this purchase."""
+    from ..services import course_reader as reader_svc
+
+    purchase = reader_svc.owned_purchase(current_user, purchase_id)
+    if purchase is None:
+        abort(404)
+    product = reader_svc.catalog_product_for_purchase(purchase)
+    payload = request.get_json(silent=True) or {}
+    try:
+        page = int(payload.get("page") or 1)
+    except (TypeError, ValueError):
+        return {"ok": False, "error": "bad page"}, 400
+    row, bookmarked = reader_svc.toggle_bookmark(
+        user_id=current_user.id,
+        purchase_id=purchase.id,
+        product_id=product.id if product else None,
+        page=page,
+    )
+    db.session.commit()
+    return {
+        "ok": True,
+        "page": page,
+        "bookmarked": bookmarked,
+        "bookmarks": row.bookmarks(),
     }
 
 

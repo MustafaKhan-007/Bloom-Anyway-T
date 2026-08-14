@@ -407,10 +407,38 @@ class CourseProgress(db.Model):
     current_page = db.Column(db.Integer, nullable=False, default=1)
     total_pages = db.Column(db.Integer, nullable=False, default=0)
     percent = db.Column(db.Integer, nullable=False, default=0)
+    bookmarks_json = db.Column(db.Text)  # JSON list of page numbers
     updated_at = db.Column(db.DateTime, nullable=False, default=utcnow)
 
     purchase = db.relationship("ShopPurchase")
     product = db.relationship("Product")
+
+    def bookmarks(self) -> list[int]:
+        try:
+            raw = json.loads(self.bookmarks_json) if self.bookmarks_json else []
+        except (TypeError, ValueError):
+            return []
+        out = []
+        for item in raw:
+            try:
+                n = int(item)
+            except (TypeError, ValueError):
+                continue
+            if n >= 1 and n not in out:
+                out.append(n)
+        return sorted(out)
+
+    def set_bookmarks(self, pages) -> None:
+        cleaned = []
+        for item in pages or []:
+            try:
+                n = int(item)
+            except (TypeError, ValueError):
+                continue
+            if n >= 1 and n not in cleaned:
+                cleaned.append(n)
+        cleaned.sort()
+        self.bookmarks_json = json.dumps(cleaned) if cleaned else None
 
 
 class MembershipPlan(db.Model):

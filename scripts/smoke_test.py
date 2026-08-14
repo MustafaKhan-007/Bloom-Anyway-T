@@ -379,7 +379,8 @@ with app.app_context():
     purchase_id = purchase.id
 r = buyer_client.get(f"/account/courses/{purchase_id}")
 ok("Course reader opens for owned purchase",
-   r.status_code == 200 and b"Begin Again" in r.data and b"reader-pdf-canvas" in r.data)
+   r.status_code == 200 and b"Begin Again" in r.data and b"reader-pdf-canvas" in r.data
+   and b"Back to library" in r.data)
 r = buyer_client.post(
     f"/account/courses/{purchase_id}/progress",
     json={"page": 5, "total": 20},
@@ -397,6 +398,17 @@ ok("Courses tab shows real progress percent",
 r = buyer_client.get(f"/account/courses/{purchase_id}")
 ok("Reader resumes at saved page",
    r.status_code == 200 and b'data-start-page="5"' in r.data)
+r = buyer_client.post(
+    f"/account/courses/{purchase_id}/bookmarks",
+    json={"page": 5},
+    headers={"Content-Type": "application/json"},
+)
+ok("Bookmark toggles on",
+   r.status_code == 200 and r.get_json().get("bookmarked") is True
+   and 5 in (r.get_json().get("bookmarks") or []))
+r = buyer_client.get("/account?tab=saved")
+ok("Library shows bookmarked pages",
+   "Bookmarks" in r.get_data(as_text=True) and "page 5" in r.get_data(as_text=True))
 
 # purchase for an email that already has an account links immediately
 with app.app_context():

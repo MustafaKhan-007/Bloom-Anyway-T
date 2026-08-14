@@ -102,6 +102,36 @@ def save_progress(
     return row
 
 
+def toggle_bookmark(
+    *,
+    user_id: int,
+    purchase_id: int,
+    product_id: int | None,
+    page: int,
+) -> tuple[CourseProgress, bool]:
+    """Add or remove a bookmarked page. Returns (row, is_bookmarked)."""
+    page = max(1, int(page or 1))
+    row = get_progress(user_id, purchase_id)
+    if row is None:
+        row = CourseProgress(
+            user_id=user_id,
+            shop_purchase_id=purchase_id,
+            product_id=product_id,
+            current_page=page,
+        )
+        db.session.add(row)
+    pages = row.bookmarks()
+    if page in pages:
+        pages = [p for p in pages if p != page]
+        bookmarked = False
+    else:
+        pages.append(page)
+        bookmarked = True
+    row.set_bookmarks(pages)
+    row.updated_at = utcnow()
+    return row, bookmarked
+
+
 def h5p_cache_dir(asset_id: int) -> Path:
     root = Path(current_app.instance_path) / "h5p_cache" / str(asset_id)
     return root

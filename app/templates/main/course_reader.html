@@ -2,36 +2,70 @@
 {% block title %}{{ purchase.product_name }} — {{ site.site_title }}{% endblock %}
 
 {% block content %}
-<section class="section section--tight course-reader-page"
+<section class="reader-shell course-reader-page"
          data-purchase-id="{{ purchase.id }}"
          data-start-page="{{ start_page }}"
          data-start-percent="{{ start_percent }}"
+         data-bookmarks="{{ bookmarks|tojson }}"
+         data-bookmark-url="{{ url_for('main.course_bookmarks', purchase_id=purchase.id) }}"
          {% if asset %}
          data-asset-kind="{{ asset.kind }}"
          data-file-url="{{ url_for('main.course_file', purchase_id=purchase.id, asset_id=asset.id) }}"
          data-progress-url="{{ url_for('main.course_progress', purchase_id=purchase.id) }}"
+         {% if download_url %}data-download-url="{{ download_url }}"{% endif %}
          {% if asset.kind == 'h5p' %}
          data-h5p-path="/account/courses/{{ purchase.id }}/h5p/{{ asset.id }}"
          {% endif %}
          {% endif %}>
-  <div class="container course-reader">
-    <p class="eyebrow">
-      <a href="{{ url_for('main.account', tab='saved') }}">&larr; Back to Courses</a>
-    </p>
-    <header class="course-reader__head">
-      <div>
-        <h1>{{ purchase.product_name }}</h1>
+  <div class="container reader">
+    <div class="reader__topbar">
+      <a class="reader__back" href="{{ url_for('main.account', tab='saved') }}">&larr; Back to library</a>
+      <div class="reader__topbar-end">
+        <div class="reader__progress-pill" id="reader-progress-pill" aria-live="polite">
+          <span id="reader-progress-label">{{ start_percent }}% complete</span>
+        </div>
         {% if asset %}
-        <p class="field-help course-reader__meta">
-          {{ asset.display_title() }}
-          <span aria-hidden="true">·</span>
-          {{ asset.kind|upper }}
-        </p>
+        <div class="reader__tools" role="toolbar" aria-label="Reading tools">
+          <button type="button" class="reader__icon-btn" id="reader-appearance-btn"
+                  aria-expanded="false" aria-controls="reader-appearance-panel"
+                  title="Read mode / appearance">
+            <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
+              <path fill="currentColor" d="M3.2 13.8 8.1 3.2h1.8l4.9 10.6h-1.7l-1.1-2.5H6l-1.1 2.5H3.2Zm3.4-3.9h4.8L9 5.4 6.6 9.9Z"/>
+              <path fill="currentColor" d="M2.2 15.2h13.6v1.2H2.2z" opacity=".45"/>
+            </svg>
+          </button>
+          <button type="button" class="reader__icon-btn" id="reader-bookmark-btn"
+                  aria-pressed="false" title="Bookmark this page">
+            <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
+              <path fill="none" stroke="currentColor" stroke-width="1.6"
+                    d="M4.2 2.4h9.6v13.2L9 12.4 4.2 15.6V2.4z"/>
+            </svg>
+          </button>
+          <details class="reader__more" id="reader-more">
+            <summary class="reader__icon-btn" title="More options" aria-label="More options">
+              <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
+                <circle cx="4.5" cy="9" r="1.35" fill="currentColor"/>
+                <circle cx="9" cy="9" r="1.35" fill="currentColor"/>
+                <circle cx="13.5" cy="9" r="1.35" fill="currentColor"/>
+              </svg>
+            </summary>
+            <div class="reader__menu" role="menu">
+              {% if download_url %}
+              <a role="menuitem" href="{{ download_url }}"{% if purchase.download_url %} target="_blank" rel="noopener"{% endif %}>Download</a>
+              {% endif %}
+              <button type="button" role="menuitem" id="reader-print">Print</button>
+              <button type="button" role="menuitem" id="reader-share">Share</button>
+              <button type="button" role="menuitem" data-feedback-open data-feedback-pref="error">Report an issue</button>
+              <button type="button" role="menuitem" id="reader-shortcuts-btn">Keyboard shortcuts</button>
+            </div>
+          </details>
+        </div>
         {% endif %}
       </div>
-      <div class="course-reader__progress-pill" id="reader-progress-pill" aria-live="polite">
-        <span id="reader-progress-label">{{ start_percent }}% complete</span>
-      </div>
+    </div>
+
+    <header class="reader__title-block">
+      <h1 class="reader__title">{{ purchase.product_name }}</h1>
     </header>
 
     {% if not asset %}
@@ -41,68 +75,132 @@
         This purchase is linked to your account. The on-site file hasn’t been uploaded in Studio yet —
         check your Dodo receipt email, or come back once the guide is ready to read here.
       </p>
-      {% if purchase.download_url %}
-      <a class="btn btn--primary" href="{{ purchase.download_url }}" target="_blank" rel="noopener">Open receipt download</a>
-      {% elif purchase.file_key %}
-      <a class="btn btn--primary" href="{{ url_for('main.shop_download', purchase_id=purchase.id) }}">Download file</a>
+      {% if download_url %}
+      <a class="btn btn--primary" href="{{ download_url }}"{% if purchase.download_url %} target="_blank" rel="noopener"{% endif %}>Open download</a>
       {% endif %}
     </div>
     {% else %}
 
-    <div class="course-reader__toolbar" id="reader-toolbar" {% if asset.kind != 'pdf' %}hidden{% endif %}>
-      <button type="button" class="btn btn--secondary btn--sm" id="reader-prev" aria-label="Previous page">← Prev</button>
-      <label class="course-reader__page-field">
-        Page
-        <input type="number" id="reader-page" min="1" value="{{ start_page }}" inputmode="numeric">
-        <span>of <span id="reader-total">—</span></span>
-      </label>
-      <button type="button" class="btn btn--secondary btn--sm" id="reader-next" aria-label="Next page">Next →</button>
+    <div class="reader__workspace">
+      <aside class="reader__sidebar" aria-label="Contents">
+        <p class="reader__sidebar-label">Contents</p>
+        <nav class="reader__toc" id="reader-toc" aria-label="Pages">
+          <p class="field-help" id="reader-toc-loading">Loading pages…</p>
+        </nav>
+        <label class="reader__search">
+          <span class="sr-only">Search document</span>
+          <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true">
+            <circle cx="7" cy="7" r="4.4" fill="none" stroke="currentColor" stroke-width="1.5"/>
+            <path d="M10.4 10.4 13.5 13.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+          <input type="search" id="reader-search" placeholder="Search document" autocomplete="off">
+        </label>
+      </aside>
+
+      <div class="reader__main">
+        <div class="reader__stage" id="reader-stage">
+          <p class="reader__page-chip" id="reader-page-chip" {% if asset.kind != 'pdf' %}hidden{% endif %}>
+            Page <span id="reader-chip-page">{{ start_page }}</span> of <span id="reader-chip-total">—</span>
+          </p>
+
+          {% if asset.kind == 'pdf' %}
+          <div class="course-reader__pdf-wrap">
+            <canvas id="reader-pdf-canvas"></canvas>
+            <p class="field-help" id="reader-pdf-status">Loading pages…</p>
+          </div>
+
+          {% elif asset.kind == 'h5p' %}
+          <div id="reader-h5p" class="course-reader__h5p" aria-live="polite">
+            <p class="field-help">Loading interactive content…</p>
+          </div>
+
+          {% elif asset.kind == 'image' %}
+          <img class="course-reader__image" src="{{ url_for('main.course_file', purchase_id=purchase.id, asset_id=asset.id) }}"
+               alt="{{ asset.display_title() }}">
+
+          {% elif asset.kind == 'video' %}
+          <video class="course-reader__video" controls playsinline
+                 src="{{ url_for('main.course_file', purchase_id=purchase.id, asset_id=asset.id) }}"></video>
+
+          {% elif asset.kind == 'audio' %}
+          <div class="course-reader__audio">
+            <audio controls src="{{ url_for('main.course_file', purchase_id=purchase.id, asset_id=asset.id) }}"></audio>
+          </div>
+
+          {% elif asset.kind in ('text', 'html') %}
+          <div class="reader-doc" id="reader-text">Loading…</div>
+
+          {% else %}
+          <div class="course-reader__empty">
+            <p>This file type opens best as a download.</p>
+            {% if download_url %}
+            <a class="btn btn--primary" href="{{ download_url }}">Download {{ asset.filename }}</a>
+            {% endif %}
+          </div>
+          {% endif %}
+        </div>
+
+        <div class="reader__footer" id="reader-toolbar" {% if asset.kind != 'pdf' %}hidden{% endif %}>
+          <button type="button" class="btn reader__nav-btn reader__nav-btn--ghost" id="reader-prev">← Previous</button>
+          <label class="reader__page-field">
+            Page
+            <input type="number" id="reader-page" min="1" value="{{ start_page }}" inputmode="numeric">
+            of <span id="reader-total">—</span>
+          </label>
+          <button type="button" class="btn reader__nav-btn reader__nav-btn--primary" id="reader-next">Next →</button>
+        </div>
+
+        {% if asset.kind not in ('pdf',) %}
+        <div class="reader__footer reader__footer--simple">
+          <button type="button" class="btn reader__nav-btn reader__nav-btn--primary" id="reader-mark-done">Mark complete</button>
+          <a class="btn reader__nav-btn reader__nav-btn--ghost" href="{{ url_for('main.account', tab='saved') }}">Save &amp; close</a>
+        </div>
+        {% endif %}
+      </div>
     </div>
 
-    <div class="course-reader__stage ms-card" id="reader-stage">
-      {% if asset.kind == 'pdf' %}
-      <div class="course-reader__pdf-wrap">
-        <canvas id="reader-pdf-canvas"></canvas>
-        <p class="field-help" id="reader-pdf-status">Loading pages…</p>
-      </div>
-
-      {% elif asset.kind == 'h5p' %}
-      <div id="reader-h5p" class="course-reader__h5p" aria-live="polite">
-        <p class="field-help">Loading interactive content…</p>
-      </div>
-
-      {% elif asset.kind == 'image' %}
-      <img class="course-reader__image" src="{{ url_for('main.course_file', purchase_id=purchase.id, asset_id=asset.id) }}"
-           alt="{{ asset.display_title() }}">
-
-      {% elif asset.kind == 'video' %}
-      <video class="course-reader__video" controls playsinline
-             src="{{ url_for('main.course_file', purchase_id=purchase.id, asset_id=asset.id) }}"></video>
-
-      {% elif asset.kind == 'audio' %}
-      <div class="course-reader__audio">
-        <audio controls src="{{ url_for('main.course_file', purchase_id=purchase.id, asset_id=asset.id) }}"></audio>
-      </div>
-
-      {% elif asset.kind in ('text', 'html') %}
-      <div class="reader-doc" id="reader-text">Loading…</div>
-
-      {% else %}
-      <div class="course-reader__empty">
-        <p>This file type opens best as a download.</p>
-        <a class="btn btn--primary"
-           href="{{ url_for('main.course_file', purchase_id=purchase.id, asset_id=asset.id) }}"
-           download="{{ asset.filename }}">Download {{ asset.filename }}</a>
-      </div>
-      {% endif %}
+    <div class="reader__panel" id="reader-appearance-panel" hidden>
+      <p class="reader__panel-title">Appearance</p>
+      <fieldset class="reader__fieldset">
+        <legend>Theme</legend>
+        <div class="reader__seg" data-reader-theme>
+          <button type="button" data-theme="light" class="is-active">Light</button>
+          <button type="button" data-theme="sepia">Sepia</button>
+          <button type="button" data-theme="dark">Dark</button>
+        </div>
+      </fieldset>
+      <fieldset class="reader__fieldset">
+        <legend>Font size</legend>
+        <div class="reader__seg" data-reader-font>
+          <button type="button" data-font="sm">A−</button>
+          <button type="button" data-font="md" class="is-active">A</button>
+          <button type="button" data-font="lg">A+</button>
+        </div>
+      </fieldset>
+      <fieldset class="reader__fieldset">
+        <legend>Line spacing</legend>
+        <div class="reader__seg" data-reader-line>
+          <button type="button" data-line="tight">Tight</button>
+          <button type="button" data-line="normal" class="is-active">Normal</button>
+          <button type="button" data-line="loose">Loose</button>
+        </div>
+      </fieldset>
     </div>
 
-    {% if asset.kind not in ('pdf',) %}
-    <div class="course-reader__footer-actions">
-      <button type="button" class="btn btn--gold" id="reader-mark-done">Mark complete</button>
-      <a class="btn btn--secondary" href="{{ url_for('main.account', tab='saved') }}">Save &amp; close</a>
-    </div>
-    {% endif %}
+    <dialog class="reader__dialog" id="reader-shortcuts-dialog">
+      <div class="reader__dialog-panel">
+        <div class="reader__dialog-head">
+          <h2>Keyboard shortcuts</h2>
+          <button type="button" class="reader__icon-btn" id="reader-shortcuts-close" aria-label="Close">×</button>
+        </div>
+        <ul class="reader__shortcuts">
+          <li><kbd>←</kbd> Previous page</li>
+          <li><kbd>→</kbd> Next page</li>
+          <li><kbd>B</kbd> Bookmark this page</li>
+          <li><kbd>Esc</kbd> Close menus</li>
+        </ul>
+      </div>
+    </dialog>
 
     {% endif %}
   </div>

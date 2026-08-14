@@ -542,6 +542,9 @@
                     <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M5 1.2h1.1v1.1h3.8V1.2H11v1.1h1.2A1.7 1.7 0 0 1 14 4v8.3A1.7 1.7 0 0 1 12.2 14H3.8A1.7 1.7 0 0 1 2 12.3V4a1.7 1.7 0 0 1 1.8-1.7H5V1.2Zm7.2 4.2H3.8v7h8.4v-7Z"/></svg>
                     Purchased on {{ item.purchased_at|localtime('%b %d, %Y') }}
                   </li>
+                  {% if prog and prog.bookmarks() %}
+                  <li>Bookmarks · page {{ prog.bookmarks()|join(', ') }}</li>
+                  {% endif %}
                 </ul>
               </div>
               {% if can_read %}
