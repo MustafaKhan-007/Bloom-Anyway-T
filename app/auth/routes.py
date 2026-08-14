@@ -197,6 +197,7 @@ def setup():
         db.session.add(user)
     user.set_password(password)
     user.is_admin = True
+    user.admin_readonly = False
     user.membership = "creator"   # full site access, not just Studio
     user.email_verified_at = user.email_verified_at or utcnow()
     user.deleted_at = None

@@ -1142,12 +1142,13 @@ with app.app_context():
     db.session.add(co_exist)
     db.session.commit()
 r = admin.post("/admin/owners/invite",
-               data={"email": "coexist@example.com"}, follow_redirects=True)
+               data={"email": "coexist@example.com", "role": "full"}, follow_redirects=True)
 ok("Existing member can be promoted to owner immediately",
    "now an owner" in r.get_data(as_text=True).lower())
 with app.app_context():
     co_u = User.query.filter_by(email="coexist@example.com").first()
     ok("Existing member was promoted to owner", co_u.is_admin is True)
+    ok("Promoted owner is full access by default", co_u.admin_readonly is False)
 r = admin.post("/admin/owners/remove",
                data={"email": "coexist@example.com"}, follow_redirects=True)
 ok("Owner can remove a co-owner",
@@ -1157,6 +1158,38 @@ with app.app_context():
     ok("Removed co-owner no longer has admin", co_u.is_admin is False)
     ok("Removed co-owner keeps prior Healing tier (not stuck on Creator)",
        co_u.membership == "healing")
+
+# View-only Studio owner (prelaunch observer)
+with app.app_context():
+    viewer = User(email="viewer-owner@example.com", username="viewer_owner",
+                  membership="none", email_verified_at=utcnow())
+    viewer.set_password(USER_PW)
+    db.session.add(viewer)
+    db.session.commit()
+r = admin.post("/admin/owners/invite",
+               data={"email": "viewer-owner@example.com", "role": "view"},
+               follow_redirects=True)
+ok("View-only owner invite succeeds",
+   r.status_code == 200 and "view-only" in r.get_data(as_text=True).lower())
+with app.app_context():
+    viewer = User.query.filter_by(email="viewer-owner@example.com").first()
+    ok("View-only owner has admin + readonly flags",
+       viewer is not None and viewer.is_admin is True and viewer.admin_readonly is True)
+viewer_client = app.test_client()
+viewer_client.post("/login", data={"email": "viewer-owner@example.com", "password": USER_PW})
+r = viewer_client.get("/admin/")
+ok("View-only owner can open Studio dashboard",
+   r.status_code == 200 and b"view-only" in r.data.lower())
+r = viewer_client.post("/admin/owners/invite",
+                       data={"email": "should-fail@example.com", "role": "full"},
+                       follow_redirects=True)
+ok("View-only owner cannot change Studio",
+   r.status_code == 200 and b"view-only" in r.data.lower()
+   and b"locked" in r.data.lower())
+with app.app_context():
+    ok("View-only blocked invite was not created",
+       "should-fail@example.com" not in owners_svc.invite_list())
+admin.post("/admin/owners/remove", data={"email": "viewer-owner@example.com"})
 
 # --- 5f. purchasable memberships (sold on their own, not as products) -------
 plan_form = {

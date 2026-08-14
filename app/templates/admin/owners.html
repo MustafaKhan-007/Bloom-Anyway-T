@@ -8,9 +8,9 @@
       <p class="eyebrow">Access</p>
       <h1>Owners</h1>
       <p class="field-help" style="margin: 6px 0 0; max-width: 62ch;">
-        Owners share full Studio access. Invite a partner by email &mdash; if they already
-        have an account, they become an owner right away; otherwise they join with that
-        email and unlock Studio after they confirm it.
+        Invite someone to Studio by email. Choose <strong>full owner</strong> for edit access,
+        or <strong>view-only</strong> so they can open Studio and look around without changing
+        anything (handy for prelaunch).
       </p>
     </div>
   </div>
@@ -19,7 +19,7 @@
     <h2 style="margin-top: 0;">Current owners</h2>
     <table class="admin-table">
       <thead>
-        <tr><th>Name</th><th>Email</th><th></th></tr>
+        <tr><th>Name</th><th>Email</th><th>Access</th><th></th></tr>
       </thead>
       <tbody>
         {% for o in owners %}
@@ -32,7 +32,14 @@
           </td>
           <td><code>{{ o.email }}</code></td>
           <td>
-            {% if (o.email or '')|lower != me_email %}
+            {% if o.admin_readonly %}
+            <span class="status-pill">View-only</span>
+            {% else %}
+            <span class="status-pill status-pill--published">Full</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if (o.email or '')|lower != me_email and not studio_readonly %}
             <form method="post" action="{{ url_for('admin.owners_remove') }}" class="inline-form"
                   data-confirm="Remove owner access for {{ o.email }}?">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -51,30 +58,64 @@
 
   <section class="admin-panel studio-card">
     <h2 style="margin-top: 0;">Invite another owner</h2>
-    <form method="post" action="{{ url_for('admin.owners_invite') }}" class="member-search" style="margin-bottom: 18px;">
+    {% if studio_readonly %}
+    <p class="field-help" style="margin: 0;">View-only accounts can’t invite owners.</p>
+    {% else %}
+    <form method="post" action="{{ url_for('admin.owners_invite') }}" style="margin-bottom: 18px;">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <input type="email" name="email" required maxlength="255" placeholder="partner@example.com">
-      <button class="btn btn--primary btn--sm" type="submit">Invite as owner</button>
+      <div class="form-row" style="align-items: flex-end; flex-wrap: wrap; gap: 12px;">
+        <div class="field" style="flex: 2; min-width: 220px;">
+          <label for="owner_email">Email</label>
+          <input type="email" id="owner_email" name="email" required maxlength="255"
+                 placeholder="partner@example.com">
+        </div>
+        <div class="field" style="flex: 2; min-width: 260px;">
+          <span class="field-help" style="display:block; margin-bottom: 6px;">Studio access</span>
+          <label class="checkline checkline--sm" style="margin: 0 0 6px;">
+            <input type="radio" name="role" value="full" checked>
+            Full owner — can change Studio
+          </label>
+          <label class="checkline checkline--sm" style="margin: 0;">
+            <input type="radio" name="role" value="view">
+            View-only — can open Studio, can’t save changes
+          </label>
+        </div>
+        <div class="field">
+          <button class="btn btn--primary btn--sm" type="submit">Send invite</button>
+        </div>
+      </div>
     </form>
+    {% endif %}
 
     {% if invites %}
     <h3>Pending invites</h3>
-    <p class="field-help" style="margin-top: 0;">These emails become owners the moment they register or sign in.</p>
+    <p class="field-help" style="margin-top: 0;">These emails unlock Studio when they register or sign in.</p>
     <table class="admin-table">
       <thead>
-        <tr><th>Email</th><th></th></tr>
+        <tr><th>Email</th><th>Access</th><th></th></tr>
       </thead>
       <tbody>
-        {% for email in invites %}
+        {% for inv in invites %}
         <tr>
-          <td><code>{{ email }}</code></td>
+          <td><code>{{ inv.email }}</code></td>
           <td>
+            {% if inv.readonly %}
+            <span class="status-pill">View-only</span>
+            {% else %}
+            <span class="status-pill status-pill--published">Full</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if not studio_readonly %}
             <form method="post" action="{{ url_for('admin.owners_remove') }}" class="inline-form"
-                  data-confirm="Cancel invite for {{ email }}?">
+                  data-confirm="Cancel invite for {{ inv.email }}?">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-              <input type="hidden" name="email" value="{{ email }}">
+              <input type="hidden" name="email" value="{{ inv.email }}">
               <button class="btn btn--secondary btn--sm" type="submit">Cancel invite</button>
             </form>
+            {% else %}
+            <span class="field-help">—</span>
+            {% endif %}
           </td>
         </tr>
         {% endfor %}

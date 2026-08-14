@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
   <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" type="image/svg+xml">
 </head>
-<body class="admin-body">
+<body class="admin-body{% if current_user.is_authenticated and current_user.admin_readonly %} is-studio-readonly{% endif %}">
   {% include "partials/page_loader.html" %}
   {% include "partials/badge_defs.html" %}
   <div class="admin-shell">
@@ -53,6 +53,11 @@
       <p class="eyebrow admin-back-site">
         <a href="{{ url_for('main.index') }}">&larr; Back to site</a>
       </p>
+      {% if current_user.is_authenticated and current_user.admin_readonly %}
+      <div class="flash flash--info studio-readonly-banner" role="status">
+        View-only Studio access — you can browse every page; saving and uploads stay locked.
+      </div>
+      {% endif %}
       {% with messages = get_flashed_messages(with_categories=true) %}
         {% for category, message in messages %}
           <div class="flash flash--{{ category }}" role="status">{{ message }}</div>

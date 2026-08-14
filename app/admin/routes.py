@@ -39,6 +39,27 @@ from . import bp
 log = logging.getLogger(__name__)
 
 
+@bp.before_request
+def _studio_readonly_guard():
+    """View-only owners may browse Studio but cannot POST/PUT/PATCH/DELETE."""
+    if request.method in ("GET", "HEAD", "OPTIONS"):
+        return None
+    if not current_user.is_authenticated:
+        return None
+    if not getattr(current_user, "is_admin", False):
+        return None
+    if not getattr(current_user, "admin_readonly", False):
+        return None
+    flash(
+        "This Studio account is view-only — you can look around, but changes are locked.",
+        "error",
+    )
+    target = request.referrer
+    if not target or "/admin" not in target:
+        target = url_for("admin.dashboard")
+    return redirect(target)
+
+
 def admin_required(f):
     @wraps(f)
     def wrapper(*args, **kwargs):
@@ -984,8 +1005,9 @@ def owners():
     return render_template(
         "admin/owners.html",
         owners=owners_svc.current_owners(),
-        invites=owners_svc.invite_list(),
+        invites=owners_svc.invite_entries(),
         me_email=(current_user.email or "").strip().lower(),
+        studio_readonly=bool(getattr(current_user, "admin_readonly", False)),
     )
 
 
@@ -993,7 +1015,13 @@ def owners():
 @admin_required
 def owners_invite():
     from ..services import owners as owners_svc
-    ok, msg = owners_svc.invite(request.form.get("email") or "", actor=current_user)
+    role = (request.form.get("role") or "full").strip().lower()
+    readonly = role in ("view", "readonly", "view-only", "view_only")
+    ok, msg = owners_svc.invite(
+        request.form.get("email") or "",
+        actor=current_user,
+        readonly=readonly,
+    )
     flash(msg, "success" if ok else "error")
     return redirect(url_for("admin.owners"))
 

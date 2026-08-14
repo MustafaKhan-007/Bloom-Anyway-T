@@ -692,6 +692,11 @@ p.text-center { margin-left: auto; margin-right: auto; }
    ADMIN — same tokens, denser
    ========================================================================== */
 .admin-body { font-size: 15px; background: var(--dawn-ivory); }
+.studio-readonly-banner { margin-bottom: 14px; }
+body.is-studio-readonly .admin-main button[type="submit"],
+body.is-studio-readonly .admin-main input[type="submit"] {
+  opacity: 0.55; cursor: not-allowed;
+}
 .admin-shell { display: grid; min-height: 100vh; grid-template-columns: 1fr; }
 .admin-sidebar {
   background: var(--plum); color: var(--dawn-ivory); padding: 24px 16px;

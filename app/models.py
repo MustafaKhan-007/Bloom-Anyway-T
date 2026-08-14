@@ -53,6 +53,8 @@ class User(UserMixin, db.Model):
     display_name = db.Column(db.String(80))
     username = db.Column(db.String(30), unique=True, index=True)  # @handle for tags
     is_admin = db.Column(db.Boolean, nullable=False, default=False)
+    # Studio access without edit rights (prelaunch co-owner / observer).
+    admin_readonly = db.Column(db.Boolean, nullable=False, default=False)
     created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
     last_login_at = db.Column(db.DateTime)
     deleted_at = db.Column(db.DateTime)
