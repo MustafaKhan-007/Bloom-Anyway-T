@@ -46,6 +46,13 @@
       <p class="studio-card__metric">$0</p>
       {% endif %}
       {% if cards.revenue_note %}<p class="field-help">{{ cards.revenue_note }}</p>{% endif %}
+      {% if trending_product %}
+      <p class="studio-trending" role="status">
+        <span class="studio-trending__mark" aria-hidden="true">↑</span>
+        <strong>{{ trending_product.label }}</strong>
+        <span class="field-help">{{ trending_product.sales }} sale{{ '' if trending_product.sales == 1 else 's' }} in {{ trending_product.window_days }} days</span>
+      </p>
+      {% endif %}
       {% if cards.top_products %}
       <ul class="field-help" style="margin: 10px 0 0; padding-left: 18px;">
         {% for row in cards.top_products %}
@@ -61,7 +68,15 @@
         {% endfor %}
       </ul>
       {% endif %}
-      <a class="btn btn--secondary btn--sm" href="{{ url_for('main.courses') }}" style="margin-top:12px;">Open Courses &amp; Guides</a>
+      <div class="studio-dash-exact__pay-actions">
+        <a class="btn btn--secondary btn--sm" href="{{ url_for('main.courses') }}">Open Courses &amp; Guides</a>
+        {% if dodo_configured %}
+        <form method="post" action="{{ url_for('admin.sync_purchases') }}" style="display:inline;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="btn btn--primary btn--sm">Sync purchases from Dodo</button>
+        </form>
+        {% endif %}
+      </div>
     </div>
     <div class="admin-panel studio-card studio-dash-exact__founder">
       <h2>Founder pricing</h2>
@@ -96,7 +111,7 @@
       </thead>
       <tbody>
         {% for row in member_activity %}
-        <tr>
+        <tr class="{{ 'studio-activity--purchase' if row.kind == 'purchase' }}">
           <td>{{ row.name }}</td>
           <td>{{ row.summary or row.plan }}</td>
           <td>{{ row.last_active }}</td>
@@ -108,9 +123,41 @@
     </table>
     {% else %}
     <p class="field-help" style="margin:0;">
-      Recent visits and signups will show here. For now, use
+      Recent purchases, visits, and signups will show here. For now, use
       <a href="{{ url_for('admin.members') }}">Members</a> and
       <a href="{{ url_for('admin.community') }}">Community</a>.
+    </p>
+    {% endif %}
+  </div>
+
+  <div class="admin-panel studio-card studio-purchases-chart">
+    <div class="studio-purchases-chart__head">
+      <div>
+        <h2>Purchases over time</h2>
+        <p class="field-help" style="margin:4px 0 0;">
+          Paid orders from the last 90 days
+          {% if chart_purchases %}· {{ chart_purchases.total }} total{% endif %}
+        </p>
+      </div>
+      {% if trending_product %}
+      <p class="studio-trending studio-trending--inline" role="status">
+        <strong>{{ trending_product.title }}</strong> is trending
+      </p>
+      {% endif %}
+    </div>
+    {% if chart_purchases and chart_purchases.products %}
+    <div class="studio-purchase-filters" id="purchase-filters" role="group" aria-label="Filter by product">
+      <button type="button" class="studio-purchase-filter is-active" data-product="all">All products</button>
+      {% for p in chart_purchases.products %}
+      <button type="button" class="studio-purchase-filter" data-product="{{ p.key }}">{{ p.title }}</button>
+      {% endfor %}
+    </div>
+    {% endif %}
+    <canvas id="chart-purchases" height="110"></canvas>
+    {% if not chart_purchases or not chart_purchases.total %}
+    <p class="field-help" style="margin:12px 0 0;">
+      No paid orders yet. After a Dodo checkout, use
+      <strong>Sync purchases from Dodo</strong> above if the webhook was missed.
     </p>
     {% endif %}
   </div>
@@ -243,7 +290,7 @@
 </div>
 
 <script id="dashboard-data" type="application/json">
-  {{ {'signups': chart_signups}|tojson }}
+  {{ {'signups': chart_signups, 'purchases': chart_purchases}|tojson }}
 </script>
 {% endblock %}
 

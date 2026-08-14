@@ -29,7 +29,7 @@ from ..services import reel_reviews as reel_svc
 from ..services import stats
 from ..services.mailer import last_send_error, send_email
 from ..services.settings import DEFAULTS as SETTING_DEFAULTS
-from ..services.settings import all_settings, set_setting
+from ..services.settings import all_settings, get_setting, set_setting
 from ..services.social import (fetch_instagram_preview, instagram_handle,
                                instagram_profile_url, platform_for)
 from ..services.videos import (VideoError, delete_stored, process_thumb,
@@ -96,12 +96,39 @@ def _spotlight_candidates():
 @admin_required
 def dashboard():
     today = date.today()
+    # Quietly pull any Dodo payments that webhooks may have missed (throttled).
+    from ..services import dodo as dodo_svc
+    sync_info = None
+    if dodo_svc.configured():
+        last_raw = (get_setting("dodo_last_sync_at") or "").strip()
+        should = True
+        if last_raw:
+            try:
+                last = datetime.fromisoformat(last_raw)
+                should = (datetime.utcnow() - last).total_seconds() > 5 * 60
+            except ValueError:
+                should = True
+        if should:
+            try:
+                sync_info = dodo_svc.sync_recent_payments(days=60, max_pages=2)
+                set_setting(
+                    "dodo_last_sync_at", datetime.utcnow().isoformat(timespec="seconds"))
+                if sync_info.get("imported"):
+                    flash(
+                        f"Synced {sync_info['imported']} purchase"
+                        f"{'' if sync_info['imported'] == 1 else 's'} from Dodo.",
+                        "success",
+                    )
+            except Exception:
+                log.exception("dashboard: dodo purchase sync failed")
     return render_template(
         "admin/dashboard.html",
         today_quote=quotes_service.quote_for(today),
         tomorrow_quote=quotes_service.quote_for(today + timedelta(days=1)),
         cards=stats.dashboard_cards(),
         chart_signups=stats.signups_by_week(12),
+        chart_purchases=stats.purchases_over_time(90),
+        trending_product=stats.trending_product(7),
         most_visited=stats.most_visited(7),
         memberships=stats.membership_breakdown(),
         video_count=stats.video_count(),
@@ -111,7 +138,42 @@ def dashboard():
         recent_feedback=stats.recent_feedback(),
         support_occupancy=stats.support_occupancy(),
         founder_days=stats.founder_days_remaining(),
+        dodo_configured=dodo_svc.configured(),
     )
+
+
+@bp.route("/sync-purchases", methods=["POST"])
+@admin_required
+def sync_purchases():
+    """Manual pull of recent Dodo payments into Studio / My space."""
+    from ..services import dodo as dodo_svc
+    if not dodo_svc.configured():
+        flash("Add DODO_PAYMENTS_API_KEY (and live mode) before syncing.", "error")
+        return redirect(url_for("admin.dashboard"))
+    try:
+        result = dodo_svc.sync_recent_payments(days=90, max_pages=4)
+        set_setting(
+            "dodo_last_sync_at", datetime.utcnow().isoformat(timespec="seconds"))
+    except Exception:
+        log.exception("manual dodo sync failed")
+        flash("Could not sync purchases from Dodo. Check the API key and mode.", "error")
+        return redirect(url_for("admin.dashboard"))
+    if not result.get("ok"):
+        flash(result.get("error") or "Sync failed.", "error")
+    elif result.get("imported"):
+        flash(
+            f"Imported {result['imported']} purchase"
+            f"{'' if result['imported'] == 1 else 's'} "
+            f"(checked {result.get('checked', 0)}).",
+            "success",
+        )
+    else:
+        flash(
+            f"No new purchases — checked {result.get('checked', 0)} recent "
+            "Dodo payment(s).",
+            "info",
+        )
+    return redirect(url_for("admin.dashboard"))
 
 
 # =============================== PRODUCTS ====================================

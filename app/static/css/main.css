@@ -5454,6 +5454,42 @@ a.at-handle:hover { text-decoration: underline; }
 }
 
 /* --- Studio dashboard exact --- */
+.studio-dash-exact__pay-actions {
+  display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 12px;
+}
+.studio-trending {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 12px;
+  margin: 14px 0 0; padding: 10px 14px; border-radius: 12px;
+  background: rgba(199, 154, 65, 0.14); color: #3d1431;
+}
+.studio-trending__mark {
+  display: inline-grid; place-items: center; width: 22px; height: 22px;
+  border-radius: 999px; background: #c79a41; color: #3d1431; font-weight: 800;
+  font-size: 12px;
+}
+.studio-trending--inline {
+  margin: 0; background: transparent; padding: 0;
+  font-size: 14px; font-weight: 700; color: #3d1431;
+}
+.studio-activity--purchase td:nth-child(2) { font-weight: 700; color: #3d1431; }
+.studio-purchases-chart__head {
+  display: flex; flex-wrap: wrap; align-items: flex-start;
+  justify-content: space-between; gap: 12px 20px; margin-bottom: 12px;
+}
+.studio-purchases-chart__head h2 { margin: 0; }
+.studio-purchase-filters {
+  display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 14px;
+}
+.studio-purchase-filter {
+  appearance: none; border: 1px solid rgba(61, 20, 49, 0.14);
+  background: #fff; color: #3d1431; border-radius: 999px;
+  padding: 6px 12px; font-size: 13px; font-weight: 700; cursor: pointer;
+}
+.studio-purchase-filter:hover { border-color: rgba(61, 20, 49, 0.35); }
+.studio-purchase-filter.is-active {
+  background: #3d1431; color: #faf5ee; border-color: #3d1431;
+}
+
 .studio-dash-exact { display: flex; flex-direction: column; gap: 20px; }
 .studio-dash-exact__metrics { margin: 0 !important; }
 .studio-dash-exact__money {

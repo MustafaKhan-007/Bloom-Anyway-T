@@ -8,6 +8,7 @@ from flask import (Response, abort, current_app, flash, jsonify, redirect,
 from flask_login import current_user, login_required
 
 from ..extensions import db, limiter
+from sqlalchemy import func
 
 from ..models import (JOURNAL_PROMPTS, MARKETPLACE_KINDS, MARKETPLACE_KIND_LABELS,
                       MARKETPLACE_TAG_MAX, MARKETPLACE_TAGS, MOOD_KEYS, MOODS,
@@ -29,7 +30,7 @@ from ..services.mailer import send_contact_notification
 from ..services.recommend import INTENTS, valid_intent_keys
 from ..services.listings import (ListingError, can_add_listing, listing_limit,
                                  process_listing_image)
-from ..services.shop_purchases import linked_purchases_for
+from ..services.shop_purchases import linked_purchases_for, link_pending_purchases
 from ..services.social import (ALLOWED_LABELS, clean_social_links,
                                instagram_embed_url, instagram_from_links,
                                instagram_handle, instagram_profile_url,
@@ -209,7 +210,7 @@ def checkout_product(slug):
     try:
         url = dodo_svc.create_checkout_session(
             product_id=pid,
-            return_url=url_for("main.account", tab="saved", _external=True),
+            return_url=url_for("main.account", tab="saved", purchased=1, _external=True),
             customer_email=email,
             customer_name=name,
             metadata={"slug": product.slug, "kind": "product"},
@@ -617,6 +618,10 @@ def toggle_favorite(quote_id):
 @bp.route("/account")
 @login_required
 def account():
+    # Attach any pending Dodo purchases that match this email (guest checkout → later signup).
+    if link_pending_purchases(current_user):
+        db.session.commit()
+
     hour = datetime.now().hour
     if hour < 12:
         greeting = "Good morning"
@@ -631,7 +636,19 @@ def account():
     if tab == "settings":
         return redirect(url_for("main.settings"))
 
-    orders = (Order.query.filter_by(buyer_email=current_user.email)
+    # After checkout return (?purchased=1), pull from Dodo so Courses updates
+    # even if the webhook lagged or was misconfigured.
+    if request.args.get("purchased") and dodo_svc.configured():
+        try:
+            dodo_svc.sync_recent_payments(days=14, max_pages=1)
+            link_pending_purchases(current_user)
+            db.session.commit()
+        except Exception:
+            log.exception("account: purchase sync after checkout failed")
+            db.session.rollback()
+
+    orders = (Order.query
+              .filter(func.lower(Order.buyer_email) == current_user.email.lower())
               .order_by(Order.created_at.desc()).all())
     favorites = (db.session.query(Quote).join(QuoteFavorite)
                  .filter(QuoteFavorite.user_id == current_user.id)

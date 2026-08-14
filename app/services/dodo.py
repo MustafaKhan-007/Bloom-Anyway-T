@@ -160,15 +160,36 @@ def _product_for_payment_id(product_id: str | None) -> Product | None:
     return Product.query.filter_by(ls_variant_id=key).first()
 
 
+def _product_from_metadata(data: dict) -> Product | None:
+    """Fall back to checkout metadata.slug when Dodo product id isn't on the catalog."""
+    meta = data.get("metadata") if isinstance(data.get("metadata"), dict) else {}
+    slug = str((meta or {}).get("slug") or "").strip()
+    if not slug:
+        return None
+    return Product.query.filter_by(slug=slug).first()
+
+
+def _resolve_product(data: dict, product_id: str | None) -> Product | None:
+    return _product_for_payment_id(product_id) or _product_from_metadata(data)
+
+
 def _first_product_id(data: dict) -> str | None:
     cart = data.get("product_cart") or data.get("products") or []
     if isinstance(cart, list) and cart:
         first = cart[0] or {}
         if isinstance(first, dict):
-            return first.get("product_id") or first.get("id")
+            pid = first.get("product_id") or first.get("id")
+            if pid:
+                return str(pid)
     meta = data.get("metadata") or {}
     if isinstance(meta, dict):
-        return meta.get("product_id") or meta.get("dodo_product_id")
+        pid = meta.get("product_id") or meta.get("dodo_product_id")
+        if pid:
+            return str(pid)
+    # Catalog slug in metadata → look up the Studio product's Dodo id
+    product = _product_from_metadata(data)
+    if product and (product.dodo_product_id or "").strip():
+        return product.dodo_product_id.strip()
     return None
 
 
@@ -178,7 +199,179 @@ def _buyer_email(data: dict) -> str:
         email = customer.get("email") or ""
         if email:
             return str(email).strip().lower()
-    return str(data.get("customer_email") or data.get("email") or "").strip().lower()
+    for key in ("customer_email", "email", "billing_email"):
+        raw = data.get(key)
+        if raw:
+            return str(raw).strip().lower()
+    return ""
+
+
+def fetch_payment(payment_id: str) -> dict:
+    """GET /payments/{id} — full payment object (includes product_cart)."""
+    key = _api_key()
+    if not key:
+        raise DodoError("Dodo Payments is not configured (missing API key).")
+    pid = (payment_id or "").strip()
+    if not pid:
+        raise DodoError("Missing payment id.")
+    url = urljoin(_api_base() + "/", f"payments/{pid}")
+    try:
+        resp = requests.get(
+            url,
+            headers={"Authorization": f"Bearer {key}", "Accept": "application/json"},
+            timeout=25,
+        )
+    except requests.RequestException as exc:
+        raise DodoError(f"Could not reach Dodo Payments: {exc}") from exc
+    if resp.status_code >= 400:
+        detail = (resp.text or "")[:300]
+        log.warning("dodo get payment failed %s: %s", resp.status_code, detail)
+        raise DodoError("Could not load payment from Dodo.")
+    data = resp.json() if resp.content else {}
+    if not isinstance(data, dict):
+        raise DodoError("Unexpected payment response from Dodo.")
+    return data
+
+
+def list_payments(
+    *,
+    status: str | None = "succeeded",
+    page_size: int = 50,
+    page_number: int = 0,
+    created_at_gte: str | None = None,
+) -> list[dict]:
+    """GET /payments — recent payment summaries."""
+    key = _api_key()
+    if not key:
+        raise DodoError("Dodo Payments is not configured (missing API key).")
+    params: dict[str, Any] = {
+        "page_size": max(1, min(int(page_size or 50), 100)),
+        "page_number": max(0, int(page_number or 0)),
+    }
+    if status:
+        params["status"] = status
+    if created_at_gte:
+        params["created_at_gte"] = created_at_gte
+    url = urljoin(_api_base() + "/", "payments")
+    try:
+        resp = requests.get(
+            url,
+            params=params,
+            headers={"Authorization": f"Bearer {key}", "Accept": "application/json"},
+            timeout=25,
+        )
+    except requests.RequestException as exc:
+        raise DodoError(f"Could not reach Dodo Payments: {exc}") from exc
+    if resp.status_code >= 400:
+        detail = (resp.text or "")[:300]
+        log.warning("dodo list payments failed %s: %s", resp.status_code, detail)
+        raise DodoError("Could not list payments from Dodo.")
+    payload = resp.json() if resp.content else {}
+    items = payload.get("items") if isinstance(payload, dict) else None
+    if not isinstance(items, list):
+        return []
+    return [i for i in items if isinstance(i, dict)]
+
+
+def _status_from_dodo(payment: dict) -> str | None:
+    """Map a Dodo payment object to our Order status string."""
+    raw = (payment.get("status") or "").strip().lower()
+    refund = (payment.get("refund_status") or "").strip().lower()
+    if refund in ("full", "partial"):
+        return "refunded"
+    if raw == "succeeded":
+        return "paid"
+    if raw == "failed":
+        return "failed"
+    if raw == "cancelled":
+        return "refunded"
+    return None
+
+
+def sync_recent_payments(*, days: int = 60, max_pages: int = 3) -> dict:
+    """Pull recent succeeded payments from Dodo and fulfill any missing locally.
+
+    Recovers purchases when webhooks were misconfigured or temporarily failed.
+    Idempotent via payment_id.
+    """
+    if not configured():
+        return {"ok": False, "error": "not_configured", "imported": 0, "checked": 0}
+
+    from datetime import datetime, timedelta, timezone
+
+    since = datetime.now(timezone.utc) - timedelta(days=max(1, int(days or 60)))
+    gte = since.strftime("%Y-%m-%dT%H:%M:%SZ")
+    checked = 0
+    imported = 0
+    errors = 0
+
+    for page in range(max(1, int(max_pages or 1))):
+        try:
+            items = list_payments(
+                status="succeeded",
+                page_size=50,
+                page_number=page,
+                created_at_gte=gte,
+            )
+        except DodoError as exc:
+            log.warning("dodo sync list failed: %s", exc)
+            return {
+                "ok": False,
+                "error": str(exc),
+                "imported": imported,
+                "checked": checked,
+            }
+        if not items:
+            break
+        for summary in items:
+            checked += 1
+            payment_id = str(
+                summary.get("payment_id") or summary.get("id") or ""
+            ).strip()
+            if not payment_id:
+                continue
+            existing = Order.query.filter_by(ls_order_id=payment_id).first()
+            needs_detail = (
+                existing is None
+                or existing.status != "paid"
+                or not existing.ls_variant_id
+                or not _buyer_email(summary)
+            )
+            data = summary
+            if needs_detail:
+                try:
+                    data = fetch_payment(payment_id)
+                except DodoError:
+                    errors += 1
+                    log.exception("dodo sync: could not fetch %s", payment_id)
+                    continue
+            mapped = _status_from_dodo(data)
+            if mapped != "paid":
+                continue
+            try:
+                before = Order.query.filter_by(ls_order_id=payment_id).first()
+                was_new = before is None or before.status != "paid"
+                handle_payment_event("payment.succeeded", data)
+                db.session.commit()
+                if was_new:
+                    imported += 1
+            except Exception:
+                errors += 1
+                db.session.rollback()
+                log.exception("dodo sync: failed to fulfill %s", payment_id)
+        if len(items) < 50:
+            break
+
+    log.info(
+        "dodo sync: checked=%s imported=%s errors=%s",
+        checked, imported, errors,
+    )
+    return {
+        "ok": True,
+        "imported": imported,
+        "checked": checked,
+        "errors": errors,
+    }
 
 
 def _amount_cents(data: dict) -> int:
@@ -301,24 +494,42 @@ def handle_payment_event(event_type: str, data: dict) -> Order | None:
         gift_to=gift_to,
     )
 
-    # Digital goods → My Space library (skip membership-only products).
-    from .shop_purchases import upsert_shop_purchase
-    product = _product_for_payment_id(product_id) if product_id else None
+    # Resolve catalog product (Dodo id or checkout metadata.slug).
+    product = _resolve_product(data, product_id)
+    if product and order.product_id is None:
+        order.product_id = product.id
+        if not order.ls_variant_id and (product.dodo_product_id or "").strip():
+            order.ls_variant_id = product.dodo_product_id.strip()
+
     name = (
         (product.title if product else None)
         or (plan.name if plan else None)
         or (meta or {}).get("product_name")
         or "Course purchase"
     )
-    upsert_shop_purchase(
-        lemon_squeezy_order_id=str(payment_id),
-        customer_email=email or order.buyer_email,
-        product_name=name,
-        product_id=str(product_id) if product_id else None,
-        variant_id=str(product_id) if product_id else None,
-        download_url=None,
-        refunded=(status == "refunded"),
-    )
+
+    # Digital goods → My Space library (skip membership-only + failed payments).
+    from .shop_purchases import upsert_shop_purchase
+    if status == "paid":
+        upsert_shop_purchase(
+            lemon_squeezy_order_id=str(payment_id),
+            customer_email=email or order.buyer_email,
+            product_name=name,
+            product_id=str(product_id) if product_id else None,
+            variant_id=str(product_id) if product_id else None,
+            download_url=None,
+            refunded=False,
+        )
+    elif status == "refunded":
+        upsert_shop_purchase(
+            lemon_squeezy_order_id=str(payment_id),
+            customer_email=email or order.buyer_email,
+            product_name=name,
+            product_id=str(product_id) if product_id else None,
+            variant_id=str(product_id) if product_id else None,
+            download_url=None,
+            refunded=True,
+        )
 
     if send_receipt and order.buyer_email and "@" in order.buyer_email:
         try:

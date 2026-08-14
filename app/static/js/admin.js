@@ -52,6 +52,7 @@
   if (dataEl && window.Chart) {
     var data = JSON.parse(dataEl.textContent);
     var plum = "#7A2E62";
+    var gold = "#c79a41";
 
     var signupsCtx = document.getElementById("chart-signups");
     if (signupsCtx && data.signups) {
@@ -65,6 +66,70 @@
         },
         options: { plugins: { legend: { display: false } } }
       });
+    }
+
+    var purchasesCtx = document.getElementById("chart-purchases");
+    if (purchasesCtx && data.purchases) {
+      var purchaseChart = new Chart(purchasesCtx, {
+        type: "line",
+        data: {
+          labels: data.purchases.labels || [],
+          datasets: [
+            {
+              label: "All products",
+              data: data.purchases.all || [],
+              borderColor: plum,
+              backgroundColor: "rgba(122, 46, 98, 0.12)",
+              tension: 0.3,
+              fill: true,
+              borderWidth: 2,
+              pointRadius: 0,
+            }
+          ]
+        },
+        options: {
+          plugins: { legend: { display: false } },
+          scales: {
+            x: {
+              ticks: {
+                maxTicksLimit: 8,
+                callback: function (val, i) {
+                  var lab = this.getLabelForValue(val);
+                  if (!lab) return "";
+                  // Show month-day for readability
+                  return String(lab).slice(5);
+                }
+              }
+            },
+            y: {
+              beginAtZero: true,
+              ticks: { precision: 0 }
+            }
+          }
+        }
+      });
+
+      var filters = document.getElementById("purchase-filters");
+      if (filters) {
+        filters.addEventListener("click", function (e) {
+          var btn = e.target.closest("[data-product]");
+          if (!btn) return;
+          filters.querySelectorAll(".studio-purchase-filter").forEach(function (b) {
+            b.classList.toggle("is-active", b === btn);
+          });
+          var key = btn.getAttribute("data-product") || "all";
+          var series = key === "all"
+            ? (data.purchases.all || [])
+            : ((data.purchases.by_product || {})[key] || []);
+          var label = key === "all" ? "All products" : (btn.textContent || "Product");
+          purchaseChart.data.datasets[0].data = series;
+          purchaseChart.data.datasets[0].label = label;
+          purchaseChart.data.datasets[0].borderColor = key === "all" ? plum : gold;
+          purchaseChart.data.datasets[0].backgroundColor =
+            key === "all" ? "rgba(122, 46, 98, 0.12)" : "rgba(199, 154, 65, 0.15)";
+          purchaseChart.update();
+        });
+      }
     }
   }
 })();

@@ -146,9 +146,36 @@ def most_visited(days: int = 7, limit: int = 10):
 
 
 def member_activity(limit: int = 12) -> list[dict]:
-    """Recent signups + traffic arrivals for the Studio activity feed."""
+    """Recent purchases, signups, and traffic for the Studio activity feed."""
     out: list[dict] = []
     now = datetime.utcnow()
+
+    paid = (Order.query
+            .options(joinedload(Order.product))
+            .filter(Order.status == "paid")
+            .order_by(Order.created_at.desc())
+            .limit(max(8, limit))
+            .all())
+    for o in paid:
+        title = (o.product.title if o.product else None) or "a product"
+        who = (o.buyer_email or "Someone").strip() or "Someone"
+        # Prefer a matching account display name when we have one.
+        user = (User.query
+                .filter(func.lower(User.email) == who.lower(),
+                        User.deleted_at.is_(None))
+                .first()) if "@" in who else None
+        display = user.public_name() if user else who
+        amount = _money(o.total_cents or 0, o.currency or "USD")
+        out.append({
+            "kind": "purchase",
+            "when": o.created_at,
+            "name": display,
+            "plan": "Purchase",
+            "last_active": _relative(o.created_at, now),
+            "posts": "—",
+            "streak": "—",
+            "summary": f"Purchased {title} · {amount}",
+        })
 
     visits = (VisitEvent.query
               .order_by(VisitEvent.created_at.desc())
@@ -203,6 +230,102 @@ def member_activity(limit: int = 12) -> list[dict]:
 
     out.sort(key=lambda r: r.get("when") or now, reverse=True)
     return out[:limit]
+
+
+def purchases_over_time(days: int = 90) -> dict:
+    """Daily paid-order counts for Studio charts, with per-product series."""
+    days = max(7, min(int(days or 90), 180))
+    today = date.today()
+    start = today - timedelta(days=days - 1)
+    labels = [(start + timedelta(days=i)).isoformat() for i in range(days)]
+    label_index = {lab: i for i, lab in enumerate(labels)}
+
+    paid = (Order.query
+            .options(joinedload(Order.product))
+            .filter(Order.status == "paid", Order.created_at >= _dt(start))
+            .all())
+
+    all_counts = [0] * days
+    by_key: dict[str, list[int]] = {}
+    products_meta: dict[str, str] = {}
+
+    for o in paid:
+        day = (o.created_at.date() if o.created_at else today)
+        lab = day.isoformat()
+        idx = label_index.get(lab)
+        if idx is None:
+            continue
+        all_counts[idx] += 1
+        if o.product_id and o.product:
+            key = f"p{o.product_id}"
+            title = o.product.title
+        elif (o.ls_variant_id or "").strip():
+            key = f"v{(o.ls_variant_id or '').strip()}"
+            title = (o.ls_variant_id or "").strip()
+        else:
+            key = "other"
+            title = "Other / unmatched"
+        if key not in by_key:
+            by_key[key] = [0] * days
+            products_meta[key] = title
+        by_key[key][idx] += 1
+
+    products = [
+        {"key": k, "title": products_meta[k]}
+        for k in sorted(products_meta.keys(), key=lambda x: products_meta[x].lower())
+    ]
+    return {
+        "labels": labels,
+        "all": all_counts,
+        "by_product": by_key,
+        "products": products,
+        "total": sum(all_counts),
+    }
+
+
+def trending_product(window_days: int = 7) -> dict | None:
+    """Product with the most paid sales in the recent window."""
+    window_days = max(3, int(window_days or 7))
+    start = _dt(date.today() - timedelta(days=window_days - 1))
+    rows = (
+        db.session.query(Product.title, func.count(Order.id).label("n"))
+        .join(Order, Order.product_id == Product.id)
+        .filter(Order.status == "paid", Order.created_at >= start)
+        .group_by(Product.title)
+        .order_by(func.count(Order.id).desc())
+        .limit(1)
+        .all()
+    )
+    if not rows:
+        # Fall back to ShopPurchase names when Order.product_id wasn't linked.
+        from ..models import ShopPurchase
+        shop_rows = (
+            db.session.query(ShopPurchase.product_name, func.count(ShopPurchase.id))
+            .filter(
+                ShopPurchase.status.in_(("linked", "pending_link")),
+                ShopPurchase.purchased_at >= start,
+            )
+            .group_by(ShopPurchase.product_name)
+            .order_by(func.count(ShopPurchase.id).desc())
+            .limit(1)
+            .all()
+        )
+        if not shop_rows or not shop_rows[0][0]:
+            return None
+        title, n = shop_rows[0]
+        return {
+            "title": title,
+            "sales": int(n),
+            "window_days": window_days,
+            "label": f"{title} is trending",
+        }
+    title, n = rows[0]
+    return {
+        "title": title,
+        "sales": int(n),
+        "window_days": window_days,
+        "label": f"{title} is trending",
+    }
 
 
 def _relative(when, now=None) -> str:

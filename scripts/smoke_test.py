@@ -373,6 +373,32 @@ ok("Existing-account shop purchase links immediately",
    r.status_code == 200 and sp2 is not None
    and sp2.status == "linked" and sp2.user_id == known_id)
 
+# failed payments must not invent a My Space library item
+payload_fail = _payment_payload(
+    "9002-fail", "newperson@example.com", "prod_quiet",
+    event="payment.failed", amount=1900, product_name="Quiet Mornings")
+r = client.post("/webhooks/dodo", data=payload_fail, headers=_dodo_headers(payload_fail))
+with app.app_context():
+    fail_shop = ShopPurchase.query.filter_by(lemon_squeezy_order_id="9002-fail").first()
+    fail_ord = Order.query.filter_by(ls_order_id="9002-fail").first()
+ok("Failed payment does not create a ShopPurchase",
+   r.status_code == 200 and fail_shop is None)
+ok("Failed payment still records an Order",
+   fail_ord is not None and fail_ord.status == "failed")
+
+# Studio activity + purchase chart helpers see paid orders
+with app.app_context():
+    from app.services import stats as stats_svc
+    activity = stats_svc.member_activity(20)
+    chart = stats_svc.purchases_over_time(30)
+    trend = stats_svc.trending_product(30)
+ok("Member activity includes purchases",
+   any(a.get("kind") == "purchase" for a in activity))
+ok("Purchases chart has daily series",
+   isinstance(chart.get("all"), list) and chart.get("total", 0) >= 1)
+ok("Trending product reports a leader",
+   trend is not None and "trending" in (trend.get("label") or "").lower())
+
 # refund hides from My space
 payload_ref = _payment_payload(
     "9002", "newperson@example.com", "prod_quiet",

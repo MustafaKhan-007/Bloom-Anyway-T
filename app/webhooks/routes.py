@@ -38,6 +38,12 @@ def dodo_payments():
     data = payload.get("data") or {}
     if not isinstance(data, dict):
         return {"error": "invalid payload"}, 400
+    # Some deliveries nest the payment one level deeper.
+    if not (data.get("payment_id") or data.get("id")) and isinstance(data.get("payment"), dict):
+        data = data["payment"]
+    # Or put payment fields on the root payload.
+    if not (data.get("payment_id") or data.get("id")) and payload.get("payment_id"):
+        data = payload
 
     try:
         dodo_svc.handle_payment_event(event, data)

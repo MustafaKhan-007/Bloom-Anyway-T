@@ -74,8 +74,20 @@ def upsert_shop_purchase(
             row.status = "refunded"
         return row
 
-    # Idempotency: duplicate order_created deliveries do nothing further.
+    # Idempotency: keep an existing non-refunded row, but still try to link
+    # pending purchases and refresh the display name when we learn more.
     if row is not None:
+        if product_name:
+            cleaned = (product_name or "").strip()[:200]
+            if cleaned:
+                row.product_name = cleaned
+        if row.status != "refunded" and (row.user_id is None or row.status == "pending_link"):
+            user = (User.query
+                    .filter(func.lower(User.email) == email, User.deleted_at.is_(None))
+                    .first())
+            if user:
+                row.user_id = user.id
+                row.status = "linked"
         return row
 
     user = (User.query
