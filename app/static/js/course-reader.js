@@ -408,21 +408,28 @@
       if (statusEl) statusEl.textContent = "Loading page " + num + "…";
       return state.pdf.getPage(num).then(function (page) {
         if (token !== state.renderToken) return;
-        var wrap = canvas.parentElement;
+        var stage = document.getElementById("reader-stage");
         var zoomScales = { sm: 0.82, md: 1, lg: 1.4 };
         var zoom = zoomScales[prefs.zoom || "md"] || 1;
-        // Fit = page width matches the stage; Smaller/Larger scale from that.
-        var fitWidth = Math.max(280, (wrap && wrap.clientWidth) || 800);
-        var targetWidth = Math.round(fitWidth * zoom);
+        // Measure the stage pane (not the canvas wrap) so Larger doesn't compound.
+        var fitWidth = 800;
+        if (stage) {
+          var cs = window.getComputedStyle(stage);
+          var padX = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
+          fitWidth = Math.max(280, stage.clientWidth - padX);
+        }
+        var cssWidth = Math.round(fitWidth * zoom);
         var unscaled = page.getViewport({ scale: 1 });
-        var scale = targetWidth / unscaled.width;
+        var scale = cssWidth / unscaled.width;
         var viewport = page.getViewport({ scale: scale });
+        var cssHeight = Math.floor(viewport.height);
+        cssWidth = Math.floor(viewport.width);
         var outputScale = window.devicePixelRatio || 1;
-        canvas.width = Math.floor(viewport.width * outputScale);
-        canvas.height = Math.floor(viewport.height * outputScale);
-        // Width only — height:auto keeps the PDF aspect ratio (avoids CSS stretch).
-        canvas.style.width = Math.floor(viewport.width) + "px";
-        canvas.style.height = "auto";
+        // Bitmap can be sharper than CSS size; CSS size must keep PDF aspect ratio.
+        canvas.width = Math.floor(cssWidth * outputScale);
+        canvas.height = Math.floor(cssHeight * outputScale);
+        canvas.style.width = cssWidth + "px";
+        canvas.style.height = cssHeight + "px";
         var ctx = canvas.getContext("2d");
         var transform =
           outputScale !== 1 ? [outputScale, 0, 0, outputScale, 0, 0] : null;
