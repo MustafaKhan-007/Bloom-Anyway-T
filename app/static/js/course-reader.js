@@ -409,30 +409,38 @@
       return state.pdf.getPage(num).then(function (page) {
         if (token !== state.renderToken) return;
         var stage = document.getElementById("reader-stage");
-        // Zoom is relative to the largest size that still fits the pane.
-        var zoomMult = { sm: 0.82, md: 0.92, lg: 1 }[prefs.zoom || "md"] || 0.92;
+        var zoom = prefs.zoom || "md";
+        // Fit / Smaller: contain the full page in the pane (no scroll).
+        // Larger: fill the pane width so text is readable; scroll vertically if needed.
         var availW = 800;
         var availH = 700;
         if (stage) {
           var cs = window.getComputedStyle(stage);
           var padX = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
           var padY = (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
-          // Use the stage’s fixed box only — measuring the wrap was returning a
-          // near-zero height and crushing the page.
-          availW = Math.max(320, stage.clientWidth - padX);
-          availH = Math.max(320, stage.clientHeight - padY - 8);
+          var chip = document.getElementById("reader-page-chip");
+          var chipH = (chip && !chip.hidden) ? (chip.offsetHeight + 10) : 0;
+          availW = Math.max(280, stage.clientWidth - padX);
+          availH = Math.max(280, stage.clientHeight - padY - chipH);
         }
         var unscaled = page.getViewport({ scale: 1 });
-        var fitScale = Math.min(availW / unscaled.width, availH / unscaled.height);
-        var scale = fitScale * zoomMult;
+        var scale;
+        if (zoom === "lg") {
+          scale = availW / unscaled.width;
+        } else {
+          var contain = Math.min(availW / unscaled.width, availH / unscaled.height);
+          scale = contain * (zoom === "sm" ? 0.85 : 1);
+        }
         var viewport = page.getViewport({ scale: scale });
         var cssWidth = Math.floor(viewport.width);
         var cssHeight = Math.floor(viewport.height);
-        var outputScale = window.devicePixelRatio || 1;
+        var outputScale = Math.min(window.devicePixelRatio || 1, 2.5);
         canvas.width = Math.floor(cssWidth * outputScale);
         canvas.height = Math.floor(cssHeight * outputScale);
+        // Explicit equal CSS sizing — never stretch one axis independently.
         canvas.style.width = cssWidth + "px";
         canvas.style.height = cssHeight + "px";
+        canvas.style.maxWidth = "none";
         var ctx = canvas.getContext("2d");
         var transform =
           outputScale !== 1 ? [outputScale, 0, 0, outputScale, 0, 0] : null;

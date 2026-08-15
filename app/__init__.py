@@ -214,6 +214,7 @@ def create_app(config_class=None):
     def inject_globals():
         unread = 0
         nav_notes = []
+        anns = []
         if getattr(current_user, "is_authenticated", False):
             try:
                 unread = unread_notification_count(current_user)
@@ -221,8 +222,12 @@ def create_app(config_class=None):
             except Exception:
                 unread = 0
                 nav_notes = []
+        try:
+            anns = active_announcements()
+        except Exception:
+            anns = []
         return {"site": all_settings(),
-                "announcements": active_announcements(),
+                "announcements": anns,
                 "current_year": date.today().year,
                 "unread_notes": unread,
                 "nav_notifications": nav_notes,

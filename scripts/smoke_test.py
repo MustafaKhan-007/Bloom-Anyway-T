@@ -1427,7 +1427,7 @@ ok("Shop purchase links to buyer email (not gift recipient)",
    gift_shop is not None and gift_shop.customer_email == "santa@example.com"
    and gift_shop.status == "pending_link")
 
-# Multiple announcements stack; blank expiry defaults to +1 day
+# Multiple announcements stack; blank expiry defaults to +7 days
 admin.post("/admin/settings", data={"add_announcement": "1",
            "ann_body": "First bloom of spring"}, follow_redirects=True)
 admin.post("/admin/settings", data={"add_announcement": "1",
@@ -1438,9 +1438,11 @@ ok("Multiple announcements stack on the home page",
 with app.app_context():
     from app.models import Announcement
     fresh = Announcement.query.filter_by(body="First bloom of spring").first()
-    expected_exp = date.today() + timedelta(days=1)
-ok("Announcement defaults to a one-day expiry",
+    expected_exp = date.today() + timedelta(days=7)
+ok("Announcement defaults to a one-week expiry",
    fresh is not None and fresh.expires == expected_exp, f"got {getattr(fresh, 'expires', None)}")
+ok("Home announcements use hero notice cards",
+   "home-hero__notices" in hbody and "hero-announcement" in hbody)
 
 # Community is list-only (no tiles toggle)
 r = client.get("/forums/c/healing")

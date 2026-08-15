@@ -106,12 +106,16 @@ def active_announcements() -> list[str]:
     """All live announcements (multi + the legacy single), newest first."""
     from ..models import Announcement
     out = []
-    legacy = active_announcement()
-    if legacy:
-        out.append(legacy)
-    rows = (Announcement.query
-            .order_by(Announcement.sort_order, Announcement.created_at.desc()).all())
-    out.extend(a.body for a in rows if a.is_live())
+    try:
+        legacy = active_announcement()
+        if legacy:
+            out.append(legacy)
+        rows = (Announcement.query
+                .order_by(Announcement.sort_order, Announcement.created_at.desc()).all())
+        out.extend(a.body for a in rows if a.is_live())
+    except Exception:
+        # Missing table / DB hiccup must not blank the whole site.
+        return out
     return out
 
 

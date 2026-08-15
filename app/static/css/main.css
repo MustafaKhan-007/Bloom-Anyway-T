@@ -377,14 +377,14 @@ input[type="file"]:not(.sr-only):not(.file-pick__input):hover::-webkit-file-uplo
   gap: 12px;
   max-width: 100%;
   margin: 0 0 22px;
-  padding: 12px 20px;
-  background: linear-gradient(100deg, var(--gold-soft) 0%, #FBD9A6 100%);
-  border: 1px solid rgba(122, 46, 98, 0.14);
+  padding: 14px 22px;
+  background: linear-gradient(100deg, #fff6e8 0%, #f5d9a8 100%);
+  border: 1px solid rgba(122, 46, 98, 0.16);
   border-radius: 16px;
   color: var(--ink);
-  font-size: 15.5px;
+  font-size: 16px;
   font-weight: 700;
-  line-height: 1.4;
+  line-height: 1.45;
   box-shadow: 0 10px 24px rgba(224, 138, 109, 0.22);
 }
 .hero-announcement__spark {
@@ -1561,6 +1561,20 @@ html.is-page-loading { cursor: progress; }
   flex: 0 0 auto;
   border-radius: 8px;
   background: #fff;
+  /* Never let CSS stretch the bitmap — JS sets both axes. */
+  object-fit: contain;
+  max-width: none;
+  max-height: none;
+}
+/* Larger zoom: fill width, scroll the page vertically if needed. */
+.course-reader-page[data-zoom="lg"] .reader__stage {
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+.course-reader-page[data-zoom="lg"] .course-reader__pdf-wrap {
+  align-items: flex-start;
+  overflow: visible;
+  min-height: min-content;
 }
 .reader__page-chip {
   position: absolute; top: 14px; right: 18px; margin: 0;
@@ -2152,6 +2166,27 @@ html.is-page-loading { cursor: progress; }
   display: flex; flex-direction: column; gap: 8px; }
 .announce-strip .hero-announcement,
 .announce-strip .hero-newvideo { margin: 0; }
+
+/* Home hero notices — rounded cards above the strap (readable on cream). */
+.home-hero__notices {
+  background: linear-gradient(180deg, #fff8ec 0%, #fef9f3 100%);
+  border-bottom: 1px solid rgba(194, 152, 69, 0.28);
+  padding: 16px 0 14px;
+}
+.home-hero__notices-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+}
+.home-hero__notices .hero-announcement,
+.home-hero__notices .hero-newvideo {
+  margin: 0;
+  width: 100%;
+  max-width: 720px;
+  align-self: center;
+  box-shadow: 0 12px 28px rgba(194, 152, 69, 0.18);
+}
 
 /* =============================== spotlight ================================ */
 .spotlight-tag {

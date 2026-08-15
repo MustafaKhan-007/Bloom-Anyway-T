@@ -102,7 +102,7 @@
           <label for="announcement_expires">Show until</label>
           <input type="date" id="announcement_expires" name="announcement_expires"
                  value="{{ values.announcement_expires or default_expires }}">
-          <p class="field-help">Defaults to one day from now if you leave this blank.</p>
+          <p class="field-help">Defaults to one week from now if you leave this blank.</p>
         </div>
       </div>
     </section>
@@ -262,7 +262,7 @@
       <div class="field">
         <label for="ann_expires">Show until</label>
         <input type="date" id="ann_expires" name="ann_expires" value="{{ default_expires }}">
-        <p class="field-help">Defaults to one day from now.</p>
+        <p class="field-help">Defaults to one week from now.</p>
       </div>
       <div class="field form-row--announce__action">
         <label class="sr-only" for="ann-add">Add announcement</label>

@@ -4,26 +4,26 @@
 
 {% block content %}
 <div class="home">
-{% if announcements or latest_video %}
-<div class="announce-strip">
-  <div class="container">
-    {% for note in announcements %}
-    <div class="hero-announcement" role="region" aria-label="Announcement">
-      <span class="hero-announcement__spark" aria-hidden="true">&#10022;</span>
-      <span class="hero-announcement__text">{{ note }}</span>
-    </div>
-    {% endfor %}
-    {% if latest_video %}
-    <a class="hero-newvideo" href="{{ url_for('main.watch', video_id=latest_video.id) }}">
-      <span class="hero-newvideo__spark" aria-hidden="true">&#9654;</span>
-      <span class="hero-newvideo__text">New in the Content Hub: <strong>{{ latest_video.title }}</strong></span>
-    </a>
-    {% endif %}
-  </div>
-</div>
-{% endif %}
-
 <section class="home-hero" aria-label="Healing and building">
+  {% if announcements or latest_video %}
+  <div class="home-hero__notices">
+    <div class="container home-hero__notices-inner">
+      {% for note in announcements %}
+      <div class="hero-announcement" role="region" aria-label="Announcement">
+        <span class="hero-announcement__spark" aria-hidden="true">&#10022;</span>
+        <span class="hero-announcement__text">{{ note }}</span>
+      </div>
+      {% endfor %}
+      {% if latest_video %}
+      <a class="hero-newvideo" href="{{ url_for('main.watch', video_id=latest_video.id) }}">
+        <span class="hero-newvideo__spark" aria-hidden="true">&#9654;</span>
+        <span class="hero-newvideo__text">New in the Content Hub: <strong>{{ latest_video.title }}</strong></span>
+      </a>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
   <p class="home-hero__strap">
     <span class="home-hero__strap-line" aria-hidden="true"></span>
     <span class="home-hero__strap-text">A space for women who are healing, building, or both</span>
