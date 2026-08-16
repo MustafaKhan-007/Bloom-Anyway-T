@@ -576,6 +576,8 @@ ok("Category shows tag filter chips", "The Vent" in r.get_data(as_text=True) and
 ok("Category shows Looking for filter chips",
    "Looking for" in r.get_data(as_text=True) and "Advice" in r.get_data(as_text=True)
    and "Recognition" in r.get_data(as_text=True))
+ok("Conversation card stretch-link styles ship",
+   "post-row__hit" in client.get("/static/css/main.css").get_data(as_text=True))
 
 # member (client = newperson, verified + logged in) can post with a tag
 r = client.post("/forums/c/healing/new",
@@ -602,7 +604,10 @@ ok("Looking-for filter hides other intents",
 r = client.get("/forums/c/healing?tag=grief")
 ok("Tag filter hides posts from other topics", "Rough day" not in r.get_data(as_text=True))
 r = client.get("/forums/c/healing?tag=venting")
-ok("Tag filter shows matching posts", "Rough day" in r.get_data(as_text=True))
+feed_html = r.get_data(as_text=True)
+ok("Tag filter shows matching posts", "Rough day" in feed_html)
+ok("Feed conversation widget opens from the full card",
+   "post-row__hit" in feed_html and "Rough day" in feed_html)
 
 # profanity is blocked and earns a warning
 r = client.post("/forums/c/healing/new",

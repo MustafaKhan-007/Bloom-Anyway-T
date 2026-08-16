@@ -209,13 +209,15 @@
         {% for post in posts %}
         {% set comment_n = post.comments.filter_by(hidden=False).count() %}
         <article class="post-row">
+          <a class="post-row__hit" href="{{ url_for('forums.post', post_id=post.id) }}"
+             aria-label="Open conversation: {{ post.title }}"></a>
           <a class="post-row__votes" href="{{ url_for('forums.post', post_id=post.id) }}"
-             aria-label="{{ post.like_count() }} likes">
+             aria-label="{{ post.like_count() }} likes" tabindex="-1">
             <span class="post-row__heart" aria-hidden="true">&#9825;</span>
             <span>{{ post.like_count() }}</span>
           </a>
           <div class="post-row__main">
-            <h3><a href="{{ url_for('forums.post', post_id=post.id) }}">{{ post.title }}</a></h3>
+            <h3><a href="{{ url_for('forums.post', post_id=post.id) }}" tabindex="-1">{{ post.title }}</a></h3>
             <div class="post-row__meta">
               {% if post.tag %}<span class="tag-chip tag-chip--mini">{{ post.tag.name }}</span>{% endif %}
               {% if post.looking_for_label() %}

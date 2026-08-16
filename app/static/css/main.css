@@ -1,5 +1,5 @@
 /* ==========================================================================
-   BLOOM ANYWAY — design system
+   BLOOM ANYWAY â design system
    The moment just before sunrise: dark plum night, blush horizon, first gold.
    ========================================================================== */
 
@@ -190,7 +190,7 @@ label { display: block; font-weight: 600; margin-bottom: 6px; }
 .field-error { color: var(--error); font-size: 14px; margin: 6px 0 0; }
 .honeypot { position: absolute; left: -9999px; opacity: 0; height: 0; overflow: hidden; }
 
-/* File inputs — branded control (native fallback + enhanced .file-pick) */
+/* File inputs â branded control (native fallback + enhanced .file-pick) */
 input[type="file"]:not(.sr-only):not(.file-pick__input) {
   display: block;
   width: 100%;
@@ -293,7 +293,7 @@ input[type="file"]:not(.sr-only):not(.file-pick__input):hover::-webkit-file-uplo
               transform 160ms ease, box-shadow 160ms ease;
 }
 .file-pick__btn::before {
-  content: "↑";
+  content: "â";
   font-size: 15px;
   font-weight: 700;
   line-height: 1;
@@ -751,7 +751,7 @@ details.faq-item .answer { padding: 0 22px 20px; }
 
 /* ------------------------------- utilities -------------------------------- */
 .text-center { text-align: center; }
-/* Center the block itself — `p` has max-width, so text-align alone leaves it left-biased. */
+/* Center the block itself â `p` has max-width, so text-align alone leaves it left-biased. */
 p.text-center { margin-left: auto; margin-right: auto; }
 .mt-0 { margin-top: 0; }
 .stack-sm > * + * { margin-top: 12px; }
@@ -765,7 +765,7 @@ p.text-center { margin-left: auto; margin-right: auto; }
 .cta-band { text-align: center; }
 
 /* ==========================================================================
-   ADMIN — same tokens, denser
+   ADMIN â same tokens, denser
    ========================================================================== */
 .admin-body { font-size: 15px; background: var(--dawn-ivory); }
 .studio-readonly-banner { margin-bottom: 14px; }
@@ -903,7 +903,7 @@ details.faq-item > form { padding: 0 20px 20px; }
   transition: border-color 150ms ease, background 150ms ease, color 150ms ease;
 }
 .intent-option:hover { border-color: var(--plum); }
-/* checkbox is hidden — selection is shown purely by colour */
+/* checkbox is hidden â selection is shown purely by colour */
 .intent-option input {
   position: absolute; width: 1px; height: 1px; opacity: 0;
   margin: 0; pointer-events: none;
@@ -1006,7 +1006,7 @@ img.avatar.avatar--photo {
 .note-bell__item time { font-size: 12px; color: var(--ink-soft); }
 .note-bell__item.is-unread a { color: var(--plum); }
 
-/* Soft spinning sunflower — petals sway on hinges while it turns */
+/* Soft spinning sunflower â petals sway on hinges while it turns */
 .page-loader {
   position: fixed; inset: 0; z-index: 4000;
   display: flex; align-items: center; justify-content: center;
@@ -1594,7 +1594,7 @@ html.is-page-loading { cursor: progress; }
   background: #EDE4EF; color: var(--plum-deep); font-weight: 800;
 }
 .reader__toc-item.is-bookmarked::after {
-  content: " ★";
+  content: " â";
   color: var(--gold); font-size: 11px;
 }
 .reader__search {
@@ -1637,7 +1637,7 @@ html.is-page-loading { cursor: progress; }
   flex: 0 0 auto;
   border-radius: 8px;
   background: #fff;
-  /* Never let CSS stretch the bitmap — JS sets both axes. */
+  /* Never let CSS stretch the bitmap â JS sets both axes. */
   object-fit: contain;
   max-width: none;
   max-height: none;
@@ -2243,7 +2243,7 @@ html.is-page-loading { cursor: progress; }
 .announce-strip .hero-announcement,
 .announce-strip .hero-newvideo { margin: 0; }
 
-/* Home hero notices — rounded cards above the strap (readable on cream). */
+/* Home hero notices â rounded cards above the strap (readable on cream). */
 .home-hero__notices {
   background: linear-gradient(180deg, #fff8ec 0%, #fef9f3 100%);
   border-bottom: 1px solid rgba(194, 152, 69, 0.28);
@@ -3923,13 +3923,34 @@ a.at-handle:hover { text-decoration: underline; }
 }
 .fc .post-list { display: grid; gap: 12px; }
 .fc .post-row {
+  position: relative;
   display: grid; grid-template-columns: 52px minmax(0, 1fr) auto;
   gap: 14px 16px; align-items: start;
   background: #fff; border-radius: 16px; padding: 16px 18px;
   border: 1px solid rgba(75, 33, 66, 0.07);
   box-shadow: 0 6px 20px rgba(75, 33, 66, 0.06);
   color: inherit;
+  cursor: pointer;
   transition: transform 180ms ease, box-shadow 180ms ease;
+}
+.fc .post-row__hit {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: inherit;
+  text-indent: -9999px;
+  overflow: hidden;
+  color: transparent;
+}
+.fc .post-row__votes,
+.fc .post-row__main,
+.fc .post-row__aside {
+  position: relative;
+  z-index: 0;
+}
+.fc .post-row__report {
+  position: relative;
+  z-index: 2;
 }
 .fc--build .post-row { border-color: rgba(196, 149, 78, 0.18); }
 .fc .post-row:hover {
@@ -6443,7 +6464,7 @@ a.at-handle:hover { text-decoration: underline; }
 .cg-bundle__btn.is-disabled { opacity: 0.55; pointer-events: none; }
 
 /* ======================== Product tour ================================ */
-/* No vignette — tip bubble + color pop on the hot control only. */
+/* No vignette â tip bubble + color pop on the hot control only. */
 html.is-touring--click a,
 html.is-touring--click button,
 html.is-touring--click input,
@@ -6563,7 +6584,7 @@ html.is-touring .tour-ui .tour-bubble button,
 }
 
 /* ==========================================================================
-   HANDHELD / TABLET ONLY (phones, iPads, tablets) — max-width: 899px
+   HANDHELD / TABLET ONLY (phones, iPads, tablets) â max-width: 899px
    Desktop layout above 900px stays unchanged.
    ========================================================================== */
 
