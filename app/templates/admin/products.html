@@ -81,6 +81,13 @@
                  placeholder="Main workbook">
         </div>
       </div>
+      <div class="form-row">
+        <div class="field">
+          <label for="new_cover">Cover image (optional)</label>
+          <input type="file" id="new_cover" name="cover" accept="image/png,image/jpeg,image/webp">
+          <p class="field-help" style="margin:6px 0 0;">Leave blank for the flower colour cover. JPG/PNG, cropped to 3∶4.</p>
+        </div>
+      </div>
       <div class="field">
         <label for="new_description">Short description</label>
         <textarea id="new_description" name="description" rows="3"
@@ -226,6 +233,30 @@
               </div>
             </div>
 
+            <div class="cg-studio-cover">
+              <p class="eyebrow" style="margin: 18px 0 8px;">Cover image</p>
+              <p class="field-help" style="margin: 0 0 10px;">
+                Optional. Without a photo, cards use the coloured flower cover (title + bloom anyway).
+              </p>
+              {% if p.cover_url %}
+              <div class="cg-studio-cover__preview">
+                <img src="{{ p.cover_url }}" alt="" width="72" height="96">
+                <button class="btn btn--secondary btn--sm" type="submit"
+                        form="clear-cover-{{ p.id }}">Remove cover</button>
+              </div>
+              {% endif %}
+              <div class="form-row" style="align-items: end; margin-top: 8px;">
+                <div class="field" style="flex: 2;">
+                  <label for="cover_{{ p.id }}">{% if p.cover_url %}Replace cover{% else %}Upload cover{% endif %}</label>
+                  <input type="file" id="cover_{{ p.id }}" name="cover" form="upload-cover-{{ p.id }}"
+                         accept="image/png,image/jpeg,image/webp">
+                </div>
+                <div class="field">
+                  <button class="btn btn--secondary" type="submit" form="upload-cover-{{ p.id }}">Save cover</button>
+                </div>
+              </div>
+            </div>
+
             <div class="cg-studio-item__actions">
               <button class="btn btn--danger btn--sm" type="submit" form="del-{{ p.id }}"
                       data-confirm="Delete “{{ p.title }}”?">Delete</button>
@@ -247,6 +278,16 @@
         action="{{ url_for('admin.product_asset_upload', product_id=p.id) }}"
         enctype="multipart/form-data" hidden>
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  </form>
+  <form id="upload-cover-{{ p.id }}" method="post"
+        action="{{ url_for('admin.product_cover_upload', product_id=p.id) }}"
+        enctype="multipart/form-data" hidden>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  </form>
+  <form id="clear-cover-{{ p.id }}" method="post"
+        action="{{ url_for('admin.product_cover_upload', product_id=p.id) }}" hidden>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="clear_cover" value="1">
   </form>
   {% for a in p.assets %}
   <form id="del-asset-{{ a.id }}" method="post"

@@ -967,6 +967,18 @@ def site_image(key):
     return resp
 
 
+@bp.route("/media/product-cover/<int:product_id>")
+def product_cover(product_id):
+    """Serve an optional product cover image for Courses / My space cards."""
+    from ..services.product_covers import file_for
+    path = file_for(product_id)
+    if path is None:
+        abort(404)
+    resp = send_file(path, mimetype="image/jpeg")
+    resp.headers["Cache-Control"] = "public, max-age=86400"
+    return resp
+
+
 @bp.route("/account/journey.pdf")
 @login_required
 def journey_pdf():

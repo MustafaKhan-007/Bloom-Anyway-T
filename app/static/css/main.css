@@ -6136,6 +6136,17 @@ a.at-handle:hover { text-decoration: underline; }
   display: flex; flex-direction: column;
   overflow: hidden;
 }
+.lib-card__cover--photo {
+  padding: 0;
+  background: #1a1020;
+}
+.lib-card__cover-img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 168px;
+  object-fit: cover;
+}
 .lib-card__bloom {
   position: absolute;
   right: -6px; bottom: 28px;
@@ -6251,6 +6262,8 @@ a.at-handle:hover { text-decoration: underline; }
   background: var(--lib-cover, var(--plum-deep));
   color: #fff !important;
 }
+.lib-card__btn--healing { background: #5A3158; }
+.lib-card__btn--building { background: #B58A3F; }
 .lib-card__btn--primary:hover { filter: brightness(1.06); transform: translateY(-1px); }
 .lib-card__btn--ghost {
   background: var(--dawn-ivory);
@@ -6258,6 +6271,25 @@ a.at-handle:hover { text-decoration: underline; }
   border: 1px solid rgba(61, 20, 49, 0.12);
 }
 .lib-card__btn--ghost:hover { background: #fff; }
+.lib-card__price {
+  font-size: 1.35rem; font-weight: 800; color: var(--plum-deep);
+  margin-right: auto;
+}
+.lib-card__badge {
+  margin: 0 0 6px; font-size: 11px; font-weight: 800;
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--lib-cover, #5A3158);
+}
+.lib-card__cat {
+  margin: 0 0 4px; font-size: 11px; font-weight: 800;
+  letter-spacing: 0.1em; text-transform: uppercase; color: #B58A3F;
+}
+.cg-studio-cover__preview {
+  display: flex; align-items: center; gap: 12px; margin-bottom: 8px;
+}
+.cg-studio-cover__preview img {
+  width: 72px; height: 96px; object-fit: cover; border-radius: 10px;
+  border: 1px solid rgba(61, 20, 49, 0.12);
+}
 .lib-card__wait { margin: 0; flex: 1 1 220px; }
 .lib-card__more { position: relative; margin-left: auto; }
 .lib-card__more > summary {

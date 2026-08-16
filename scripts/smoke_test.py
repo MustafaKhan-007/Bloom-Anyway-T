@@ -297,6 +297,53 @@ ok("/courses renders on-site catalogue",
    r.status_code == 200 and "Courses &amp; Guides" in cbody
    and "Healing resources by" in cbody and "Creator resources by" in cbody
    and "Rebuild Workbook" not in cbody and "50 Hooks" not in cbody)
+ok("Studio offers product cover upload",
+   "Cover image" in _pbody and 'name="cover"' in _pbody)
+
+# Tiny JPEG cover upload for a draft product
+from io import BytesIO
+from PIL import Image as _PILCover
+_cbuf = BytesIO()
+_PILCover.new("RGB", (300, 400), (90, 49, 88)).save(_cbuf, format="JPEG")
+_cbuf.seek(0)
+r = admin.post(
+    "/admin/products",
+    data={
+        "action": "create",
+        "title": "Cover Test Guide",
+        "track": "healing",
+        "type": "guide",
+        "price": "19.00",
+        "promise": "A soft check-in.",
+        "cover": (_cbuf, "cover.jpg"),
+    },
+    content_type="multipart/form-data",
+    follow_redirects=True,
+)
+ok("Studio accepts product cover on create", r.status_code == 200)
+with app.app_context():
+    cover_prod = Product.query.filter_by(slug="cover-test-guide").first()
+    ok("Cover URL stored on product",
+       cover_prod is not None and (cover_prod.cover_url or "").startswith("/media/product-cover/"),
+       f"got {getattr(cover_prod, 'cover_url', None)}")
+    cover_id = cover_prod.id if cover_prod else 0
+r = client.get(f"/media/product-cover/{cover_id}")
+ok("Product cover image is served",
+   cover_id and r.status_code == 200 and r.mimetype.startswith("image/"))
+with app.app_context():
+    cover_prod = Product.query.filter_by(id=cover_id).first()
+    if cover_prod:
+        cover_prod.status = "published"
+        db.session.commit()
+r = client.get("/courses")
+courses_body = r.get_data(as_text=True)
+ok("Courses page uses My space-style library cards",
+   "lib-card" in courses_body
+   and "lib-card__cover" in courses_body
+   and "Cover Test Guide" in courses_body)
+ok("Uploaded cover appears on Courses cards",
+   f"/media/product-cover/{cover_id}" in courses_body
+   and "lib-card__cover--photo" in courses_body)
 r = client.get("/")
 home = r.get_data(as_text=True)
 ok("Home includes creator membership CTA",

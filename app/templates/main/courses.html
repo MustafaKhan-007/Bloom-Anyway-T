@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "partials/bloom_cover.html" import bloom_cover %}
 {% block title %}Courses &amp; Guides — {{ site.site_title }}{% endblock %}
 {% block meta_description %}Courses and guided notebooks from Ayesha and Saman — healing and creator tracks, open to everyone.{% endblock %}
 
@@ -10,35 +11,50 @@
 {%- endmacro %}
 
 {% macro product_card(product, lane, owned_purchase_id=none) %}
-<article class="cg-card cg-card--{{ lane }}{% if product.accent_hex() %} cg-card--custom{% endif %}{% if owned_purchase_id %} cg-card--owned{% endif %}"
-         {% if product.card_style() %}style="{{ product.card_style() }}"{% endif %}>
-  <div class="cg-card__art">
-    {% if owned_purchase_id %}
-    <span class="cg-card__tag cg-card__tag--badge">Purchased</span>
-    {% elif product.badge %}
-    <span class="cg-card__tag cg-card__tag--badge">{{ product.badge }}</span>
-    {% endif %}
-    <span class="cg-card__tag cg-card__tag--type">{{ product.type_pill() }}</span>
-    <h3 class="cg-card__art-title">{{ product.promise or product.title }}</h3>
-  </div>
-  <div class="cg-card__body">
-    {% if product.category_label %}
-    <p class="cg-card__cat">{{ product.category_label }}</p>
-    {% endif %}
-    <h3 class="cg-card__title">{{ product.title }}</h3>
-    {% if product.promise and product.promise != product.title %}
-    <p class="cg-card__promise">{{ product.promise }}</p>
-    {% endif %}
-    {% if product.meta_line %}
-    <p class="cg-card__meta">{{ product.meta_line }}</p>
-    {% endif %}
-    <div class="cg-card__foot">
+{% set cover = product.cover_color() %}
+{% set kind_short = product.kind_short() %}
+<article class="lib-card lib-card--shop{% if owned_purchase_id %} lib-card--owned{% endif %}{% if product.accent_hex() %} lib-card--custom{% endif %}"
+         {% if product.card_style() %}style="{{ product.card_style() }} --lib-cover: {{ cover }};"{% else %}style="--lib-cover: {{ cover }};"{% endif %}>
+  {{ bloom_cover(product.title, kind_short, cover, product.cover_url or none) }}
+  <div class="lib-card__body">
+    <div class="lib-card__top">
+      <div class="lib-card__intro">
+        {% if product.badge or owned_purchase_id %}
+        <p class="lib-card__badge">
+          {% if owned_purchase_id %}Purchased{% elif product.badge %}{{ product.badge }}{% endif %}
+        </p>
+        {% endif %}
+        {% if product.category_label %}
+        <p class="lib-card__cat">{{ product.category_label }}</p>
+        {% endif %}
+        <h3 class="lib-card__title">{{ product.title }}</h3>
+        <ul class="lib-card__meta">
+          <li>
+            <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M3.5 1.5h6.2L13 4.8V14a.5.5 0 0 1-.5.5h-9A.5.5 0 0 1 3 14V2a.5.5 0 0 1 .5-.5Zm6 .9V5h2.7L9.5 2.4ZM4.2 7.2h7.6v1.1H4.2V7.2Zm0 2.4h7.6v1.1H4.2V9.6Zm0 2.4h5.2v1.1H4.2v-1.1Z"/></svg>
+            {{ product.type_pill()|title }}
+          </li>
+          {% if product.meta_line %}
+          <li>{{ product.meta_line }}</li>
+          {% elif product.promise %}
+          <li>{{ product.promise }}</li>
+          {% endif %}
+        </ul>
+      </div>
+    </div>
+    <div class="lib-card__actions">
       {% if owned_purchase_id %}
-      <span class="cg-card__price cg-card__price--owned">Purchased</span>
-      <a class="btn cg-card__btn" href="{{ url_for('main.course_reader', purchase_id=owned_purchase_id) }}">Open &rarr;</a>
+      <span class="lib-card__price">Purchased</span>
+      <a class="btn lib-card__btn lib-card__btn--primary lib-card__btn--{{ lane }}"
+         href="{{ url_for('main.course_reader', purchase_id=owned_purchase_id) }}">
+        <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M2.2 2.5h5.1c.9 0 1.6.7 1.6 1.6v9.2L5.5 11.8 2.2 13.3V2.5Zm6.5 0H13.8v10.8l-3.3-1.5-1.8 1.1V4.1c0-.9.7-1.6 1.6-1.6Z"/></svg>
+        Open &amp; read
+      </a>
       {% else %}
-      <span class="cg-card__price">{{ product.price_display() or '—' }}</span>
-      <a class="btn cg-card__btn" href="{{ url_for('main.checkout_product', slug=product.slug) }}">{{ cta_label(product) }} &rarr;</a>
+      <span class="lib-card__price">{{ product.price_display() or '—' }}</span>
+      <a class="btn lib-card__btn lib-card__btn--primary lib-card__btn--{{ lane }}"
+         href="{{ url_for('main.checkout_product', slug=product.slug) }}">
+        {{ cta_label(product) }}
+      </a>
       {% endif %}
     </div>
   </div>

@@ -349,13 +349,35 @@ class Product(db.Model):
         missing = []
         if not (self.promise or "").strip():
             missing.append("a one-line promise")
-        if not (self.cover_url or "").strip():
-            missing.append("a cover image URL")
         if self.price_cents is None:
             missing.append("a price")
         if not (self.dodo_product_id or "").strip():
             missing.append("the Dodo Payments product ID")
         return missing
+
+    def cover_color(self) -> str:
+        """Solid colour for the default flower cover."""
+        accent = self.accent_hex()
+        if accent:
+            return accent
+        if (self.track or "").strip() == "healing":
+            return "#5A3158"
+        return "#C4A574"
+
+    def kind_short(self) -> str:
+        asset = self.assets[0] if self.assets else None
+        kind = (asset.kind if asset else "") or ""
+        if kind == "pdf":
+            return "PDF"
+        if kind == "h5p":
+            return "H5P"
+        if kind == "audio":
+            return "AUDIO"
+        if kind in ("doc", "docx"):
+            return "DOC"
+        if kind:
+            return kind.upper()
+        return self.type_pill()
 
     def type_pill(self) -> str:
         return {

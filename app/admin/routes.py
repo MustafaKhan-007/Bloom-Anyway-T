@@ -242,6 +242,16 @@ def products():
                 product.accent_color = None
             db.session.add(product)
             db.session.flush()
+            cover = request.files.get("cover")
+            if cover and getattr(cover, "filename", None):
+                try:
+                    from ..services.product_covers import CoverError, process_and_save as save_cover
+                    product.cover_url = save_cover(product.id, cover)
+                except CoverError as exc:
+                    flash(str(exc), "error")
+                except Exception:
+                    log.exception("create product cover upload failed")
+                    flash("Product saved, but the cover didn’t upload. Try again below.", "error")
             upload = request.files.get("asset")
             asset_note = ""
             if upload and getattr(upload, "filename", None):
@@ -344,9 +354,41 @@ def product_asset_delete(product_id, asset_id):
     return redirect(url_for("admin.products"))
 
 
+@bp.route("/products/<int:product_id>/cover", methods=["POST"])
+@admin_required
+def product_cover_upload(product_id):
+    from ..services.product_covers import CoverError, clear as clear_cover, process_and_save
+
+    product = db.session.get(Product, product_id)
+    if product is None:
+        flash("That product was already gone.", "info")
+        return redirect(url_for("admin.products"))
+    if request.form.get("clear_cover"):
+        clear_cover(product.id)
+        product.cover_url = None
+        db.session.commit()
+        flash("Cover removed — the flower default is back.", "success")
+        return redirect(url_for("admin.products"))
+    upload = request.files.get("cover")
+    try:
+        product.cover_url = process_and_save(product.id, upload)
+        db.session.commit()
+        flash("Cover image saved.", "success")
+    except CoverError as exc:
+        db.session.rollback()
+        flash(str(exc), "error")
+    except Exception:
+        db.session.rollback()
+        log.exception("product cover upload failed")
+        flash("Could not upload that cover. Try a JPG or PNG under 8 MB.", "error")
+    return redirect(url_for("admin.products"))
+
+
 @bp.route("/products/<int:product_id>/delete", methods=["POST"])
 @admin_required
 def product_delete(product_id):
+    from ..services.product_covers import clear as clear_cover
+
     product = db.session.get(Product, product_id)
     if product is None:
         flash("That product was already gone.", "info")
@@ -361,6 +403,7 @@ def product_delete(product_id):
             "info",
         )
     else:
+        clear_cover(product.id)
         for asset in list(product.assets):
             db.session.delete(asset)
         db.session.delete(product)
