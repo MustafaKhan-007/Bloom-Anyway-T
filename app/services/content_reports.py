@@ -12,7 +12,7 @@ from ..extensions import db
 from ..models import (CONTENT_REPORT_TARGETS, ContentReport, ForumComment,
                       ForumPost, utcnow)
 from .moderation import contains_profanity
-from .social_graph import notify
+from .social_graph import notify, notify_owners
 
 # short, high-confidence phrases — not a full moderation suite
 _HOSTILE = (
@@ -110,6 +110,12 @@ def submit_report(*, reporter, target_type: str, target_id: int,
     )
     db.session.add(report)
 
+    what = "post" if target_type == "post" else "comment"
+    try:
+        from flask import url_for
+        inbox_url = url_for("admin.inbox", filter="reports")
+    except RuntimeError:
+        inbox_url = "/admin/inbox?filter=reports"
     if reason:
         target.hidden = True
         if author_id:
@@ -117,13 +123,26 @@ def submit_report(*, reporter, target_type: str, target_id: int,
                 author_id,
                 kind="moderation",
                 body=("A community report removed your "
-                      f"{'post' if target_type == 'post' else 'comment'} "
+                      f"{what} "
                       f"({reason.lower()}). You can reach out if this seems wrong."),
                 url=_target_url(target),
             )
+        notify_owners(
+            kind="inbox",
+            body=(f"A {what} was auto-hidden after a report "
+                  f"({reason.lower()})."),
+            url=inbox_url,
+            actor_id=reporter.id,
+        )
         db.session.commit()
         return report, "Thank you — we reviewed it and took it down."
 
+    notify_owners(
+        kind="inbox",
+        body=f"New {what} report needs a look in Studio inbox.",
+        url=inbox_url,
+        actor_id=reporter.id,
+    )
     db.session.commit()
     return report, "Thank you — the team will take a look."
 

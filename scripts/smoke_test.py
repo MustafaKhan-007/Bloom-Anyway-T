@@ -2100,6 +2100,14 @@ with app.app_context():
     fb = SiteFeedback.query.filter_by(kind="feedback").order_by(SiteFeedback.id.desc()).first()
     ok("Feedback stored with stars",
        fb is not None and fb.stars == 4 and "Loving" in fb.body)
+    from app.models import Notification
+    owner = User.query.filter_by(email="owner@example.com").first()
+    owner_note = (Notification.query
+                  .filter_by(user_id=owner.id, kind="inbox")
+                  .order_by(Notification.id.desc()).first()) if owner else None
+ok("Owners get a notification for new feedback",
+   owner_note is not None and "feedback" in (owner_note.body or "").lower()
+   and owner_note.url and "inbox" in owner_note.url)
 
 r = client.post("/feedback", data={
     "kind": "complaint", "body": "Checkout felt confusing on mobile.",
@@ -2215,6 +2223,16 @@ with app.app_context():
     c_rep = ContentReport.query.filter_by(
         reporter_id=reporter_id, target_type="comment", target_id=comment_id).first()
 ok("Comment report is stored", c_rep is not None and c_rep.status == "open")
+
+with app.app_context():
+    from app.models import Notification
+    owner = User.query.filter_by(email="owner@example.com").first()
+    rep_note = (Notification.query
+                .filter_by(user_id=owner.id, kind="inbox")
+                .order_by(Notification.id.desc()).first()) if owner else None
+ok("Owners get a notification for content reports",
+   rep_note is not None and "report" in (rep_note.body or "").lower()
+   and rep_note.url and "inbox" in rep_note.url)
 
 r = rep_client.get("/forums/c/healing")
 ok("Feed lists report control on posts",

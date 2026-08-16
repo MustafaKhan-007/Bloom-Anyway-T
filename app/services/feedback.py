@@ -7,8 +7,15 @@ from flask_login import current_user
 
 from ..extensions import db
 from ..models import FEEDBACK_KINDS, SiteFeedback, utcnow
+from .social_graph import notify_owners
 
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+_KIND_LABELS = {
+    "feedback": "star feedback",
+    "complaint": "complaint",
+    "error": "error report",
+}
 
 
 def submit_feedback(*, kind: str, body: str, stars=None, page_path: str = "",
@@ -51,6 +58,24 @@ def submit_feedback(*, kind: str, body: str, stars=None, page_path: str = "",
         created_at=utcnow(),
     )
     db.session.add(row)
+
+    label = _KIND_LABELS.get(kind, "feedback")
+    snippet = body.replace("\n", " ").strip()
+    if len(snippet) > 80:
+        snippet = snippet[:77].rstrip() + "…"
+    note = f"New {label} in Studio inbox"
+    if kind == "feedback" and star_val:
+        note = f"New {star_val}★ feedback in Studio inbox"
+    if snippet:
+        note = f"{note}: {snippet}"
+    inbox_filter = kind if kind in ("feedback", "complaint", "error") else "all"
+    try:
+        from flask import url_for
+        href = url_for("admin.inbox", filter=inbox_filter)
+    except RuntimeError:
+        href = f"/admin/inbox?filter={inbox_filter}"
+    notify_owners(kind="inbox", body=note[:300], url=href, actor_id=user_id)
+
     db.session.commit()
     return row, "Thank you — it's in the inbox."
 

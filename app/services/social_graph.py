@@ -270,6 +270,16 @@ def notify_everyone(*, kind: str, body: str, url: str | None = None,
         notify(u.id, kind=kind, body=body, url=url, actor_id=actor_id)
 
 
+def notify_owners(*, kind: str, body: str, url: str | None = None,
+                  actor_id: int | None = None):
+    """Fan out a Studio notification to every active owner account."""
+    owners = (User.query
+              .filter(User.is_admin.is_(True), User.deleted_at.is_(None))
+              .all())
+    for owner in owners:
+        notify(owner.id, kind=kind, body=body, url=url, actor_id=actor_id)
+
+
 def unread_notification_count(user: User) -> int:
     if not user:
         return 0
