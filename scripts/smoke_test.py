@@ -1444,6 +1444,19 @@ ok("Announcement defaults to a one-week expiry",
 ok("Home announcements use hero notice cards",
    "home-hero__notices" in hbody and "hero-announcement" in hbody)
 
+# Linked announcement: card is the button; URL text stays hidden
+admin.post("/admin/settings", data={"add_announcement": "1",
+           "ann_body": "Grab founder pricing",
+           "ann_url": "/membership"}, follow_redirects=True)
+linked = app.test_client().get("/").get_data(as_text=True)
+ok("Linked announcement shows the message text", "Grab founder pricing" in linked)
+ok("Linked announcement wraps the card as a link",
+   "hero-announcement--link" in linked
+   and 'href="/membership"' in linked)
+ok("Linked announcement keeps the URL out of the visible text",
+   "hero-announcement__text\">Grab founder pricing</span>" in linked
+   or "hero-announcement__text\">Grab founder pricing</span>" in linked.replace("\n", ""))
+
 # Community is list-only (no tiles toggle)
 r = client.get("/forums/c/healing")
 ok("Forum list view renders without tiles toggle",

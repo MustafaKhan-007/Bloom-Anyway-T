@@ -16,6 +16,7 @@ DEFAULTS = {
     "contact_email": "",
     "announcement_text": "",
     "announcement_expires": "",   # ISO date (YYYY-MM-DD); blank = never expires
+    "announcement_url": "",       # optional; whole card is the button (URL hidden)
     # home-page spotlight
     "creator_name": "",
     "creator_instagram": "",
@@ -102,17 +103,39 @@ def active_announcement() -> str:
     return text
 
 
-def active_announcements() -> list[str]:
-    """All live announcements (multi + the legacy single), newest first."""
+def sanitize_announcement_url(raw: str | None) -> str:
+    """Allow same-site paths or http(s) URLs; drop everything else."""
+    url = (raw or "").strip()
+    if not url:
+        return ""
+    if url.startswith("/") and not url.startswith("//"):
+        return url[:500]
+    lower = url.lower()
+    if lower.startswith("http://") or lower.startswith("https://"):
+        return url[:500]
+    return ""
+
+
+def active_announcements() -> list[dict]:
+    """Live announcements as ``{"body", "url"}`` dicts (newest multi first)."""
     from ..models import Announcement
-    out = []
+    out: list[dict] = []
     try:
         legacy = active_announcement()
         if legacy:
-            out.append(legacy)
+            out.append({
+                "body": legacy,
+                "url": sanitize_announcement_url(get_setting("announcement_url")),
+            })
         rows = (Announcement.query
                 .order_by(Announcement.sort_order, Announcement.created_at.desc()).all())
-        out.extend(a.body for a in rows if a.is_live())
+        for a in rows:
+            if not a.is_live():
+                continue
+            out.append({
+                "body": a.body,
+                "url": sanitize_announcement_url(a.link_url),
+            })
     except Exception:
         # Missing table / DB hiccup must not blank the whole site.
         return out

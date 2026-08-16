@@ -704,6 +704,7 @@ def settings():
         if request.form.get("clear_announcement"):
             set_setting("announcement_text", "")
             set_setting("announcement_expires", "")
+            set_setting("announcement_url", "")
             flash("Announcement removed.", "success")
             return redirect(url_for("admin.settings"))
         if request.form.get("clear_spotlight_creator"):
@@ -729,12 +730,14 @@ def settings():
                         expires = date.fromisoformat(raw)
                     except ValueError:
                         pass
-                db.session.add(Announcement(body=body, expires=expires))
+                from ..services.settings import sanitize_announcement_url
+                link = sanitize_announcement_url(request.form.get("ann_url"))
+                db.session.add(Announcement(body=body, expires=expires, link_url=link or None))
                 from ..services.social_graph import notify_everyone
                 notify_everyone(
                     kind="announcement",
                     body=f"Site update: {body[:120]}",
-                    url=url_for("main.index"),
+                    url=link or url_for("main.index"),
                     actor_id=current_user.id,
                     exclude_id=current_user.id,
                 )
@@ -792,6 +795,8 @@ def settings():
         # quick announcement: blank expiry defaults to one week
         if values.get("announcement_text") and not values.get("announcement_expires"):
             values["announcement_expires"] = (date.today() + timedelta(days=7)).isoformat()
+        from ..services.settings import sanitize_announcement_url
+        values["announcement_url"] = sanitize_announcement_url(values.get("announcement_url"))
         for key, val in values.items():
             set_setting(key, val)
         flash("Settings saved.", "success")

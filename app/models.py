@@ -1028,12 +1028,13 @@ class ForumCommentLike(db.Model):
 
 class Announcement(db.Model):
     """A home-page announcement. Several can be live at once; they stack tidily.
-    Non-dismissible; the owner sets an optional expiry."""
+    Non-dismissible; the owner sets an optional expiry and optional link."""
     __tablename__ = "announcements"
 
     id = db.Column(db.Integer, primary_key=True)
     body = db.Column(db.String(300), nullable=False)
-    expires = db.Column(db.Date)   # defaults to +1 day when created from Studio
+    link_url = db.Column(db.String(500))  # optional; whole card becomes the button
+    expires = db.Column(db.Date)   # defaults to +1 week when created from Studio
     sort_order = db.Column(db.Integer, nullable=False, default=0)
     created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
 

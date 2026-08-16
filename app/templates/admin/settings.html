@@ -105,6 +105,13 @@
           <p class="field-help">Defaults to one week from now if you leave this blank.</p>
         </div>
       </div>
+      <div class="field">
+        <label for="announcement_url">Optional link</label>
+        <input type="text" id="announcement_url" name="announcement_url" value="{{ values.announcement_url }}"
+               inputmode="url" autocomplete="off"
+               placeholder="https://… or /courses">
+        <p class="field-help">Visitors won’t see the URL — the whole announcement becomes the button.</p>
+      </div>
     </section>
 
     <section class="admin-panel studio-card">
@@ -250,33 +257,43 @@
 
   <section class="admin-panel studio-card">
     <h2>More announcements</h2>
-    <p class="field-help">Run several at once &mdash; they stack tidily on the home page. Each can have its own expiry.</p>
+    <p class="field-help">Run several at once &mdash; they stack tidily on the home page. Each can have its own expiry and optional link.</p>
 
-    <form method="post" class="form-row form-row--announce">
+    <form method="post" class="announce-add">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="add_announcement" value="1">
-      <div class="field form-row--announce__body">
-        <label for="ann_body">Announcement</label>
-        <input type="text" id="ann_body" name="ann_body" maxlength="300" placeholder="e.g. New reel this week ☀">
+      <div class="form-row form-row--announce">
+        <div class="field form-row--announce__body">
+          <label for="ann_body">Announcement</label>
+          <input type="text" id="ann_body" name="ann_body" maxlength="300" placeholder="e.g. New reel this week ☀">
+        </div>
+        <div class="field">
+          <label for="ann_expires">Show until</label>
+          <input type="date" id="ann_expires" name="ann_expires" value="{{ default_expires }}">
+          <p class="field-help">Defaults to one week from now.</p>
+        </div>
+        <div class="field form-row--announce__action">
+          <label class="sr-only" for="ann-add">Add announcement</label>
+          <button class="btn btn--primary btn--sm" id="ann-add" type="submit">Add</button>
+        </div>
       </div>
-      <div class="field">
-        <label for="ann_expires">Show until</label>
-        <input type="date" id="ann_expires" name="ann_expires" value="{{ default_expires }}">
-        <p class="field-help">Defaults to one week from now.</p>
-      </div>
-      <div class="field form-row--announce__action">
-        <label class="sr-only" for="ann-add">Add announcement</label>
-        <button class="btn btn--primary btn--sm" id="ann-add" type="submit">Add</button>
+      <div class="field" style="margin-top: 8px;">
+        <label for="ann_url">Optional link</label>
+        <input type="text" id="ann_url" name="ann_url" maxlength="500"
+               inputmode="url" autocomplete="off"
+               placeholder="https://… or /membership">
+        <p class="field-help">Leave blank for a plain notice. With a link, the whole card is the button (URL stays hidden).</p>
       </div>
     </form>
 
     {% if announcements %}
     <table class="admin-table" style="margin-top: 16px;">
-      <thead><tr><th>Announcement</th><th>Expires</th><th>Status</th><th></th></tr></thead>
+      <thead><tr><th>Announcement</th><th>Link</th><th>Expires</th><th>Status</th><th></th></tr></thead>
       <tbody>
         {% for a in announcements %}
         <tr>
           <td>{{ a.body }}</td>
+          <td>{% if a.link_url %}<span class="field-help" title="{{ a.link_url }}">Linked</span>{% else %}—{% endif %}</td>
           <td>{{ a.expires.isoformat() if a.expires else '—' }}</td>
           <td>{{ 'Live' if a.is_live() else 'Expired' }}</td>
           <td>

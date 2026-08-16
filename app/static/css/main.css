@@ -387,6 +387,21 @@ input[type="file"]:not(.sr-only):not(.file-pick__input):hover::-webkit-file-uplo
   line-height: 1.45;
   box-shadow: 0 10px 24px rgba(224, 138, 109, 0.22);
 }
+a.hero-announcement--link {
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+  transition: transform .18s ease, box-shadow .18s ease;
+}
+a.hero-announcement--link:hover,
+a.hero-announcement--link:focus-visible {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 28px rgba(194, 152, 69, 0.28);
+  outline: none;
+}
+a.hero-announcement--link:focus-visible {
+  box-shadow: 0 0 0 3px rgba(194, 152, 69, 0.45), 0 14px 28px rgba(194, 152, 69, 0.28);
+}
 .hero-announcement__spark {
   flex: none;
   display: inline-grid;
