@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% from "partials/avatar.html" import avatar, author_name %}
 {% from "partials/badges.html" import byline_badge %}
+{% from "partials/report_toggle.html" import report_toggle %}
 {% block title %}{{ post.title }} — Community — {{ site.site_title }}{% endblock %}
 
 {% macro like_button(action_url, count, liked) %}
@@ -24,7 +25,7 @@
 {% endmacro %}
 
 {% macro comment_block(c, liked_comments, is_reply=False) %}
-<div class="comment {{ 'comment--reply' if is_reply }}">
+<div class="comment {{ 'comment--reply' if is_reply }}" id="comment-{{ c.id }}">
   <div class="comment__head">
     {{ avatar(c.author, 'sm', c.anonymous) }}
     <strong>{{ author_name(c.author, c.anonymous, post.id) }}</strong>
@@ -36,16 +37,11 @@
   <div class="forum-actions">
     {{ like_button(url_for('forums.like_comment', comment_id=c.id), c.like_count(), c.id in liked_comments) }}
     {% if current_user.is_authenticated and current_user.id != c.user_id %}
-    <details class="report-toggle">
-      <summary class="report-toggle__btn">Report</summary>
-      <form method="post" action="{{ url_for('forums.report_comment', comment_id=c.id) }}" class="report-form">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <label class="sr-only" for="report-note-c{{ c.id }}">Why are you reporting?</label>
-        <input type="text" id="report-note-c{{ c.id }}" name="note" maxlength="500"
-               placeholder="Optional note">
-        <button class="btn btn--secondary btn--sm" type="submit">Submit report</button>
-      </form>
-    </details>
+    {{ report_toggle(
+         url_for('forums.report_comment', comment_id=c.id),
+         'report-note-c' ~ c.id,
+         next=request.path ~ '#comment-' ~ c.id
+       ) }}
     {% endif %}
     {% if not is_reply and can_participate and not current_user.forum_banned
           and (current_user.id == post.user_id or current_user.id == c.user_id) %}
@@ -80,7 +76,7 @@
   <div class="container" style="max-width: 760px;">
     <p class="eyebrow"><a href="{{ url_for('forums.category', slug=post.category.slug) }}">&larr; {{ post.category.name }}</a></p>
 
-    <article class="forum-post">
+    <article class="forum-post" id="post-{{ post.id }}">
       <div class="forum-post__tags">
         {% if post.tag %}<span class="tag-chip tag-chip--mini">{{ post.tag.name }}</span>{% endif %}
         {% if post.looking_for_label() %}
@@ -99,16 +95,11 @@
       <div class="forum-actions">
         {{ like_button(url_for('forums.like_post', post_id=post.id), post.like_count(), post.id in liked_posts) }}
         {% if current_user.is_authenticated and current_user.id != post.user_id %}
-        <details class="report-toggle">
-          <summary class="report-toggle__btn">Report</summary>
-          <form method="post" action="{{ url_for('forums.report_post', post_id=post.id) }}" class="report-form">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <label class="sr-only" for="report-note-post">Why are you reporting?</label>
-            <input type="text" id="report-note-post" name="note" maxlength="500"
-                   placeholder="Optional note">
-            <button class="btn btn--secondary btn--sm" type="submit">Submit report</button>
-          </form>
-        </details>
+        {{ report_toggle(
+             url_for('forums.report_post', post_id=post.id),
+             'report-note-post',
+             next=request.path
+           ) }}
         {% endif %}
       </div>
     </article>
@@ -137,7 +128,7 @@
     <div class="flash flash--error">Commenting is paused for your account.</div>
     {% elif current_user.is_authenticated %}
     <div class="member-gate">
-      <p><strong>Want to reply?</strong> Free members leave up to five replies a week (and like infinitely). Healing and Creator get unlimited.</p>
+      <p><strong>Want to reply?</strong> Community replies are for Healing and Creator members.</p>
       <a class="btn btn--primary btn--sm" href="{{ url_for('main.membership', next=request.path) }}">See memberships</a>
     </div>
     {% else %}

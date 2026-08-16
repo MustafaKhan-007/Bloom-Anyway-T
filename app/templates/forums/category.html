@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "partials/badges.html" import byline_badge %}
+{% from "partials/report_toggle.html" import report_toggle %}
 {% block title %}{{ category.name }} — Community — {{ site.site_title }}{% endblock %}
 
 {% set is_build = category.slug == "building" %}
@@ -207,13 +208,14 @@
       <div class="post-list post-list--list">
         {% for post in posts %}
         {% set comment_n = post.comments.filter_by(hidden=False).count() %}
-        <a class="post-row" href="{{ url_for('forums.post', post_id=post.id) }}">
-          <div class="post-row__votes" aria-label="{{ post.like_count() }} likes">
+        <article class="post-row">
+          <a class="post-row__votes" href="{{ url_for('forums.post', post_id=post.id) }}"
+             aria-label="{{ post.like_count() }} likes">
             <span class="post-row__heart" aria-hidden="true">&#9825;</span>
             <span>{{ post.like_count() }}</span>
-          </div>
+          </a>
           <div class="post-row__main">
-            <h3>{{ post.title }}</h3>
+            <h3><a href="{{ url_for('forums.post', post_id=post.id) }}">{{ post.title }}</a></h3>
             <div class="post-row__meta">
               {% if post.tag %}<span class="tag-chip tag-chip--mini">{{ post.tag.name }}</span>{% endif %}
               {% if post.looking_for_label() %}
@@ -226,12 +228,21 @@
             {% if post.body %}
             <p class="post-row__snippet">{{ post.body|striptags|truncate(160) }}</p>
             {% endif %}
+            {% if current_user.is_authenticated and current_user.id != post.user_id %}
+            <div class="post-row__report">
+              {{ report_toggle(
+                   url_for('forums.report_post', post_id=post.id),
+                   'report-note-feed-' ~ post.id,
+                   next=request.path
+                 ) }}
+            </div>
+            {% endif %}
           </div>
           <div class="post-row__aside">
             <time datetime="{{ post.created_at.isoformat() }}">{{ post.created_at|localtime('%b %d · %I:%M %p') }}</time>
             <span>{{ comment_n }} {{ 'reply' if comment_n == 1 else 'replies' }}</span>
           </div>
-        </a>
+        </article>
         {% else %}
         <p class="forum-empty">No posts here yet
           {%- if active_tag or active_looking %} for this filter{%- endif %}

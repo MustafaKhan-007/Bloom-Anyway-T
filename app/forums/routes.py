@@ -361,10 +361,12 @@ def report_post(post_id):
     _report, msg = submit_report(reporter=current_user, target_type="post",
                                  target_id=post_id, note=note)
     flash(msg, "success" if _report else "error")
-    # If auto-hidden, send them back to the category
     post = db.session.get(ForumPost, post_id)
     if post is None or post.hidden:
         return redirect(url_for("forums.index"))
+    nxt = (request.form.get("next") or "").strip()
+    if nxt.startswith("/") and not nxt.startswith("//"):
+        return redirect(nxt)
     return redirect(url_for("forums.post", post_id=post_id))
 
 
@@ -379,6 +381,9 @@ def report_comment(comment_id):
     _report, msg = submit_report(reporter=current_user, target_type="comment",
                                  target_id=comment_id, note=note)
     flash(msg, "success" if _report else "error")
+    nxt = (request.form.get("next") or "").strip()
+    if nxt.startswith("/") and not nxt.startswith("//"):
+        return redirect(nxt)
     if post_id:
         post = db.session.get(ForumPost, post_id)
         if post and not post.hidden:

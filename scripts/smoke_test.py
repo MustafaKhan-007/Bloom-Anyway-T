@@ -2128,7 +2128,35 @@ ok("Studio inbox resolved shows auto reason",
 rep_client = app.test_client()
 rep_client.post("/login", data={"email": "reporter-user@example.com", "password": USER_PW})
 r = rep_client.get(f"/forums/p/{clean_id}")
-ok("Report control on posts", b"Report" in r.data and b"/report" in r.data)
+post_html = r.get_data(as_text=True)
+ok("Report control on posts", "Report" in post_html and "/report" in post_html)
+
+with app.app_context():
+    from app.models import ForumComment
+    author = db.session.get(User, author_id)
+    cmt = ForumComment(post_id=clean_id, user_id=author_id,
+                       body="A gentle reply worth reporting if needed.",
+                       anonymous=False)
+    db.session.add(cmt)
+    db.session.commit()
+    comment_id = cmt.id
+
+r = rep_client.get(f"/forums/p/{clean_id}")
+ok("Report control on comments",
+   f"/forums/comment/{comment_id}/report" in r.get_data(as_text=True))
+r = rep_client.post(f"/forums/comment/{comment_id}/report",
+                    data={"note": "feels off"}, follow_redirects=True)
+ok("Comment report is accepted", r.status_code == 200)
+with app.app_context():
+    from app.models import ContentReport
+    c_rep = ContentReport.query.filter_by(
+        reporter_id=reporter_id, target_type="comment", target_id=comment_id).first()
+ok("Comment report is stored", c_rep is not None and c_rep.status == "open")
+
+r = rep_client.get("/forums/c/healing")
+ok("Feed lists report control on posts",
+   f"/forums/p/{clean_id}/report" in r.get_data(as_text=True)
+   and "report-note-feed-" in r.get_data(as_text=True))
 
 with app.app_context():
     doomed = User(email="doomed@example.com", display_name="Doomed Soul",
