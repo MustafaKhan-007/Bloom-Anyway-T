@@ -83,10 +83,16 @@
 
     <div class="reader__workspace">
       <aside class="reader__sidebar" aria-label="Contents">
-        <p class="reader__sidebar-label">Contents</p>
-        <nav class="reader__toc" id="reader-toc" aria-label="Pages">
-          <p class="field-help" id="reader-toc-loading">Loading pages…</p>
-        </nav>
+        <details class="reader__toc-drawer" id="reader-toc-drawer" open>
+          <summary class="reader__toc-summary">
+            <span>Pages</span>
+            <span class="reader__toc-summary-hint" aria-hidden="true"></span>
+          </summary>
+          <p class="reader__sidebar-label reader__sidebar-label--desk">Contents</p>
+          <nav class="reader__toc" id="reader-toc" aria-label="Pages">
+            <p class="field-help" id="reader-toc-loading">Loading pages…</p>
+          </nav>
+        </details>
         <label class="reader__search">
           <span class="sr-only">search page</span>
           <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true">

@@ -78,7 +78,7 @@
       <p class="fc-crumb">
         <a href="{{ url_for('forums.index') }}">&larr; Community</a>
       </p>
-      <h1>{{ category.name }}</h1>
+      <h1 class="fc-title" id="fc-title" tabindex="0">{{ category.name }}</h1>
       <p class="fc-lead">
         {% if category.description %}
           {{ category.description }}
@@ -91,7 +91,7 @@
         {% endif %}
       </p>
 
-      <div class="fc-welcome">
+      <div class="fc-welcome" id="fc-welcome">
         {% if is_build %}
         <h2>Welcome to the Building community</h2>
         <p>

@@ -445,15 +445,26 @@
 {% if active_tab == 'saved' %}
 <section class="section section--band section--tight">
   <div class="container">
-    <div class="ms-card">
-      <h2>Courses &amp; guides</h2>
-      <p class="field-help" style="margin-top: -6px;">
-        Purchases from
-        <a href="{{ url_for('main.courses') }}">Courses &amp; Guides</a>
-        with this email.
-      </p>
+    <div class="ms-card ms-card--library">
+      <div class="lib-hero">
+        <div class="lib-hero__copy">
+          <h2 class="lib-hero__title">
+            <span class="lib-hero__title-desk">Courses &amp; guides</span>
+            <span class="lib-hero__title-hand">My Library</span>
+          </h2>
+          <p class="field-help lib-hero__lede">
+            <span class="lib-hero__lede-desk">
+              Purchases from
+              <a href="{{ url_for('main.courses') }}">Courses &amp; Guides</a>
+              with this email.
+            </span>
+            <span class="lib-hero__lede-hand">Your downloads and reading progress.</span>
+          </p>
+        </div>
+        <span class="lib-hero__bloom" aria-hidden="true"></span>
+      </div>
       {% if shop_purchases %}
-      <div class="cg-filters__pills" style="margin-top: 16px;" role="tablist" aria-label="Filter your library" data-lib-filters>
+      <div class="cg-filters__pills lib-filters" style="margin-top: 16px;" role="tablist" aria-label="Filter your library" data-lib-filters>
         <button type="button" class="cg-pill cg-pill--gold is-active" role="tab" aria-selected="true" data-lib-filter="all">All</button>
         <button type="button" class="cg-pill cg-pill--gold" role="tab" aria-selected="false" data-lib-filter="guide">Guides</button>
         <button type="button" class="cg-pill cg-pill--gold" role="tab" aria-selected="false" data-lib-filter="course">Courses</button>

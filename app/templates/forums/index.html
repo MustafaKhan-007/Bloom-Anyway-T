@@ -50,61 +50,65 @@
 
   <section class="comm-spaces" aria-label="Community spaces">
     <div class="container comm-spaces__grid">
-      <article class="comm-card comm-card--heal reveal">
-        <span class="comm-card__tag">Healing community</span>
-        <span class="comm-card__icon" aria-hidden="true">
-          <svg viewBox="0 0 40 40" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.6">
-            <circle cx="20" cy="22" r="6"/>
-            <path d="M20 6c2 4 2 7 0 10-2-3-2-6 0-10zM20 34c-2-4-2-7 0-10 2 3 2 6 0 10zM6 20c4-2 7-2 10 0-3 2-6 2-10 0zM34 20c-4 2-7 2-10 0 3-2 6-2 10 0z"/>
-          </svg>
-        </span>
-        <h2>Heal together. No judgment, ever.</h2>
-        <p class="comm-card__body">
-          A soft place to land when life is hard — divorce, custody, grief, and starting over.
-          Talk at your own pace. Be heard without having to perform strength.
-        </p>
-        <p class="comm-card__topics-label">What we talk about</p>
-        <ul class="comm-topics">
-          <li>
-            <span>
-              <strong>Divorce &amp; Separation</strong>
-              <small>The endings, the paperwork, the quiet after.</small>
-            </span>
-            <span class="comm-pill comm-pill--free">Open</span>
-          </li>
-          <li>
-            <span>
-              <strong>Co-Parenting &amp; Custody</strong>
-              <small>Navigating shared lives with care.</small>
-            </span>
-            <span class="comm-pill comm-pill--free">Open</span>
-          </li>
-          <li>
-            <span>
-              <strong>Grief &amp; Loss</strong>
-              <small>Room to feel what you're feeling.</small>
-            </span>
-            <span class="comm-pill comm-pill--free">Open</span>
-          </li>
-          <li>
-            <span>
-              <strong>Support Groups</strong>
-              <small>Live Zoom circles with other members.</small>
-            </span>
-            <span class="comm-pill comm-pill--mem">Members</span>
-          </li>
-          <li>
-            <span>
-              <strong>Starting Over</strong>
-              <small>Rebuilding identity, routines, and hope.</small>
-            </span>
-            <span class="comm-pill comm-pill--free">Open</span>
-          </li>
-        </ul>
-        <p class="comm-card__note">
-          <span class="comm-dot comm-dot--free"></span> Open threads for members
-          <span class="comm-dot comm-dot--mem"></span> Live support groups included
-        </p>
+      <article class="comm-card comm-card--heal reveal" data-comm-card>
+        <div class="comm-card__head">
+          <span class="comm-card__tag">Healing community</span>
+          <span class="comm-card__icon" aria-hidden="true">
+            <svg viewBox="0 0 40 40" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.6">
+              <circle cx="20" cy="22" r="6"/>
+              <path d="M20 6c2 4 2 7 0 10-2-3-2-6 0-10zM20 34c-2-4-2-7 0-10 2 3 2 6 0 10zM6 20c4-2 7-2 10 0-3 2-6 2-10 0zM34 20c-4 2-7 2-10 0 3-2 6-2 10 0z"/>
+            </svg>
+          </span>
+          <h2>Heal together. No judgment, ever.</h2>
+        </div>
+        <div class="comm-card__details">
+          <p class="comm-card__body">
+            A soft place to land when life is hard — divorce, custody, grief, and starting over.
+            Talk at your own pace. Be heard without having to perform strength.
+          </p>
+          <p class="comm-card__topics-label">What we talk about</p>
+          <ul class="comm-topics">
+            <li>
+              <span>
+                <strong>Divorce &amp; Separation</strong>
+                <small>The endings, the paperwork, the quiet after.</small>
+              </span>
+              <span class="comm-pill comm-pill--free">Open</span>
+            </li>
+            <li>
+              <span>
+                <strong>Co-Parenting &amp; Custody</strong>
+                <small>Navigating shared lives with care.</small>
+              </span>
+              <span class="comm-pill comm-pill--free">Open</span>
+            </li>
+            <li>
+              <span>
+                <strong>Grief &amp; Loss</strong>
+                <small>Room to feel what you're feeling.</small>
+              </span>
+              <span class="comm-pill comm-pill--free">Open</span>
+            </li>
+            <li>
+              <span>
+                <strong>Support Groups</strong>
+                <small>Live Zoom circles with other members.</small>
+              </span>
+              <span class="comm-pill comm-pill--mem">Members</span>
+            </li>
+            <li>
+              <span>
+                <strong>Starting Over</strong>
+                <small>Rebuilding identity, routines, and hope.</small>
+              </span>
+              <span class="comm-pill comm-pill--free">Open</span>
+            </li>
+          </ul>
+          <p class="comm-card__note">
+            <span class="comm-dot comm-dot--free"></span> Open threads for members
+            <span class="comm-dot comm-dot--mem"></span> Live support groups included
+          </p>
+        </div>
         <div class="comm-card__actions">
           {% if heal %}
           <a class="btn comm-card__btn comm-card__btn--heal"
@@ -114,60 +118,64 @@
         </div>
       </article>
 
-      <article class="comm-card comm-card--build reveal">
-        <span class="comm-card__tag comm-card__tag--build">Building community</span>
-        <span class="comm-card__icon comm-card__icon--build" aria-hidden="true">
-          <svg viewBox="0 0 40 40" width="32" height="32" fill="currentColor">
-            <path d="M20 6l2.4 7.4H30l-6 4.4 2.3 7.2L20 20.6l-6.3 4.4 2.3-7.2-6-4.4h7.6z"/>
-          </svg>
-        </span>
-        <h2>Build your business.<br>Grow unapologetically.</h2>
-        <p class="comm-card__body">
-          For women who are done waiting — content, digital products, strategy, and the peer
-          energy that keeps you moving when motivation dips.
-        </p>
-        <p class="comm-card__topics-label">What we talk about</p>
-        <ul class="comm-topics">
-          <li>
-            <span>
-              <strong>Content Creation &amp; Social Media</strong>
-              <small>Showing up online without burning out.</small>
-            </span>
-            <span class="comm-pill comm-pill--free">Open</span>
-          </li>
-          <li>
-            <span>
-              <strong>Digital Products &amp; Passive Income</strong>
-              <small>Offers, launches, and getting paid for your work.</small>
-            </span>
-            <span class="comm-pill comm-pill--free">Open</span>
-          </li>
-          <li>
-            <span>
-              <strong>Business Growth &amp; Strategy</strong>
-              <small>Offers, systems, and next steps.</small>
-            </span>
-            <span class="comm-pill comm-pill--free">Open</span>
-          </li>
-          <li>
-            <span>
-              <strong>Investing &amp; Financial Independence</strong>
-              <small>Money conversations without the shame.</small>
-            </span>
-            <span class="comm-pill comm-pill--mem">Members</span>
-          </li>
-          <li>
-            <span>
-              <strong>Accountability &amp; Peer Groups</strong>
-              <small>Partners who check in so you keep going.</small>
-            </span>
-            <span class="comm-pill comm-pill--mem">Members</span>
-          </li>
-        </ul>
-        <p class="comm-card__note">
-          <span class="comm-dot comm-dot--free"></span> Open threads for members
-          <span class="comm-dot comm-dot--mem"></span> Live circles &amp; peer groups
-        </p>
+      <article class="comm-card comm-card--build reveal" data-comm-card>
+        <div class="comm-card__head">
+          <span class="comm-card__tag comm-card__tag--build">Building community</span>
+          <span class="comm-card__icon comm-card__icon--build" aria-hidden="true">
+            <svg viewBox="0 0 40 40" width="32" height="32" fill="currentColor">
+              <path d="M20 6l2.4 7.4H30l-6 4.4 2.3 7.2L20 20.6l-6.3 4.4 2.3-7.2-6-4.4h7.6z"/>
+            </svg>
+          </span>
+          <h2>Build your business.<br>Grow unapologetically.</h2>
+        </div>
+        <div class="comm-card__details">
+          <p class="comm-card__body">
+            For women who are done waiting — content, digital products, strategy, and the peer
+            energy that keeps you moving when motivation dips.
+          </p>
+          <p class="comm-card__topics-label">What we talk about</p>
+          <ul class="comm-topics">
+            <li>
+              <span>
+                <strong>Content Creation &amp; Social Media</strong>
+                <small>Showing up online without burning out.</small>
+              </span>
+              <span class="comm-pill comm-pill--free">Open</span>
+            </li>
+            <li>
+              <span>
+                <strong>Digital Products &amp; Passive Income</strong>
+                <small>Offers, launches, and getting paid for your work.</small>
+              </span>
+              <span class="comm-pill comm-pill--free">Open</span>
+            </li>
+            <li>
+              <span>
+                <strong>Business Growth &amp; Strategy</strong>
+                <small>Offers, systems, and next steps.</small>
+              </span>
+              <span class="comm-pill comm-pill--free">Open</span>
+            </li>
+            <li>
+              <span>
+                <strong>Investing &amp; Financial Independence</strong>
+                <small>Money conversations without the shame.</small>
+              </span>
+              <span class="comm-pill comm-pill--mem">Members</span>
+            </li>
+            <li>
+              <span>
+                <strong>Accountability &amp; Peer Groups</strong>
+                <small>Partners who check in so you keep going.</small>
+              </span>
+              <span class="comm-pill comm-pill--mem">Members</span>
+            </li>
+          </ul>
+          <p class="comm-card__note">
+            <span class="comm-dot comm-dot--free"></span> Open threads for members
+            <span class="comm-dot comm-dot--mem"></span> Live circles &amp; peer groups
+          </p>
+        </div>
         <div class="comm-card__actions">
           {% if build %}
           <a class="btn comm-card__btn comm-card__btn--build"

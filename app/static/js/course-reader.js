@@ -22,10 +22,22 @@
   var canvas = document.getElementById("reader-pdf-canvas");
   var toc = document.getElementById("reader-toc");
   var tocLoading = document.getElementById("reader-toc-loading");
+  var tocDrawer = document.getElementById("reader-toc-drawer");
   var searchInput = document.getElementById("reader-search");
   var bookmarkBtn = document.getElementById("reader-bookmark-btn");
   var appearanceBtn = document.getElementById("reader-appearance-btn");
   var appearancePanel = document.getElementById("reader-appearance-panel");
+
+  /* Handheld: pages list starts collapsed; desktop stays open */
+  if (tocDrawer) {
+    var handMq = window.matchMedia("(max-width: 899px)");
+    var syncTocDrawer = function () {
+      tocDrawer.open = !handMq.matches;
+    };
+    syncTocDrawer();
+    if (handMq.addEventListener) handMq.addEventListener("change", syncTocDrawer);
+    else if (handMq.addListener) handMq.addListener(syncTocDrawer);
+  }
 
   var bookmarks = [];
   try {
@@ -424,12 +436,16 @@
           availH = Math.max(280, stage.clientHeight - padY - chipH);
         }
         var unscaled = page.getViewport({ scale: 1 });
+        var contain = Math.min(availW / unscaled.width, availH / unscaled.height);
         var scale;
         if (zoom === "lg") {
-          scale = availW / unscaled.width;
+          // Always larger than Fit: width-fill, or 1.28× contain when width already fills.
+          var widthFill = availW / unscaled.width;
+          scale = Math.max(widthFill, contain * 1.28);
+        } else if (zoom === "sm") {
+          scale = contain * 0.85;
         } else {
-          var contain = Math.min(availW / unscaled.width, availH / unscaled.height);
-          scale = contain * (zoom === "sm" ? 0.85 : 1);
+          scale = contain;
         }
         var viewport = page.getViewport({ scale: scale });
         var cssWidth = Math.floor(viewport.width);

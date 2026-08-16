@@ -20,25 +20,39 @@
     revealEls.forEach(function (el) { el.classList.add("visible"); });
   }
 
-  /* ---- mobile nav drawer (accessible, focus-trapped) ---- */
+  /* ---- mobile nav drawer (slides in from left, overlays page) ---- */
   var toggle = document.querySelector(".nav-toggle");
   var drawer = document.getElementById("nav-drawer");
+  var backdrop = document.getElementById("nav-backdrop");
   if (toggle && drawer) {
     var focusables = function () {
       return drawer.querySelectorAll("a[href], button:not([disabled])");
     };
+    var setOpen = function (open) {
+      drawer.classList.toggle("open", open);
+      drawer.setAttribute("aria-hidden", open ? "false" : "true");
+      toggle.setAttribute("aria-expanded", open ? "true" : "false");
+      document.body.classList.toggle("nav-open", open);
+      if (backdrop) {
+        if (open) backdrop.removeAttribute("hidden");
+        else backdrop.setAttribute("hidden", "");
+      }
+    };
     var close = function () {
-      drawer.classList.remove("open");
-      toggle.setAttribute("aria-expanded", "false");
+      setOpen(false);
       toggle.focus();
     };
     toggle.addEventListener("click", function () {
-      var open = drawer.classList.toggle("open");
-      toggle.setAttribute("aria-expanded", open ? "true" : "false");
+      var open = !drawer.classList.contains("open");
+      setOpen(open);
       if (open) {
         var first = focusables()[0];
         if (first) first.focus();
       }
+    });
+    if (backdrop) backdrop.addEventListener("click", close);
+    drawer.addEventListener("click", function (e) {
+      if (e.target === drawer) close();
     });
     document.addEventListener("keydown", function (e) {
       if (!drawer.classList.contains("open")) return;
@@ -932,5 +946,69 @@
       e.preventDefault();
       setFilter(btn.getAttribute("data-lib-filter") || "all");
     });
+  })();
+
+  /* ---- Handheld-only interactions (phones / tablets ≤899px) ---- */
+  (function () {
+    var hand = window.matchMedia("(max-width: 899px)");
+    var isHand = function () { return hand.matches; };
+
+    /* Community cards: tap expands details; Join button navigates */
+    document.querySelectorAll("[data-comm-card]").forEach(function (card) {
+      card.addEventListener("click", function (e) {
+        if (!isHand()) return;
+        if (e.target.closest("a, button")) return;
+        card.classList.toggle("is-expanded");
+      });
+      card.addEventListener("keydown", function (e) {
+        if (!isHand()) return;
+        if (e.key === "Enter" || e.key === " ") {
+          if (e.target.closest("a, button")) return;
+          e.preventDefault();
+          card.classList.toggle("is-expanded");
+        }
+      });
+    });
+
+    /* Category welcome: expand when community title is tapped */
+    var title = document.getElementById("fc-title");
+    var welcome = document.getElementById("fc-welcome");
+    if (title && welcome) {
+      title.setAttribute("role", "button");
+      title.setAttribute("aria-controls", "fc-welcome");
+      title.setAttribute("aria-expanded", "false");
+      var toggleWelcome = function () {
+        if (!isHand()) return;
+        var open = welcome.classList.toggle("is-open");
+        title.setAttribute("aria-expanded", open ? "true" : "false");
+      };
+      title.addEventListener("click", toggleWelcome);
+      title.addEventListener("keydown", function (e) {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          toggleWelcome();
+        }
+      });
+      hand.addEventListener("change", function () {
+        if (!hand.matches) {
+          welcome.classList.remove("is-open");
+          title.setAttribute("aria-expanded", "false");
+        }
+      });
+    }
+
+    /* Content Hub: reveal weekly draw only after Submit your reel */
+    var rotw = document.querySelector("[data-rotw-panel]");
+    if (rotw) {
+      document.querySelectorAll("[data-reveal-rotw]").forEach(function (el) {
+        el.addEventListener("click", function () {
+          if (!isHand()) return;
+          rotw.classList.add("is-revealed");
+        });
+      });
+      if (window.location.hash === "#reel-of-the-week" && isHand()) {
+        rotw.classList.add("is-revealed");
+      }
+    }
   })();
 })();

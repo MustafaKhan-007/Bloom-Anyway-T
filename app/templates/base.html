@@ -43,20 +43,25 @@
         </button>
       </div>
     </nav>
-    <div class="nav-drawer" id="nav-drawer">
-      <a href="{{ url_for('main.courses') }}" data-tour-target="nav-courses">Courses &amp; Guides</a>
-      <a href="{{ url_for('forums.index') }}">Community</a>
-      <a href="{{ url_for('main.videos') }}" data-tour-target="nav-watch">Content Hub</a>
-      <a href="{{ url_for('main.showcase') }}" data-tour-target="nav-showcase">Showcase</a>
-      <a href="{{ url_for('main.support_groups_page') }}" data-tour-target="nav-support">Support Groups</a>
-      {% if current_user.is_authenticated %}
-        <a href="{{ url_for('main.account') }}" data-tour-target="nav-myspace">My space</a>
-        {% if current_user.is_admin %}
-          <a href="{{ url_for('admin.dashboard') }}">Studio</a>
+    <div class="nav-backdrop" id="nav-backdrop" hidden></div>
+    <div class="nav-drawer" id="nav-drawer" aria-hidden="true">
+      <div class="nav-drawer__panel">
+        <p class="nav-drawer__label">Courses &amp; Guides</p>
+        <a class="nav-drawer__sub" href="{{ url_for('main.courses') }}#lane-healing" data-tour-target="nav-courses">Healing products</a>
+        <a class="nav-drawer__sub" href="{{ url_for('main.courses') }}#lane-building" data-tour-target="nav-courses">Building products</a>
+        <a href="{{ url_for('forums.index') }}">Community</a>
+        <a href="{{ url_for('main.videos') }}" data-tour-target="nav-watch">Content Hub</a>
+        <a href="{{ url_for('main.showcase') }}" data-tour-target="nav-showcase">Showcase</a>
+        <a href="{{ url_for('main.support_groups_page') }}" data-tour-target="nav-support">Support Groups</a>
+        {% if current_user.is_authenticated %}
+          <a href="{{ url_for('main.account') }}" data-tour-target="nav-myspace">My space</a>
+          {% if current_user.is_admin %}
+            <a href="{{ url_for('admin.dashboard') }}">Studio</a>
+          {% endif %}
+        {% else %}
+          <a href="{{ url_for('auth.login') }}">Sign in</a>
         {% endif %}
-      {% else %}
-        <a href="{{ url_for('auth.login') }}">Sign in</a>
-      {% endif %}
+      </div>
     </div>
   </header>
 
