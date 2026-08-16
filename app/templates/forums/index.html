@@ -5,6 +5,7 @@
 {% block content %}
 {% set heal = cats_by_slug.get("healing") %}
 {% set build = cats_by_slug.get("building") %}
+{% set tier = current_user.effective_membership() if current_user.is_authenticated else "none" %}
 <div class="comm">
   <section class="comm-hero">
     <div class="container">
@@ -14,6 +15,36 @@
         or building something new, there is a space here for you. We keep it kind — unkind
         language does not post.
       </p>
+
+      <div class="comm-compare reveal">
+        <div class="comm-compare__free">
+          <p class="comm-compare__eyebrow">Healing membership</p>
+          <h2>Be in the rooms. Be heard. Heal with others.</h2>
+          <ul class="comm-checks">
+            <li class="is-yes">Browse &amp; post in community</li>
+            <li class="is-yes">Unlimited posts &amp; replies</li>
+            <li class="is-yes">Healing support groups</li>
+            <li class="is-yes">Private messaging</li>
+            <li class="is-no">Creator showcase features</li>
+            <li class="is-no">Product of the Day eligibility</li>
+          </ul>
+        </div>
+        <div class="comm-compare__full">
+          <p class="comm-compare__eyebrow">Creator membership</p>
+          <h2>Show up fully. Post without limits. Build in community.</h2>
+          <ul class="comm-checks comm-checks--gold">
+            <li class="is-yes">Everything in Healing</li>
+            <li class="is-yes">Building community rooms</li>
+            <li class="is-yes">Creator support groups</li>
+            <li class="is-yes">Showcase &amp; Creator features</li>
+            <li class="is-yes">Product of the Day eligibility</li>
+            <li class="is-yes">Priority community access</li>
+          </ul>
+          {% if tier != "creator" %}
+          <a class="btn comm-compare__cta" href="{{ url_for('main.membership') }}">Get full access &rarr;</a>
+          {% endif %}
+        </div>
+      </div>
     </div>
   </section>
 
@@ -32,11 +63,54 @@
           A soft place to land when life is hard — divorce, custody, grief, and starting over.
           Talk at your own pace. Be heard without having to perform strength.
         </p>
+        <p class="comm-card__topics-label">What we talk about</p>
+        <ul class="comm-topics">
+          <li>
+            <span>
+              <strong>Divorce &amp; Separation</strong>
+              <small>The endings, the paperwork, the quiet after.</small>
+            </span>
+            <span class="comm-pill comm-pill--free">Open</span>
+          </li>
+          <li>
+            <span>
+              <strong>Co-Parenting &amp; Custody</strong>
+              <small>Navigating shared lives with care.</small>
+            </span>
+            <span class="comm-pill comm-pill--free">Open</span>
+          </li>
+          <li>
+            <span>
+              <strong>Grief &amp; Loss</strong>
+              <small>Room to feel what you're feeling.</small>
+            </span>
+            <span class="comm-pill comm-pill--free">Open</span>
+          </li>
+          <li>
+            <span>
+              <strong>Support Groups</strong>
+              <small>Live Zoom circles with other members.</small>
+            </span>
+            <span class="comm-pill comm-pill--mem">Members</span>
+          </li>
+          <li>
+            <span>
+              <strong>Starting Over</strong>
+              <small>Rebuilding identity, routines, and hope.</small>
+            </span>
+            <span class="comm-pill comm-pill--free">Open</span>
+          </li>
+        </ul>
+        <p class="comm-card__note">
+          <span class="comm-dot comm-dot--free"></span> Open threads for members
+          <span class="comm-dot comm-dot--mem"></span> Live support groups included
+        </p>
         <div class="comm-card__actions">
           {% if heal %}
           <a class="btn comm-card__btn comm-card__btn--heal"
-             href="{{ url_for('forums.category', slug=heal.slug) }}">Enter the Healing Community</a>
+             href="{{ url_for('forums.category', slug=heal.slug) }}">Join the Healing Community</a>
           {% endif %}
+          <span class="comm-card__aside">You're in — enter when you're ready</span>
         </div>
       </article>
 
@@ -52,14 +126,78 @@
           For women who are done waiting — content, digital products, strategy, and the peer
           energy that keeps you moving when motivation dips.
         </p>
+        <p class="comm-card__topics-label">What we talk about</p>
+        <ul class="comm-topics">
+          <li>
+            <span>
+              <strong>Content Creation &amp; Social Media</strong>
+              <small>Showing up online without burning out.</small>
+            </span>
+            <span class="comm-pill comm-pill--free">Open</span>
+          </li>
+          <li>
+            <span>
+              <strong>Digital Products &amp; Passive Income</strong>
+              <small>Offers, launches, and getting paid for your work.</small>
+            </span>
+            <span class="comm-pill comm-pill--free">Open</span>
+          </li>
+          <li>
+            <span>
+              <strong>Business Growth &amp; Strategy</strong>
+              <small>Offers, systems, and next steps.</small>
+            </span>
+            <span class="comm-pill comm-pill--free">Open</span>
+          </li>
+          <li>
+            <span>
+              <strong>Investing &amp; Financial Independence</strong>
+              <small>Money conversations without the shame.</small>
+            </span>
+            <span class="comm-pill comm-pill--mem">Members</span>
+          </li>
+          <li>
+            <span>
+              <strong>Accountability &amp; Peer Groups</strong>
+              <small>Partners who check in so you keep going.</small>
+            </span>
+            <span class="comm-pill comm-pill--mem">Members</span>
+          </li>
+        </ul>
+        <p class="comm-card__note">
+          <span class="comm-dot comm-dot--free"></span> Open threads for members
+          <span class="comm-dot comm-dot--mem"></span> Live circles &amp; peer groups
+        </p>
         <div class="comm-card__actions">
           {% if build %}
           <a class="btn comm-card__btn comm-card__btn--build"
-             href="{{ url_for('forums.category', slug=build.slug) }}">Enter the Building Community</a>
+             href="{{ url_for('forums.category', slug=build.slug) }}">Join the Building Community</a>
           {% endif %}
+          <span class="comm-card__aside">You're in — enter when you're ready</span>
         </div>
       </article>
     </div>
   </section>
+
+  {% if tier != "creator" %}
+  <section class="comm-cta-wrap">
+    <div class="container">
+      <div class="comm-cta reveal">
+        <div class="comm-cta__copy">
+          <p class="comm-cta__eyebrow">Creator membership</p>
+          <h2>Ready to build in public with the Creator circle?</h2>
+          <p>
+            Unlock Building community rooms, Creator support groups, Showcase, and the features
+            that help you get seen — without rationing your voice.
+          </p>
+        </div>
+        <div class="comm-cta__action">
+          <a class="btn comm-cta__btn" href="{{ url_for('main.membership') }}">Get Full Access</a>
+          <p class="comm-cta__note">Unlock both communities in full</p>
+        </div>
+      </div>
+    </div>
+  </section>
+  {% endif %}
 </div>
 {% endblock %}

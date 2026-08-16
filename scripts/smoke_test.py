@@ -519,7 +519,9 @@ ok("Community page shows healing / building hubs",
    "Healing community" in comm_body
    and "Building community" in comm_body
    and ("Enter the Healing Community" in comm_body
-        or "Join the Healing Community" in comm_body))
+        or "Join the Healing Community" in comm_body)
+   and "comm-compare" in comm_body
+   and "What we talk about" in comm_body)
 
 # category page shows topic filter chips
 r = client.get("/forums/c/healing")
