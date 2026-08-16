@@ -4561,8 +4561,19 @@ a.at-handle:hover { text-decoration: underline; }
   gap: 12px; margin-bottom: 14px;
 }
 .sg-occ__meta {
-  display: flex; justify-content: space-between; gap: 10px;
+  display: flex; justify-content: space-between; align-items: baseline; gap: 10px;
   font-size: 13px; font-weight: 700; color: #3d1431; margin-bottom: 6px;
+}
+.sg-occ__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sg-occ__count {
+  flex: none;
+  color: #5a4f56;
+  font-variant-numeric: tabular-nums;
 }
 .sg-occ__bar {
   height: 8px; border-radius: 999px; background: rgba(61, 20, 49, 0.08); overflow: hidden;

@@ -177,8 +177,8 @@
         {% if pct > 100 %}{% set pct = 100 %}{% endif %}
         <li>
           <div class="sg-occ__meta">
-            <span>{{ row.circle.name if row.circle else 'Circle' }}</span>
-            <span>{{ used }} / {{ cap }}{% if row.pending %} · {{ row.pending }} waiting{% endif %}</span>
+            <span class="sg-occ__name">{{ row.circle.title if row.circle else 'Circle' }}</span>
+            <span class="sg-occ__count">{{ used }} / {{ cap }}{% if row.pending %} · {{ row.pending }} waiting{% endif %}</span>
           </div>
           <div class="sg-occ__bar" aria-hidden="true"><span style="width: {{ pct }}%;"></span></div>
         </li>

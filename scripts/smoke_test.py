@@ -1713,6 +1713,12 @@ ok("Studio support-groups page loads",
    and ("Waiting list" in r.get_data(as_text=True)
         or "Waiting lists" in r.get_data(as_text=True))
    and "Divorce Recovery" in r.get_data(as_text=True))
+dash = admin.get("/admin/").get_data(as_text=True)
+ok("Dashboard occupancy labels each circle by title",
+   "Support Group Occupancy" in dash
+   and "sg-occ__name" in dash
+   and "Divorce Recovery" in dash
+   and "New Creators Circle" in dash)
 r = admin.post("/admin/support-groups/form",
                data={"capacity": "2", "circle_id": str(heal_cid)},
                follow_redirects=True)
