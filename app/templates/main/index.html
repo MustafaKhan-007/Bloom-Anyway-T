@@ -11,7 +11,7 @@
       {% for note in announcements %}
       {% if note.url %}
       <a class="hero-announcement hero-announcement--link" href="{{ note.url }}"
-         {% if note.url.startswith('http') %}target="_blank" rel="noopener noreferrer"{% endif %}
+         {% if note.external %}target="_blank" rel="noopener noreferrer"{% endif %}
          role="region" aria-label="Announcement">
         <span class="hero-announcement__spark" aria-hidden="true">&#10022;</span>
         <span class="hero-announcement__text">{{ note.body }}</span>

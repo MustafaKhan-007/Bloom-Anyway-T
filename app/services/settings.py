@@ -116,26 +116,68 @@ def sanitize_announcement_url(raw: str | None) -> str:
     return ""
 
 
+def _site_hosts() -> set[str]:
+    """Hostnames that count as this Bloom Anyway site."""
+    hosts = {"bloomanyway.com", "www.bloomanyway.com"}
+    try:
+        from flask import current_app, has_app_context, has_request_context, request
+        if has_request_context():
+            host = (request.host or "").split(":")[0].strip().lower()
+            if host:
+                hosts.add(host)
+        if has_app_context():
+            server = (current_app.config.get("SERVER_NAME") or "").split(":")[0].strip().lower()
+            if server:
+                hosts.add(server)
+    except Exception:
+        pass
+    return hosts
+
+
+def resolve_announcement_link(raw: str | None) -> tuple[str, bool]:
+    """Return ``(href, is_external)``.
+
+    Same-site absolute URLs are rewritten to a path so they open in the
+    current tab; true off-site links stay absolute and open in a new tab.
+    """
+    from urllib.parse import urlparse
+
+    url = sanitize_announcement_url(raw)
+    if not url:
+        return "", False
+    if url.startswith("/"):
+        return url, False
+    try:
+        parsed = urlparse(url)
+        host = (parsed.hostname or "").lower()
+        if host and host in _site_hosts():
+            path = parsed.path or "/"
+            if parsed.query:
+                path = f"{path}?{parsed.query}"
+            if parsed.fragment:
+                path = f"{path}#{parsed.fragment}"
+            return path[:500], False
+    except Exception:
+        pass
+    return url, True
+
+
 def active_announcements() -> list[dict]:
-    """Live announcements as ``{"body", "url"}`` dicts (newest multi first)."""
+    """Live announcements as ``{"body", "url", "external"}`` dicts."""
     from ..models import Announcement
     out: list[dict] = []
     try:
         legacy = active_announcement()
         if legacy:
-            out.append({
-                "body": legacy,
-                "url": sanitize_announcement_url(get_setting("announcement_url")),
-            })
+            href, external = resolve_announcement_link(get_setting("announcement_url"))
+            out.append({"body": legacy, "url": href, "external": external})
         rows = (Announcement.query
                 .order_by(Announcement.sort_order, Announcement.created_at.desc()).all())
         for a in rows:
             if not a.is_live():
                 continue
-            out.append({
-                "body": a.body,
-                "url": sanitize_announcement_url(a.link_url),
-            })
+            href, external = resolve_announcement_link(a.link_url)
+            out.append({"body": a.body, "url": href, "external": external})
     except Exception:
         # Missing table / DB hiccup must not blank the whole site.
         return out

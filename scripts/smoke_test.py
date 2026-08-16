@@ -1505,6 +1505,22 @@ ok("Linked announcement wraps the card as a link",
 ok("Linked announcement keeps the URL out of the visible text",
    "hero-announcement__text\">Grab founder pricing</span>" in linked
    or "hero-announcement__text\">Grab founder pricing</span>" in linked.replace("\n", ""))
+ok("Same-site announcement path stays in the current tab",
+   'href="/membership"' in linked and "target=\"_blank\"" not in linked.split("Grab founder pricing")[0][-200:])
+
+admin.post("/admin/settings", data={"add_announcement": "1",
+           "ann_body": "Visit Instagram",
+           "ann_url": "https://instagram.com/bloomanyway"}, follow_redirects=True)
+ext = app.test_client().get("/").get_data(as_text=True)
+ok("External announcement opens in a new tab",
+   "Visit Instagram" in ext and "target=\"_blank\"" in ext
+   and "instagram.com/bloomanyway" in ext)
+
+with app.app_context():
+    from app.services.settings import resolve_announcement_link
+    path_href, path_ext = resolve_announcement_link("https://bloomanyway.com/courses")
+ok("Bloom Anyway absolute URLs rewrite to a same-tab path",
+   path_href == "/courses" and path_ext is False)
 
 # Community is list-only (no tiles toggle)
 r = client.get("/forums/c/healing")
