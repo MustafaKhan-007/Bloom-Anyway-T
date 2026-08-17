@@ -4,8 +4,6 @@ their streaks, the days they returned, and the lines they held onto.
 Built with fpdf2 (pure Python, no system libraries — deploys anywhere). Core
 fonts are Latin-1 only, so all user text is gently transliterated first.
 """
-from datetime import date
-
 from fpdf import FPDF
 
 from ..extensions import db

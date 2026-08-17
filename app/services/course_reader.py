@@ -1,7 +1,6 @@
 """Course reading progress + purchase → catalog product linking."""
 from __future__ import annotations
 
-import os
 import zipfile
 from io import BytesIO
 from pathlib import Path

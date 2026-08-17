@@ -1,9 +1,4 @@
-"""Social-link handling for profiles + Instagram reel embedding.
-
-Creator members can add links to their profile, but only to recognised social
-platforms (keeps profiles clean and safe). We also turn a reel/post URL into an
-embeddable iframe src for the home-page "Reel of the Week".
-"""
+"""Instagram helpers for profile links and home-page reel embeds."""
 import re
 
 #: domain fragment -> nice platform label. First match wins.
@@ -23,8 +18,6 @@ PLATFORMS = [
     ("twitch.tv", "Twitch"),
 ]
 
-ALLOWED_LABELS = sorted({label for _, label in PLATFORMS})
-
 
 def platform_for(url: str):
     """Return the platform label for a URL, or None if it isn't a known social."""
@@ -34,24 +27,6 @@ def platform_for(url: str):
         if host == frag or host.endswith("." + frag) or host == "www." + frag:
             return label
     return None
-
-
-def clean_social_links(pairs, limit: int = 6):
-    """From [{'label','url'}...] keep only valid social links (label auto-set)."""
-    out = []
-    for item in pairs:
-        url = (item.get("url") or "").strip()
-        if not url:
-            continue
-        if not url.lower().startswith(("http://", "https://")):
-            url = "https://" + url
-        label = platform_for(url)
-        if not label:
-            continue
-        out.append({"label": label, "url": url[:300]})
-        if len(out) >= limit:
-            break
-    return out
 
 
 def instagram_embed_url(url: str):

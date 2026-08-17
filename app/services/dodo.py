@@ -13,7 +13,7 @@ import requests
 from flask import current_app
 
 from ..extensions import db
-from ..models import MembershipPlan, Order, Product
+from ..models import Order, Product
 
 log = logging.getLogger(__name__)
 
@@ -601,14 +601,3 @@ def handle_payment_event(event_type: str, data: dict) -> Order | None:
                 log.exception("Card-declined email failed for %s", payment_id)
 
     return order
-
-
-def is_membership_product(product_id: str | None) -> bool:
-    if not product_id:
-        return False
-    key = str(product_id).strip()
-    if not key:
-        return False
-    if MembershipPlan.query.filter_by(dodo_product_id=key).first():
-        return True
-    return MembershipPlan.query.filter_by(ls_variant_id=key).first() is not None

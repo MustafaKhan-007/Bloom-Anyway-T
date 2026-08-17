@@ -18,15 +18,15 @@
   {% include "partials/badge_defs.html" %}
   <header class="site-header">
     <nav class="nav" aria-label="Main">
-      <a class="nav-brand" href="{{ url_for('main.index') }}" data-tour-target="nav-home">{% include "partials/logo.html" %}</a>
+      <a class="nav-brand" href="{{ url_for('main.index') }}">{% include "partials/logo.html" %}</a>
       <div class="nav-links">
-        <a href="{{ url_for('main.courses') }}" data-tour-target="nav-courses" {% if request.path.startswith('/courses') %}aria-current="page"{% endif %}>Courses &amp; Guides</a>
+        <a href="{{ url_for('main.courses') }}" {% if request.path.startswith('/courses') %}aria-current="page"{% endif %}>Courses &amp; Guides</a>
         <a href="{{ url_for('forums.index') }}" {% if request.path.startswith('/forums') %}aria-current="page"{% endif %}>Community</a>
-        <a href="{{ url_for('main.videos') }}" data-tour-target="nav-watch" {% if request.path.startswith('/watch') %}aria-current="page"{% endif %}>Content Hub</a>
-        <a href="{{ url_for('main.showcase') }}" data-tour-target="nav-showcase" {% if request.path.startswith('/showcase') or request.path.startswith('/marketplace') %}aria-current="page"{% endif %}>Showcase</a>
-        <a href="{{ url_for('main.support_groups_page') }}" data-tour-target="nav-support" {% if request.path.startswith('/support-groups') %}aria-current="page"{% endif %}>Support Groups</a>
+        <a href="{{ url_for('main.videos') }}" {% if request.path.startswith('/watch') %}aria-current="page"{% endif %}>Content Hub</a>
+        <a href="{{ url_for('main.showcase') }}" {% if request.path.startswith('/showcase') or request.path.startswith('/marketplace') %}aria-current="page"{% endif %}>Showcase</a>
+        <a href="{{ url_for('main.support_groups_page') }}" {% if request.path.startswith('/support-groups') %}aria-current="page"{% endif %}>Support Groups</a>
         {% if current_user.is_authenticated %}
-          <a href="{{ url_for('main.account') }}" data-tour-target="nav-myspace" {% if request.path.startswith('/account') %}aria-current="page"{% endif %}>My space</a>
+          <a href="{{ url_for('main.account') }}" {% if request.path.startswith('/account') %}aria-current="page"{% endif %}>My space</a>
           {% if current_user.is_admin %}
             <a href="{{ url_for('admin.dashboard') }}" style="color: var(--gold); font-weight: 700;">Studio</a>
           {% endif %}
@@ -47,14 +47,14 @@
     <div class="nav-drawer" id="nav-drawer" aria-hidden="true">
       <div class="nav-drawer__panel">
         <p class="nav-drawer__label">Courses &amp; Guides</p>
-        <a class="nav-drawer__sub" href="{{ url_for('main.courses', lane='healing') }}" data-tour-target="nav-courses">Healing products</a>
-        <a class="nav-drawer__sub" href="{{ url_for('main.courses', lane='building') }}" data-tour-target="nav-courses">Building products</a>
+        <a class="nav-drawer__sub" href="{{ url_for('main.courses', lane='healing') }}">Healing products</a>
+        <a class="nav-drawer__sub" href="{{ url_for('main.courses', lane='building') }}">Building products</a>
         <a href="{{ url_for('forums.index') }}">Community</a>
-        <a href="{{ url_for('main.videos') }}" data-tour-target="nav-watch">Content Hub</a>
-        <a href="{{ url_for('main.showcase') }}" data-tour-target="nav-showcase">Showcase</a>
-        <a href="{{ url_for('main.support_groups_page') }}" data-tour-target="nav-support">Support Groups</a>
+        <a href="{{ url_for('main.videos') }}">Content Hub</a>
+        <a href="{{ url_for('main.showcase') }}">Showcase</a>
+        <a href="{{ url_for('main.support_groups_page') }}">Support Groups</a>
         {% if current_user.is_authenticated %}
-          <a href="{{ url_for('main.account') }}" data-tour-target="nav-myspace">My space</a>
+          <a href="{{ url_for('main.account') }}">My space</a>
           {% if current_user.is_admin %}
             <a href="{{ url_for('admin.dashboard') }}">Studio</a>
           {% endif %}

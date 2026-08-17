@@ -99,7 +99,7 @@ class User(UserMixin, db.Model):
     # up to 3 badge category keys the member chose to feature on their profile
     displayed_badges_json = db.Column(db.Text)
 
-    # product tour after signup (None = not finished; existing users grandfathered)
+    # legacy signup-tour column (tour removed; column kept for existing DBs)
     tour_completed_at = db.Column(db.DateTime)
 
     codes = db.relationship("VerificationCode", backref="user", lazy="dynamic",
@@ -519,9 +519,6 @@ class MembershipPlan(db.Model):
 
     def annual_price_display(self):
         return self._money(self.annual_price_cents)
-
-    def period_label(self):
-        return {"month": "/ month", "year": "/ year", "once": "one-time"}.get(self.period, "")
 
     def is_buyable(self, billing: str = "monthly"):
         billing = (billing or "monthly").strip().lower()

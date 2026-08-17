@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from flask import (Flask, abort, flash, redirect, render_template,  # noqa: E402
-                   request, url_for)
+                   request)
 from flask_login import current_user  # noqa: E402
 from sqlalchemy import text  # noqa: E402
 
@@ -231,8 +231,7 @@ def create_app(config_class=None):
                 "current_year": date.today().year,
                 "unread_notes": unread,
                 "nav_notifications": nav_notes,
-                "turnstile_site_key": app.config.get("TURNSTILE_SITE_KEY") or "",
-                "product_tour_pending": False}
+                "turnstile_site_key": app.config.get("TURNSTILE_SITE_KEY") or ""}
 
     # --- health check ---------------------------------------------------------
     @app.route("/healthz")

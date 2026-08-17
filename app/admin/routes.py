@@ -413,14 +413,6 @@ def product_delete(product_id):
     return redirect(url_for("admin.products"))
 
 
-@bp.route("/products/new")
-@bp.route("/products/<int:product_id>/edit")
-@bp.route("/products/reorder", methods=["POST"])
-@admin_required
-def products_legacy(product_id=None):
-    return redirect(url_for("admin.products"))
-
-
 # ================================ QUOTES =====================================
 
 @bp.route("/quotes")

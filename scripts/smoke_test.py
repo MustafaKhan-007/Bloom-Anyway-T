@@ -205,9 +205,9 @@ ok("Correct code confirms and logs in (spaces/dashes ok)",
 r = client.get("/account")
 ok("Account page accessible after confirmation", r.status_code == 200)
 abody = r.get_data(as_text=True)
-ok("New member does not get the product tour",
+ok("New member lands on account without a product tour",
    "product-tour.js" not in abody
-   and 'data-product-tour="1"' not in abody)
+   and "data-product-tour" not in abody)
 
 # password checks
 fresh = app.test_client()
@@ -2088,8 +2088,8 @@ from app.services.content_reports import review_text, submit_report
 from app.services.privacy import close_account
 
 css = client.get("/static/css/main.css").get_data(as_text=True)
-ok("Quote card forces centered quote text",
-   ".quote-text" in css and "text-align: center" in css)
+ok("Auth pages keep the sun accent styles",
+   ".sun-disc" in css and "sun-breathe" in css)
 ok("Quote mini archive cards are centered",
    ".quote-mini" in css and "align-items: center" in css)
 

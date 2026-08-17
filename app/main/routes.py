@@ -31,8 +31,7 @@ from ..services.recommend import INTENTS, valid_intent_keys
 from ..services.listings import (ListingError, can_add_listing, listing_limit,
                                  process_listing_image)
 from ..services.shop_purchases import linked_purchases_for, link_pending_purchases
-from ..services.social import (ALLOWED_LABELS, clean_social_links,
-                               instagram_embed_url, instagram_from_links,
+from ..services.social import (instagram_embed_url, instagram_from_links,
                                instagram_handle, instagram_profile_url,
                                upsert_instagram_link)
 from ..services.videos import VideoError, delete_stored, process_video
@@ -733,7 +732,7 @@ def account():
         course_progress=progress_by_purchase,
         course_readable=readable,
         purchase_catalog=purchase_catalog,
-        premium=is_premium(current_user),
+        premium=current_user.is_member(),
         active_tab=tab,
         journal_entries=journal,
         today_entry=today_entry,
@@ -767,23 +766,6 @@ def mark_notifications_read():
     if wants_json:
         return {"ok": True, "marked": n}
     return redirect(url_for("main.account", tab="activity"))
-
-
-@bp.route("/account/tour-complete", methods=["POST"])
-@login_required
-def tour_complete():
-    """Mark the post-signup product tour as finished (or skipped)."""
-    if current_user.tour_completed_at is None:
-        current_user.tour_completed_at = utcnow()
-        db.session.commit()
-    wants_json = (
-        request.accept_mimetypes.best == "application/json"
-        or request.headers.get("X-Requested-With") == "fetch"
-        or request.is_json
-    )
-    if wants_json:
-        return {"ok": True}
-    return redirect(url_for("main.account"))
 
 
 @bp.route("/account/shop/<int:purchase_id>/download")
@@ -989,7 +971,7 @@ def product_cover(product_id):
 @bp.route("/account/journey.pdf")
 @login_required
 def journey_pdf():
-    if not is_premium(current_user):
+    if not current_user.is_member():
         flash("The My Journey keepsake is a little something for members who've "
               "joined a course or guide. It's waiting for you when you are.", "info")
         return redirect(url_for("main.account"))
@@ -1244,33 +1226,22 @@ def avatar_anim(user_id):
     abort(404)
 
 
-def is_premium(user) -> bool:
-    """My Journey + profile links are a members' perk (Healing/Creator or owner)."""
-    return bool(getattr(user, "is_authenticated", False) and user.is_member())
-
-
 # --- Content Library --------------------------------------------------------
-# Members (Healing+) can browse titles/thumbnails; only Creators can play.
 
 def _can_play_videos(user) -> bool:
     """Creator-track / Full Bloom / owner can play Creator Content Tips."""
-    return bool(getattr(user, "is_authenticated", False)
-                and (getattr(user, "is_admin", False) or user.is_creator_track()))
+    return bool(getattr(user, "is_authenticated", False) and user.is_creator_track())
 
 
 def _can_play_video(user, video) -> bool:
     """Per-video play gate: free picks, healing-marked tips, or creator-track."""
     if not getattr(user, "is_authenticated", False) or video is None:
         return False
-    if getattr(user, "is_admin", False):
-        return True
     if video.free_access:
         return True
     if getattr(video, "healing_access", False) and user.is_healing_track():
         return True
-    if user.is_creator_track():
-        return True
-    return False
+    return user.is_creator_track()
 
 
 def _video_playable(video) -> bool:
@@ -1651,19 +1622,6 @@ def withdraw_support_group(app_id):
     else:
         flash("Application withdrawn.", "success")
     return redirect(url_for("main.support_groups_page"))
-
-
-# Legacy aliases — keep old form posts from breaking
-@bp.route("/account/support-groups", methods=["POST"])
-@login_required
-def request_support_group():
-    return join_support_circle()
-
-
-@bp.route("/account/support-groups/<int:app_id>/withdraw", methods=["POST"])
-@login_required
-def withdraw_support_group_legacy(app_id):
-    return withdraw_support_group(app_id)
 
 
 @bp.route("/privacy")

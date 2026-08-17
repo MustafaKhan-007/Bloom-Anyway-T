@@ -157,7 +157,3 @@ def maybe_record_visit() -> VisitEvent | None:
     db.session.add(event)
     session[SESSION_RECORDED] = source
     return event
-
-
-def source_for_session() -> str | None:
-    return session.get(SESSION_KEY)

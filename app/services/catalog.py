@@ -52,11 +52,6 @@ def remove_demo_catalog() -> int:
     return removed
 
 
-def ensure_catalog() -> int:
-    """Back-compat alias: purge demo rows instead of seeding them."""
-    return remove_demo_catalog()
-
-
 def slugify_title(title: str) -> str:
     base = re.sub(r"[^a-z0-9]+", "-", (title or "").lower()).strip("-")
     return (base or "product")[:140]

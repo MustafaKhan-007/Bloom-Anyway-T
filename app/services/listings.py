@@ -9,7 +9,7 @@ import io
 from PIL import Image, ImageOps, UnidentifiedImageError
 
 from ..extensions import db
-from ..models import MARKETPLACE_LIMITS, ListingImage, MarketplaceListing
+from ..models import MARKETPLACE_LIMITS, MarketplaceListing
 
 MAX_UPLOAD_BYTES = 6 * 1024 * 1024
 MAX_W, MAX_H = 1200, 900

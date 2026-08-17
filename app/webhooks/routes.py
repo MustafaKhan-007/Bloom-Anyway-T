@@ -5,7 +5,7 @@ refund.succeeded, and is idempotent on payment_id.
 """
 import logging
 
-from flask import current_app, request
+from flask import request
 
 from ..extensions import db
 from ..services import dodo as dodo_svc
