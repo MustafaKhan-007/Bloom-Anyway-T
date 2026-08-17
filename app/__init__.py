@@ -232,11 +232,7 @@ def create_app(config_class=None):
                 "unread_notes": unread,
                 "nav_notifications": nav_notes,
                 "turnstile_site_key": app.config.get("TURNSTILE_SITE_KEY") or "",
-                "product_tour_pending": (
-                    getattr(current_user, "is_authenticated", False)
-                    and not getattr(current_user, "is_admin", False)
-                    and getattr(current_user, "tour_completed_at", True) is None
-                )}
+                "product_tour_pending": False}
 
     # --- health check ---------------------------------------------------------
     @app.route("/healthz")

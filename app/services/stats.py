@@ -67,7 +67,7 @@ def dashboard_cards() -> dict:
     ).scalar() or 0
     active_members = db.session.query(func.count(User.id)).filter(
         User.deleted_at.is_(None),
-        User.membership.in_(("healing", "creator")),
+        User.membership.in_(("healing", "creator", "full_bloom")),
     ).scalar() or 0
     free_n = db.session.query(func.count(User.id)).filter(
         User.deleted_at.is_(None),
@@ -121,6 +121,7 @@ def membership_breakdown() -> dict:
         "none": rows.get("none", 0),
         "healing": rows.get("healing", 0),
         "creator": rows.get("creator", 0),
+        "full_bloom": rows.get("full_bloom", 0),
         "total": sum(rows.values()),
     }
 

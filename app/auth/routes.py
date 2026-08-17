@@ -142,10 +142,10 @@ def _log_in(user: User, remember: bool = True):
     link_pending_purchases(user)
     # Pending co-owner invites: promote on login / email confirm.
     owners_svc.apply_pending_invite(user)
-    # owner always holds Creator perks in the DB too — some older rows still
+    # owner always holds Full Bloom perks in the DB too — some older rows still
     # have membership="none" from before tiers existed
-    if user.is_admin and user.membership != "creator":
-        user.membership = "creator"
+    if user.is_admin and user.membership != "full_bloom":
+        user.membership = "full_bloom"
     db.session.commit()
     login_user(user, remember=remember)
     # permanent session so the admin idle-timeout window survives browser restarts

@@ -46,24 +46,24 @@
 
         <article class="show-tier show-tier--heal">
           <p class="show-tier__label">Healing membership</p>
-          <h2>1 listing per month</h2>
+          <h2>1 listing at a time</h2>
           <ul class="show-tier__list">
             <li class="is-yes">1 digital or service listing</li>
-            <li class="is-yes">Full community visibility</li>
+            <li class="is-yes">Visible across Showcase</li>
             <li class="is-no">Multiple listings</li>
           </ul>
           <p class="show-tier__note">We encourage healing members to showcase one thing &mdash; a gentle first step toward building while you heal.</p>
         </article>
 
         <article class="show-tier show-tier--creator">
-          <p class="show-tier__label">Creator membership</p>
-          <h2>5 listings per month</h2>
+          <p class="show-tier__label">Creator &amp; Full Bloom</p>
+          <h2>15 listings at a time</h2>
           <ul class="show-tier__list">
-            <li class="is-yes">Up to 5 active listings</li>
+            <li class="is-yes">Up to 15 active listings</li>
             <li class="is-yes">Products, services &amp; businesses</li>
             <li class="is-yes">Eligible for Product of the Day &amp; Creator of the Month</li>
           </ul>
-          <a class="btn btn--gold show-tier__cta" href="{{ url_for('main.membership', next=url_for('main.showcase')) }}">Join Creator Membership &rarr;</a>
+          <a class="btn btn--gold show-tier__cta" href="{{ url_for('main.membership', next=url_for('main.showcase')) }}">See memberships &rarr;</a>
         </article>
       </div>
     </div>
@@ -132,16 +132,16 @@
         <div class="show-submit__actions">
           {% if current_user.is_authenticated and current_user.is_member() %}
           <a class="btn btn--secondary" href="{{ url_for('main.listing_form') }}">
-            {% if current_user.is_creator() %}Creator Member — Add listing{% else %}Healing Member — Add 1 listing{% endif %}
+            {% if current_user.is_creator_track() %}Add a Showcase listing{% else %}Healing Member — Add 1 listing{% endif %}
           </a>
-          {% if not current_user.is_creator() %}
-          <a class="btn btn--primary" href="{{ url_for('main.membership', next=url_for('main.listing_form')) }}">Creator Member — Add listing</a>
+          {% if not current_user.is_creator_track() %}
+          <a class="btn btn--primary" href="{{ url_for('main.membership', next=url_for('main.listing_form')) }}">Creator / Full Bloom — up to 15</a>
           {% else %}
           <a class="btn btn--primary" href="{{ url_for('main.my_listings') }}">Your listings</a>
           {% endif %}
           {% else %}
           <a class="btn btn--secondary" href="{{ url_for('main.membership', next=url_for('main.showcase')) }}">Healing Member — Add 1 listing</a>
-          <a class="btn btn--primary" href="{{ url_for('main.membership', next=url_for('main.showcase')) }}">Creator Member — Add listing</a>
+          <a class="btn btn--primary" href="{{ url_for('main.membership', next=url_for('main.showcase')) }}">Creator / Full Bloom — up to 15</a>
           {% endif %}
         </div>
       </div>

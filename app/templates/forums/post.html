@@ -98,7 +98,8 @@
         {{ report_toggle(
              url_for('forums.report_post', post_id=post.id),
              'report-note-post',
-             next=request.path
+             next=request.path,
+             label='Report post'
            ) }}
         {% endif %}
       </div>

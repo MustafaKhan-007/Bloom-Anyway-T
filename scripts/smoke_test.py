@@ -205,21 +205,9 @@ ok("Correct code confirms and logs in (spaces/dashes ok)",
 r = client.get("/account")
 ok("Account page accessible after confirmation", r.status_code == 200)
 abody = r.get_data(as_text=True)
-ok("New member gets the product tour script",
-   'data-product-tour="1"' in abody and "product-tour.js" in abody
-   and 'data-tour-target="nav-courses"' in abody)
-r = client.post("/account/tour-complete",
-                headers={"X-Requested-With": "fetch", "Accept": "application/json"},
-                follow_redirects=False)
-ok("Tour complete endpoint marks the walkthrough done", r.status_code == 200)
-with app.app_context():
-    toured = User.query.filter_by(email="newperson@example.com").first()
-ok("Tour completion is stored on the user",
-   toured is not None and toured.tour_completed_at is not None)
-r = client.get("/account")
-ok("Completed tour no longer injects the tour script",
-   "product-tour.js" not in r.get_data(as_text=True)
-   and 'data-product-tour="1"' not in r.get_data(as_text=True))
+ok("New member does not get the product tour",
+   "product-tour.js" not in abody
+   and 'data-product-tour="1"' not in abody)
 
 # password checks
 fresh = app.test_client()
@@ -539,11 +527,10 @@ ok("Dashboard shows local payment insights",
    r.status_code == 200 and "Payments (30 days)" in _dash
    and "Dodo Payments" in _dash)
 
-# give the main member a Creator membership: unlocks posting, profile links,
-# the video room, and the My Journey export
+# give the main member Full Bloom: both community tracks for the forum suite
 with app.app_context():
     m = User.query.filter_by(email="newperson@example.com").first()
-    m.membership = "creator"
+    m.membership = "full_bloom"
     db.session.commit()
 
 # --- 5. community forums + moderation + recommendations --------------------------
@@ -1310,9 +1297,9 @@ with app.app_context():
     owner = User.query.filter_by(is_admin=True).first()
     owner.membership = "none"   # simulate a pre-memberships owner row
     db.session.commit()
-    ok("Owner effective_membership is Creator even if column is none",
-       owner.effective_membership() == "creator" and owner.is_creator()
-       and owner.is_member())
+    ok("Owner effective_membership is Full Bloom",
+       owner.effective_membership() == "full_bloom" and owner.is_creator()
+       and owner.is_member() and owner.is_healing_track())
 r = admin.get("/watch")
 ok("Owner can open the Content Hub",
    r.status_code == 200 and "Content Hub" in r.get_data(as_text=True))
@@ -1332,8 +1319,8 @@ ok("Owner can save profile links",
 admin.get("/admin/")
 with app.app_context():
     owner_row = User.query.filter_by(is_admin=True).first()
-ok("Studio visit keeps owner Creator perks without rewriting membership column",
-   owner_row.effective_membership() == "creator"
+ok("Studio visit keeps owner Full Bloom perks without rewriting membership column",
+   owner_row.effective_membership() == "full_bloom"
    and owner_row.membership == "none")
 
 # --- 5h. healing perks, content library lock, marketplace, gifting ----------
@@ -1363,6 +1350,20 @@ ok("Healing member sees the locked video page",
    r.status_code == 200 and "Upgrade to Creator" in r.get_data(as_text=True))
 r = banclient.get(f"/watch/{vid_id}/stream")
 ok("Healing member can't stream a locked video", r.status_code == 404)
+
+with app.app_context():
+    if ForumCategory.query.filter_by(slug="building").first() is None:
+        db.session.add(ForumCategory(
+            slug="building", name="Building",
+            description="Growth rooms.", sort_order=2))
+        db.session.commit()
+r = banclient.get("/forums/c/building", follow_redirects=False)
+ok("Healing member is gated from Building community",
+   r.status_code in (302, 303)
+   and "/membership" in (r.headers.get("Location") or ""))
+r = banclient.get("/forums/c/healing")
+ok("Healing member can open Healing community",
+   r.status_code == 200)
 
 # Showcase (marketplace)
 from app.models import MarketplaceListing
@@ -1449,9 +1450,18 @@ with app.app_context():
     cu = User.query.filter_by(email="newperson@example.com").first()
     ccount = MarketplaceListing.query.filter_by(user_id=cu.id, active=True).count()
     svc = MarketplaceListing.query.filter_by(title="Coaching").first()
-ok("Creator member can run multiple Showcase listings (cap 5)", ccount >= 2, f"got {ccount}")
+ok("Creator member can run multiple Showcase listings (cap 15)", ccount >= 2, f"got {ccount}")
 ok("Service listing stores its location",
    svc is not None and svc.location == "Remote")
+
+r = client.get("/courses?lane=healing")
+ok("Courses healing lane hides building products",
+   "lane-healing" in r.get_data(as_text=True)
+   and "lane-building" not in r.get_data(as_text=True))
+r = client.get("/courses?lane=building")
+ok("Courses building lane hides healing products",
+   "lane-building" in r.get_data(as_text=True)
+   and "lane-healing" not in r.get_data(as_text=True))
 
 r = admin.get("/admin/marketplace")
 ok("Studio marketplace moderation lists items",
@@ -1884,7 +1894,7 @@ with app.app_context():
               membership="healing", email_verified_at=utcnow())
     d1.set_password(USER_PW)
     d2 = User(email="sg-draft2@example.com", username="sgdraft2",
-              membership="creator", email_verified_at=utcnow())
+              membership="healing", email_verified_at=utcnow())
     d2.set_password(USER_PW)
     db.session.add_all([d1, d2])
     db.session.commit()
@@ -2205,7 +2215,9 @@ rep_client = app.test_client()
 rep_client.post("/login", data={"email": "reporter-user@example.com", "password": USER_PW})
 r = rep_client.get(f"/forums/p/{clean_id}")
 post_html = r.get_data(as_text=True)
-ok("Report control on posts", "Report" in post_html and "/report" in post_html)
+ok("Report control on posts",
+   "Report post" in post_html
+   and f"/forums/p/{clean_id}/report" in post_html)
 
 with app.app_context():
     from app.models import ForumComment

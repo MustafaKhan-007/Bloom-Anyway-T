@@ -170,12 +170,14 @@ def apply(user: User, message: str = "", *, circle_id: int | None = None,
           circle_slug: str | None = None
           ) -> tuple[SupportGroupApplication | None, str | None]:
     if not user or not user.is_member():
-        return None, "Support groups are for Healing and Creator members."
+        return None, "Support groups are for Healing, Creator, and Full Bloom members."
     circle = get_circle(circle_id, slug=circle_slug)
     if circle is None or not circle.active:
         return None, "Choose a support group circle."
-    if circle.track == "building" and not user.is_creator():
-        return None, "Creator accountability groups are for Creator members."
+    if circle.track == "building" and not user.is_creator_track():
+        return None, "Creator accountability groups are for Creator and Full Bloom members."
+    if circle.track == "healing" and not user.is_healing_track():
+        return None, "Healing peer groups are for Healing and Full Bloom members."
     if active_application(user.id, circle.id):
         return None, f"You're already in the queue (or booked) for {circle.title}."
     body = (message or "").strip()

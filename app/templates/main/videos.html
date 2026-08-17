@@ -2,29 +2,36 @@
 {% block title %}Content Hub — {{ site.site_title }}{% endblock %}
 
 {% block content %}
-{% set is_creator = current_user.is_authenticated and current_user.is_creator() %}
+{% set is_creator = current_user.is_authenticated and current_user.is_creator_track() %}
+{% set is_healing = current_user.is_authenticated and current_user.is_healing_track() %}
 <div class="hub-exact" data-tour-surface="watch">
   <div class="hub-exact__banner {{ 'hub-exact__banner--soft' if is_creator }}">
     <div class="container hub-exact__banner-inner">
-      {% if not is_creator %}
-      <p>
-        <strong>Creator Members only.</strong>
-        Full playback, Content Tips, and weekly reel entries are Creator perks.
-      </p>
-      <a class="btn btn--gold hub-exact__banner-cta" href="{{ url_for('main.membership', next=url_for('main.videos')) }}">Join Creator Membership</a>
-      {% else %}
+      {% if is_creator %}
       <p class="hub-exact__banner-soft">You’re in — enjoy full Content Hub access.</p>
+      {% elif is_healing %}
+      <p>
+        <strong>Healing tips are open for you.</strong>
+        Full Content Hub playback, reel reviews, and spotlight stay with Creator or Full Bloom.
+      </p>
+      <a class="btn btn--gold hub-exact__banner-cta" href="{{ url_for('main.membership', next=url_for('main.videos')) }}">See Creator &amp; Full Bloom</a>
+      {% else %}
+      <p>
+        <strong>Content Tips by membership.</strong>
+        Free picks for everyone signed in; Healing tips for Healing members; full Hub for Creator &amp; Full Bloom.
+      </p>
+      <a class="btn btn--gold hub-exact__banner-cta" href="{{ url_for('main.membership', next=url_for('main.videos')) }}">See memberships</a>
       {% endif %}
     </div>
   </div>
 
   <header class="hub-exact__hero">
     <div class="container">
-      <p class="hub-exact__eyebrow">Creator Members Only</p>
+      <p class="hub-exact__eyebrow">Content Hub</p>
       <h1>Content Hub</h1>
       <p class="hub-exact__lede">
         Tips for showing up online, daily reel reviews from the community, and a weekly
-        Reel of the Week draw — one Creator member is chosen at random.
+        Reel of the Week draw — open to Creator and Full Bloom members.
       </p>
     </div>
   </header>
@@ -73,7 +80,7 @@
             <div class="hub-exact__tip-body">
               <span class="hub-exact__tip-num" aria-hidden="true">{{ '%02d'|format(loop.index) }}</span>
               <span class="hub-exact__tip-cat">
-                {% if v.free_access %}Free pick{% else %}Creator tip{% endif %}
+                {% if v.free_access %}Free pick{% elif v.healing_access %}Healing tip{% else %}Creator tip{% endif %}
               </span>
               <h3>{{ v.title }}</h3>
               {% if v.description %}<p>{{ v.description|truncate(110) }}</p>{% endif %}

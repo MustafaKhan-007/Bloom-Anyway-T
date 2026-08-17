@@ -22,13 +22,13 @@ log = logging.getLogger(__name__)
 
 BANNED_NOTICE = ("Posting is paused for your account after repeated unkind "
                  "language. You can still read the community.")
-MEMBER_NOTICE = ("Community is a members' circle — Healing or Creator unlocks "
-                 "the rooms where we talk, listen, and bloom together.")
+MEMBER_NOTICE = ("Community is a members' circle — Healing, Creator, or Full Bloom "
+                 "unlocks the rooms where we talk, listen, and bloom together.")
 
 
 @bp.before_request
 def _require_community_member():
-    """Healing / Creator (or owner) only — free and guests see the gate."""
+    """Healing / Creator / Full Bloom (or owner) only — free and guests see the gate."""
     if getattr(current_user, "is_authenticated", False) and current_user.is_member():
         return None
     if request.method != "GET":
@@ -41,6 +41,28 @@ def _require_community_member():
         "forums/gate.html",
         signed_in=bool(getattr(current_user, "is_authenticated", False)),
     )
+
+
+def _can_access_category(cat) -> bool:
+    """Healing track → healing rooms; Creator track → building rooms; Full Bloom → both."""
+    if not getattr(current_user, "is_authenticated", False) or not current_user.is_member():
+        return False
+    slug = (getattr(cat, "slug", None) or "").lower()
+    if slug == "building":
+        return current_user.is_creator_track()
+    if slug == "healing":
+        return current_user.is_healing_track()
+    return True
+
+
+def _require_category_access(cat):
+    if _can_access_category(cat):
+        return None
+    if (getattr(cat, "slug", "") or "").lower() == "building":
+        flash("The Building community is for Creator and Full Bloom members.", "info")
+    else:
+        flash("The Healing community is for Healing and Full Bloom members.", "info")
+    return redirect(url_for("main.membership", next=request.path))
 
 
 def _can_participate() -> bool:
@@ -93,6 +115,9 @@ def index():
 @bp.route("/c/<slug>")
 def category(slug):
     cat = ForumCategory.query.filter_by(slug=slug).first_or_404()
+    blocked = _require_category_access(cat)
+    if blocked:
+        return blocked
     tags = cat.tags.all()
     active_tag = None
     tag_slug = request.args.get("tag")
@@ -145,6 +170,9 @@ def category(slug):
 @limiter.limit("15 per hour")
 def create_post(slug):
     cat = ForumCategory.query.filter_by(slug=slug).first_or_404()
+    blocked = _require_category_access(cat)
+    if blocked:
+        return blocked
     blocked = _require_participant(url_for("forums.category", slug=slug))
     if blocked:
         return blocked
@@ -205,6 +233,9 @@ def post(post_id):
     post = db.session.get(ForumPost, post_id)
     if post is None or post.hidden:
         abort(404)
+    blocked = _require_category_access(post.category)
+    if blocked:
+        return blocked
     can_participate = _can_participate()
     # top-level comments, each with its (one-level) replies
     top = (post.comments.filter_by(hidden=False, parent_id=None)

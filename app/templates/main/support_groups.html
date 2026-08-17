@@ -4,7 +4,8 @@
 
 {% block content %}
 {% set is_member = current_user.is_authenticated and current_user.is_member() %}
-{% set is_creator = current_user.is_authenticated and current_user.is_creator() %}
+{% set is_healing = current_user.is_authenticated and current_user.is_healing_track() %}
+{% set is_creator = current_user.is_authenticated and current_user.is_creator_track() %}
 {% set membership_url = url_for('main.membership', next=request.path) %}
 {% set facilitator_url = site.facilitator_booking_url or membership_url %}
 {% set ayesha_url = site.ayesha_booking_url or url_for('main.contact') %}
@@ -54,7 +55,7 @@
           {% endif %}
           {% if c.id in my_circle_ids %}
           <span class="btn btn--quiet sg-card__btn">You're in</span>
-          {% elif is_member %}
+          {% elif is_healing %}
           <form method="post" action="{{ url_for('main.join_support_circle') }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="circle_id" value="{{ c.id }}">
@@ -63,9 +64,9 @@
             </button>
           </form>
           {% else %}
-          <a class="btn btn--primary sg-card__btn" href="{{ membership_url }}">Join with membership</a>
+          <a class="btn btn--primary sg-card__btn" href="{{ membership_url }}">Join with Healing membership</a>
           {% endif %}
-          <p class="sg-card__foot">&bull; Full Members only</p>
+          <p class="sg-card__foot">&bull; Healing &amp; Full Bloom</p>
         </article>
         {% endfor %}
       </div>
@@ -111,7 +112,7 @@
           {% else %}
           <a class="btn btn--gold sg-card__btn" href="{{ membership_url }}">Join with membership</a>
           {% endif %}
-          <p class="sg-card__foot">&bull; Creator Members</p>
+          <p class="sg-card__foot">&bull; Creator &amp; Full Bloom</p>
         </article>
         {% endfor %}
       </div>

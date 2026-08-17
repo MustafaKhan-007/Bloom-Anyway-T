@@ -77,7 +77,8 @@
   </section>
 
   <section class="cg-lanes">
-    <div class="container cg-lanes__grid">
+    <div class="container cg-lanes__grid {{ 'cg-lanes__grid--solo' if lane }}">
+      {% if lane != 'building' %}
       {# -------- Healing / Ayesha -------- #}
       <div class="cg-lane cg-lane--healing" id="lane-healing">
         <header class="cg-founder cg-founder--healing">
@@ -92,6 +93,7 @@
         </header>
 
         <form class="cg-filters" method="get" action="{{ url_for('main.courses') }}">
+          {% if lane %}<input type="hidden" name="lane" value="{{ lane }}">{% endif %}
           <input type="hidden" name="b" value="{{ b_filter }}">
           <div class="cg-filters__pills" role="group" aria-label="Healing filters">
             {% for key, label in healing_filters %}
@@ -126,7 +128,9 @@
           <a class="btn cg-soon__btn" href="{{ url_for('main.contact') }}?topic=notify-healing">Notify me &rarr;</a>
         </div>
       </div>
+      {% endif %}
 
+      {% if lane != 'healing' %}
       {# -------- Building / Saman -------- #}
       <div class="cg-lane cg-lane--building" id="lane-building">
         <header class="cg-founder cg-founder--building">
@@ -141,6 +145,7 @@
         </header>
 
         <form class="cg-filters" method="get" action="{{ url_for('main.courses') }}">
+          {% if lane %}<input type="hidden" name="lane" value="{{ lane }}">{% endif %}
           <input type="hidden" name="h" value="{{ h_filter }}">
           <div class="cg-filters__pills" role="group" aria-label="Building filters">
             {% for key, label in building_filters %}
@@ -175,6 +180,7 @@
           <a class="btn cg-soon__btn cg-soon__btn--gold" href="{{ url_for('main.contact') }}?topic=notify-building">Notify me &rarr;</a>
         </div>
       </div>
+      {% endif %}
     </div>
   </section>
 

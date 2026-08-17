@@ -19,7 +19,8 @@ from sqlalchemy.orm import joinedload
 
 from ..extensions import db
 from ..models import (Announcement, ContentReport, FaqItem, ForumComment,
-                      ForumPost, MEMBERSHIPS, MarketplaceListing, MembershipPlan,
+                      ForumPost, MEMBERSHIPS, MEMBERSHIP_LABELS, MarketplaceListing,
+                      MembershipPlan,
                       Page, Product, ProductAsset, Quote, QuoteFavorite, QuotePin,
                       ReelReview, ReelReviewApplication, SiteFeedback, Testimonial,
                       User, Video, QUOTE_CATEGORIES)
@@ -912,6 +913,7 @@ def video_form(video_id=None):
         description = (request.form.get("description") or "").strip() or None
         published = bool(request.form.get("published"))
         free_access = bool(request.form.get("free_access"))
+        healing_access = bool(request.form.get("healing_access"))
         try:
             sort_order = int(request.form.get("sort_order") or 0)
         except ValueError:
@@ -955,6 +957,7 @@ def video_form(video_id=None):
                 video.description = description
                 video.published = published
                 video.free_access = free_access
+                video.healing_access = healing_access
                 video.sort_order = sort_order
                 if new_video:
                     disk_name, mime, fname, size = new_video
@@ -1023,7 +1026,8 @@ def members():
     counts = dict(db.session.query(User.membership, func.count(User.id))
                   .filter(User.deleted_at.is_(None)).group_by(User.membership).all())
     return render_template("admin/members.html", people=people, counts=counts,
-                           memberships=MEMBERSHIPS, q=q,
+                           memberships=MEMBERSHIPS,
+                           membership_labels=MEMBERSHIP_LABELS, q=q,
                            spotlight=_spotlight_candidates())
 
 
@@ -1032,7 +1036,7 @@ def members():
 def set_membership(user_id):
     member = db.session.get(User, user_id) or abort(404)
     if member.is_admin:
-        flash("The owner account always keeps Creator access.", "info")
+        flash("The owner account always keeps Full Bloom access.", "info")
         return redirect(request.form.get("next") or url_for("admin.members"))
     tier = request.form.get("membership")
     if tier in MEMBERSHIPS:
@@ -1087,14 +1091,19 @@ def owners_remove():
 
 _PLAN_DEFAULTS = {
     "healing": {"name": "Healing membership",
-                "tagline": "Belong to the whole community.", "sort_order": 1},
+                "tagline": "Healing community, support, and one Showcase listing.",
+                "sort_order": 1},
     "creator": {"name": "Creator membership",
-                "tagline": "Everything, plus the tools to be seen.", "sort_order": 2},
+                "tagline": "Building community, tips, spotlight, and Showcase.",
+                "sort_order": 2},
+    "full_bloom": {"name": "Full Bloom membership",
+                   "tagline": "Everything in Healing and Creator.",
+                   "sort_order": 3},
 }
 
 
 def _get_plans():
-    """Return the two membership plans, creating any that are missing."""
+    """Return membership plans, creating any that are missing."""
     plans = {p.tier: p for p in MembershipPlan.query.all()}
     changed = False
     for tier, d in _PLAN_DEFAULTS.items():
@@ -1104,9 +1113,12 @@ def _get_plans():
             db.session.add(plan)
             plans[tier] = plan
             changed = True
+        else:
+            # Keep names/taglines fresh when still on old defaults
+            pass
     if changed:
         db.session.commit()
-    return [plans["healing"], plans["creator"]]
+    return [plans["healing"], plans["creator"], plans["full_bloom"]]
 
 
 @bp.route("/memberships", methods=["GET", "POST"])

@@ -163,6 +163,10 @@ def courses():
     except Exception:
         db.session.rollback()
 
+    lane = (request.args.get("lane") or "").strip().lower()
+    if lane not in ("healing", "building"):
+        lane = None
+
     h_filter = (request.args.get("h") or "all").strip().lower()
     b_filter = (request.args.get("b") or "all").strip().lower()
     if h_filter not in {k for k, _ in HEALING_FILTERS}:
@@ -173,13 +177,13 @@ def courses():
     if sort not in ("newest", "price_asc", "price_desc"):
         sort = "newest"
 
-    healing = _courses_lane("healing", h_filter, sort)
-    building = _courses_lane("building", b_filter, sort)
+    healing = _courses_lane("healing", h_filter, sort) if lane != "building" else []
+    building = _courses_lane("building", b_filter, sort) if lane != "healing" else []
     bundles = {
         "healing": Product.query.filter_by(
-            status="published", track="healing", type="bundle").first(),
+            status="published", track="healing", type="bundle").first() if lane != "building" else None,
         "building": Product.query.filter_by(
-            status="published", track="building", type="bundle").first(),
+            status="published", track="building", type="bundle").first() if lane != "healing" else None,
     }
     owned_purchases = {}
     if current_user.is_authenticated:
@@ -198,6 +202,7 @@ def courses():
         h_filter=h_filter,
         b_filter=b_filter,
         sort=sort,
+        lane=lane,
         owned_purchases=owned_purchases,
     )
 
@@ -232,7 +237,7 @@ def checkout_product(slug):
 @bp.route("/checkout/membership/<tier>", methods=["GET", "POST"])
 @limiter.limit("20 per minute")
 def checkout_membership(tier):
-    if tier not in ("healing", "creator"):
+    if tier not in ("healing", "creator", "full_bloom"):
         abort(404)
     billing = (request.args.get("billing") or request.form.get("billing")
                or "monthly").strip().lower()
@@ -264,21 +269,23 @@ def checkout_membership(tier):
     return redirect(url)
 
 
-#: the comparison matrix shown on /membership. Each row: (label, free, healing, creator)
-#: values are True (check), False (blank) or a short string (note).
+#: the comparison matrix shown on /membership.
+#: Each row: (label, free, healing, creator, full_bloom)
 MEMBERSHIP_MATRIX = [
-    ("Buy courses & guides", True, True, True),
-    ("Daily quotes & motivation", True, True, True),
-    ("Earn & display badges", True, True, True),
-    ("Community (read, post & reply)", False, True, True),
-    ("Browse the Content Hub", True, True, True),
-    ("Watch Content Hub videos", "Free picks", "Free picks", True),
-    ("Request a weekly reel review", False, False, True),
-    ("Profile links", False, True, True),
-    ("My Journey keepsake export", False, True, True),
-    ("Showcase listings", False, "1 active", "5 active"),
-    ("Home-page spotlight eligibility", False, False, True),
-    ("Support groups & 1:1 coaching", False, True, True),
+    ("Buy courses & guides", True, True, True, True),
+    ("Daily quotes & motivation", True, True, True, True),
+    ("Earn & display badges", True, True, True, True),
+    ("Healing community", False, True, False, True),
+    ("Building / Creator community", False, False, True, True),
+    ("Browse the Content Hub", True, True, True, True),
+    ("Watch Content Hub tips", "Free picks", "Healing tips", True, True),
+    ("Request a weekly reel review", False, False, True, True),
+    ("Home-page spotlight eligibility", False, False, True, True),
+    ("Showcase listings", False, "1 active", "15 active", "15 active"),
+    ("Healing support groups / Ayesha 1:1", False, True, False, True),
+    ("Creator support groups / Saman 1:1", False, False, True, True),
+    ("Profile links", False, True, True, True),
+    ("My Journey keepsake export", False, True, True, True),
 ]
 
 
@@ -529,7 +536,7 @@ def listing_form(listing_id=None):
             lim = listing_limit(current_user)
             errors.append(
                 f"Your plan allows {lim} active listing{'s' if lim != 1 else ''}. "
-                "Upgrade to Creator for up to 5 listings, or remove one first.")
+                "Upgrade to Creator or Full Bloom for up to 15 listings, or remove one first.")
 
         new_images = []
         if not errors:
@@ -1012,7 +1019,7 @@ def settings():
 @login_required
 def cancel_membership():
     if current_user.is_admin:
-        flash("The owner account always keeps Creator access.", "info")
+        flash("The owner account always keeps Full Bloom access.", "info")
         return redirect(url_for("main.settings"))
     if current_user.membership == "none":
         flash("You're on the free plan already.", "info")
@@ -1246,18 +1253,24 @@ def is_premium(user) -> bool:
 # Members (Healing+) can browse titles/thumbnails; only Creators can play.
 
 def _can_play_videos(user) -> bool:
-    """Creator members and the site owner can press play on Creator videos."""
+    """Creator-track / Full Bloom / owner can play Creator Content Tips."""
     return bool(getattr(user, "is_authenticated", False)
-                and (getattr(user, "is_admin", False) or user.is_creator()))
+                and (getattr(user, "is_admin", False) or user.is_creator_track()))
 
 
 def _can_play_video(user, video) -> bool:
-    """Per-video play gate: Creator/owner always; free_access for any signed-in user."""
+    """Per-video play gate: free picks, healing-marked tips, or creator-track."""
     if not getattr(user, "is_authenticated", False) or video is None:
         return False
-    if getattr(user, "is_admin", False) or user.is_creator():
+    if getattr(user, "is_admin", False):
         return True
-    return bool(video.free_access)
+    if video.free_access:
+        return True
+    if getattr(video, "healing_access", False) and user.is_healing_track():
+        return True
+    if user.is_creator_track():
+        return True
+    return False
 
 
 def _video_playable(video) -> bool:
@@ -1611,7 +1624,7 @@ def support_groups_page():
 def join_support_circle():
     from ..services import support_groups as sg_svc
     if not current_user.is_member():
-        flash("Support groups are for Healing and Creator members.", "error")
+        flash("Support groups are for Healing, Creator, and Full Bloom members.", "error")
         return redirect(url_for("main.membership", next=url_for("main.support_groups_page")))
     circle_id = request.form.get("circle_id", type=int)
     slug = (request.form.get("circle_slug") or "").strip() or None

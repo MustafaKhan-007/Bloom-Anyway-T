@@ -41,7 +41,7 @@
               <input type="hidden" name="q" value="{{ q }}">
               <select name="membership" data-autosubmit {{ 'disabled' if m.is_admin }}>
                 {% for tier in memberships %}
-                <option value="{{ tier }}" {{ 'selected' if m.membership == tier }}>{{ tier|capitalize }}</option>
+                <option value="{{ tier }}" {{ 'selected' if m.membership == tier }}>{{ membership_labels.get(tier, tier) }}</option>
                 {% endfor %}
               </select>
               <noscript><button class="btn btn--secondary btn--sm" type="submit">Set</button></noscript>

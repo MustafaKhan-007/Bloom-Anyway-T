@@ -21,27 +21,27 @@
           <p class="comm-compare__eyebrow">Healing membership</p>
           <h2>Be in the rooms. Be heard. Heal with others.</h2>
           <ul class="comm-checks">
-            <li class="is-yes">Browse &amp; post in community</li>
+            <li class="is-yes">Healing community rooms</li>
             <li class="is-yes">Unlimited posts &amp; replies</li>
             <li class="is-yes">Healing support groups</li>
-            <li class="is-yes">Private messaging</li>
-            <li class="is-no">Creator showcase features</li>
-            <li class="is-no">Product of the Day eligibility</li>
+            <li class="is-yes">1 Showcase listing</li>
+            <li class="is-no">Building community rooms</li>
+            <li class="is-no">Creator Showcase cap (15)</li>
           </ul>
         </div>
         <div class="comm-compare__full">
           <p class="comm-compare__eyebrow">Creator membership</p>
-          <h2>Show up fully. Post without limits. Build in community.</h2>
+          <h2>Show up fully. Build in community.</h2>
           <ul class="comm-checks comm-checks--gold">
-            <li class="is-yes">Everything in Healing</li>
             <li class="is-yes">Building community rooms</li>
             <li class="is-yes">Creator support groups</li>
-            <li class="is-yes">Showcase &amp; Creator features</li>
-            <li class="is-yes">Product of the Day eligibility</li>
-            <li class="is-yes">Priority community access</li>
+            <li class="is-yes">Content Hub, reels &amp; spotlight</li>
+            <li class="is-yes">15 Showcase listings</li>
+            <li class="is-no">Healing community rooms</li>
+            <li class="is-yes">Want both? Choose Full Bloom</li>
           </ul>
-          {% if tier != "creator" %}
-          <a class="btn comm-compare__cta" href="{{ url_for('main.membership') }}">Get full access &rarr;</a>
+          {% if tier not in ("creator", "full_bloom") %}
+          <a class="btn comm-compare__cta" href="{{ url_for('main.membership') }}">See memberships &rarr;</a>
           {% endif %}
         </div>
       </div>
@@ -187,21 +187,21 @@
     </div>
   </section>
 
-  {% if tier != "creator" %}
+  {% if tier not in ("creator", "full_bloom") %}
   <section class="comm-cta-wrap">
     <div class="container">
       <div class="comm-cta reveal">
         <div class="comm-cta__copy">
-          <p class="comm-cta__eyebrow">Creator membership</p>
+          <p class="comm-cta__eyebrow">Creator or Full Bloom</p>
           <h2>Ready to build in public with the Creator circle?</h2>
           <p>
             Unlock Building community rooms, Creator support groups, Showcase, and the features
-            that help you get seen — without rationing your voice.
+            that help you get seen. Full Bloom also keeps Healing community with you.
           </p>
         </div>
         <div class="comm-cta__action">
-          <a class="btn comm-cta__btn" href="{{ url_for('main.membership') }}">Get Full Access</a>
-          <p class="comm-cta__note">Unlock both communities in full</p>
+          <a class="btn comm-cta__btn" href="{{ url_for('main.membership') }}">See memberships</a>
+          <p class="comm-cta__note">Creator for building — Full Bloom for both halves</p>
         </div>
       </div>
     </div>

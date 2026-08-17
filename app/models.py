@@ -22,17 +22,29 @@ PRODUCT_STATUSES = ("draft", "published", "archived")
 QUOTE_CATEGORIES = ("comfort", "determination", "renewal")
 
 #: membership tiers. "none" = free (quotes, shop, Content Hub free picks);
-#: "healing" = community + links + journey + support groups;
-#: "creator" = healing perks + videos, reel reviews, showcase.
-MEMBERSHIPS = ("none", "healing", "creator")
-MEMBERSHIP_LABELS = {"none": "Free", "healing": "Healing", "creator": "Creator"}
-#: ordering so we can compare / take the "highest" tier a member holds
-MEMBERSHIP_RANK = {"none": 0, "healing": 1, "creator": 2}
+#: "healing" = healing community, 1 showcase listing, healing support / Ayesha;
+#: "creator" = building community, 15 listings, tips, spotlight, reels, Saman;
+#: "full_bloom" = everything in Healing and Creator.
+MEMBERSHIPS = ("none", "healing", "creator", "full_bloom")
+MEMBERSHIP_LABELS = {
+    "none": "Free",
+    "healing": "Healing",
+    "creator": "Creator",
+    "full_bloom": "Full Bloom",
+}
+#: ordering for upgrades. Healing and Creator are parallel halves;
+#: Full Bloom sits above both. Owning both halves upgrades to Full Bloom.
+MEMBERSHIP_RANK = {"none": 0, "healing": 1, "creator": 1, "full_bloom": 2}
 
 
 def higher_membership(a: str, b: str) -> str:
-    """Return whichever of two tiers ranks higher."""
+    """Return the better tier of two. Healing + Creator → Full Bloom."""
     a, b = a or "none", b or "none"
+    pair = {a, b}
+    if "full_bloom" in pair:
+        return "full_bloom"
+    if "healing" in pair and "creator" in pair:
+        return "full_bloom"
     return a if MEMBERSHIP_RANK.get(a, 0) >= MEMBERSHIP_RANK.get(b, 0) else b
 
 #: subjects a course/guide can be filed under (owner picks one; drives the
@@ -75,7 +87,7 @@ class User(UserMixin, db.Model):
     forum_warnings = db.Column(db.Integer, nullable=False, default=0)
     forum_banned = db.Column(db.Boolean, nullable=False, default=False)
 
-    # membership tier: none / healing / creator (owner-assigned)
+    # membership tier: none / healing / creator / full_bloom (owner-assigned)
     membership = db.Column(db.String(20), nullable=False, default="none")
 
     # showing-up streak ("I showed up today")
@@ -137,19 +149,26 @@ class User(UserMixin, db.Model):
 
     # --- membership tiers ---------------------------------------------------
     def effective_membership(self) -> str:
-        """The tier used for gating. Owner always ranks as Creator — even if
-        the stored column is still ``none`` from before memberships existed."""
+        """The tier used for gating. Owner always ranks as Full Bloom."""
         if self.is_admin:
-            return "creator"
+            return "full_bloom"
         return self.membership or "none"
 
+    def is_healing_track(self) -> bool:
+        """Healing community, healing tips, healing circles / Ayesha."""
+        return self.effective_membership() in ("healing", "full_bloom")
+
+    def is_creator_track(self) -> bool:
+        """Building community, tips, spotlight, reels, creator circles / Saman."""
+        return self.effective_membership() in ("creator", "full_bloom")
+
     def is_creator(self) -> bool:
-        """Creator tier (or owner): all perks."""
-        return self.effective_membership() == "creator"
+        """Creator-track perks (Creator, Full Bloom, or owner)."""
+        return self.is_creator_track()
 
     def is_member(self) -> bool:
-        """Healing or Creator (or owner): full community access."""
-        return self.effective_membership() in ("healing", "creator")
+        """Any paid membership (or owner)."""
+        return self.effective_membership() in ("healing", "creator", "full_bloom")
 
     def membership_label(self) -> str:
         if self.is_admin:
@@ -471,7 +490,7 @@ class MembershipPlan(db.Model):
     __tablename__ = "membership_plans"
 
     id = db.Column(db.Integer, primary_key=True)
-    tier = db.Column(db.String(20), unique=True, nullable=False)  # healing / creator
+    tier = db.Column(db.String(20), unique=True, nullable=False)  # healing / creator / full_bloom
     name = db.Column(db.String(80), nullable=False)
     tagline = db.Column(db.String(160))
     price_cents = db.Column(db.Integer)
@@ -758,6 +777,8 @@ class Video(db.Model):
     thumb_mime = db.Column(db.String(40))
     published = db.Column(db.Boolean, nullable=False, default=True)
     free_access = db.Column(db.Boolean, nullable=False, default=False)
+    # When True, Healing / Full Bloom members can watch (in addition to free picks).
+    healing_access = db.Column(db.Boolean, nullable=False, default=False)
     sort_order = db.Column(db.Integer, nullable=False, default=0)
     created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
 
@@ -767,9 +788,14 @@ class Video(db.Model):
             if getattr(user, "is_authenticated", False):
                 return "Included in your membership"
             return "Included in Free membership"
-        if getattr(user, "is_authenticated", False) and (
-                getattr(user, "is_admin", False) or user.is_creator()):
-            return "Included in your membership"
+        if getattr(user, "is_authenticated", False):
+            if getattr(user, "is_admin", False) or (
+                    hasattr(user, "is_creator_track") and user.is_creator_track()):
+                return "Included in your membership"
+            if self.healing_access and hasattr(user, "is_healing_track") and user.is_healing_track():
+                return "Included in your membership"
+        if self.healing_access:
+            return "Included in Healing membership"
         return "Included in Creator membership"
 
     def has_thumb(self) -> bool:
@@ -1071,7 +1097,12 @@ MARKETPLACE_KIND_LABELS = {
     "product": "Digital product", "service": "Service", "business": "Business",
 }
 #: how many active listings each tier may run at once
-MARKETPLACE_LIMITS = {"none": 0, "healing": 1, "creator": 5}
+MARKETPLACE_LIMITS = {
+    "none": 0,
+    "healing": 1,
+    "creator": 15,
+    "full_bloom": 15,
+}
 #: how many tags a single listing may carry
 MARKETPLACE_TAG_MAX = 24
 #: curated tag catalogue (authors pick from these; filters use the same list)

@@ -3,8 +3,9 @@
 Memberships are sold as ``MembershipPlan`` rows. Each plan carries a Dodo
 product id; an order for that product grants the plan's tier. A member's tier
 is kept on ``users.membership``. Purchases *upgrade* that column; a refund
-recomputes the tier from remaining paid membership orders. The owner
-(``is_admin``) is always Creator and is untouched.
+recomputes the tier from remaining paid membership orders. Owning both Healing
+and Creator purchases upgrades to Full Bloom. The owner (``is_admin``) is
+always Full Bloom and is untouched.
 """
 import logging
 
@@ -14,6 +15,8 @@ from ..extensions import db
 from ..models import MembershipPlan, Order, User, higher_membership
 
 log = logging.getLogger(__name__)
+
+_PAID_TIERS = ("healing", "creator", "full_bloom")
 
 
 def _plan_for_product_id(product_id):
@@ -41,7 +44,7 @@ def purchased_tier(email: str) -> str:
             ))
             .filter(Order.status == "paid",
                     func.lower(Order.buyer_email) == email.strip().lower(),
-                    MembershipPlan.tier.in_(("healing", "creator")))
+                    MembershipPlan.tier.in_(_PAID_TIERS))
             .all())
     best = "none"
     for (tier,) in rows:
@@ -59,8 +62,8 @@ def reconcile_user(user: User, downgrade: bool = False) -> bool:
     if user is None:
         return False
     if user.is_admin:
-        if user.membership != "creator":
-            user.membership = "creator"
+        if user.membership != "full_bloom":
+            user.membership = "full_bloom"
             return True
         return False
     tier = purchased_tier(user.email)
@@ -93,6 +96,6 @@ def apply_from_order(order: Order) -> None:
     if not order or not order.ls_variant_id:
         return
     plan = _plan_for_product_id(order.ls_variant_id)
-    if not plan or plan.tier not in ("healing", "creator"):
+    if not plan or plan.tier not in _PAID_TIERS:
         return
     reconcile_email(order.buyer_email, downgrade=(order.status == "refunded"))

@@ -13,7 +13,7 @@
   <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" type="image/svg+xml">
   {% block head %}{% endblock %}
 </head>
-<body{% if current_user.is_authenticated %} data-mention-suggest="{{ url_for('main.mention_suggest') }}" data-tz-sync="{{ url_for('main.save_timezone') }}" data-csrf="{{ csrf_token() }}"{% if product_tour_pending %} data-product-tour="1" data-tour-complete="{{ url_for('main.tour_complete') }}"{% endif %}{% endif %}>
+<body{% if current_user.is_authenticated %} data-mention-suggest="{{ url_for('main.mention_suggest') }}" data-tz-sync="{{ url_for('main.save_timezone') }}" data-csrf="{{ csrf_token() }}"{% endif %}>
   {% include "partials/page_loader.html" %}
   {% include "partials/badge_defs.html" %}
   <header class="site-header">
@@ -47,8 +47,8 @@
     <div class="nav-drawer" id="nav-drawer" aria-hidden="true">
       <div class="nav-drawer__panel">
         <p class="nav-drawer__label">Courses &amp; Guides</p>
-        <a class="nav-drawer__sub" href="{{ url_for('main.courses') }}#lane-healing" data-tour-target="nav-courses">Healing products</a>
-        <a class="nav-drawer__sub" href="{{ url_for('main.courses') }}#lane-building" data-tour-target="nav-courses">Building products</a>
+        <a class="nav-drawer__sub" href="{{ url_for('main.courses', lane='healing') }}" data-tour-target="nav-courses">Healing products</a>
+        <a class="nav-drawer__sub" href="{{ url_for('main.courses', lane='building') }}" data-tour-target="nav-courses">Building products</a>
         <a href="{{ url_for('forums.index') }}">Community</a>
         <a href="{{ url_for('main.videos') }}" data-tour-target="nav-watch">Content Hub</a>
         <a href="{{ url_for('main.showcase') }}" data-tour-target="nav-showcase">Showcase</a>
@@ -116,9 +116,6 @@
   <script src="{{ url_for('static', filename='js/page-loader.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/file-pick.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/main.js') }}" defer></script>
-  {% if product_tour_pending %}
-  <script src="{{ url_for('static', filename='js/product-tour.js') }}" defer></script>
-  {% endif %}
   {% block scripts %}{% endblock %}
 </body>
 </html>

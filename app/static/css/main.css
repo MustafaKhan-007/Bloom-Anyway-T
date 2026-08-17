@@ -3943,7 +3943,6 @@ a.at-handle:hover { text-decoration: underline; }
   color: transparent;
 }
 .fc .post-row__votes,
-.fc .post-row__main,
 .fc .post-row__aside {
   position: relative;
   z-index: 0;
@@ -3951,6 +3950,9 @@ a.at-handle:hover { text-decoration: underline; }
 .fc .post-row__report {
   position: relative;
   z-index: 2;
+  grid-column: 1 / -1;
+  margin-top: 0;
+  padding-top: 4px;
 }
 .fc--build .post-row { border-color: rgba(196, 149, 78, 0.18); }
 .fc .post-row:hover {
@@ -6838,4 +6840,11 @@ html.is-touring .tour-ui .tour-bubble button,
   .reader__toc-drawer > .reader__toc {
     display: flex;
   }
+}
+
+.cg-lanes__grid--solo {
+  grid-template-columns: 1fr !important;
+  max-width: 640px;
+  margin-left: auto;
+  margin-right: auto;
 }

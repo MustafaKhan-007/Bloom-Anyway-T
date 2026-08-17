@@ -1,10 +1,11 @@
 {# Reusable report control for forum posts and comments.
    Usage: {% from "partials/report_toggle.html" import report_toggle %}
           {{ report_toggle(action_url, field_id, next=request.path) }}
+          {{ report_toggle(action_url, field_id, next=request.path, label="Report post") }}
 #}
-{% macro report_toggle(action_url, field_id, next="") %}
+{% macro report_toggle(action_url, field_id, next="", label="Report") %}
 <details class="report-toggle">
-  <summary class="report-toggle__btn" aria-label="Report this content">Report</summary>
+  <summary class="report-toggle__btn" aria-label="{{ label }}">{{ label }}</summary>
   <form method="post" action="{{ action_url }}" class="report-form">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}

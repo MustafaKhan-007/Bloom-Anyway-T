@@ -55,7 +55,11 @@
             <input type="checkbox" name="free_access" value="1" {{ 'checked' if video and video.free_access }}>
             Allow Free members to watch
           </label>
-          <p class="field-help">Everyone signed in can browse the library. Playback is Creator-only unless this is on.</p>
+          <label class="checkline checkline--sm checkline--stack">
+            <input type="checkbox" name="healing_access" value="1" {{ 'checked' if video and video.healing_access }}>
+            Allow Healing members to watch
+          </label>
+          <p class="field-help">Everyone signed in can browse. Playback is Creator / Full Bloom unless Free or Healing access is on.</p>
         </div>
       </div>
     </section>

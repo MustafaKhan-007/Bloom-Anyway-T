@@ -21,8 +21,8 @@
       <span class="delta">{{ cards.forum_posts }} in 30 days</span>
     </div>
     <div class="stat-card studio-card">
-      <div class="label">Members (Healing / Creator)</div>
-      <div class="value">{{ memberships.healing }} / {{ memberships.creator }}</div>
+      <div class="label">Members (Healing / Creator / Full Bloom)</div>
+      <div class="value">{{ memberships.healing }} / {{ memberships.creator }} / {{ memberships.full_bloom or 0 }}</div>
       <span class="delta">{{ memberships.none }} free &middot; {{ memberships.total }} total</span>
     </div>
     <div class="stat-card studio-card">

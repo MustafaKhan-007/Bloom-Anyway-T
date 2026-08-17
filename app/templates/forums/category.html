@@ -230,20 +230,21 @@
             {% if post.body %}
             <p class="post-row__snippet">{{ post.body|striptags|truncate(160) }}</p>
             {% endif %}
-            {% if current_user.is_authenticated and current_user.id != post.user_id %}
-            <div class="post-row__report">
-              {{ report_toggle(
-                   url_for('forums.report_post', post_id=post.id),
-                   'report-note-feed-' ~ post.id,
-                   next=request.path
-                 ) }}
-            </div>
-            {% endif %}
           </div>
           <div class="post-row__aside">
             <time datetime="{{ post.created_at.isoformat() }}">{{ post.created_at|localtime('%b %d · %I:%M %p') }}</time>
             <span>{{ comment_n }} {{ 'reply' if comment_n == 1 else 'replies' }}</span>
           </div>
+          {% if current_user.is_authenticated and current_user.id != post.user_id %}
+          <div class="post-row__report">
+            {{ report_toggle(
+                 url_for('forums.report_post', post_id=post.id),
+                 'report-note-feed-' ~ post.id,
+                 next=request.path,
+                 label='Report post'
+               ) }}
+          </div>
+          {% endif %}
         </article>
         {% else %}
         <p class="forum-empty">No posts here yet

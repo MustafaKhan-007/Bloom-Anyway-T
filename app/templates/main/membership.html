@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Membership &mdash; {{ site.site_title }}{% endblock %}
-{% block meta_description %}Start free, or join Healing or Creator membership — community, support groups, Showcase, and Content Hub.{% endblock %}
+{% block meta_description %}Start free, or join Healing, Creator, or Full Bloom — community, support groups, Showcase, and Content Hub.{% endblock %}
 
 {% macro cell(val) %}
   {% if val is sameas true %}
@@ -106,15 +106,15 @@
           {% endif %}
           <p class="mem-card__trial mem-trial--month">&#10003; 2-week free trial &mdash; card required.</p>
           <p class="mem-card__trial mem-trial--year">&#10003; Pay once a year and save.</p>
-          <p class="mem-card__section-label">Everything in Free, plus</p>
+          <p class="mem-card__section-label">Built for healing</p>
           <ul class="mem-card__perks">
-            <li>Full community access &mdash; read, post &amp; reply</li>
-            <li>Peer-led support groups (Divorce Recovery, Co-Parenting, Starting Over, Grief)</li>
-            <li>1 Showcase listing per month</li>
-            <li>Private messaging</li>
+            <li>Healing community &mdash; read, post &amp; reply</li>
+            <li>Healing peer support groups</li>
+            <li>1 Showcase listing at a time</li>
+            <li>Content tips marked for Healing members</li>
+            <li>1:1 coaching with Ayesha</li>
             <li>Profile links &amp; My Journey export</li>
             <li>Private journal with mood check-ins</li>
-            <li>Coaching / support group circles</li>
             <li>Cancel any time</li>
           </ul>
           {% if current == 'healing' %}
@@ -167,15 +167,16 @@
           {% endif %}
           <p class="mem-card__trial mem-trial--month">&#10003; 1-week free trial &mdash; card required.</p>
           <p class="mem-card__trial mem-trial--year">&#10003; Pay once a year and save.</p>
-          <p class="mem-card__section-label">Everything in Healing, plus</p>
+          <p class="mem-card__section-label">Built for creating</p>
           <ul class="mem-card__perks">
-            <li>Full Content Hub access</li>
-            <li>Daily reel review queue</li>
-            <li>5 Showcase listings per month</li>
+            <li>Building / Creator community</li>
+            <li>Full Content Hub tip access</li>
+            <li>Weekly reel review submissions</li>
+            <li>15 Showcase listings at a time</li>
             <li>Home-page spotlight eligibility</li>
-            <li>Creator accountability groups (New Creators, Digital Products, Scaling Up, Investing)</li>
-            <li>Social links on your profile</li>
-            <li>The &ldquo;My Journey&rdquo; keepsake export</li>
+            <li>Creator accountability groups</li>
+            <li>1:1 coaching with Saman</li>
+            <li>Profile links &amp; My Journey export</li>
           </ul>
           {% if current == 'creator' %}
           <span class="btn btn--secondary btn--block is-disabled">Your current plan</span>
@@ -190,6 +191,71 @@
           <span class="mem-cta mem-cta--year">
             {% if creator_checkout_y %}
             <a class="btn btn--gold btn--block" href="{{ creator_checkout_y }}">Get Creator annually &rarr;</a>
+            {% else %}
+            <span class="btn btn--secondary btn--block is-disabled">Annual coming soon</span>
+            {% endif %}
+          </span>
+          {% endif %}
+        </article>
+
+        <!-- Full Bloom -->
+        {% set full = plans.get('full_bloom') %}
+        {% set full_checkout_m = checkout.monthly.get('full_bloom') %}
+        {% set full_checkout_y = checkout.annual.get('full_bloom') %}
+        {% set full_price = full.price_display() if full and full.price_cents is not none else '$22' %}
+        {% set full_year = full.annual_price_display() if full and full.annual_price_cents is not none else '$199' %}
+        <article class="mem-card mem-card--creator {{ 'is-current' if current == 'full_bloom' }}">
+          <span class="mem-card__ribbon mem-card__ribbon--gold">Both halves &#10022;</span>
+          <p class="mem-card__eyebrow mem-card__eyebrow--pill">Full Bloom membership</p>
+          <h2>{{ full.name if full else 'Full Bloom membership' }}</h2>
+          {% if ends %}
+          <div class="mem-card__founder-box">
+            <p class="mem-card__founder-label">&#10022; Founder price{% if ends %} &mdash; ends {{ ends }}{% endif %}</p>
+            <p class="mem-card__price mem-card__price--box">
+              <span class="mem-price--month">{{ full_price }} <span>/ month</span></span>
+              <span class="mem-price--year">{{ full_year }} <span>/ year</span></span>
+            </p>
+            <p class="mem-card__lock">Lock this in forever.</p>
+          </div>
+          {% else %}
+          <p class="mem-card__price">
+            {% if full and full.price_cents is not none %}
+            <span class="mem-price--month">{{ full.price_display() }}<span> / month</span></span>
+            {% else %}
+            <span class="mem-price--month soon">Coming soon</span>
+            {% endif %}
+            {% if full and full.annual_price_cents is not none %}
+            <span class="mem-price--year">{{ full.annual_price_display() }}<span> / year</span></span>
+            {% else %}
+            <span class="mem-price--year">{{ full_year }} <span>/ year</span></span>
+            {% endif %}
+          </p>
+          {% endif %}
+          <p class="mem-card__trial mem-trial--month">&#10003; Free trial when checkout is live.</p>
+          <p class="mem-card__trial mem-trial--year">&#10003; Pay once a year and save.</p>
+          <p class="mem-card__section-label">Everything in Healing and Creator</p>
+          <ul class="mem-card__perks">
+            <li>Both communities — Healing and Building</li>
+            <li>All Content Hub tips, reels &amp; spotlight</li>
+            <li>15 Showcase listings at a time</li>
+            <li>Healing and Creator support groups</li>
+            <li>1:1 with Ayesha or Saman</li>
+            <li>Profile links &amp; My Journey export</li>
+            <li>Cancel any time</li>
+          </ul>
+          {% if current == 'full_bloom' %}
+          <span class="btn btn--secondary btn--block is-disabled">Your current plan</span>
+          {% else %}
+          <span class="mem-cta mem-cta--month">
+            {% if full_checkout_m %}
+            <a class="btn btn--gold btn--block" href="{{ full_checkout_m }}">Go Full Bloom &rarr;</a>
+            {% else %}
+            <span class="btn btn--secondary btn--block is-disabled">Coming soon</span>
+            {% endif %}
+          </span>
+          <span class="mem-cta mem-cta--year">
+            {% if full_checkout_y %}
+            <a class="btn btn--gold btn--block" href="{{ full_checkout_y }}">Get Full Bloom annually &rarr;</a>
             {% else %}
             <span class="btn btn--secondary btn--block is-disabled">Annual coming soon</span>
             {% endif %}
@@ -219,7 +285,7 @@
           <h3>1:1 with Ayesha</h3>
           <p class="mem-addon__price">$97 <span>per session</span></p>
           <p>Private healing coaching &mdash; divorce, custody, heartbreak, and rebuilding.</p>
-          <span class="mem-addon__tag">Available to all members &bull; Limited slots</span>
+          <span class="mem-addon__tag">Healing &amp; Full Bloom &bull; Limited slots</span>
           <a class="btn btn--secondary" href="{{ ayesha_url }}"
              {% if site.ayesha_booking_url %}target="_blank" rel="noopener"{% endif %}>Book with Ayesha &rarr;</a>
         </article>
@@ -228,7 +294,7 @@
           <h3>1:1 with Saman</h3>
           <p class="mem-addon__price">$97 <span>per session</span></p>
           <p>Business, content, and digital product strategy for builders.</p>
-          <span class="mem-addon__tag">Available to all members &bull; Limited slots</span>
+          <span class="mem-addon__tag">Creator &amp; Full Bloom &bull; Limited slots</span>
           <a class="btn btn--secondary" href="{{ saman_url }}"
              {% if site.saman_booking_url %}target="_blank" rel="noopener"{% endif %}>Book with Saman &rarr;</a>
         </article>
@@ -273,23 +339,25 @@
               <th scope="col">What you get</th>
               <th scope="col">Free</th>
               <th scope="col">Healing</th>
-              <th scope="col" class="cmp-table__feature">Creator</th>
+              <th scope="col">Creator</th>
+              <th scope="col" class="cmp-table__feature">Full Bloom</th>
             </tr>
           </thead>
           <tbody>
-            {% for label, f, h, c in matrix %}
+            {% for label, f, h, c, fb in matrix %}
             <tr>
               <th scope="row">{{ label }}</th>
               <td>{{ cell(f) }}</td>
               <td>{{ cell(h) }}</td>
-              <td class="cmp-table__feature">{{ cell(c) }}</td>
+              <td>{{ cell(c) }}</td>
+              <td class="cmp-table__feature">{{ cell(fb) }}</td>
             </tr>
             {% endfor %}
           </tbody>
         </table>
       </div>
       <p class="field-help mem-page__legal">
-        Prices &amp; checkout are handled securely by Dodo Payments. The site owner always holds Creator access.
+        Prices &amp; checkout are handled securely by Dodo Payments. The site owner always holds Full Bloom access.
         Memberships are subject to our
         <a href="{{ url_for('main.terms') }}">Terms</a> and
         <a href="{{ url_for('main.refunds') }}">Refund Policy</a>.
