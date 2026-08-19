@@ -293,7 +293,7 @@ input[type="file"]:not(.sr-only):not(.file-pick__input):hover::-webkit-file-uplo
               transform 160ms ease, box-shadow 160ms ease;
 }
 .file-pick__btn::before {
-  content: "â";
+  content: "\2191";
   font-size: 15px;
   font-weight: 700;
   line-height: 1;
@@ -1507,7 +1507,7 @@ html.is-page-loading { cursor: progress; }
   background: #EDE4EF; color: var(--plum-deep); font-weight: 800;
 }
 .reader__toc-item.is-bookmarked::after {
-  content: " â";
+  content: " \2605";
   color: var(--gold); font-size: 11px;
 }
 .reader__search {
@@ -6601,11 +6601,11 @@ a.at-handle:hover { text-decoration: underline; }
   }
   .reader__toc-summary::-webkit-details-marker { display: none; }
   .reader__toc-summary-hint::after {
-    content: "?";
+    content: "\25BE";
     opacity: 0.55;
   }
   .reader__toc-drawer[open] .reader__toc-summary-hint::after {
-    content: "?";
+    content: "\25B4";
   }
   .reader__sidebar-label--desk { display: none; }
   .reader__toc-drawer .reader__toc {
