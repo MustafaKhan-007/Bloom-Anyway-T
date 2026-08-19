@@ -278,7 +278,7 @@ input[type="file"]:not(.sr-only):not(.file-pick__input):hover::-webkit-file-uplo
   flex: none;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 0;
   padding: 8px 18px;
   border-radius: 999px;
   border: 1.5px solid var(--plum);
@@ -291,13 +291,6 @@ input[type="file"]:not(.sr-only):not(.file-pick__input):hover::-webkit-file-uplo
   cursor: pointer;
   transition: background 160ms ease, color 160ms ease, border-color 160ms ease,
               transform 160ms ease, box-shadow 160ms ease;
-}
-.file-pick__btn::before {
-  content: "\2191";
-  font-size: 15px;
-  font-weight: 700;
-  line-height: 1;
-  opacity: 0.85;
 }
 .file-pick__btn:hover {
   background: linear-gradient(135deg, var(--plum) 0%, var(--berry) 100%);
