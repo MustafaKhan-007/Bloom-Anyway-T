@@ -111,7 +111,7 @@
 
     <section class="admin-panel studio-card studio-section">
       <h2>2. Pricing &amp; checkout</h2>
-      <p class="field-help studio-section__lede">Price shown on the product page. Paste the Dodo product ID so checkout works.</p>
+      <p class="field-help studio-section__lede">Price shown on the product page. Paste the Stripe Price ID so checkout works.</p>
       <div class="form-row">
         <div class="field">
           <label for="price">Price (USD)</label>
@@ -124,10 +124,10 @@
                  value="{{ '%.2f'|format(product.compare_at_cents / 100) if product.compare_at_cents is not none else '' }}">
         </div>
         <div class="field" style="flex:2;">
-          <label for="dodo">Dodo product ID</label>
-          <input type="text" id="dodo" name="dodo" placeholder="prod_…"
-                 value="{{ product.dodo_product_id or '' }}">
-          <p class="field-help">Required to publish and accept payments.</p>
+          <label for="stripe">Stripe price ID</label>
+          <input type="text" id="stripe" name="stripe" placeholder="price_…"
+                 value="{{ product.stripe_price_id or '' }}">
+          <p class="field-help">Required to publish and accept payments. Use a one-time Price from Stripe.</p>
         </div>
       </div>
     </section>

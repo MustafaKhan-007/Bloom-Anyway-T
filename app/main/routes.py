@@ -206,6 +206,31 @@ def courses():
     )
 
 
+@bp.route("/courses/<slug>")
+def course_detail(slug):
+    """Public product page — cover, copy, teasers, and buy / open CTA."""
+    try:
+        if remove_demo_catalog():
+            db.session.commit()
+    except Exception:
+        db.session.rollback()
+
+    product = Product.query.filter_by(slug=slug, status="published").first_or_404()
+    owned_purchase_id = None
+    if current_user.is_authenticated:
+        from ..services import course_reader as reader_svc
+        for purchase in linked_purchases_for(current_user):
+            prod = reader_svc.catalog_product_for_purchase(purchase)
+            if prod and prod.id == product.id:
+                owned_purchase_id = purchase.id
+                break
+    return render_template(
+        "main/course_detail.html",
+        product=product,
+        owned_purchase_id=owned_purchase_id,
+    )
+
+
 @bp.route("/checkout/product/<slug>", methods=["GET", "POST"])
 @limiter.limit("20 per minute")
 def checkout_product(slug):
@@ -952,6 +977,18 @@ def site_image(key):
     if row is None or not row.data:
         abort(404)
     resp = Response(row.data, mimetype=row.mime or "image/jpeg")
+    resp.headers["Cache-Control"] = "public, max-age=86400"
+    return resp
+
+
+@bp.route("/media/product-gallery/<int:product_id>/<path:filename>")
+def product_gallery_image(product_id, filename):
+    """Serve a product teaser / gallery image."""
+    from ..services.product_covers import gallery_file
+    path = gallery_file(product_id, filename)
+    if path is None:
+        abort(404)
+    resp = send_file(path, mimetype="image/jpeg")
     resp.headers["Cache-Control"] = "public, max-age=86400"
     return resp
 

@@ -118,22 +118,22 @@ def _spotlight_candidates():
 @admin_required
 def dashboard():
     today = date.today()
-    # Every Studio open: pull recent Dodo payments so sales show up even if
+    # Every Studio open: pull recent Stripe payments so sales show up even if
     # webhooks were missed.
-    from ..services import dodo as dodo_svc
-    if dodo_svc.configured():
+    from ..services import stripe_pay as pay
+    if pay.configured():
         try:
-            sync_info = dodo_svc.sync_recent_payments(days=60, max_pages=2)
+            sync_info = pay.sync_recent_payments(days=60, max_pages=2)
             set_setting(
-                "dodo_last_sync_at", datetime.utcnow().isoformat(timespec="seconds"))
+                "stripe_last_sync_at", datetime.utcnow().isoformat(timespec="seconds"))
             if sync_info.get("imported"):
                 flash(
                     f"Synced {sync_info['imported']} purchase"
-                    f"{'' if sync_info['imported'] == 1 else 's'} from Dodo.",
+                    f"{'' if sync_info['imported'] == 1 else 's'} from Stripe.",
                     "success",
                 )
         except Exception:
-            log.exception("dashboard: dodo purchase sync failed")
+            log.exception("dashboard: stripe purchase sync failed")
     return render_template(
         "admin/dashboard.html",
         today_quote=quotes_service.quote_for(today),
@@ -151,25 +151,25 @@ def dashboard():
         recent_feedback=stats.recent_feedback(),
         support_occupancy=stats.support_occupancy(),
         founder_days=stats.founder_days_remaining(),
-        dodo_configured=dodo_svc.configured(),
+        stripe_configured=pay.configured(),
     )
 
 
 @bp.route("/sync-purchases", methods=["POST"])
 @admin_required
 def sync_purchases():
-    """Manual pull of recent Dodo payments into Studio / My space."""
-    from ..services import dodo as dodo_svc
-    if not dodo_svc.configured():
-        flash("Add DODO_PAYMENTS_API_KEY (and live mode) before syncing.", "error")
+    """Manual pull of recent Stripe payments into Studio / My space."""
+    from ..services import stripe_pay as pay
+    if not pay.configured():
+        flash("Add STRIPE_SECRET_KEY (and live mode) before syncing.", "error")
         return redirect(url_for("admin.dashboard"))
     try:
-        result = dodo_svc.sync_recent_payments(days=90, max_pages=4)
+        result = pay.sync_recent_payments(days=90, max_pages=4)
         set_setting(
-            "dodo_last_sync_at", datetime.utcnow().isoformat(timespec="seconds"))
+            "stripe_last_sync_at", datetime.utcnow().isoformat(timespec="seconds"))
     except Exception:
-        log.exception("manual dodo sync failed")
-        flash("Could not sync purchases from Dodo. Check the API key and mode.", "error")
+        log.exception("manual stripe sync failed")
+        flash("Could not sync purchases from Stripe. Check the API key and mode.", "error")
         return redirect(url_for("admin.dashboard"))
     if not result.get("ok"):
         flash(result.get("error") or "Sync failed.", "error")
@@ -183,7 +183,7 @@ def sync_purchases():
     else:
         flash(
             f"No new purchases — checked {result.get('checked', 0)} recent "
-            "Dodo payment(s).",
+            "Stripe payment(s).",
             "info",
         )
     return redirect(url_for("admin.dashboard"))
@@ -242,7 +242,7 @@ def _apply_product_fields(product: Product, form) -> None:
         })
     product.set_curriculum(curriculum_rows)
 
-    product.dodo_product_id = (form.get("dodo") or "").strip() or None
+    product.stripe_price_id = (form.get("stripe") or "").strip() or None
     price = _parse_price_cents(form.get("price"))
     if price is not None or form.get("price") is not None:
         # Allow clearing price with empty field on edit
@@ -818,13 +818,13 @@ def page_edit(slug):
 
 
 # ============================= SUBSCRIBERS ===================================
-# Email list / full checkout analytics live in Dodo — Studio shows main totals only.
+# Email list / full checkout analytics live in Stripe — Studio shows main totals only.
 
 @bp.route("/subscribers")
 @bp.route("/subscribers/export.csv")
 @admin_required
 def subscribers():
-    flash("Main payment totals are on the Dashboard. Full history is in Dodo Payments.", "info")
+    flash("Main payment totals are on the Dashboard. Full history is in Stripe.", "info")
     return redirect(url_for("admin.dashboard"))
 
 
@@ -841,7 +841,7 @@ def subscriber_delete(sub_id):
 @bp.route("/orders/export.csv")
 @admin_required
 def orders():
-    flash("Payment totals are on the Dashboard. Full history is in Dodo Payments.", "info")
+    flash("Payment totals are on the Dashboard. Full history is in Stripe.", "info")
     return redirect(url_for("admin.dashboard"))
 
 
@@ -1260,9 +1260,9 @@ def membership_plans():
             plan.tagline = (request.form.get(f"{p}_tagline") or "").strip() or None
             plan.currency = (request.form.get(f"{p}_currency") or "USD").strip().upper()[:3]
             plan.period = "month"
-            plan.dodo_product_id = (request.form.get(f"{p}_dodo") or "").strip() or None
-            plan.dodo_product_id_annual = (
-                request.form.get(f"{p}_dodo_annual") or "").strip() or None
+            plan.stripe_price_id = (request.form.get(f"{p}_stripe") or "").strip() or None
+            plan.stripe_price_id_annual = (
+                request.form.get(f"{p}_stripe_annual") or "").strip() or None
             plan.active = bool(request.form.get(f"{p}_active"))
             raw = (request.form.get(f"{p}_price") or "").strip().replace(",", "")
             try:

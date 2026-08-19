@@ -63,7 +63,7 @@ def stripe_webhook():
 @bp.route("/dodopayments", methods=["POST"])
 def dodo_retired():
     return {
-        "error": "Stripe webhooks are retired. Use /webhooks/stripe.",
+        "error": "Dodo Payments webhooks are retired. Use /webhooks/stripe.",
     }, 410
 
 

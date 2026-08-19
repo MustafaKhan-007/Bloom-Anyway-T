@@ -312,8 +312,11 @@ ok("/courses renders on-site catalogue",
    r.status_code == 200 and "Courses &amp; Guides" in cbody
    and "Healing resources by" in cbody and "Creator resources by" in cbody
    and "Rebuild Workbook" not in cbody and "50 Hooks" not in cbody)
+r = admin.get("/admin/products/new", follow_redirects=True)
+_new_body = r.get_data(as_text=True)
 ok("Studio offers product cover upload",
-   "Cover image" in _pbody and 'name="cover"' in _pbody)
+   "Cover image" in _new_body and 'name="cover"' in _new_body
+   and "Stripe price ID" in _new_body)
 
 # Tiny JPEG cover upload for a draft product
 from io import BytesIO
@@ -322,9 +325,8 @@ _cbuf = BytesIO()
 _PILCover.new("RGB", (300, 400), (90, 49, 88)).save(_cbuf, format="JPEG")
 _cbuf.seek(0)
 r = admin.post(
-    "/admin/products",
+    "/admin/products/new",
     data={
-        "action": "create",
         "title": "Cover Test Guide",
         "track": "healing",
         "type": "guide",
