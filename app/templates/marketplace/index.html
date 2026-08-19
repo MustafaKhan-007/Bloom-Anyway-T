@@ -195,6 +195,7 @@
           <div class="market-row__body">
             <span class="type-pill">{{ ln.kind_label() }}</span>
             <h3><a href="{{ url_for('main.listing_detail', listing_id=ln.id) }}">{{ ln.title }}</a></h3>
+            {% if ln.price %}<p class="market-price">{{ ln.price }}</p>{% endif %}
             <p class="field-help">{{ ln.description|truncate(140) }}</p>
             <a class="btn btn--secondary btn--sm" href="{{ url_for('main.listing_go', listing_id=ln.id) }}"
                rel="noopener nofollow">Visit &rarr;</a>
@@ -233,6 +234,7 @@
               &middot; @{{ ln.author.username }}
               {% endif %}
             </p>
+            {% if ln.price %}<p class="show-card__price">{{ ln.price }}</p>{% endif %}
             <p class="show-card__desc">{{ ln.description|truncate(120) }}</p>
             <a class="show-card__cta" href="{{ url_for('main.listing_go', listing_id=ln.id) }}"
                rel="noopener nofollow">{{ cta }}</a>
