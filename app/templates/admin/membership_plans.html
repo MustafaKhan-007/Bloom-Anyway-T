@@ -9,7 +9,7 @@
       <h1>Membership plans</h1>
       <p class="field-help" style="margin: 6px 0 0; max-width: 640px;">
         These sell on their own at <a href="{{ url_for('main.membership') }}" target="_blank">/membership</a>.
-        Set monthly and annual prices, paste each <strong>Dodo product ID</strong>, then flip
+        Set monthly and annual prices, paste each <strong>Stripe price ID</strong>, then flip
         <strong>Live</strong>. The membership page Monthly / Annual toggle switches checkout
         between the two products. The owner is always Creator.
       </p>
@@ -51,15 +51,15 @@
         </div>
       </div>
       <div class="field">
-        <label for="{{ plan.tier }}_dodo">Dodo product ID (monthly)</label>
-        <input type="text" id="{{ plan.tier }}_dodo" name="{{ plan.tier }}_dodo"
-               placeholder="prod_…" value="{{ plan.dodo_product_id or '' }}">
+        <label for="{{ plan.tier }}_stripe">Stripe price ID (monthly)</label>
+        <input type="text" id="{{ plan.tier }}_stripe" name="{{ plan.tier }}_stripe"
+               placeholder="price_…" value="{{ plan.stripe_price_id or '' }}">
       </div>
       <div class="field">
-        <label for="{{ plan.tier }}_dodo_annual">Dodo product ID (annual)</label>
-        <input type="text" id="{{ plan.tier }}_dodo_annual" name="{{ plan.tier }}_dodo_annual"
-               placeholder="prod_…" value="{{ plan.dodo_product_id_annual or '' }}">
-        <p class="field-help">Create a separate yearly product in Dodo. The Annual toggle uses this ID.</p>
+        <label for="{{ plan.tier }}_stripe_annual">Stripe price ID (annual)</label>
+        <input type="text" id="{{ plan.tier }}_stripe_annual" name="{{ plan.tier }}_stripe_annual"
+               placeholder="price_…" value="{{ plan.stripe_price_id_annual or '' }}">
+        <p class="field-help">Create a separate yearly product in Stripe. The Annual toggle uses this ID.</p>
       </div>
       <div class="field">
         <label class="checkline checkline--sm">

@@ -282,9 +282,9 @@ class Product(db.Model):
     price_cents = db.Column(db.Integer)
     compare_at_cents = db.Column(db.Integer)
     currency = db.Column(db.String(3), nullable=False, default="USD")
-    ls_checkout_url = db.Column(db.String(500))  # legacy Lemon; unused
-    ls_variant_id = db.Column(db.String(40), index=True)  # legacy Lemon; unused
-    dodo_product_id = db.Column(db.String(80), index=True)
+    ls_checkout_url = db.Column(db.String(500))  # legacy; unused
+    ls_variant_id = db.Column(db.String(40), index=True)  # legacy; unused
+    stripe_price_id = db.Column(db.String(80), index=True)
     # healing | building — Courses & Guides lanes
     track = db.Column(db.String(20), index=True)
     meta_line = db.Column(db.String(200))  # e.g. "80 daily pages • PDF + printable"
@@ -346,66 +346,6 @@ class Product(db.Model):
         cleaned = [t.strip().lower() for t in tags if t.strip()]
         self.tags_json = json.dumps(cleaned) if cleaned else None
 
-    def gallery(self) -> list[str]:
-        """Public teaser image URLs for the product detail page."""
-        try:
-            raw = json.loads(self.gallery_json) if self.gallery_json else []
-        except ValueError:
-            return []
-        if not isinstance(raw, list):
-            return []
-        out = []
-        for item in raw:
-            url = str(item or "").strip()
-            if url:
-                out.append(url)
-        return out
-
-    def set_gallery(self, urls) -> None:
-        cleaned = [str(u).strip() for u in (urls or []) if str(u or "").strip()]
-        self.gallery_json = json.dumps(cleaned) if cleaned else None
-
-    def contents_list(self) -> list[str]:
-        """What's included — one line per checklist item."""
-        text = (self.contents_text or "").strip()
-        if not text:
-            return []
-        return [ln.strip(" -\t") for ln in text.splitlines() if ln.strip()]
-
-    def curriculum(self) -> list[dict]:
-        try:
-            raw = json.loads(self.curriculum_json) if self.curriculum_json else []
-        except ValueError:
-            return []
-        if not isinstance(raw, list):
-            return []
-        out = []
-        for row in raw:
-            if not isinstance(row, dict):
-                continue
-            title = str(row.get("title") or "").strip()
-            if not title:
-                continue
-            out.append({
-                "title": title[:160],
-                "description": str(row.get("description") or "").strip()[:500],
-            })
-        return out
-
-    def set_curriculum(self, rows) -> None:
-        cleaned = []
-        for row in rows or []:
-            if not isinstance(row, dict):
-                continue
-            title = str(row.get("title") or "").strip()
-            if not title:
-                continue
-            cleaned.append({
-                "title": title[:160],
-                "description": str(row.get("description") or "").strip()[:500],
-            })
-        self.curriculum_json = json.dumps(cleaned) if cleaned else None
-
     def price_display(self):
         if self.price_cents is None:
             return ""
@@ -430,8 +370,8 @@ class Product(db.Model):
             missing.append("a one-line promise")
         if self.price_cents is None:
             missing.append("a price")
-        if not (self.dodo_product_id or "").strip():
-            missing.append("the Dodo Payments product ID")
+        if not (self.stripe_price_id or "").strip():
+            missing.append("the Stripe price ID")
         return missing
 
     def cover_color(self) -> str:
@@ -545,7 +485,7 @@ class CourseProgress(db.Model):
 
 
 class MembershipPlan(db.Model):
-    """A sellable membership (Healing / Creator). Buying one (matched by Dodo
+    """A sellable membership (Healing / Creator). Buying one (matched by Stripe
     product id on the payment) upgrades the buyer's ``users.membership`` tier."""
     __tablename__ = "membership_plans"
 
@@ -559,8 +499,8 @@ class MembershipPlan(db.Model):
     period = db.Column(db.String(20), nullable=False, default="month")  # month / year / once
     ls_variant_id = db.Column(db.String(40), index=True)  # legacy
     ls_checkout_url = db.Column(db.String(500))  # legacy
-    dodo_product_id = db.Column(db.String(80), index=True)
-    dodo_product_id_annual = db.Column(db.String(80), index=True)
+    stripe_price_id = db.Column(db.String(80), index=True)
+    stripe_price_id_annual = db.Column(db.String(80), index=True)
     active = db.Column(db.Boolean, nullable=False, default=False)
     sort_order = db.Column(db.Integer, nullable=False, default=0)
 
@@ -585,14 +525,14 @@ class MembershipPlan(db.Model):
         if not self.active:
             return False
         if billing in ("annual", "year", "yearly"):
-            return bool((self.dodo_product_id_annual or "").strip())
-        return bool((self.dodo_product_id or "").strip())
+            return bool((self.stripe_price_id_annual or "").strip())
+        return bool((self.stripe_price_id or "").strip())
 
     def payment_product_id(self, billing: str = "monthly") -> str | None:
         billing = (billing or "monthly").strip().lower()
         if billing in ("annual", "year", "yearly"):
-            return (self.dodo_product_id_annual or "").strip() or None
-        return (self.dodo_product_id or self.ls_variant_id or "").strip() or None
+            return (self.stripe_price_id_annual or "").strip() or None
+        return (self.stripe_price_id or self.ls_variant_id or "").strip() or None
 
 
 class Quote(db.Model):

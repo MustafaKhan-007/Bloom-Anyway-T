@@ -7,7 +7,7 @@
     <div>
       <h1>Dashboard</h1>
       <p class="field-help" style="margin: 6px 0 0; max-width: 62ch;">
-        Checkout runs through Dodo Payments. Below: community health, main payment
+        Checkout runs through Stripe. Below: community health, main payment
         totals, and where visitors arrive from.
       </p>
     </div>
@@ -70,10 +70,10 @@
       {% endif %}
       <div class="studio-dash-exact__pay-actions">
         <a class="btn btn--secondary btn--sm" href="{{ url_for('main.courses') }}">Open Courses &amp; Guides</a>
-        {% if dodo_configured %}
+        {% if stripe_configured %}
         <form method="post" action="{{ url_for('admin.sync_purchases') }}" style="display:inline;">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <button type="submit" class="btn btn--primary btn--sm">Sync purchases from Dodo</button>
+          <button type="submit" class="btn btn--primary btn--sm">Sync purchases from Stripe</button>
         </form>
         {% endif %}
       </div>
@@ -156,8 +156,8 @@
     <canvas id="chart-purchases" height="110"></canvas>
     {% if not chart_purchases or not chart_purchases.total %}
     <p class="field-help" style="margin:12px 0 0;">
-      No paid orders yet. After a Dodo checkout, use
-      <strong>Sync purchases from Dodo</strong> above if the webhook was missed.
+      No paid orders yet. After a Stripe checkout, use
+      <strong>Sync purchases from Stripe</strong> above if the webhook was missed.
     </p>
     {% endif %}
   </div>

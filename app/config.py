@@ -114,14 +114,9 @@ class Config:
     )
     TURNSTILE_SECRET_KEY = TURNSTILE_SECRET  # legacy alias
 
-    # Dodo Payments (courses, guides, memberships).
-    DODO_PAYMENTS_API_KEY = os.environ.get("DODO_PAYMENTS_API_KEY", "").strip()
-    DODO_PAYMENTS_WEBHOOK_SECRET = (
-        os.environ.get("DODO_PAYMENTS_WEBHOOK_SECRET", "").strip()
-        or os.environ.get("DODO_WEBHOOK_SECRET", "").strip()
-    )
-    # test | live
-    DODO_PAYMENTS_MODE = (os.environ.get("DODO_PAYMENTS_MODE") or "test").strip().lower()
+    # Stripe (courses, guides, memberships). Secret key + webhook signing secret.
+    STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY", "").strip()
+    STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "").strip()
     # Legacy Lemon env (ignored; kept so old Render vars don't crash imports).
     LEMONSQUEEZY_WEBHOOK_SECRET = os.environ.get("LEMONSQUEEZY_WEBHOOK_SECRET", "")
     # Optional shared secret for /cron/* jobs (e.g. support-group reminders).

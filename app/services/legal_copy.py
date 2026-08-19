@@ -7,12 +7,12 @@ PRIVACY = """# Privacy Policy
 Bloom Anyway ("we", "us") respects your privacy. This page explains what we collect, why, and how you can ask us to change or remove it.
 
 ## Who we are
-Bloom Anyway is a community and content platform. Digital product checkout is handled by **Dodo Payments** as merchant of record — they process payments and deliver purchase receipts. We never see or store your card number.
+Bloom Anyway is a community and content platform. Digital product checkout is handled by **Stripe** as merchant of record — they process payments and deliver purchase receipts. We never see or store your card number.
 
 ## What we collect
 - **Account data** — email address, password hash, optional display name / username, bio, profile links, timezone, and avatar if you upload one.
 - **Community content** — posts, comments, likes, Showcase listings, journal entries, and check-ins you choose to create.
-- **Membership & orders** — membership tier and purchase records synced from Dodo Payments (product name, amount, status). Card details stay with Dodo Payments.
+- **Membership & orders** — membership tier and purchase records synced from Stripe Payments (product name, amount, status). Card details stay with Stripe.
 - **Operational data** — anonymised page-view counts (path + date only; no IP stored in that counter), first-touch traffic source (UTM / referrer labels such as Instagram or organic search — no advertising pixels), feedback you send us, and content reports.
 - **Email** — messages we send for verification, password reset, and optional contact replies. If you join the Sunday letter, we store that email for the list.
 
@@ -23,10 +23,10 @@ We use a session cookie (and an optional "remember me" cookie) so you stay signe
 To run your account, show community features, honour memberships, prevent abuse, improve the product from feedback you send, and meet legal obligations. We do not sell your personal information.
 
 ## Sharing
-We share data only with processors needed to run the service (hosting, email delivery, payment via Dodo Payments, and Turnstile on signup). We may disclose information if required by law or to protect people from serious harm.
+We share data only with processors needed to run the service (hosting, email delivery, payment via Stripe, and Turnstile on signup). We may disclose information if required by law or to protect people from serious harm.
 
 ## How long we keep it
-Account and community data stay while your account is open. Closing your account scrubs personal profile fields, removes your login, hides your posts/comments from public view, and replaces your email with a non-contactable placeholder. Purchase history may remain with Dodo Payments under their policies. Aggregated analytics without personal identifiers may be kept.
+Account and community data stay while your account is open. Closing your account scrubs personal profile fields, removes your login, hides your posts/comments from public view, and replaces your email with a non-contactable placeholder. Purchase history may remain with Stripe under their policies. Aggregated analytics without personal identifiers may be kept.
 
 ## Your choices
 - Update profile details in Settings.
@@ -51,7 +51,7 @@ TERMS = """# Terms of Service
 Welcome to Bloom Anyway. By creating an account, buying a membership or digital product, or using the community, you agree to these terms.
 
 ## The service
-Bloom Anyway offers daily quotes, community forums, member Showcase listings, a Content Hub, optional memberships, and courses/guides sold on this site through Dodo Payments. Content is for personal growth and education. **It is not therapy, medical advice, legal advice, or crisis care.** If you are in crisis, contact a local emergency service or helpline first.
+Bloom Anyway offers daily quotes, community forums, member Showcase listings, a Content Hub, optional memberships, and courses/guides sold on this site through Stripe. Content is for personal growth and education. **It is not therapy, medical advice, legal advice, or crisis care.** If you are in crisis, contact a local emergency service or helpline first.
 
 ## Accounts
 - You must provide a real email you control and keep your password private.
@@ -63,8 +63,8 @@ Bloom Anyway offers daily quotes, community forums, member Showcase listings, a 
 ## Memberships
 - Free accounts can browse courses, quotes, and free Content Hub picks. Community access requires a Healing or Creator membership.
 - **Healing** and **Creator** memberships unlock the perks described on the Membership page at the time of purchase.
-- Memberships are billed through Dodo Payments. Prices, billing interval, and taxes are shown at checkout.
-- Benefits apply while a membership is active. Refunds or cancellations through Dodo Payments may remove the related tier.
+- Memberships are billed through Stripe. Prices, billing interval, and taxes are shown at checkout.
+- Benefits apply while a membership is active. Refunds or cancellations through Stripe may remove the related tier.
 - The site owner always retains Creator-level access for operating the studio.
 - Membership is a licence to use features — not ownership of the platform, brand, or other members' content.
 
@@ -75,7 +75,7 @@ Be kind. No harassment, hate, threats, sexual exploitation, illegal content, spa
 You keep ownership of what you post. You grant Bloom Anyway a non-exclusive licence to host, display, and moderate that content so the community can function. Do not post material you do not have rights to share.
 
 ## Digital products & shop
-Courses and guides sold on the Courses & Guides page are licensed for **personal use** unless a product page says otherwise. Redistribution or resale is not allowed. Delivery, taxes, and payment disputes are handled by Dodo Payments as merchant of record.
+Courses and guides sold on the Courses & Guides page are licensed for **personal use** unless a product page says otherwise. Redistribution or resale is not allowed. Delivery, taxes, and payment disputes are handled by Stripe as merchant of record.
 
 ## Acceptable use
 Do not attempt to break, scrape abusively, overload, or reverse-engineer the service; do not bypass membership gates, rate limits, or security checks (including signup verification).
@@ -97,15 +97,15 @@ REFUNDS = """# Refund Policy
 We want you to feel treated fairly.
 
 ## Digital products (courses & guides)
-Dodo Payments is the merchant of record. If a purchase isn't right for you, reply to your Dodo receipt within **14 days** of purchase and explain what went wrong. We'll work with you (and Dodo's process) to make it right where the product page or applicable law requires a refund.
+Stripe is the merchant of record. If a purchase isn't right for you, reply to your Stripe receipt within **14 days** of purchase and explain what went wrong. We'll work with you (and Stripe's process) to make it right where the product page or applicable law requires a refund.
 
 Access may be revoked when a refund is issued.
 
 ## Memberships
-Membership billing and cancellation are managed through Dodo Payments. Cancelling stops future renewal according to their checkout terms. Refunds for unused time are handled case by case via your receipt email or Dodo's customer portal — especially if you were charged in error or could not access paid features due to a fault on our side.
+Membership billing and cancellation are managed through Stripe. Cancelling stops future renewal according to their checkout terms. Refunds for unused time are handled case by case via your receipt email or Stripe's customer portal — especially if you were charged in error or could not access paid features due to a fault on our side.
 
 ## How to ask
-1. Find your Dodo Payments receipt email, or  
+1. Find your Stripe receipt email, or  
 2. Message us through [Contact](/contact) with the order email and approximate date.
 
 We aim to respond within a few business days.

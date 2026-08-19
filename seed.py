@@ -40,7 +40,7 @@ RETIRED_CATEGORY_SLUGS = ["venting", "divorce-custody", "content-creation",
 
 STARTER_FAQS = [
     ("How do I get my files after buying?",
-     "When payment clears, Dodo Payments emails you a receipt. Purchases linked "
+     "When payment clears, Stripe emails you a receipt. Purchases linked "
      "to your account email also appear under My space → Courses & guides.", 0),
     ("Do I need an account here to buy?",
      "No. Checkout works without one. An account just adds saved quotes, the "
@@ -54,7 +54,7 @@ STARTER_FAQS = [
      "local helpline first. This will be here after.", 3),
 ]
 
-# Membership plans, created inactive. Set a price + Dodo product ID
+# Membership plans, created inactive. Set a price + Stripe price ID
 # in Studio -> Plans, then flip them Live. Buying one auto-upgrades the buyer.
 MEMBERSHIP_PLANS = [
     {"tier": "healing", "name": "Healing membership",
@@ -135,7 +135,7 @@ def seed():
         if cat_added or tag_added:
             print(f"Forums: added {cat_added} categories, {tag_added} tags")
 
-        # 5. membership plans (inactive; owner sets a price + Dodo id, then goes Live)
+        # 5. membership plans (inactive; owner sets a price + Stripe price id, then goes Live)
         mem_added = 0
         for m in MEMBERSHIP_PLANS:
             if MembershipPlan.query.filter_by(tier=m["tier"]).first() is None:

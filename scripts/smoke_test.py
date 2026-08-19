@@ -19,12 +19,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import base64
 import time as _time
 
-_DODO_SECRET_RAW = b"test-secret"
-os.environ["DODO_PAYMENTS_WEBHOOK_SECRET"] = (
-    "whsec_" + base64.b64encode(_DODO_SECRET_RAW).decode()
-)
-os.environ["DODO_PAYMENTS_API_KEY"] = "test-dodo-key"
-os.environ["DODO_PAYMENTS_MODE"] = "test"
+_STRIPE_WHSEC = "whsec_test_secret"
+os.environ["STRIPE_WEBHOOK_SECRET"] = _STRIPE_WHSEC
+os.environ["STRIPE_SECRET_KEY"] = "sk_test_smoke"
 
 from app import create_app
 from app.config import DevConfig
@@ -33,39 +30,69 @@ from app.models import (ForumCategory, ForumComment, ForumPost, ForumTag,
                         Order, Product, Quote, QuotePin, ShopPurchase,
                         Subscriber, User, Video, utcnow)
 from app.services import captcha as captcha_service
-from app.services import dodo as dodo_svc
+from app.services import stripe_pay as pay
 
 
-def _dodo_headers(body: bytes) -> dict:
-    msg_id = "msg_test_" + hashlib.sha1(body).hexdigest()[:10]
-    ts = str(int(_time.time()))
-    sig = dodo_svc.sign_webhook(
-        os.environ["DODO_PAYMENTS_WEBHOOK_SECRET"], msg_id, ts, body)
+def _stripe_headers(body: bytes) -> dict:
+    sig = pay.sign_webhook(_STRIPE_WHSEC, body)
     return {
         "Content-Type": "application/json",
-        "webhook-id": msg_id,
-        "webhook-timestamp": ts,
-        "webhook-signature": sig,
+        "Stripe-Signature": sig,
     }
 
 
 def _payment_payload(payment_id, email, product_id, *,
                      event="payment.succeeded", amount=4900,
                      product_name=None, gift_to=None):
-    data = {
-        "payload_type": "Payment",
-        "payment_id": str(payment_id),
-        "total_amount": amount,
-        "currency": "USD",
-        "customer": {"email": email},
-        "product_cart": [{"product_id": str(product_id), "quantity": 1}],
-        "metadata": {},
-    }
+    meta = {"price_id": str(product_id)}
     if product_name:
-        data["metadata"]["product_name"] = product_name
+        meta["product_name"] = product_name
     if gift_to:
-        data["metadata"]["gift_to"] = gift_to
-    return json.dumps({"type": event, "data": data}).encode()
+        meta["gift_to"] = gift_to
+    if event == "payment.succeeded":
+        stripe_type = "checkout.session.completed"
+        obj = {
+            "id": f"cs_{payment_id}",
+            "object": "checkout.session",
+            "payment_status": "paid",
+            "amount_total": amount,
+            "currency": "usd",
+            "customer_details": {"email": email},
+            "customer_email": email,
+            "payment_intent": str(payment_id),
+            "metadata": meta,
+            "mode": "payment",
+        }
+    elif event == "payment.failed":
+        stripe_type = "invoice.payment_failed"
+        obj = {
+            "id": f"in_{payment_id}",
+            "object": "invoice",
+            "amount_due": amount,
+            "currency": "usd",
+            "customer_email": email,
+            "payment_intent": str(payment_id),
+            "metadata": meta,
+            "lines": {"data": [{"price": {"id": str(product_id)}}]},
+        }
+    else:
+        stripe_type = "charge.refunded"
+        obj = {
+            "id": f"ch_{payment_id}",
+            "object": "charge",
+            "amount": amount,
+            "amount_refunded": amount,
+            "currency": "usd",
+            "payment_intent": str(payment_id),
+            "metadata": meta,
+            "billing_details": {"email": email},
+        }
+    return json.dumps({
+        "id": f"evt_{payment_id}",
+        "object": "event",
+        "type": stripe_type,
+        "data": {"object": obj},
+    }).encode()
 
 # Smoke tests don't call Cloudflare; always pass the captcha check.
 captcha_service.verify_captcha = lambda token=None: True
@@ -278,13 +305,15 @@ r = admin.get("/admin/products", follow_redirects=True)
 _pbody = r.get_data(as_text=True)
 ok("Studio products UI loads",
    r.status_code == 200
-   and ("New product" in _pbody or "Courses" in _pbody))
-r = admin.get("/admin/products/new", follow_redirects=True)
-_newbody = r.get_data(as_text=True)
-ok("Studio new-product form loads",
-   r.status_code == 200 and "Create product" in _newbody)
+   and ("Add a product" in _pbody or "Stripe price ID" in _pbody or "Courses" in _pbody))
+r = client.get("/courses", follow_redirects=False)
+cbody = r.get_data(as_text=True)
+ok("/courses renders on-site catalogue",
+   r.status_code == 200 and "Courses &amp; Guides" in cbody
+   and "Healing resources by" in cbody and "Creator resources by" in cbody
+   and "Rebuild Workbook" not in cbody and "50 Hooks" not in cbody)
 ok("Studio offers product cover upload",
-   "Cover image" in _newbody and 'name="cover"' in _newbody)
+   "Cover image" in _pbody and 'name="cover"' in _pbody)
 
 # Tiny JPEG cover upload for a draft product
 from io import BytesIO
@@ -293,8 +322,9 @@ _cbuf = BytesIO()
 _PILCover.new("RGB", (300, 400), (90, 49, 88)).save(_cbuf, format="JPEG")
 _cbuf.seek(0)
 r = admin.post(
-    "/admin/products/new",
+    "/admin/products",
     data={
+        "action": "create",
         "title": "Cover Test Guide",
         "track": "healing",
         "type": "guide",
@@ -306,12 +336,6 @@ r = admin.post(
     follow_redirects=True,
 )
 ok("Studio accepts product cover on create", r.status_code == 200)
-r = client.get("/courses", follow_redirects=False)
-cbody = r.get_data(as_text=True)
-ok("/courses renders on-site catalogue",
-   r.status_code == 200 and "Courses &amp; Guides" in cbody
-   and "Healing resources by" in cbody and "Creator resources by" in cbody
-   and "Rebuild Workbook" not in cbody and "50 Hooks" not in cbody)
 with app.app_context():
     cover_prod = Product.query.filter_by(slug="cover-test-guide").first()
     ok("Cover URL stored on product",
@@ -325,7 +349,6 @@ with app.app_context():
     cover_prod = Product.query.filter_by(id=cover_id).first()
     if cover_prod:
         cover_prod.status = "published"
-        cover_prod.dodo_product_id = cover_prod.dodo_product_id or "prod_cover_test"
         db.session.commit()
 r = client.get("/courses")
 courses_body = r.get_data(as_text=True)
@@ -333,22 +356,9 @@ ok("Courses page uses My space-style library cards",
    "lib-card" in courses_body
    and "lib-card__cover" in courses_body
    and "Cover Test Guide" in courses_body)
-ok("Courses cards use View instead of instant checkout",
-   "/courses/cover-test-guide" in courses_body
-   and "/checkout/product/cover-test-guide" not in courses_body
-   and "View" in courses_body)
 ok("Uploaded cover appears on Courses cards",
    f"/media/product-cover/{cover_id}" in courses_body
    and "lib-card__cover--photo" in courses_body)
-r = client.get("/courses/cover-test-guide")
-detail_body = r.get_data(as_text=True)
-ok("Product detail page renders cover, promise, and buy CTA",
-   r.status_code == 200
-   and "Cover Test Guide" in detail_body
-   and "A soft check-in." in detail_body
-   and ("Buy now" in detail_body or "Buy for" in detail_body))
-ok("Product detail links to checkout",
-   "/checkout/product/cover-test-guide" in detail_body)
 r = client.get("/")
 home = r.get_data(as_text=True)
 ok("Home includes creator membership CTA",
@@ -362,32 +372,32 @@ with app.app_context():
         title="Begin Again", slug="begin-again", type="course", status="published",
         promise="A 4-week path from stuck to started.",
         cover_url="https://example.com/cover.jpg", price_cents=4900,
-        currency="USD", dodo_product_id="prod_begin_again",
+        currency="USD", stripe_price_id="prod_begin_again",
         track="healing", featured=True)
     db.session.add(hist)
     db.session.commit()
     hist_id = hist.id
 
-# --- 4. Dodo webhook: signature + idempotency + ShopPurchase -----------------------
+# --- 4. Stripe webhook: signature + idempotency + ShopPurchase -----------------------
 payload = _payment_payload(
     "9001", "Buyer@Example.com", "prod_begin_again",
     product_name="Begin Again")
 
-r = client.post("/webhooks/dodo", data=payload,
+r = client.post("/webhooks/stripe", data=payload,
                 headers={"Content-Type": "application/json",
                          "webhook-id": "bad", "webhook-timestamp": "1",
                          "webhook-signature": "v1,bad"})
 ok("Wrong webhook signature rejected 401", r.status_code == 401)
 
-r = client.post("/webhooks/dodo", data=payload, headers=_dodo_headers(payload))
-r2 = client.post("/webhooks/dodo", data=payload, headers=_dodo_headers(payload))
+r = client.post("/webhooks/stripe", data=payload, headers=_stripe_headers(payload))
+r2 = client.post("/webhooks/stripe", data=payload, headers=_stripe_headers(payload))
 with app.app_context():
     orders = Order.query.filter_by(ls_order_id="9001").all()
     shops = ShopPurchase.query.filter_by(lemon_squeezy_order_id="9001").all()
 ok("Webhook accepted (200)", r.status_code == 200 and r2.status_code == 200)
 ok("Replayed webhook creates exactly one order", len(orders) == 1, f"got {len(orders)}")
 ok("Replayed webhook creates exactly one ShopPurchase", len(shops) == 1, f"got {len(shops)}")
-ok("Order matched to product via Dodo product id", orders[0].product_id is not None)
+ok("Order matched to product via Stripe price id", orders[0].product_id is not None)
 ok("Buyer email lowercased", orders[0].buyer_email == "buyer@example.com")
 ok("Unknown-email shop purchase is pending_link",
    shops[0].status == "pending_link" and shops[0].user_id is None)
@@ -469,7 +479,7 @@ with app.app_context():
 payload_known = _payment_payload(
     "9002", "newperson@example.com", "prod_quiet",
     amount=1900, product_name="Quiet Mornings")
-r = client.post("/webhooks/dodo", data=payload_known, headers=_dodo_headers(payload_known))
+r = client.post("/webhooks/stripe", data=payload_known, headers=_stripe_headers(payload_known))
 with app.app_context():
     sp2 = ShopPurchase.query.filter_by(lemon_squeezy_order_id="9002").first()
 ok("Existing-account shop purchase links immediately",
@@ -480,7 +490,7 @@ ok("Existing-account shop purchase links immediately",
 payload_fail = _payment_payload(
     "9002-fail", "newperson@example.com", "prod_quiet",
     event="payment.failed", amount=1900, product_name="Quiet Mornings")
-r = client.post("/webhooks/dodo", data=payload_fail, headers=_dodo_headers(payload_fail))
+r = client.post("/webhooks/stripe", data=payload_fail, headers=_stripe_headers(payload_fail))
 with app.app_context():
     fail_shop = ShopPurchase.query.filter_by(lemon_squeezy_order_id="9002-fail").first()
     fail_ord = Order.query.filter_by(ls_order_id="9002-fail").first()
@@ -506,7 +516,7 @@ ok("Trending product reports a leader",
 payload_ref = _payment_payload(
     "9002", "newperson@example.com", "prod_quiet",
     event="refund.succeeded", amount=1900, product_name="Quiet Mornings")
-client.post("/webhooks/dodo", data=payload_ref, headers=_dodo_headers(payload_ref))
+client.post("/webhooks/stripe", data=payload_ref, headers=_stripe_headers(payload_ref))
 with app.app_context():
     sp2 = ShopPurchase.query.filter_by(lemon_squeezy_order_id="9002").first()
 ok("Refunded shop purchase marked refunded", sp2.status == "refunded")
@@ -542,7 +552,7 @@ r = admin.get("/admin/")
 _dash = r.get_data(as_text=True)
 ok("Dashboard shows local payment insights",
    r.status_code == 200 and "Payments (30 days)" in _dash
-   and "Dodo Payments" in _dash)
+   and "Stripe" in _dash)
 
 # give the main member Full Bloom: both community tracks for the forum suite
 with app.app_context():
@@ -1254,8 +1264,8 @@ plan_form = {
     "healing_name": "Healing membership",
     "creator_name": "Creator membership", "creator_tagline": "Everything, plus tools.",
     "creator_price": "19", "creator_annual_price": "150", "creator_currency": "USD",
-    "creator_dodo": "prod_creator_mem",
-    "creator_dodo_annual": "prod_creator_yr",
+    "creator_stripe": "prod_creator_mem",
+    "creator_stripe_annual": "prod_creator_yr",
     "creator_active": "1",
 }
 r = admin.post("/admin/memberships", data=plan_form, follow_redirects=True)
@@ -1275,7 +1285,7 @@ ok("Membership page has Monthly/Annual billing toggle",
 
 def _order_webhook(order_id, email, product_id, event="payment.succeeded"):
     body = _payment_payload(order_id, email, product_id, event=event, amount=1900)
-    return client.post("/webhooks/dodo", data=body, headers=_dodo_headers(body))
+    return client.post("/webhooks/stripe", data=body, headers=_stripe_headers(body))
 
 
 # an existing free member buys -> upgraded to Creator
@@ -1497,7 +1507,7 @@ ok("Cancelling hides the member's ads", still_active == 0)
 gbody = _payment_payload(
     "GIFT-1", "santa@example.com", "prod_begin_again",
     product_name="Gifted Guide", gift_to="free@example.com")
-r = client.post("/webhooks/dodo", data=gbody, headers=_dodo_headers(gbody))
+r = client.post("/webhooks/stripe", data=gbody, headers=_stripe_headers(gbody))
 ok("Gift webhook accepted", r.status_code == 200)
 with app.app_context():
     gift_order = Order.query.filter_by(ls_order_id="GIFT-1").first()

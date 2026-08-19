@@ -1,65 +1,74 @@
-"""Dodo Payments webhook receiver.
+"""Stripe webhook receiver.
 
-Verifies Standard Webhooks signatures, handles payment.succeeded /
-refund.succeeded, and is idempotent on payment_id.
+Verifies Stripe-Signature, maps events to fulfillment, idempotent on payment id.
 """
 import logging
 
 from flask import request
 
 from ..extensions import db
-from ..services import dodo as dodo_svc
+from ..services import stripe_pay as pay
 from . import bp
 
 log = logging.getLogger(__name__)
 
 HANDLED = {
-    "payment.succeeded",
-    "payment.failed",
-    "refund.succeeded",
-    "payment.refunded",
+    "checkout.session.completed",
+    "invoice.payment_failed",
+    "charge.refunded",
+    "charge.refund.updated",
+    "customer.subscription.deleted",
 }
 
 
-@bp.route("/dodo", methods=["POST"])
-@bp.route("/dodopayments", methods=["POST"])
-def dodo_payments():
+@bp.route("/stripe", methods=["POST"])
+def stripe_webhook():
     raw = request.get_data()
     headers = {k.lower(): v for k, v in request.headers.items()}
-    if not dodo_svc.verify_webhook_signature(raw, headers):
-        log.warning("dodo webhook: invalid signature (ip=%s)", request.remote_addr)
+    try:
+        event = pay.construct_event(raw, headers)
+    except pay.StripeError:
+        log.warning("stripe webhook: invalid signature (ip=%s)", request.remote_addr)
         return {"error": "invalid signature"}, 401
-
-    payload = request.get_json(silent=True) or {}
-    event = (payload.get("type") or payload.get("event_type") or "").strip()
-    if event not in HANDLED:
-        return {"status": "ignored", "event": event}, 200
-
-    data = payload.get("data") or {}
-    if not isinstance(data, dict):
+    except Exception:
+        log.exception("stripe webhook: could not parse event")
         return {"error": "invalid payload"}, 400
-    # Some deliveries nest the payment one level deeper.
-    if not (data.get("payment_id") or data.get("id")) and isinstance(data.get("payment"), dict):
-        data = data["payment"]
-    # Or put payment fields on the root payload.
-    if not (data.get("payment_id") or data.get("id")) and payload.get("payment_id"):
-        data = payload
+
+    event_type = (event.get("type") or "").strip()
+    if event_type not in HANDLED:
+        return {"status": "ignored", "event": event_type}, 200
+
+    obj = (event.get("data") or {}).get("object") or {}
+    if not isinstance(obj, dict):
+        return {"error": "invalid payload"}, 400
+
+    internal, data = pay.stripe_event_to_internal(event_type, obj)
+    if not internal:
+        return {"status": "ignored", "event": event_type}, 200
 
     try:
-        dodo_svc.handle_payment_event(event, data)
+        pay.handle_payment_event(internal, data)
         db.session.commit()
-        log.info("dodo webhook: %s processed (payment %s)",
-                 event, data.get("payment_id") or data.get("id"))
+        log.info("stripe webhook: %s → %s (payment %s)",
+                 event_type, internal, data.get("payment_id") or data.get("id"))
         return {"status": "ok"}, 200
     except Exception:
         db.session.rollback()
-        log.exception("dodo webhook: failed to process %s", event)
+        log.exception("stripe webhook: failed to process %s", event_type)
         return {"error": "processing failed"}, 500
 
 
-# Legacy Lemon path kept only to return a clear 410 so old LS webhooks fail loudly.
+# Retired providers — fail loudly so old dashboard URLs are noticed.
+@bp.route("/dodo", methods=["POST"])
+@bp.route("/dodopayments", methods=["POST"])
+def dodo_retired():
+    return {
+        "error": "Stripe webhooks are retired. Use /webhooks/stripe.",
+    }, 410
+
+
 @bp.route("/lemonsqueezy", methods=["POST"])
 def lemonsqueezy_retired():
     return {
-        "error": "Lemon Squeezy webhooks are retired. Use /webhooks/dodo.",
+        "error": "Lemon Squeezy webhooks are retired. Use /webhooks/stripe.",
     }, 410

@@ -1,23 +1,23 @@
 # Bloom Anyway
 
 A warm, mobile-first home for digital courses, notebook guides, and community.
-Flask + PostgreSQL, with **Dodo Payments** as the merchant of record (hosted
+Flask + PostgreSQL, with **Stripe** as the merchant of record (hosted
 checkout — this site never touches card data). The brand mark is an inline SVG
 wordmark with two minimalist sunflowers standing in for the "o"s in *bloom*.
 
 What's inside:
 
 - On-site **Courses & Guides** (`/courses`) — two founder lanes (Healing / Building)
-  with filters, bundles, and Dodo checkout
+  with filters, bundles, and Stripe checkout
 - Purchasable membership tiers (Free / Healing / Creator) at `/membership`,
-  auto-granted on a paid Dodo order (revoked on refund)
+  auto-granted on a paid Stripe order (revoked on refund)
 - **Marketplace** / Showcase: members advertise digital products & services
 - Owner-uploaded **Content Hub** (`/watch`)
 - Home-page spotlight, daily quotes, streaks & badges, My Journey PDF
 - Two community forums (Building & Healing)
 - Admin studio: community health, main payment insights, traffic sources,
   quotes/content/membership management
-- Dodo Payments webhook receiver (Standard Webhooks, signed, idempotent)
+- Stripe webhook receiver (Standard Webhooks, signed, idempotent)
 - First-touch traffic attribution (UTM / referrer → Facebook, Instagram, search, …)
 
 ---
@@ -82,15 +82,15 @@ Everything else is optional or auto-managed:
 
 ---
 
-## 2. Dodo Payments setup
+## 2. Stripe setup
 
-1. **API key** — Dodo dashboard → API keys → set `DODO_PAYMENTS_API_KEY`.
-   Use `DODO_PAYMENTS_MODE=test` locally and `live` in production.
+1. **API key** — Stripe Dashboard → API keys → set `STRIPE_SECRET_KEY`.
+   Use `STRIPE_SECRET_KEY=test` locally and `live` in production.
 2. **Webhook** — Developer → Webhooks:
-   - URL: `https://<your-app>.onrender.com/webhooks/dodo`
-   - Signing secret → `DODO_PAYMENTS_WEBHOOK_SECRET`
+   - URL: `https://<your-app>.onrender.com/webhooks/stripe`
+   - Signing secret → `STRIPE_WEBHOOK_SECRET`
    - Subscribe to at least: `payment.succeeded`, `refund.succeeded`
-3. **Products** — create each course/guide/membership in Dodo, then paste the
+3. **Products** — create each course/guide/membership in Stripe, then paste the
    product IDs in Studio → Courses & Guides / Plans.
 4. Paid webhooks create `Order` (+ `ShopPurchase` for non-membership products).
    My space lists linked purchases; set `file_key` under `SHOP_FILES_DIR` for
@@ -121,7 +121,7 @@ Everything else is optional or auto-managed:
 5. Visit `https://<your-app>.onrender.com/setup` right after the first deploy
    and claim the owner account (email + password, chosen in the browser).
    The page locks itself once the owner has signed in — do this promptly.
-6. Point the Dodo Payments webhook (section 2) at your Render URL.
+6. Point the Stripe webhook (section 2) at your Render URL.
 
 ### Things to know about Render
 

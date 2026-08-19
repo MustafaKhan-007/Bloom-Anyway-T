@@ -1,6 +1,6 @@
 """Grant / revoke membership tiers from purchases.
 
-Memberships are sold as ``MembershipPlan`` rows. Each plan carries a Dodo
+Memberships are sold as ``MembershipPlan`` rows. Each plan carries a Stripe
 product id; an order for that product grants the plan's tier. A member's tier
 is kept on ``users.membership``. Purchases *upgrade* that column; a refund
 recomputes the tier from remaining paid membership orders. Owning both Healing
@@ -26,8 +26,8 @@ def _plan_for_product_id(product_id):
     if not key:
         return None
     return (MembershipPlan.query
-            .filter(or_(MembershipPlan.dodo_product_id == key,
-                        MembershipPlan.dodo_product_id_annual == key,
+            .filter(or_(MembershipPlan.stripe_price_id == key,
+                        MembershipPlan.stripe_price_id_annual == key,
                         MembershipPlan.ls_variant_id == key))
             .first())
 
@@ -38,8 +38,8 @@ def purchased_tier(email: str) -> str:
         return "none"
     rows = (db.session.query(MembershipPlan.tier)
             .join(Order, or_(
-                Order.ls_variant_id == MembershipPlan.dodo_product_id,
-                Order.ls_variant_id == MembershipPlan.dodo_product_id_annual,
+                Order.ls_variant_id == MembershipPlan.stripe_price_id,
+                Order.ls_variant_id == MembershipPlan.stripe_price_id_annual,
                 Order.ls_variant_id == MembershipPlan.ls_variant_id,
             ))
             .filter(Order.status == "paid",

@@ -24,7 +24,7 @@ from ..services import settings as settings_service
 from ..services.avatars import AvatarError, process_avatar
 from ..services.badges import CATEGORIES, category_progress, earned_badges
 from ..services.catalog import remove_demo_catalog
-from ..services import dodo as dodo_svc
+from ..services import stripe_pay as pay
 from ..services.journey import build_journey_pdf
 from ..services.mailer import send_contact_notification
 from ..services.recommend import INTENTS, valid_intent_keys
@@ -206,65 +206,28 @@ def courses():
     )
 
 
-@bp.route("/courses/<slug>")
-def course_detail(slug):
-    """Public product page — cover, copy, teasers, and buy / open CTA."""
-    try:
-        if remove_demo_catalog():
-            db.session.commit()
-    except Exception:
-        db.session.rollback()
-
-    product = Product.query.filter_by(slug=slug, status="published").first_or_404()
-    owned_purchase_id = None
-    if current_user.is_authenticated:
-        from ..services import course_reader as reader_svc
-        for purchase in linked_purchases_for(current_user):
-            prod = reader_svc.catalog_product_for_purchase(purchase)
-            if prod and prod.id == product.id:
-                owned_purchase_id = purchase.id
-                break
-    return render_template(
-        "main/course_detail.html",
-        product=product,
-        owned_purchase_id=owned_purchase_id,
-    )
-
-
-@bp.route("/media/product-gallery/<int:product_id>/<path:filename>")
-def product_gallery_image(product_id, filename):
-    """Serve a product teaser / gallery image."""
-    from ..services.product_covers import gallery_file
-    path = gallery_file(product_id, filename)
-    if path is None:
-        abort(404)
-    resp = send_file(path, mimetype="image/jpeg")
-    resp.headers["Cache-Control"] = "public, max-age=86400"
-    return resp
-
-
 @bp.route("/checkout/product/<slug>", methods=["GET", "POST"])
 @limiter.limit("20 per minute")
 def checkout_product(slug):
     product = Product.query.filter_by(slug=slug, status="published").first_or_404()
-    pid = (product.dodo_product_id or "").strip()
+    pid = (product.stripe_price_id or "").strip()
     if not pid:
         flash("Checkout for this guide isn’t live yet — check back soon.", "info")
         return redirect(url_for("main.courses"))
-    if not dodo_svc.configured():
+    if not pay.configured():
         flash("Payments aren’t configured yet. Please try again later.", "error")
         return redirect(url_for("main.courses"))
     email = current_user.email if current_user.is_authenticated else None
     name = current_user.public_name() if current_user.is_authenticated else None
     try:
-        url = dodo_svc.create_checkout_session(
+        url = pay.create_checkout_session(
             product_id=pid,
             return_url=url_for("main.account", tab="saved", purchased=1, _external=True),
             customer_email=email,
             customer_name=name,
             metadata={"slug": product.slug, "kind": "product"},
         )
-    except dodo_svc.DodoError as exc:
+    except pay.StripeError as exc:
         flash(str(exc), "error")
         return redirect(url_for("main.courses"))
     return redirect(url)
@@ -286,20 +249,20 @@ def checkout_membership(tier):
     if plan is None or not product_id:
         flash("That membership isn’t available for checkout yet.", "info")
         return redirect(url_for("main.membership"))
-    if not dodo_svc.configured():
+    if not pay.configured():
         flash("Payments aren’t configured yet. Please try again later.", "error")
         return redirect(url_for("main.membership"))
     email = current_user.email if current_user.is_authenticated else None
     name = current_user.public_name() if current_user.is_authenticated else None
     try:
-        url = dodo_svc.create_checkout_session(
+        url = pay.create_checkout_session(
             product_id=product_id,
             return_url=url_for("main.account", _external=True),
             customer_email=email,
             customer_name=name,
             metadata={"tier": tier, "kind": "membership", "billing": billing},
         )
-    except dodo_svc.DodoError as exc:
+    except pay.StripeError as exc:
         flash(str(exc), "error")
         return redirect(url_for("main.membership"))
     return redirect(url)
@@ -688,7 +651,7 @@ def toggle_favorite(quote_id):
 @bp.route("/account")
 @login_required
 def account():
-    # Attach any pending Dodo purchases that match this email (guest checkout → later signup).
+    # Attach any pending Stripe purchases that match this email (guest checkout → later signup).
     if link_pending_purchases(current_user):
         db.session.commit()
 
@@ -706,11 +669,11 @@ def account():
     if tab == "settings":
         return redirect(url_for("main.settings"))
 
-    # After checkout return (?purchased=1), pull from Dodo so Courses updates
+    # After checkout return (?purchased=1), pull from Stripe so Courses updates
     # even if the webhook lagged or was misconfigured.
-    if request.args.get("purchased") and dodo_svc.configured():
+    if request.args.get("purchased") and pay.configured():
         try:
-            dodo_svc.sync_recent_payments(days=14, max_pages=1)
+            pay.sync_recent_payments(days=14, max_pages=1)
             link_pending_purchases(current_user)
             db.session.commit()
         except Exception:
@@ -1071,7 +1034,7 @@ def cancel_membership():
     except Exception:
         log.exception("Cancel email failed for user %s", current_user.id)
 
-    flash("Your membership is cancelled. If you were billed through Dodo Payments, "
+    flash("Your membership is cancelled. If you were billed through Stripe, "
           "also cancel the subscription there so you're not charged again.", "success")
     return redirect(url_for("main.settings"))
 

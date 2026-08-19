@@ -1,4 +1,4 @@
-"""Digital purchase fulfillment for My Space (Dodo Payments)."""
+"""Digital purchase fulfillment for My Space (Stripe)."""
 from datetime import datetime
 
 from sqlalchemy import func, or_
@@ -19,8 +19,8 @@ def is_membership_variant(variant_id) -> bool:
     if not key:
         return False
     return (MembershipPlan.query
-            .filter(or_(MembershipPlan.dodo_product_id == key,
-                        MembershipPlan.dodo_product_id_annual == key,
+            .filter(or_(MembershipPlan.stripe_price_id == key,
+                        MembershipPlan.stripe_price_id_annual == key,
                         MembershipPlan.ls_variant_id == key))
             .first()) is not None
 

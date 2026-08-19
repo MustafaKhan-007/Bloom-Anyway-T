@@ -18,7 +18,8 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name
 
 CSP = (
     "default-src 'self'; "
-    "script-src 'self' https://cdn.jsdelivr.net https://challenges.cloudflare.com; "
+    "script-src 'self' https://cdn.jsdelivr.net https://challenges.cloudflare.com "
+    "https://js.stripe.com; "
     "worker-src 'self' blob: https://cdn.jsdelivr.net; "
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; "
     "font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net data:; "
@@ -26,10 +27,10 @@ CSP = (
     "media-src 'self' blob:; "
     "frame-src 'self' blob: https://www.instagram.com https://instagram.com "
     "https://challenges.cloudflare.com "
-    "https://*.dodopayments.com https://checkout.dodopayments.com; "
+    "https://js.stripe.com https://hooks.stripe.com https://checkout.stripe.com; "
     "connect-src 'self' https://challenges.cloudflare.com "
-    "https://cdn.jsdelivr.net https://*.dodopayments.com; "
-    "base-uri 'self'; form-action 'self' https://*.dodopayments.com; "
+    "https://cdn.jsdelivr.net https://api.stripe.com https://checkout.stripe.com; "
+    "base-uri 'self'; form-action 'self' https://checkout.stripe.com; "
     "frame-ancestors 'none'"
 )
 

@@ -13,7 +13,7 @@ from ..models import CourseProgress, Product, ProductAsset, ShopPurchase, utcnow
 
 
 def catalog_product_for_purchase(purchase: ShopPurchase) -> Product | None:
-    """Match a shop purchase to a Studio catalogue product via Dodo id."""
+    """Match a shop purchase to a Studio catalogue product via Stripe price id."""
     if purchase is None:
         return None
     keys = []
@@ -22,7 +22,7 @@ def catalog_product_for_purchase(purchase: ShopPurchase) -> Product | None:
         if key and key not in keys:
             keys.append(key)
     for key in keys:
-        row = Product.query.filter_by(dodo_product_id=key).first()
+        row = Product.query.filter_by(stripe_price_id=key).first()
         if row:
             return row
         row = Product.query.filter_by(ls_variant_id=key).first()
