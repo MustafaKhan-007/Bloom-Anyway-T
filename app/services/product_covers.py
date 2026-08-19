@@ -87,3 +87,61 @@ def clear(product_id: int) -> None:
 def file_for(product_id: int) -> Path | None:
     path = cover_path(product_id)
     return path if path.is_file() else None
+
+
+# --- Teaser / gallery images (product detail page) ---------------------------
+
+def gallery_storage_dir(product_id: int) -> Path:
+    root = Path(current_app.instance_path) / "product_galleries" / str(int(product_id))
+    root.mkdir(parents=True, exist_ok=True)
+    return root
+
+
+def gallery_public_url(product_id: int, filename: str) -> str:
+    return f"/media/product-gallery/{int(product_id)}/{filename}"
+
+
+def process_gallery_image(product_id: int, upload: FileStorage) -> str:
+    """Validate and store a landscape teaser JPEG. Returns the public URL."""
+    if not upload or not getattr(upload, "filename", None):
+        raise CoverError("Choose a teaser image first.")
+    raw = upload.read(MAX_UPLOAD_BYTES + 1)
+    if not raw:
+        raise CoverError("That file was empty.")
+    if len(raw) > MAX_UPLOAD_BYTES:
+        raise CoverError("Keep teaser images under 8 MB.")
+    try:
+        img = Image.open(io.BytesIO(raw))
+        img = ImageOps.exif_transpose(img)
+        img.load()
+    except (UnidentifiedImageError, OSError) as exc:
+        raise CoverError("That doesn't look like a usable image.") from exc
+
+    img = img.convert("RGB")
+    # Soft landscape crop for detail teasers
+    img = _crop_to_aspect(img, 16, 10)
+    img.thumbnail((1400, 900), Image.LANCZOS)
+    import uuid
+    name = f"{uuid.uuid4().hex[:12]}.jpg"
+    out = io.BytesIO()
+    img.save(out, format="JPEG", quality=88, optimize=True)
+    path = gallery_storage_dir(product_id) / name
+    path.write_bytes(out.getvalue())
+    return gallery_public_url(product_id, name)
+
+
+def gallery_file(product_id: int, filename: str) -> Path | None:
+    name = Path(filename or "").name
+    if not name or name != filename or ".." in name:
+        return None
+    path = gallery_storage_dir(product_id) / name
+    return path if path.is_file() else None
+
+
+def clear_gallery_image(product_id: int, filename: str) -> None:
+    path = gallery_file(product_id, filename)
+    if path is not None:
+        try:
+            path.unlink()
+        except OSError:
+            pass

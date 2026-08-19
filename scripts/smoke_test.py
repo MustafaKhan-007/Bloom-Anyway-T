@@ -278,15 +278,13 @@ r = admin.get("/admin/products", follow_redirects=True)
 _pbody = r.get_data(as_text=True)
 ok("Studio products UI loads",
    r.status_code == 200
-   and ("Add a product" in _pbody or "Dodo product ID" in _pbody or "Courses" in _pbody))
-r = client.get("/courses", follow_redirects=False)
-cbody = r.get_data(as_text=True)
-ok("/courses renders on-site catalogue",
-   r.status_code == 200 and "Courses &amp; Guides" in cbody
-   and "Healing resources by" in cbody and "Creator resources by" in cbody
-   and "Rebuild Workbook" not in cbody and "50 Hooks" not in cbody)
+   and ("New product" in _pbody or "Courses" in _pbody))
+r = admin.get("/admin/products/new", follow_redirects=True)
+_newbody = r.get_data(as_text=True)
+ok("Studio new-product form loads",
+   r.status_code == 200 and "Create product" in _newbody)
 ok("Studio offers product cover upload",
-   "Cover image" in _pbody and 'name="cover"' in _pbody)
+   "Cover image" in _newbody and 'name="cover"' in _newbody)
 
 # Tiny JPEG cover upload for a draft product
 from io import BytesIO
@@ -295,9 +293,8 @@ _cbuf = BytesIO()
 _PILCover.new("RGB", (300, 400), (90, 49, 88)).save(_cbuf, format="JPEG")
 _cbuf.seek(0)
 r = admin.post(
-    "/admin/products",
+    "/admin/products/new",
     data={
-        "action": "create",
         "title": "Cover Test Guide",
         "track": "healing",
         "type": "guide",
@@ -309,6 +306,12 @@ r = admin.post(
     follow_redirects=True,
 )
 ok("Studio accepts product cover on create", r.status_code == 200)
+r = client.get("/courses", follow_redirects=False)
+cbody = r.get_data(as_text=True)
+ok("/courses renders on-site catalogue",
+   r.status_code == 200 and "Courses &amp; Guides" in cbody
+   and "Healing resources by" in cbody and "Creator resources by" in cbody
+   and "Rebuild Workbook" not in cbody and "50 Hooks" not in cbody)
 with app.app_context():
     cover_prod = Product.query.filter_by(slug="cover-test-guide").first()
     ok("Cover URL stored on product",
@@ -322,6 +325,7 @@ with app.app_context():
     cover_prod = Product.query.filter_by(id=cover_id).first()
     if cover_prod:
         cover_prod.status = "published"
+        cover_prod.dodo_product_id = cover_prod.dodo_product_id or "prod_cover_test"
         db.session.commit()
 r = client.get("/courses")
 courses_body = r.get_data(as_text=True)
@@ -329,9 +333,22 @@ ok("Courses page uses My space-style library cards",
    "lib-card" in courses_body
    and "lib-card__cover" in courses_body
    and "Cover Test Guide" in courses_body)
+ok("Courses cards use View instead of instant checkout",
+   "/courses/cover-test-guide" in courses_body
+   and "/checkout/product/cover-test-guide" not in courses_body
+   and "View" in courses_body)
 ok("Uploaded cover appears on Courses cards",
    f"/media/product-cover/{cover_id}" in courses_body
    and "lib-card__cover--photo" in courses_body)
+r = client.get("/courses/cover-test-guide")
+detail_body = r.get_data(as_text=True)
+ok("Product detail page renders cover, promise, and buy CTA",
+   r.status_code == 200
+   and "Cover Test Guide" in detail_body
+   and "A soft check-in." in detail_body
+   and ("Buy now" in detail_body or "Buy for" in detail_body))
+ok("Product detail links to checkout",
+   "/checkout/product/cover-test-guide" in detail_body)
 r = client.get("/")
 home = r.get_data(as_text=True)
 ok("Home includes creator membership CTA",

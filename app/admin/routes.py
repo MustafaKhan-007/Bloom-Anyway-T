@@ -203,116 +203,208 @@ def _parse_accent(raw: str | None) -> str | None:
     return None
 
 
-@bp.route("/products", methods=["GET", "POST"])
+def _parse_price_cents(raw: str | None) -> int | None:
+    text = (raw or "").strip().replace(",", "")
+    if not text:
+        return None
+    try:
+        return round(float(text) * 100)
+    except ValueError:
+        return None
+
+
+def _apply_product_fields(product: Product, form) -> None:
+    """Map studio form fields onto a Product (caller commits)."""
+    from ..services.catalog import slugify_title, unique_product_slug
+
+    title = (form.get("title") or "").strip()[:160]
+    if title:
+        product.title = title
+    track = (form.get("track") or product.track or "healing").strip()
+    product.track = track if track in ("healing", "building") else "healing"
+    product.type = (form.get("type") or product.type or "guide").strip() or "guide"
+    product.category_label = (form.get("category_label") or "").strip()[:80] or None
+    product.badge = (form.get("badge") or "").strip()[:30] or None
+    product.promise = (form.get("promise") or "").strip()[:120] or None
+    product.meta_line = (form.get("meta_line") or "").strip()[:200] or None
+    product.description_md = (form.get("description") or "").strip() or None
+    product.audience = (form.get("audience") or "").strip() or None
+    product.contents_text = (form.get("contents") or "").strip() or None
+
+    curriculum_rows = []
+    for i in range(1, 13):
+        t = (form.get(f"mod{i}_title") or "").strip()
+        if not t:
+            continue
+        curriculum_rows.append({
+            "title": t[:160],
+            "description": (form.get(f"mod{i}_desc") or "").strip()[:500],
+        })
+    product.set_curriculum(curriculum_rows)
+
+    product.dodo_product_id = (form.get("dodo") or "").strip() or None
+    price = _parse_price_cents(form.get("price"))
+    if price is not None or form.get("price") is not None:
+        # Allow clearing price with empty field on edit
+        if (form.get("price") or "").strip() == "":
+            product.price_cents = None
+        elif price is not None:
+            product.price_cents = price
+    compare = _parse_price_cents(form.get("compare_at"))
+    if (form.get("compare_at") or "").strip() == "":
+        product.compare_at_cents = None
+    elif compare is not None:
+        product.compare_at_cents = compare
+
+    if form.get("use_accent"):
+        product.accent_color = _parse_accent(form.get("accent"))
+    else:
+        product.accent_color = None
+
+    want_live = bool(form.get("live"))
+    if want_live:
+        blockers = product.publish_blockers()
+        if blockers:
+            product.status = "draft"
+        else:
+            product.status = "published"
+    else:
+        product.status = "draft"
+
+    new_slug = (form.get("slug") or "").strip().lower()
+    if new_slug:
+        cleaned = slugify_title(new_slug)
+        if cleaned and cleaned != product.slug:
+            product.slug = unique_product_slug(cleaned, exclude_id=product.id)
+
+
+@bp.route("/products")
 @admin_required
 def products():
-    from ..services.assets import AssetError, add_asset
-    from ..services.catalog import unique_product_slug
-
-    if request.method == "POST":
-        action = (request.form.get("action") or "save").strip()
-        if action == "create":
-            title = (request.form.get("title") or "").strip()[:160]
-            if not title:
-                flash("Give the new product a title.", "error")
-                return redirect(url_for("admin.products"))
-            track = (request.form.get("track") or "healing").strip()
-            if track not in ("healing", "building"):
-                track = "healing"
-            ptype = (request.form.get("type") or "guide").strip() or "guide"
-            product = Product(
-                title=title,
-                slug=unique_product_slug(title),
-                type=ptype,
-                track=track,
-                status="draft",
-                currency="USD",
-            )
-            raw = (request.form.get("price") or "").strip().replace(",", "")
-            try:
-                product.price_cents = round(float(raw) * 100) if raw else None
-            except ValueError:
-                product.price_cents = None
-            product.dodo_product_id = (request.form.get("dodo") or "").strip() or None
-            product.promise = (request.form.get("promise") or "").strip()[:120] or None
-            product.description_md = (request.form.get("description") or "").strip() or None
-            product.meta_line = (request.form.get("meta_line") or "").strip()[:200] or None
-            if request.form.get("use_accent"):
-                product.accent_color = _parse_accent(request.form.get("accent"))
-            else:
-                product.accent_color = None
-            db.session.add(product)
-            db.session.flush()
-            cover = request.files.get("cover")
-            if cover and getattr(cover, "filename", None):
-                try:
-                    from ..services.product_covers import CoverError, process_and_save as save_cover
-                    product.cover_url = save_cover(product.id, cover)
-                except CoverError as exc:
-                    flash(str(exc), "error")
-                except Exception:
-                    log.exception("create product cover upload failed")
-                    flash("Product saved, but the cover didn’t upload. Try again below.", "error")
-            upload = request.files.get("asset")
-            asset_note = ""
-            if upload and getattr(upload, "filename", None):
-                try:
-                    asset = add_asset(
-                        product, upload,
-                        title=(request.form.get("asset_title") or "").strip()[:160] or None,
-                    )
-                    asset_note = f" File “{asset.display_title()}” ready for on-site reading."
-                except AssetError as exc:
-                    flash(str(exc), "error")
-                except Exception:
-                    log.exception("create product asset upload failed")
-                    flash("Product saved, but the reading file didn’t upload. Try again below.", "error")
-            db.session.commit()
-            flash(f"“{title}” added — set it live when ready.{asset_note}", "success")
-            return redirect(url_for("admin.products"))
-
-        items = Product.query.order_by(Product.track, Product.sort_order, Product.id).all()
-        for p in items:
-            prefix = f"p{p.id}_"
-            title = (request.form.get(prefix + "title") or "").strip()[:160]
-            if title:
-                p.title = title
-            p.dodo_product_id = (request.form.get(prefix + "dodo") or "").strip() or None
-            p.track = (request.form.get(prefix + "track") or p.track or "").strip() or None
-            p.type = (request.form.get(prefix + "type") or p.type or "guide").strip()
-            p.status = "published" if request.form.get(prefix + "live") else "draft"
-            p.badge = (request.form.get(prefix + "badge") or "").strip() or None
-            p.promise = (request.form.get(prefix + "promise") or "").strip()[:120] or None
-            p.description_md = (request.form.get(prefix + "description") or "").strip() or None
-            p.meta_line = (request.form.get(prefix + "meta_line") or "").strip()[:200] or None
-            accent = _parse_accent(request.form.get(prefix + "accent"))
-            track_defaults = {"healing": "#5A3158", "building": "#B58A3F"}
-            if (accent
-                    and accent == track_defaults.get((p.track or "").strip())
-                    and not p.accent_hex()):
-                # Leaving the track default selected → keep using CSS lane colours.
-                p.accent_color = None
-            else:
-                p.accent_color = accent
-            raw = (request.form.get(prefix + "price") or "").strip().replace(",", "")
-            try:
-                p.price_cents = round(float(raw) * 100) if raw else p.price_cents
-            except ValueError:
-                pass
-            new_slug = (request.form.get(prefix + "slug") or "").strip().lower()
-            if new_slug:
-                from ..services.catalog import slugify_title, unique_product_slug as uniq
-                cleaned = slugify_title(new_slug)
-                if cleaned and cleaned != p.slug:
-                    p.slug = uniq(cleaned, exclude_id=p.id)
-        db.session.commit()
-        flash("Courses & guides saved.", "success")
-        return redirect(url_for("admin.products"))
-
     items = (Product.query
              .options(joinedload(Product.assets))
              .order_by(Product.track, Product.sort_order, Product.id).all())
     return render_template("admin/products.html", items=items)
+
+
+@bp.route("/products/new", methods=["GET", "POST"])
+@admin_required
+def product_new():
+    from ..services.catalog import unique_product_slug
+    from ..services.assets import AssetError, add_asset
+    from ..services.product_covers import CoverError, process_and_save as save_cover
+
+    if request.method == "POST":
+        title = (request.form.get("title") or "").strip()[:160]
+        if not title:
+            flash("Give the product a title.", "error")
+            return redirect(url_for("admin.product_new"))
+        product = Product(
+            title=title,
+            slug=unique_product_slug(title),
+            type="guide",
+            track="healing",
+            status="draft",
+            currency="USD",
+        )
+        _apply_product_fields(product, request.form)
+        if not product.title:
+            product.title = title
+        db.session.add(product)
+        db.session.flush()
+        cover = request.files.get("cover")
+        if cover and getattr(cover, "filename", None):
+            try:
+                product.cover_url = save_cover(product.id, cover)
+            except CoverError as exc:
+                flash(str(exc), "error")
+            except Exception:
+                log.exception("create product cover upload failed")
+                flash("Product saved, but the cover didn’t upload.", "error")
+        upload = request.files.get("asset")
+        if upload and getattr(upload, "filename", None):
+            try:
+                add_asset(
+                    product, upload,
+                    title=(request.form.get("asset_title") or "").strip()[:160] or None,
+                )
+            except AssetError as exc:
+                flash(str(exc), "error")
+            except Exception:
+                log.exception("create product asset upload failed")
+                flash("Product saved, but the reading file didn’t upload.", "error")
+        teasers = request.files.getlist("teasers")
+        gallery_urls = []
+        for teaser in teasers:
+            if not teaser or not getattr(teaser, "filename", None):
+                continue
+            try:
+                from ..services.product_covers import process_gallery_image
+                gallery_urls.append(process_gallery_image(product.id, teaser))
+            except CoverError as exc:
+                flash(str(exc), "error")
+            except Exception:
+                log.exception("create product teaser upload failed")
+        if gallery_urls:
+            product.set_gallery(gallery_urls)
+        blockers = product.publish_blockers() if product.status == "published" else []
+        if blockers:
+            product.status = "draft"
+            flash(
+                "Saved as draft — still need: " + ", ".join(blockers) + ".",
+                "info",
+            )
+        db.session.commit()
+        flash(f"“{product.title}” created.", "success")
+        return redirect(url_for("admin.product_edit", product_id=product.id))
+
+    blank = Product(title="", slug="", type="guide", track="healing",
+                    status="draft", currency="USD")
+    return render_template(
+        "admin/product_form.html",
+        product=blank,
+        is_new=True,
+        curriculum=[{"title": "", "description": ""}] * 4,
+    )
+
+
+@bp.route("/products/<int:product_id>/edit", methods=["GET", "POST"])
+@admin_required
+def product_edit(product_id):
+    product = (Product.query
+               .options(joinedload(Product.assets))
+               .filter_by(id=product_id).first())
+    if product is None:
+        flash("That product was already gone.", "info")
+        return redirect(url_for("admin.products"))
+
+    if request.method == "POST":
+        prev_status = product.status
+        _apply_product_fields(product, request.form)
+        blockers = product.publish_blockers() if product.status == "published" else []
+        if blockers:
+            product.status = "draft"
+            flash(
+                "Kept as draft — still need: " + ", ".join(blockers) + ".",
+                "info",
+            )
+        elif product.status == "published" and prev_status != "published":
+            flash(f"“{product.title}” is now live on Courses.", "success")
+        else:
+            flash("Product saved.", "success")
+        db.session.commit()
+        return redirect(url_for("admin.product_edit", product_id=product.id))
+
+    curriculum = product.curriculum() or []
+    while len(curriculum) < 4:
+        curriculum.append({"title": "", "description": ""})
+    return render_template(
+        "admin/product_form.html",
+        product=product,
+        is_new=False,
+        curriculum=curriculum,
+        blockers=product.publish_blockers(),
+    )
 
 
 @bp.route("/products/<int:product_id>/assets", methods=["POST"])
@@ -337,7 +429,7 @@ def product_asset_upload(product_id):
         db.session.rollback()
         log.exception("product asset upload failed")
         flash("Could not upload that file. Try a smaller PDF or H5P.", "error")
-    return redirect(url_for("admin.products"))
+    return redirect(url_for("admin.product_edit", product_id=product_id))
 
 
 @bp.route("/products/<int:product_id>/assets/<int:asset_id>/delete", methods=["POST"])
@@ -352,7 +444,7 @@ def product_asset_delete(product_id, asset_id):
     db.session.delete(asset)
     db.session.commit()
     flash(f"Removed “{label}”.", "success")
-    return redirect(url_for("admin.products"))
+    return redirect(url_for("admin.product_edit", product_id=product_id))
 
 
 @bp.route("/products/<int:product_id>/cover", methods=["POST"])
@@ -369,7 +461,7 @@ def product_cover_upload(product_id):
         product.cover_url = None
         db.session.commit()
         flash("Cover removed — the flower default is back.", "success")
-        return redirect(url_for("admin.products"))
+        return redirect(url_for("admin.product_edit", product_id=product_id))
     upload = request.files.get("cover")
     try:
         product.cover_url = process_and_save(product.id, upload)
@@ -382,7 +474,51 @@ def product_cover_upload(product_id):
         db.session.rollback()
         log.exception("product cover upload failed")
         flash("Could not upload that cover. Try a JPG or PNG under 8 MB.", "error")
-    return redirect(url_for("admin.products"))
+    return redirect(url_for("admin.product_edit", product_id=product_id))
+
+
+@bp.route("/products/<int:product_id>/gallery", methods=["POST"])
+@admin_required
+def product_gallery_upload(product_id):
+    from ..services.product_covers import (
+        CoverError, clear_gallery_image, process_gallery_image,
+    )
+
+    product = db.session.get(Product, product_id)
+    if product is None:
+        flash("That product was already gone.", "info")
+        return redirect(url_for("admin.products"))
+
+    remove_url = (request.form.get("remove_url") or "").strip()
+    if remove_url:
+        gallery = [u for u in product.gallery() if u != remove_url]
+        product.set_gallery(gallery)
+        # Best-effort file delete when URL is ours
+        prefix = f"/media/product-gallery/{product.id}/"
+        if remove_url.startswith(prefix):
+            clear_gallery_image(product.id, remove_url[len(prefix):])
+        db.session.commit()
+        flash("Teaser removed.", "success")
+        return redirect(url_for("admin.product_edit", product_id=product_id))
+
+    gallery = product.gallery()
+    added = 0
+    for teaser in request.files.getlist("teasers"):
+        if not teaser or not getattr(teaser, "filename", None):
+            continue
+        try:
+            gallery.append(process_gallery_image(product.id, teaser))
+            added += 1
+        except CoverError as exc:
+            flash(str(exc), "error")
+        except Exception:
+            log.exception("product teaser upload failed")
+            flash("Could not upload one of the teaser images.", "error")
+    if added:
+        product.set_gallery(gallery)
+        db.session.commit()
+        flash(f"Added {added} teaser image{'s' if added != 1 else ''}.", "success")
+    return redirect(url_for("admin.product_edit", product_id=product_id))
 
 
 @bp.route("/products/<int:product_id>/delete", methods=["POST"])

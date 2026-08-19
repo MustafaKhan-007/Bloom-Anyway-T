@@ -346,6 +346,66 @@ class Product(db.Model):
         cleaned = [t.strip().lower() for t in tags if t.strip()]
         self.tags_json = json.dumps(cleaned) if cleaned else None
 
+    def gallery(self) -> list[str]:
+        """Public teaser image URLs for the product detail page."""
+        try:
+            raw = json.loads(self.gallery_json) if self.gallery_json else []
+        except ValueError:
+            return []
+        if not isinstance(raw, list):
+            return []
+        out = []
+        for item in raw:
+            url = str(item or "").strip()
+            if url:
+                out.append(url)
+        return out
+
+    def set_gallery(self, urls) -> None:
+        cleaned = [str(u).strip() for u in (urls or []) if str(u or "").strip()]
+        self.gallery_json = json.dumps(cleaned) if cleaned else None
+
+    def contents_list(self) -> list[str]:
+        """What's included — one line per checklist item."""
+        text = (self.contents_text or "").strip()
+        if not text:
+            return []
+        return [ln.strip(" -\t") for ln in text.splitlines() if ln.strip()]
+
+    def curriculum(self) -> list[dict]:
+        try:
+            raw = json.loads(self.curriculum_json) if self.curriculum_json else []
+        except ValueError:
+            return []
+        if not isinstance(raw, list):
+            return []
+        out = []
+        for row in raw:
+            if not isinstance(row, dict):
+                continue
+            title = str(row.get("title") or "").strip()
+            if not title:
+                continue
+            out.append({
+                "title": title[:160],
+                "description": str(row.get("description") or "").strip()[:500],
+            })
+        return out
+
+    def set_curriculum(self, rows) -> None:
+        cleaned = []
+        for row in rows or []:
+            if not isinstance(row, dict):
+                continue
+            title = str(row.get("title") or "").strip()
+            if not title:
+                continue
+            cleaned.append({
+                "title": title[:160],
+                "description": str(row.get("description") or "").strip()[:500],
+            })
+        self.curriculum_json = json.dumps(cleaned) if cleaned else None
+
     def price_display(self):
         if self.price_cents is None:
             return ""

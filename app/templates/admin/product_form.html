@@ -1,0 +1,326 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}{{ 'New product' if is_new else product.title }} — Courses{% endblock %}
+
+{% block content %}
+{% set accent_default = '#5A3158' if product.track == 'healing' else '#B58A3F' %}
+{% set has_custom_accent = product.accent_hex() is not none %}
+<div class="studio-page studio-product-form">
+  <div class="page-head">
+    <div>
+      <p class="eyebrow"><a href="{{ url_for('admin.products') }}">&larr; All products</a></p>
+      <h1>{{ 'New product' if is_new else 'Edit product' }}</h1>
+      {% if not is_new %}
+      <p class="field-help" style="margin:6px 0 0;">
+        {% if product.status == 'published' %}
+        Live at <a href="{{ url_for('main.course_detail', slug=product.slug) }}" target="_blank">/courses/{{ product.slug }}</a>
+        {% else %}
+        Draft — not shown on Courses until you mark it live.
+        {% endif %}
+      </p>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if not is_new and blockers %}
+  <div class="studio-callout studio-callout--warn">
+    <strong>Not ready to go live yet.</strong>
+    Still need: {{ blockers|join(', ') }}.
+  </div>
+  {% endif %}
+
+  <form method="post" enctype="multipart/form-data" class="studio-product-form__main">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    <section class="admin-panel studio-card studio-section">
+      <h2>1. Basics</h2>
+      <p class="field-help studio-section__lede">Name, track, and how it appears on the catalogue card.</p>
+      <div class="form-row">
+        <div class="field" style="flex:2;">
+          <label for="title">Title</label>
+          <input type="text" id="title" name="title" maxlength="160" required
+                 value="{{ product.title or '' }}" placeholder="e.g. Custody with Confidence">
+        </div>
+        {% if not is_new %}
+        <div class="field">
+          <label for="slug">URL slug</label>
+          <input type="text" id="slug" name="slug" maxlength="160" value="{{ product.slug }}">
+        </div>
+        {% endif %}
+      </div>
+      <div class="form-row">
+        <div class="field">
+          <label for="track">Track</label>
+          <select id="track" name="track">
+            <option value="healing" {{ 'selected' if product.track == 'healing' }}>Healing (Ayesha)</option>
+            <option value="building" {{ 'selected' if product.track == 'building' }}>Building (Saman)</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="type">Type</label>
+          <select id="type" name="type">
+            {% for t in ['workbook','course','guide','audio','template','bundle'] %}
+            <option value="{{ t }}" {{ 'selected' if product.type == t }}>{{ t }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label for="category_label">Category label</label>
+          <input type="text" id="category_label" name="category_label" maxlength="80"
+                 value="{{ product.category_label or '' }}" placeholder="e.g. DIVORCE RECOVERY">
+        </div>
+        <div class="field">
+          <label for="badge">Badge (optional)</label>
+          <input type="text" id="badge" name="badge" maxlength="30"
+                 value="{{ product.badge or '' }}" placeholder="NEW">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="field" style="flex:2;">
+          <label for="promise">One-line promise</label>
+          <input type="text" id="promise" name="promise" maxlength="120"
+                 value="{{ product.promise or '' }}" placeholder="What they walk away with">
+          <p class="field-help">Required to publish. Shown on cards and the product page.</p>
+        </div>
+        <div class="field" style="flex:2;">
+          <label for="meta_line">Meta line</label>
+          <input type="text" id="meta_line" name="meta_line" maxlength="200"
+                 value="{{ product.meta_line or '' }}" placeholder="e.g. 80 daily pages • PDF + printable">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="field">
+          <label for="accent">Card colour</label>
+          <div class="studio-accent-row">
+            <label class="checkline checkline--sm" style="margin:0;">
+              <input type="checkbox" name="use_accent" value="1" id="use_accent"
+                     {{ 'checked' if has_custom_accent }}>
+              Custom
+            </label>
+            <input type="color" id="accent" name="accent"
+                   value="{{ product.accent_hex() or accent_default }}">
+          </div>
+        </div>
+        <div class="field" style="padding-top:28px;">
+          <label class="checkline">
+            <input type="checkbox" name="live" value="1" {{ 'checked' if product.status == 'published' }}>
+            Live on Courses
+          </label>
+        </div>
+      </div>
+    </section>
+
+    <section class="admin-panel studio-card studio-section">
+      <h2>2. Pricing &amp; checkout</h2>
+      <p class="field-help studio-section__lede">Price shown on the product page. Paste the Dodo product ID so checkout works.</p>
+      <div class="form-row">
+        <div class="field">
+          <label for="price">Price (USD)</label>
+          <input type="text" id="price" name="price" placeholder="29.00"
+                 value="{{ '%.2f'|format(product.price_cents / 100) if product.price_cents is not none else '' }}">
+        </div>
+        <div class="field">
+          <label for="compare_at">Compare-at (optional)</label>
+          <input type="text" id="compare_at" name="compare_at" placeholder="49.00"
+                 value="{{ '%.2f'|format(product.compare_at_cents / 100) if product.compare_at_cents is not none else '' }}">
+        </div>
+        <div class="field" style="flex:2;">
+          <label for="dodo">Dodo product ID</label>
+          <input type="text" id="dodo" name="dodo" placeholder="prod_…"
+                 value="{{ product.dodo_product_id or '' }}">
+          <p class="field-help">Required to publish and accept payments.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="admin-panel studio-card studio-section">
+      <h2>3. Product page copy</h2>
+      <p class="field-help studio-section__lede">Shown on the public product page after someone clicks View.</p>
+      <div class="field">
+        <label for="description">About this product</label>
+        <textarea id="description" name="description" rows="5"
+                  placeholder="Tell them what they’ll get and why it helps…">{{ product.description_md or '' }}</textarea>
+      </div>
+      <div class="field">
+        <label for="audience">Who this is for</label>
+        <textarea id="audience" name="audience" rows="3"
+                  placeholder="Women navigating…">{{ product.audience or '' }}</textarea>
+      </div>
+      <div class="field">
+        <label for="contents">What’s included</label>
+        <textarea id="contents" name="contents" rows="5"
+                  placeholder="One item per line">{{ product.contents_text or '' }}</textarea>
+        <p class="field-help">One line per checklist item.</p>
+      </div>
+      <div class="studio-modules">
+        <p class="eyebrow" style="margin:0 0 10px;">What’s inside (optional modules)</p>
+        {% for row in curriculum %}
+        <div class="form-row studio-modules__row">
+          <div class="field">
+            <label for="mod{{ loop.index }}_title">Module {{ loop.index }} title</label>
+            <input type="text" id="mod{{ loop.index }}_title" name="mod{{ loop.index }}_title"
+                   maxlength="160" value="{{ row.title or '' }}">
+          </div>
+          <div class="field" style="flex:2;">
+            <label for="mod{{ loop.index }}_desc">Short note</label>
+            <input type="text" id="mod{{ loop.index }}_desc" name="mod{{ loop.index }}_desc"
+                   maxlength="500" value="{{ row.description or '' }}">
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="admin-panel studio-card studio-section">
+      <h2>4. Cover &amp; teasers</h2>
+      <p class="field-help studio-section__lede">Cover appears on cards. Teasers show on the product page gallery.</p>
+      {% if is_new %}
+      <div class="form-row">
+        <div class="field">
+          <label for="cover">Cover image (optional)</label>
+          <input type="file" id="cover" name="cover" accept="image/png,image/jpeg,image/webp">
+          <p class="field-help">JPG/PNG, cropped to 3∶4. Leave blank for the flower cover.</p>
+        </div>
+        <div class="field" style="flex:2;">
+          <label for="teasers">Teaser pictures (optional)</label>
+          <input type="file" id="teasers" name="teasers" accept="image/png,image/jpeg,image/webp" multiple>
+          <p class="field-help">You can add more after saving.</p>
+        </div>
+      </div>
+      {% else %}
+      <div class="cg-studio-cover">
+        {% if product.cover_url %}
+        <div class="cg-studio-cover__preview">
+          <img src="{{ product.cover_url }}" alt="" width="72" height="96">
+          <button class="btn btn--secondary btn--sm" type="submit" form="clear-cover">Remove cover</button>
+        </div>
+        {% endif %}
+        <div class="form-row" style="align-items:end;">
+          <div class="field" style="flex:2;">
+            <label for="cover_file">{% if product.cover_url %}Replace cover{% else %}Upload cover{% endif %}</label>
+            <input type="file" id="cover_file" name="cover" form="upload-cover"
+                   accept="image/png,image/jpeg,image/webp">
+          </div>
+          <div class="field">
+            <button class="btn btn--secondary" type="submit" form="upload-cover">Save cover</button>
+          </div>
+        </div>
+      </div>
+      {% if product.gallery() %}
+      <div class="studio-teaser-grid">
+        {% for url in product.gallery() %}
+        <figure class="studio-teaser-grid__item">
+          <img src="{{ url }}" alt="" loading="lazy">
+          <button class="btn btn--danger btn--sm" type="submit" form="rm-teaser-{{ loop.index }}"
+                  data-confirm="Remove this teaser?">Remove</button>
+        </figure>
+        {% endfor %}
+      </div>
+      {% endif %}
+      <div class="form-row" style="align-items:end; margin-top:12px;">
+        <div class="field" style="flex:2;">
+          <label for="teasers_more">Add teaser pictures</label>
+          <input type="file" id="teasers_more" name="teasers" form="upload-gallery"
+                 accept="image/png,image/jpeg,image/webp" multiple>
+        </div>
+        <div class="field">
+          <button class="btn btn--secondary" type="submit" form="upload-gallery">Upload teasers</button>
+        </div>
+      </div>
+      {% endif %}
+    </section>
+
+    {% if is_new %}
+    <section class="admin-panel studio-card studio-section">
+      <h2>5. Reading file (optional)</h2>
+      <p class="field-help studio-section__lede">Buyers open this in My space after purchase. You can also add files later.</p>
+      <div class="form-row">
+        <div class="field" style="flex:2;">
+          <label for="asset">File</label>
+          <input type="file" id="asset" name="asset"
+                 accept=".pdf,.h5p,.zip,.png,.jpg,.jpeg,.webp,.gif,.mp4,.webm,.mp3,.wav,.txt,.md,.html,.doc,.docx">
+        </div>
+        <div class="field">
+          <label for="asset_title">Label</label>
+          <input type="text" id="asset_title" name="asset_title" maxlength="160" placeholder="Main workbook">
+        </div>
+      </div>
+    </section>
+    {% endif %}
+
+    <div class="studio-product-form__save">
+      <button class="btn btn--primary" type="submit">{{ 'Create product' if is_new else 'Save changes' }}</button>
+      <a class="btn btn--secondary" href="{{ url_for('admin.products') }}">Cancel</a>
+      {% if not is_new %}
+      <button class="btn btn--danger" type="submit" form="del-product"
+              data-confirm="Delete “{{ product.title }}”?">Delete</button>
+      {% endif %}
+    </div>
+  </form>
+
+  {% if not is_new %}
+  <section class="admin-panel studio-card studio-section">
+    <h2>5. On-site reading files</h2>
+    <p class="field-help studio-section__lede">PDF or H5P preferred. Buyers open these in My space — not only via email.</p>
+    {% if product.assets %}
+    <ul class="asset-list">
+      {% for a in product.assets %}
+      <li class="asset-list__row">
+        <div class="asset-list__name">
+          <strong>{{ a.display_title() }}</strong>
+          <small>{{ a.kind|upper }} · {{ a.size_mb() }} MB</small>
+        </div>
+        <button class="btn btn--danger btn--sm" type="submit" form="del-asset-{{ a.id }}"
+                data-confirm="Remove “{{ a.display_title() }}”?">Remove</button>
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+    <form method="post" action="{{ url_for('admin.product_asset_upload', product_id=product.id) }}"
+          enctype="multipart/form-data" class="form-row" style="align-items:end; margin-top:10px;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="field" style="flex:2;">
+        <label for="asset_add">Add file</label>
+        <input type="file" id="asset_add" name="asset"
+               accept=".pdf,.h5p,.zip,.png,.jpg,.jpeg,.webp,.gif,.mp4,.webm,.mp3,.wav,.txt,.md,.html,.doc,.docx">
+      </div>
+      <div class="field">
+        <label for="asset_add_title">Label</label>
+        <input type="text" id="asset_add_title" name="asset_title" maxlength="160" placeholder="Main workbook">
+      </div>
+      <div class="field">
+        <button class="btn btn--secondary" type="submit">Upload</button>
+      </div>
+    </form>
+  </section>
+
+  <form id="del-product" method="post" action="{{ url_for('admin.product_delete', product_id=product.id) }}" hidden>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  </form>
+  <form id="upload-cover" method="post" action="{{ url_for('admin.product_cover_upload', product_id=product.id) }}"
+        enctype="multipart/form-data" hidden>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  </form>
+  <form id="clear-cover" method="post" action="{{ url_for('admin.product_cover_upload', product_id=product.id) }}" hidden>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="clear_cover" value="1">
+  </form>
+  <form id="upload-gallery" method="post" action="{{ url_for('admin.product_gallery_upload', product_id=product.id) }}"
+        enctype="multipart/form-data" hidden>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  </form>
+  {% for url in product.gallery() %}
+  <form id="rm-teaser-{{ loop.index }}" method="post"
+        action="{{ url_for('admin.product_gallery_upload', product_id=product.id) }}" hidden>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="remove_url" value="{{ url }}">
+  </form>
+  {% endfor %}
+  {% for a in product.assets %}
+  <form id="del-asset-{{ a.id }}" method="post"
+        action="{{ url_for('admin.product_asset_delete', product_id=product.id, asset_id=a.id) }}" hidden>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  </form>
+  {% endfor %}
+  {% endif %}
+</div>
+{% endblock %}
