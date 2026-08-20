@@ -99,7 +99,8 @@ def _spotlight_context():
 
 def _video_notice():
     """Newest published video, only for the first day after it goes live."""
-    if not (getattr(current_user, "is_authenticated", False) and current_user.is_creator()):
+    if not (getattr(current_user, "is_authenticated", False)
+            and current_user.has_feature("content_hub_creator")):
         return None
     video = (Video.query.filter_by(published=True)
              .order_by(Video.sort_order, Video.created_at.desc()).first())
@@ -293,8 +294,7 @@ def checkout_membership(tier):
     return redirect(url)
 
 
-#: the comparison matrix shown on /membership.
-#: Each row: (label, free, healing, creator, full_bloom)
+#: fallback comparison matrix (used only if plan feature build fails)
 MEMBERSHIP_MATRIX = [
     ("Buy courses & guides", True, True, True, True),
     ("Daily quotes & motivation", True, True, True, True),
@@ -333,13 +333,16 @@ def _safe_back_url(raw: str | None):
 
 @bp.route("/membership")
 def membership():
-    plans = {p.tier: p for p in MembershipPlan.query.filter_by(active=True).all()}
+    from ..services.plan_features import build_membership_matrix
+
+    all_plans = {p.tier: p for p in MembershipPlan.query.all()}
+    plans = {t: p for t, p in all_plans.items() if p.active}
     current = (current_user.effective_membership()
                if current_user.is_authenticated else None)
     checkout = {"monthly": {}, "annual": {}}
-    for tier, plan in plans.items():
+    for tier, plan in all_plans.items():
         for billing in ("monthly", "annual"):
-            if plan and plan.is_buyable(billing):
+            if plan and plan.active and plan.is_buyable(billing):
                 checkout[billing][tier] = url_for(
                     "main.checkout_membership", tier=tier, billing=billing)
             else:
@@ -360,8 +363,13 @@ def membership():
         back_label = "Showcase"
     else:
         back_label = "where you were"
-    return render_template("main/membership.html", plans=plans,
-                           matrix=MEMBERSHIP_MATRIX, current=current,
+    try:
+        matrix = build_membership_matrix(all_plans)
+    except Exception:
+        matrix = MEMBERSHIP_MATRIX
+    return render_template("main/membership.html",
+                           plans=all_plans,
+                           matrix=matrix, current=current,
                            checkout=checkout,
                            back_url=back_url, back_label=back_label)
 
@@ -757,7 +765,11 @@ def account():
         course_progress=progress_by_purchase,
         course_readable=readable,
         purchase_catalog=purchase_catalog,
-        premium=current_user.is_member(),
+        premium=current_user.has_feature("journey_export"),
+        plan_perks=(
+            MembershipPlan.query.filter_by(
+                tier=current_user.effective_membership()).first()
+        ),
         active_tab=tab,
         journal_entries=journal,
         today_entry=today_entry,
@@ -1008,9 +1020,8 @@ def product_cover(product_id):
 @bp.route("/account/journey.pdf")
 @login_required
 def journey_pdf():
-    if not current_user.is_member():
-        flash("The My Journey keepsake is a little something for members who've "
-              "joined a course or guide. It's waiting for you when you are.", "info")
+    if not current_user.has_feature("journey_export"):
+        flash("The My Journey keepsake isn’t included in your plan.", "info")
         return redirect(url_for("main.account"))
     pdf_bytes = build_journey_pdf(current_user)
     stamp = date.today().isoformat()
@@ -1028,7 +1039,7 @@ def settings():
                            user_goals=set(current_user.goals()),
                            links=links,
                            link_max=PROFILE_LINK_MAX,
-                           can_link=current_user.is_member(),
+                           can_link=current_user.has_feature("profile_links"),
                            creator_instagram=instagram_from_links(links),
                            badge_progress=category_progress(current_user),
                            chosen_badges=set(current_user.displayed_badges()))
@@ -1197,13 +1208,13 @@ def update_profile():
     current_user.bio = bio or None
     current_user.default_anonymous = request.form.get("default_anonymous") == "1"
     current_user.set_goals(valid_intent_keys(request.form.getlist("goals")))
-    # profile links are a members' perk (Healing+); any link is allowed
-    if current_user.is_member():
+    # profile links are a Studio-toggled membership perk
+    if current_user.has_feature("profile_links"):
         links = _collect_profile_links(request.form)
-        # Creator-of-the-Month Instagram field (Creators + owners). Only touch
+        # Creator-of-the-Month Instagram field (spotlight perk). Only touch
         # it when the dedicated input was submitted, so other profile saves
         # don't wipe a handle set earlier.
-        if current_user.is_creator() and "creator_instagram" in request.form:
+        if current_user.has_feature("spotlight") and "creator_instagram" in request.form:
             links = upsert_instagram_link(
                 links, request.form.get("creator_instagram") or "",
                 limit=PROFILE_LINK_MAX)
@@ -1266,19 +1277,20 @@ def avatar_anim(user_id):
 # --- Content Library --------------------------------------------------------
 
 def _can_play_videos(user) -> bool:
-    """Creator-track / Full Bloom / owner can play Creator Content Tips."""
-    return bool(getattr(user, "is_authenticated", False) and user.is_creator_track())
+    """Creator Content Tips play gate (Studio: content_hub_creator)."""
+    return bool(getattr(user, "is_authenticated", False)
+                and user.has_feature("content_hub_creator"))
 
 
 def _can_play_video(user, video) -> bool:
-    """Per-video play gate: free picks, healing-marked tips, or creator-track."""
+    """Per-video play gate: free picks, healing tips, or creator tips."""
     if not getattr(user, "is_authenticated", False) or video is None:
         return False
     if video.free_access:
         return True
-    if getattr(video, "healing_access", False) and user.is_healing_track():
+    if getattr(video, "healing_access", False) and user.has_feature("content_hub_healing"):
         return True
-    return user.is_creator_track()
+    return user.has_feature("content_hub_creator")
 
 
 def _video_playable(video) -> bool:
@@ -1307,7 +1319,7 @@ def videos():
     my_app = None
     week_key = reel_svc.current_week_key()
     week_review = reel_svc.published_review_for_week(week_key)
-    if current_user.is_authenticated and current_user.is_creator():
+    if current_user.is_authenticated and current_user.has_feature("reel_reviews"):
         my_app = reel_svc.application_for(current_user.id, week_key)
     return render_template(
         "main/videos.html", videos=items, can_browse=can_browse,
@@ -1321,8 +1333,8 @@ def videos():
 @bp.route("/watch/review-request", methods=["POST"])
 @login_required
 def reel_review_request():
-    if not current_user.is_creator():
-        flash("Reel reviews are a Creator membership perk.", "info")
+    if not current_user.has_feature("reel_reviews"):
+        flash("Reel reviews aren’t included in your plan.", "info")
         return redirect(url_for("main.membership"))
     week = reel_svc.current_week_key()
     if reel_svc.week_is_closed(week):

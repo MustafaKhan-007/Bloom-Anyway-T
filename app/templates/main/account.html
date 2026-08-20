@@ -317,32 +317,19 @@
             <li>Unlimited Showcase listings</li>
           </ul>
           <p class="ms-exact__renews">Access does not expire.</p>
-          {% elif current_user.effective_membership() == 'full_bloom' %}
-          <h3>Full Bloom</h3>
+          {% elif plan_perks and current_user.is_member() %}
+          <h3>{{ plan_perks.label() }}</h3>
           <ul class="ms-exact__benefits">
-            <li>Both Healing and Building communities</li>
-            <li>Full Content Hub, reels &amp; spotlight</li>
-            <li>15 Showcase listings &amp; both support tracks</li>
+            {% for perk in plan_perks.perk_labels()[:6] %}
+            <li>{{ perk }}</li>
+            {% else %}
+            <li>Your plan’s included features</li>
+            {% endfor %}
           </ul>
-          <p class="ms-exact__renews">Renews with your Full Bloom plan.</p>
-          {% elif current_user.is_creator_track() %}
-          <h3>Creator</h3>
-          <ul class="ms-exact__benefits">
-            <li>Building community &amp; Content Hub</li>
-            <li>Reel reviews &amp; spotlight eligibility</li>
-            <li>15 Showcase listings &amp; Saman 1:1</li>
-          </ul>
-          <p class="ms-exact__renews">Renews with your Creator plan.</p>
-          <a class="btn btn--gold btn--sm" href="{{ url_for('main.membership', next=url_for('main.account')) }}">Go Full Bloom</a>
-          {% elif current_user.is_healing_track() %}
-          <h3>Healing</h3>
-          <ul class="ms-exact__benefits">
-            <li>Healing community &amp; support groups</li>
-            <li>1 Showcase listing &amp; healing Content Tips</li>
-            <li>1:1 with Ayesha</li>
-          </ul>
-          <p class="ms-exact__renews">Renews with your Healing plan.</p>
-          <a class="btn btn--gold btn--sm" href="{{ url_for('main.membership', next=url_for('main.account')) }}">See Creator &amp; Full Bloom</a>
+          <p class="ms-exact__renews">Renews with your {{ plan_perks.label() }} plan.</p>
+          {% if current_user.effective_membership() != 'full_bloom' %}
+          <a class="btn btn--gold btn--sm" href="{{ url_for('main.membership', next=url_for('main.account')) }}">See other plans</a>
+          {% endif %}
           {% else %}
           <h3>Free</h3>
           <ul class="ms-exact__benefits">

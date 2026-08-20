@@ -4,8 +4,8 @@
 
 {% block content %}
 {% set is_member = current_user.is_authenticated and current_user.is_member() %}
-{% set is_healing = current_user.is_authenticated and current_user.is_healing_track() %}
-{% set is_creator = current_user.is_authenticated and current_user.is_creator_track() %}
+{% set is_healing = current_user.is_authenticated and current_user.has_feature('support_healing') %}
+{% set is_creator = current_user.is_authenticated and current_user.has_feature('support_creator') %}
 {% set membership_url = url_for('main.membership', next=request.path) %}
 {% set facilitator_url = site.facilitator_booking_url or membership_url %}
 {% set ayesha_url = site.ayesha_booking_url or url_for('main.contact') %}

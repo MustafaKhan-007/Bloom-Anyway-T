@@ -8,10 +8,10 @@
       <p class="eyebrow">Billing</p>
       <h1>Membership plans</h1>
       <p class="field-help" style="margin: 6px 0 0; max-width: 640px;">
-        These sell on their own at <a href="{{ url_for('main.membership') }}" target="_blank">/membership</a>.
-        Set monthly and annual prices, paste each <strong>Stripe price ID</strong>, then flip
-        <strong>Live</strong>. The membership page Monthly / Annual toggle switches checkout
-        between the two products. The owner is always Creator.
+        Public page: <a href="{{ url_for('main.membership') }}" target="_blank">/membership</a>.
+        Set prices, paste each <strong>Stripe price ID</strong>, choose which non-free features
+        each plan includes, then flip <strong>Live</strong>. Feature toggles update gating and
+        the comparison table across the site. The owner always has Full Bloom access.
       </p>
     </div>
   </div>
@@ -19,20 +19,25 @@
   <form method="post">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     {% for plan in plans %}
-    <section class="admin-panel studio-card">
-      <h2 style="margin-top: 0;">{{ plan.label() }} tier</h2>
+    {% set feats = plan.features() %}
+    <section class="admin-panel studio-card studio-section">
+      <h2>{{ plan.label() }} tier</h2>
+      <p class="field-help studio-section__lede">Identity shown on the membership page.</p>
       <div class="form-row">
         <div class="field">
           <label for="{{ plan.tier }}_name">Display name</label>
           <input type="text" id="{{ plan.tier }}_name" name="{{ plan.tier }}_name"
                  maxlength="80" value="{{ plan.name }}">
         </div>
-        <div class="field">
+        <div class="field" style="flex:2;">
           <label for="{{ plan.tier }}_tagline">Tagline</label>
           <input type="text" id="{{ plan.tier }}_tagline" name="{{ plan.tier }}_tagline"
                  maxlength="160" value="{{ plan.tagline or '' }}">
         </div>
       </div>
+
+      <h3 class="studio-subsection">Pricing &amp; checkout</h3>
+      <p class="field-help studio-section__lede">Monthly / Annual toggle on the membership page uses these Stripe Price IDs.</p>
       <div class="form-row">
         <div class="field">
           <label for="{{ plan.tier }}_price">Monthly price</label>
@@ -50,18 +55,52 @@
                  maxlength="3" value="{{ plan.currency }}">
         </div>
       </div>
-      <div class="field">
-        <label for="{{ plan.tier }}_stripe">Stripe price ID (monthly)</label>
-        <input type="text" id="{{ plan.tier }}_stripe" name="{{ plan.tier }}_stripe"
-               placeholder="price_…" value="{{ plan.stripe_price_id or '' }}">
+      <div class="form-row">
+        <div class="field" style="flex:2;">
+          <label for="{{ plan.tier }}_stripe">Stripe price ID (monthly)</label>
+          <input type="text" id="{{ plan.tier }}_stripe" name="{{ plan.tier }}_stripe"
+                 placeholder="price_…" value="{{ plan.stripe_price_id or '' }}">
+        </div>
+        <div class="field" style="flex:2;">
+          <label for="{{ plan.tier }}_stripe_annual">Stripe price ID (annual)</label>
+          <input type="text" id="{{ plan.tier }}_stripe_annual" name="{{ plan.tier }}_stripe_annual"
+                 placeholder="price_…" value="{{ plan.stripe_price_id_annual or '' }}">
+        </div>
       </div>
-      <div class="field">
-        <label for="{{ plan.tier }}_stripe_annual">Stripe price ID (annual)</label>
-        <input type="text" id="{{ plan.tier }}_stripe_annual" name="{{ plan.tier }}_stripe_annual"
-               placeholder="price_…" value="{{ plan.stripe_price_id_annual or '' }}">
-        <p class="field-help">Create a separate yearly product in Stripe. The Annual toggle uses this ID.</p>
-      </div>
-      <div class="field">
+
+      <details class="studio-features" open>
+        <summary class="studio-features__summary">Included features <span class="field-help">(non-free)</span></summary>
+        <p class="field-help" style="margin: 8px 0 12px;">
+          Toggle what this plan unlocks. Changes apply to community, Content Hub, Showcase, support, and the public comparison table.
+        </p>
+        <ul class="studio-features__list">
+          {% for feat in feature_defs %}
+          <li class="studio-features__item">
+            {% if feat.kind == 'int' %}
+            <div class="field" style="margin:0;">
+              <label for="{{ plan.tier }}_feat_{{ feat.key }}">{{ feat.label }}</label>
+              <input type="number" id="{{ plan.tier }}_feat_{{ feat.key }}"
+                     name="{{ plan.tier }}_feat_{{ feat.key }}"
+                     min="{{ feat.min }}" max="{{ feat.max }}"
+                     value="{{ feats.get(feat.key, 0) }}">
+              {% if feat.help %}<p class="field-help">{{ feat.help }}</p>{% endif %}
+            </div>
+            {% else %}
+            <label class="checkline checkline--sm">
+              <input type="checkbox" name="{{ plan.tier }}_feat_{{ feat.key }}" value="1"
+                     {{ 'checked' if feats.get(feat.key) }}>
+              <span>
+                <strong>{{ feat.label }}</strong>
+                {% if feat.help %}<span class="field-help" style="display:block;margin:2px 0 0;">{{ feat.help }}</span>{% endif %}
+              </span>
+            </label>
+            {% endif %}
+          </li>
+          {% endfor %}
+        </ul>
+      </details>
+
+      <div class="field" style="margin-top: 16px;">
         <label class="checkline checkline--sm">
           <input type="checkbox" name="{{ plan.tier }}_active" value="1" {{ 'checked' if plan.active }}>
           Live — show this plan on the membership page

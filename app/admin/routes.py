@@ -364,7 +364,7 @@ def product_new():
         "admin/product_form.html",
         product=blank,
         is_new=True,
-        curriculum=[{"title": "", "description": ""}] * 4,
+        curriculum=[{"title": "", "description": ""}] * 2,
     )
 
 
@@ -396,7 +396,7 @@ def product_edit(product_id):
         return redirect(url_for("admin.product_edit", product_id=product.id))
 
     curriculum = product.curriculum() or []
-    while len(curriculum) < 4:
+    while len(curriculum) < 2:
         curriculum.append({"title": "", "description": ""})
     return render_template(
         "admin/product_form.html",
@@ -1252,6 +1252,8 @@ def _get_plans():
 @bp.route("/memberships", methods=["GET", "POST"])
 @admin_required
 def membership_plans():
+    from ..services.plan_features import FEATURE_DEFS, features_from_form
+
     plans = _get_plans()
     if request.method == "POST":
         for plan in plans:
@@ -1274,10 +1276,18 @@ def membership_plans():
                 plan.annual_price_cents = round(float(raw_y) * 100) if raw_y else None
             except ValueError:
                 plan.annual_price_cents = plan.annual_price_cents
+            # Only overwrite features when the checklist fields were posted
+            # (avoids wiping toggles on partial/legacy form posts).
+            if any(k.startswith(f"{p}_feat_") for k in request.form):
+                plan.set_features(features_from_form(request.form, p, plan.tier))
         db.session.commit()
         flash("Membership plans saved.", "success")
         return redirect(url_for("admin.membership_plans"))
-    return render_template("admin/membership_plans.html", plans=plans)
+    return render_template(
+        "admin/membership_plans.html",
+        plans=plans,
+        feature_defs=FEATURE_DEFS,
+    )
 
 
 # ================================ BADGES =====================================

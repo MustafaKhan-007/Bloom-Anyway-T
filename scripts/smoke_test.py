@@ -1262,6 +1262,7 @@ with app.app_context():
 admin.post("/admin/owners/remove", data={"email": "viewer-owner@example.com"})
 
 # --- 5f. purchasable memberships (sold on their own, not as products) -------
+from app.services.plan_features import DEFAULT_FEATURES, FEATURE_DEFS
 plan_form = {
     "healing_name": "Healing membership",
     "creator_name": "Creator membership", "creator_tagline": "Everything, plus tools.",
@@ -1270,6 +1271,18 @@ plan_form = {
     "creator_stripe_annual": "prod_creator_yr",
     "creator_active": "1",
 }
+# Persist default feature toggles so sitewide gating matches historical tiers
+for tier, feats in DEFAULT_FEATURES.items():
+    if tier == "none":
+        continue
+    for meta in FEATURE_DEFS:
+        key = meta["key"]
+        field = f"{tier}_feat_{key}"
+        val = feats.get(key)
+        if meta["kind"] == "int":
+            plan_form[field] = str(int(val or 0))
+        elif val:
+            plan_form[field] = "1"
 r = admin.post("/admin/memberships", data=plan_form, follow_redirects=True)
 ok("Owner can configure a membership plan", "Membership plans saved" in r.get_data(as_text=True))
 r = app.test_client().get("/membership")  # anonymous visitor sees the buy buttons

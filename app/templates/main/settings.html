@@ -74,7 +74,7 @@
                   placeholder="Optional — a sentence or two.">{{ current_user.bio or '' }}</textarea>
       </div>
 
-      {% if current_user.is_creator() %}
+      {% if current_user.has_feature('spotlight') %}
       <fieldset class="link-fields creator-ig-fields">
         <legend>Instagram for Creator of the Month</legend>
         <p class="field-help">
@@ -95,7 +95,7 @@
       {% if can_link %}
       <fieldset class="link-fields">
         <legend>Your links</legend>
-        <p class="field-help">Add links to your profile &mdash; your site, socials, a course, anything. A label is optional; we'll pull one from the URL if you leave it blank. Shown on your public profile.{% if current_user.is_creator() %} Instagram for Creator of the Month is saved in the field above.{% endif %}</p>
+        <p class="field-help">Add links to your profile &mdash; your site, socials, a course, anything. A label is optional; we'll pull one from the URL if you leave it blank. Shown on your public profile.{% if current_user.has_feature('spotlight') %} Instagram for Creator of the Month is saved in the field above.{% endif %}</p>
         {% for i in range(link_max) %}
         {% set existing = links[i] if i < links|length else None %}
         <div class="link-row">

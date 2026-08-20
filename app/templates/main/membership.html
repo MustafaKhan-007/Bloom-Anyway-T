@@ -108,12 +108,18 @@
           <p class="mem-card__trial mem-trial--year">&#10003; Pay once a year and save.</p>
           <p class="mem-card__section-label">Built for healing</p>
           <ul class="mem-card__perks">
+            {% if healing %}
+              {% for perk in healing.perk_labels() %}
+              <li>{{ perk }}</li>
+              {% endfor %}
+            {% else %}
             <li>Healing community &mdash; read, post &amp; reply</li>
             <li>Healing peer support groups</li>
             <li>1 Showcase listing at a time</li>
             <li>Content tips marked for Healing members</li>
-            <li>1:1 coaching with Ayesha</li>
-            <li>Profile links &amp; My Journey export</li>
+            <li>Profile links</li>
+            <li>My Journey keepsake export</li>
+            {% endif %}
             <li>Private journal with mood check-ins</li>
             <li>Cancel any time</li>
           </ul>
@@ -169,14 +175,21 @@
           <p class="mem-card__trial mem-trial--year">&#10003; Pay once a year and save.</p>
           <p class="mem-card__section-label">Built for creating</p>
           <ul class="mem-card__perks">
+            {% if creator %}
+              {% for perk in creator.perk_labels() %}
+              <li>{{ perk }}</li>
+              {% endfor %}
+            {% else %}
             <li>Building / Creator community</li>
-            <li>Full Content Hub tip access</li>
+            <li>Creator Content Hub tips</li>
             <li>Weekly reel review submissions</li>
             <li>15 Showcase listings at a time</li>
             <li>Home-page spotlight eligibility</li>
-            <li>Creator accountability groups</li>
-            <li>1:1 coaching with Saman</li>
-            <li>Profile links &amp; My Journey export</li>
+            <li>Creator support groups &amp; Saman 1:1</li>
+            <li>Profile links</li>
+            <li>My Journey keepsake export</li>
+            {% endif %}
+            <li>Cancel any time</li>
           </ul>
           {% if current == 'creator' %}
           <span class="btn btn--secondary btn--block is-disabled">Your current plan</span>
@@ -235,12 +248,18 @@
           <p class="mem-card__trial mem-trial--year">&#10003; Pay once a year and save.</p>
           <p class="mem-card__section-label">Everything in Healing and Creator</p>
           <ul class="mem-card__perks">
+            {% if full %}
+              {% for perk in full.perk_labels() %}
+              <li>{{ perk }}</li>
+              {% endfor %}
+            {% else %}
             <li>Both communities — Healing and Building</li>
             <li>All Content Hub tips, reels &amp; spotlight</li>
             <li>15 Showcase listings at a time</li>
             <li>Healing and Creator support groups</li>
-            <li>1:1 with Ayesha or Saman</li>
-            <li>Profile links &amp; My Journey export</li>
+            <li>Profile links</li>
+            <li>My Journey keepsake export</li>
+            {% endif %}
             <li>Cancel any time</li>
           </ul>
           {% if current == 'full_bloom' %}

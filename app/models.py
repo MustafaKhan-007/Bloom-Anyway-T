@@ -170,6 +170,20 @@ class User(UserMixin, db.Model):
         """Any paid membership (or owner)."""
         return self.effective_membership() in ("healing", "creator", "full_bloom")
 
+    def has_feature(self, key: str) -> bool:
+        """True when this user's plan includes a Studio-toggled capability."""
+        from .services.plan_features import feature_enabled
+        if self.is_admin:
+            return True
+        return feature_enabled(self.effective_membership(), key)
+
+    def feature_int(self, key: str, default: int = 0) -> int:
+        from .services.plan_features import feature_value
+        try:
+            return int(feature_value(self.effective_membership(), key) or default)
+        except (TypeError, ValueError):
+            return default
+
     def membership_label(self) -> str:
         if self.is_admin:
             return "Owner"
@@ -565,9 +579,25 @@ class MembershipPlan(db.Model):
     stripe_price_id_annual = db.Column(db.String(80), index=True)
     active = db.Column(db.Boolean, nullable=False, default=False)
     sort_order = db.Column(db.Integer, nullable=False, default=0)
+    features_json = db.Column(db.Text)  # JSON: toggled non-free capabilities
 
     def label(self):
         return MEMBERSHIP_LABELS.get(self.tier, self.tier.title())
+
+    def features(self) -> dict:
+        from .services.plan_features import parse_features_json
+        return parse_features_json(self.features_json, self.tier)
+
+    def set_features(self, features: dict) -> None:
+        from .services.plan_features import features_to_json, normalize_features
+        self.features_json = features_to_json(normalize_features(features, self.tier))
+
+    def feature(self, key: str):
+        return self.features().get(key)
+
+    def perk_labels(self) -> list[str]:
+        from .services.plan_features import perk_labels
+        return perk_labels(self.features())
 
     def _money(self, cents):
         if cents is None:
@@ -849,9 +879,9 @@ class Video(db.Model):
             return "Included in Free membership"
         if getattr(user, "is_authenticated", False):
             if getattr(user, "is_admin", False) or (
-                    hasattr(user, "is_creator_track") and user.is_creator_track()):
+                    hasattr(user, "has_feature") and user.has_feature("content_hub_creator")):
                 return "Included in your membership"
-            if self.healing_access and hasattr(user, "is_healing_track") and user.is_healing_track():
+            if self.healing_access and hasattr(user, "has_feature") and user.has_feature("content_hub_healing"):
                 return "Included in your membership"
         if self.healing_access:
             return "Included in Healing membership"

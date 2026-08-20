@@ -174,10 +174,10 @@ def apply(user: User, message: str = "", *, circle_id: int | None = None,
     circle = get_circle(circle_id, slug=circle_slug)
     if circle is None or not circle.active:
         return None, "Choose a support group circle."
-    if circle.track == "building" and not user.is_creator_track():
-        return None, "Creator accountability groups are for Creator and Full Bloom members."
-    if circle.track == "healing" and not user.is_healing_track():
-        return None, "Healing peer groups are for Healing and Full Bloom members."
+    if circle.track == "building" and not user.has_feature("support_creator"):
+        return None, "Creator accountability groups aren’t included in your plan."
+    if circle.track == "healing" and not user.has_feature("support_healing"):
+        return None, "Healing peer groups aren’t included in your plan."
     if active_application(user.id, circle.id):
         return None, f"You're already in the queue (or booked) for {circle.title}."
     body = (message or "").strip()

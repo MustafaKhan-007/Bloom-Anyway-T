@@ -29,7 +29,7 @@ def product_of_the_day() -> MarketplaceListing | None:
         return None
     creators = [
         ln for ln in listings
-        if ln.author and ln.author.is_creator()
+        if ln.author and ln.author.has_feature("spotlight")
     ]
     pool = creators or listings
     # Sort for a stable order, then pick by day-of-year.

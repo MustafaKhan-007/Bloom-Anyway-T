@@ -2,8 +2,9 @@
 {% block title %}Content Hub — {{ site.site_title }}{% endblock %}
 
 {% block content %}
-{% set is_creator = current_user.is_authenticated and current_user.is_creator_track() %}
-{% set is_healing = current_user.is_authenticated and current_user.is_healing_track() %}
+{% set is_creator = current_user.is_authenticated and current_user.has_feature('content_hub_creator') %}
+{% set is_healing = current_user.is_authenticated and current_user.has_feature('content_hub_healing') %}
+{% set can_reel = current_user.is_authenticated and current_user.has_feature('reel_reviews') %}
 <div class="hub-exact">
   <div class="hub-exact__banner {{ 'hub-exact__banner--soft' if is_creator }}">
     <div class="container hub-exact__banner-inner">
@@ -129,10 +130,10 @@
         <span>Review live{% if week_key %} · week of {{ week_key.strftime('%b %d, %Y') }}{% endif %}</span>
         {% elif my_application %}
         <span>You’re in the draw{% if week_key %} · week of {{ week_key.strftime('%b %d, %Y') }}{% endif %}</span>
-        {% elif is_creator %}
+        {% elif can_reel %}
         <span>Draw open — submit your reel below</span>
         {% else %}
-        <span>Creator members can enter the weekly draw</span>
+        <span>Members with reel reviews can enter the weekly draw</span>
         {% endif %}
       </div>
 
@@ -188,7 +189,7 @@
           </ul>
         </div>
         <div class="hub-exact__rotw-form">
-          {% if is_creator %}
+          {% if can_reel %}
             {% if week_review %}
             <div class="hub-exact__notice">
               <p>This week’s reel review is published
@@ -236,14 +237,14 @@
             {% endif %}
           {% elif current_user.is_authenticated %}
           <div class="hub-exact__notice">
-            <p>Reel of the Week entries are for Creator members.
-              <a href="{{ url_for('main.membership', next=url_for('main.videos') + '#reviews') }}">Upgrade to Creator</a>
-              to enter the weekly draw.</p>
+            <p>Reel of the Week entries aren’t included in your plan.
+              <a href="{{ url_for('main.membership', next=url_for('main.videos') + '#reviews') }}">See memberships</a>
+              to unlock weekly reviews.</p>
           </div>
           {% else %}
           <div class="hub-exact__notice">
             <p><a href="{{ url_for('auth.login', next=url_for('main.videos') + '#reviews') }}">Sign in</a>
-              as a Creator member to request a review.</p>
+              with a plan that includes reel reviews to enter.</p>
           </div>
           {% endif %}
         </div>

@@ -43,9 +43,11 @@ def process_listing_image(file_storage) -> tuple[bytes, str]:
 
 def listing_limit(user) -> int | None:
     """Max active listings for a user's tier (None = unlimited). Owners are
-    unlimited; Creator gets 5; Healing gets 1; free gets 0."""
+    unlimited; paid plans use Studio ``showcase_listings``; free gets 0."""
     if getattr(user, "is_admin", False):
         return None
+    if hasattr(user, "feature_int"):
+        return max(0, int(user.feature_int("showcase_listings", 0)))
     tier = (user.effective_membership() if hasattr(user, "effective_membership")
             else getattr(user, "membership", None) or "none")
     return MARKETPLACE_LIMITS.get(tier, 0)

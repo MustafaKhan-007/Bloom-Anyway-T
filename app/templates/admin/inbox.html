@@ -97,7 +97,9 @@
           <td>
             {% if r.status == 'open' %}
             <form method="post" action="{{ url_for('admin.inbox_report_hide', report_id=r.id) }}" class="inline-form" style="margin-bottom: 6px;"
-                  data-confirm="Hide this content and notify the author?">
+                  data-confirm="Hide this content and notify the author?"
+                  data-confirm-title="Hide content?"
+                  data-confirm-ok="Hide">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <input type="hidden" name="filter" value="{{ filter }}">
               <button class="btn btn--danger btn--sm" type="submit">Hide</button>

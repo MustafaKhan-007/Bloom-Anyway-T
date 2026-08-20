@@ -151,22 +151,28 @@
                   placeholder="One item per line">{{ product.contents_text or '' }}</textarea>
         <p class="field-help">One line per checklist item.</p>
       </div>
-      <div class="studio-modules">
+      <div class="studio-modules" data-studio-modules data-modules-max="12">
         <p class="eyebrow" style="margin:0 0 10px;">What’s inside (optional modules)</p>
-        {% for row in curriculum %}
-        <div class="form-row studio-modules__row">
-          <div class="field">
-            <label for="mod{{ loop.index }}_title">Module {{ loop.index }} title</label>
-            <input type="text" id="mod{{ loop.index }}_title" name="mod{{ loop.index }}_title"
-                   maxlength="160" value="{{ row.title or '' }}">
+        <p class="field-help" style="margin:0 0 12px;">Leave blank to skip. Start with two — add more only if you need them.</p>
+        <div data-modules-list>
+          {% for row in curriculum %}
+          <div class="form-row studio-modules__row" data-module-row>
+            <div class="field">
+              <label for="mod{{ loop.index }}_title">Module {{ loop.index }} title</label>
+              <input type="text" id="mod{{ loop.index }}_title" name="mod{{ loop.index }}_title"
+                     maxlength="160" value="{{ row.title or '' }}">
+            </div>
+            <div class="field" style="flex:2;">
+              <label for="mod{{ loop.index }}_desc">Short note</label>
+              <input type="text" id="mod{{ loop.index }}_desc" name="mod{{ loop.index }}_desc"
+                     maxlength="500" value="{{ row.description or '' }}">
+            </div>
           </div>
-          <div class="field" style="flex:2;">
-            <label for="mod{{ loop.index }}_desc">Short note</label>
-            <input type="text" id="mod{{ loop.index }}_desc" name="mod{{ loop.index }}_desc"
-                   maxlength="500" value="{{ row.description or '' }}">
-          </div>
+          {% endfor %}
         </div>
-        {% endfor %}
+        <button type="button" class="btn btn--secondary btn--sm" data-modules-add style="margin-top:8px;">
+          Add another module
+        </button>
       </div>
     </section>
 

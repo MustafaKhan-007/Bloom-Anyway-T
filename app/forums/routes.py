@@ -43,14 +43,14 @@ def _require_community_member():
 
 
 def _can_access_category(cat) -> bool:
-    """Healing track → healing rooms; Creator track → building rooms; Full Bloom → both."""
+    """Healing rooms ↔ community_healing; Building rooms ↔ community_building."""
     if not getattr(current_user, "is_authenticated", False) or not current_user.is_member():
         return False
     slug = (getattr(cat, "slug", None) or "").lower()
     if slug == "building":
-        return current_user.is_creator_track()
+        return current_user.has_feature("community_building")
     if slug == "healing":
-        return current_user.is_healing_track()
+        return current_user.has_feature("community_healing")
     return True
 
 
@@ -58,9 +58,9 @@ def _require_category_access(cat):
     if _can_access_category(cat):
         return None
     if (getattr(cat, "slug", "") or "").lower() == "building":
-        flash("The Building community is for Creator and Full Bloom members.", "info")
+        flash("The Building community isn’t included in your plan.", "info")
     else:
-        flash("The Healing community is for Healing and Full Bloom members.", "info")
+        flash("The Healing community isn’t included in your plan.", "info")
     return redirect(url_for("main.membership", next=request.path))
 
 
