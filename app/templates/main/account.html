@@ -590,7 +590,11 @@
               </a>
               {% elif not can_read %}
               <p class="field-help lib-card__wait">
+                {% if not catalog %}
+                This course has been taken down.
+                {% else %}
                 Linked to your account — upload the reading file in Studio → Courses &amp; Guides to open it here.
+                {% endif %}
               </p>
               {% endif %}
               {% if catalog %}
