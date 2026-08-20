@@ -102,12 +102,50 @@ def create_checkout_session(
         session = stripe.checkout.Session.create(**params)
     except Exception as exc:
         log.warning("stripe checkout failed: %s", exc)
-        raise StripeError("Checkout could not be started. Try again in a moment.") from exc
+        raise StripeError(_friendly_checkout_error(exc, price_id)) from exc
 
     url = getattr(session, "url", None)
     if not url:
         raise StripeError("Stripe returned no checkout URL.")
     return str(url)
+
+
+def _friendly_checkout_error(exc: Exception, price_id: str) -> str:
+    """Turn opaque Stripe failures into something an owner can act on."""
+    msg = str(exc or "").strip()
+    low = msg.lower()
+    pid = (price_id or "").strip()
+
+    if pid and not pid.startswith("price_"):
+        return (
+            "Checkout needs a Stripe Price ID (starts with price_...), "
+            "not a Product ID. In Stripe: Product -> open the price -> copy its ID, "
+            "then paste that into Studio."
+        )
+    if "no such price" in low or ("no such" in low and "price" in low):
+        return (
+            "Stripe doesn't recognize that Price ID. Check it in the Stripe Dashboard, "
+            "and make sure you're using test keys with test prices (or live with live)."
+        )
+    if "no such product" in low:
+        return (
+            "That looks like a Product ID. Create/open a Price under the product in Stripe "
+            "and paste the price_... ID into Studio instead."
+        )
+    if "invalid api key" in low or "invalid api_key" in low:
+        return "Stripe rejected the secret key. Double-check STRIPE_SECRET_KEY on Render."
+    if "mode" in low and ("subscription" in low or "recurring" in low
+                          or "one.time" in low or "one-time" in low):
+        return (
+            "That Price's billing type doesn't match this checkout "
+            "(courses need a one-time price; memberships need a recurring price)."
+        )
+    if msg:
+        short = msg.split("\n", 1)[0].strip()
+        if len(short) > 180:
+            short = short[:177] + "..."
+        return f"Checkout could not be started: {short}"
+    return "Checkout could not be started. Try again in a moment."
 
 
 def sign_webhook(secret: str, payload: bytes, timestamp: int | None = None) -> str:
