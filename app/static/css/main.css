@@ -6740,10 +6740,6 @@ a.at-handle:hover { text-decoration: underline; }
   background: var(--plum); color: #fff; font-size: 12px; font-weight: 800;
 }
 .pd-curriculum p { margin: 4px 0 0; color: var(--ink-soft); font-size: 0.95rem; }
-.pd-footer-cta {
-  display: flex; flex-wrap: wrap; gap: 12px; margin-top: 8px; padding-top: 22px;
-  border-top: 1px solid rgba(61,20,49,0.1);
-}
 @media (max-width: 860px) {
   .pd-layout { grid-template-columns: 1fr; }
   .pd-layout__aside {

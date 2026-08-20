@@ -109,14 +109,6 @@
         </section>
         {% endif %}
 
-        <section class="pd-footer-cta" aria-label="Purchase">
-          {% if owned_purchase_id %}
-          <a class="btn btn--primary" href="{{ url_for('main.course_reader', purchase_id=owned_purchase_id) }}">Open &amp; read</a>
-          {% else %}
-          <a class="btn btn--primary" href="{{ url_for('main.checkout_product', slug=product.slug) }}">Buy for {{ product.price_display() or 'now' }}</a>
-          {% endif %}
-          <a class="btn btn--secondary" href="{{ url_for('main.courses') }}">Browse all</a>
-        </section>
       </div>
     </div>
   </div>
