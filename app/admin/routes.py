@@ -524,6 +524,7 @@ def product_gallery_upload(product_id):
 @bp.route("/products/<int:product_id>/delete", methods=["POST"])
 @admin_required
 def product_delete(product_id):
+    from ..models import CourseProgress, Order, Testimonial
     from ..services.product_covers import clear as clear_cover, clear_all_gallery
 
     product = db.session.get(Product, product_id)
@@ -531,21 +532,30 @@ def product_delete(product_id):
         flash("That product was already gone.", "info")
         return redirect(url_for("admin.products"))
     title = product.title
-    if product.orders.count():
-        product.status = "draft"
-        product.track = None
-        db.session.commit()
+    order_n = product.orders.count()
+
+    # Keep purchase history, but drop the catalogue link so the row can go.
+    if order_n:
+        (Order.query.filter_by(product_id=product.id)
+         .update({Order.product_id: None}, synchronize_session=False))
+    (Testimonial.query.filter_by(product_id=product.id)
+     .update({Testimonial.product_id: None}, synchronize_session=False))
+    (CourseProgress.query.filter_by(product_id=product.id)
+     .update({CourseProgress.product_id: None}, synchronize_session=False))
+
+    clear_cover(product.id)
+    clear_all_gallery(product.id)
+    for asset in list(product.assets):
+        db.session.delete(asset)
+    db.session.delete(product)
+    db.session.commit()
+    if order_n:
         flash(
-            f"“{title}” has orders, so it was unpublished instead of deleted.",
-            "info",
+            f"Deleted “{title}”. {order_n} past order"
+            f"{'s' if order_n != 1 else ''} stay in your records, unlinked.",
+            "success",
         )
     else:
-        clear_cover(product.id)
-        clear_all_gallery(product.id)
-        for asset in list(product.assets):
-            db.session.delete(asset)
-        db.session.delete(product)
-        db.session.commit()
         flash(f"Deleted “{title}”.", "success")
     return redirect(url_for("admin.products"))
 

@@ -257,8 +257,7 @@
       <button class="btn btn--primary" type="submit">{{ 'Create product' if is_new else 'Save changes' }}</button>
       <a class="btn btn--secondary" href="{{ url_for('admin.products') }}">Cancel</a>
       {% if not is_new %}
-      <button class="btn btn--danger" type="submit" form="del-product"
-              data-confirm="Delete “{{ product.title }}”?">Delete</button>
+      <button class="btn btn--danger" type="submit" form="del-product">Delete</button>
       {% endif %}
     </div>
   </form>
@@ -299,7 +298,11 @@
     </form>
   </section>
 
-  <form id="del-product" method="post" action="{{ url_for('admin.product_delete', product_id=product.id) }}" hidden>
+  <form id="del-product" method="post" action="{{ url_for('admin.product_delete', product_id=product.id) }}"
+        hidden
+        data-confirm="{% if product.orders.count() %}Delete “{{ product.title }}”? Past purchases stay in your records, but this product is removed from Courses for good.{% else %}Delete “{{ product.title }}”? This can't be undone.{% endif %}"
+        data-confirm-title="Delete product?"
+        data-confirm-ok="Delete">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   </form>
   <form id="upload-cover" method="post" action="{{ url_for('admin.product_cover_upload', product_id=product.id) }}"

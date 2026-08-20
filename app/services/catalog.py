@@ -25,13 +25,18 @@ DEMO_SLUGS = (
 
 
 def _purge_product(product: Product) -> str:
-    """Delete a product, or demote to draft if it has orders. Returns action."""
-    if product.orders.count():
-        product.status = "draft"
-        product.track = None
-        product.featured = False
-        product.title = f"[archived] {product.title}"[:160]
-        return "archived"
+    """Hard-delete a product; detach order/testimonial/progress links first."""
+    from ..models import CourseProgress, Order, Testimonial
+    from .product_covers import clear as clear_cover, clear_all_gallery
+
+    (Order.query.filter_by(product_id=product.id)
+     .update({Order.product_id: None}, synchronize_session=False))
+    (Testimonial.query.filter_by(product_id=product.id)
+     .update({Testimonial.product_id: None}, synchronize_session=False))
+    (CourseProgress.query.filter_by(product_id=product.id)
+     .update({CourseProgress.product_id: None}, synchronize_session=False))
+    clear_cover(product.id)
+    clear_all_gallery(product.id)
     for asset in list(product.assets):
         db.session.delete(asset)
     db.session.delete(product)
