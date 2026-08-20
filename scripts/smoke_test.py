@@ -343,6 +343,10 @@ with app.app_context():
     ok("Cover URL stored on product",
        cover_prod is not None and (cover_prod.cover_url or "").startswith("/media/product-cover/"),
        f"got {getattr(cover_prod, 'cover_url', None)}")
+    ok("Cover image bytes stored in database",
+       cover_prod is not None and cover_prod.cover_data is not None
+       and len(cover_prod.cover_data) > 200,
+       f"bytes={0 if not cover_prod or not cover_prod.cover_data else len(cover_prod.cover_data)}")
     cover_id = cover_prod.id if cover_prod else 0
 r = client.get(f"/media/product-cover/{cover_id}")
 ok("Product cover image is served",

@@ -995,24 +995,26 @@ def site_image(key):
 
 @bp.route("/media/product-gallery/<int:product_id>/<path:filename>")
 def product_gallery_image(product_id, filename):
-    """Serve a product teaser / gallery image."""
-    from ..services.product_covers import gallery_file
-    path = gallery_file(product_id, filename)
-    if path is None:
+    """Serve a product teaser / gallery image (DB-backed)."""
+    from ..services.product_covers import gallery_bytes
+    row = gallery_bytes(product_id, filename)
+    if row is None:
         abort(404)
-    resp = send_file(path, mimetype="image/jpeg")
+    data, mime = row
+    resp = Response(data, mimetype=mime or "image/jpeg")
     resp.headers["Cache-Control"] = "public, max-age=86400"
     return resp
 
 
 @bp.route("/media/product-cover/<int:product_id>")
 def product_cover(product_id):
-    """Serve an optional product cover image for Courses / My space cards."""
-    from ..services.product_covers import file_for
-    path = file_for(product_id)
-    if path is None:
+    """Serve an optional product cover image (DB-backed)."""
+    from ..services.product_covers import cover_bytes
+    row = cover_bytes(product_id)
+    if row is None:
         abort(404)
-    resp = send_file(path, mimetype="image/jpeg")
+    data, mime = row
+    resp = Response(data, mimetype=mime or "image/jpeg")
     resp.headers["Cache-Control"] = "public, max-age=86400"
     return resp
 

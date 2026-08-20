@@ -524,7 +524,7 @@ def product_gallery_upload(product_id):
 @bp.route("/products/<int:product_id>/delete", methods=["POST"])
 @admin_required
 def product_delete(product_id):
-    from ..services.product_covers import clear as clear_cover
+    from ..services.product_covers import clear as clear_cover, clear_all_gallery
 
     product = db.session.get(Product, product_id)
     if product is None:
@@ -541,6 +541,7 @@ def product_delete(product_id):
         )
     else:
         clear_cover(product.id)
+        clear_all_gallery(product.id)
         for asset in list(product.assets):
             db.session.delete(asset)
         db.session.delete(product)

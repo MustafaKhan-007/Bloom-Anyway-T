@@ -291,6 +291,8 @@ class Product(db.Model):
     curriculum_json = db.Column(db.Text)   # JSON: [{title, description}]
 
     cover_url = db.Column(db.String(500))
+    cover_data = db.Column(db.LargeBinary)  # JPEG bytes (survive redeploys)
+    cover_mime = db.Column(db.String(40))
     gallery_json = db.Column(db.Text)      # JSON: [url, ...]
 
     price_cents = db.Column(db.Integer)
@@ -320,6 +322,11 @@ class Product(db.Model):
     assets = db.relationship("ProductAsset", backref="product", lazy="select",
                              order_by="ProductAsset.sort_order, ProductAsset.id",
                              cascade="all, delete-orphan")
+    gallery_images = db.relationship(
+        "ProductGalleryImage", backref="product", lazy="select",
+        order_by="ProductGalleryImage.sort_order, ProductGalleryImage.id",
+        cascade="all, delete-orphan",
+    )
 
     def has_assets(self) -> bool:
         return len(self.assets) > 0
@@ -1276,6 +1283,24 @@ class ListingImage(db.Model):
     data = db.Column(db.LargeBinary, nullable=False)
     mime = db.Column(db.String(40), nullable=False, default="image/jpeg")
     sort_order = db.Column(db.Integer, nullable=False, default=0)
+
+
+class ProductGalleryImage(db.Model):
+    """Teaser / gallery JPEG for a course or guide (DB-backed for redeploys)."""
+    __tablename__ = "product_gallery_images"
+    __table_args__ = (
+        db.UniqueConstraint("product_id", "filename",
+                            name="uq_product_gallery_filename"),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    product_id = db.Column(db.Integer, db.ForeignKey("products.id"),
+                           nullable=False, index=True)
+    filename = db.Column(db.String(80), nullable=False)
+    data = db.Column(db.LargeBinary, nullable=False)
+    mime = db.Column(db.String(40), nullable=False, default="image/jpeg")
+    sort_order = db.Column(db.Integer, nullable=False, default=0)
+    created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
 
 
 # --- reel reviews (Content Hub) ---------------------------------------------
