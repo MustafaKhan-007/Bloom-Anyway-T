@@ -1829,10 +1829,12 @@ with app.app_context():
     ok("Scheduler is seated as host",
        SupportGroupApplication.query.filter_by(
            meeting_id=mid, status="selected").count() == 1)
-    ok("Schedule auto-created a Zoom join URL",
-       (peer.zoom_url or "").startswith("https://zoom.us/j/")
+    ok("Schedule auto-created a Daily room URL",
+       (peer.zoom_url or "").startswith("https://")
+       and ".daily.co/" in (peer.zoom_url or "")
        and bool(peer.zoom_meeting_id))
-    auto_zoom = peer.zoom_url
+    auto_room = peer.zoom_url
+    room_path = f"/support-groups/meetings/{mid}/room"
 ok("Host booking email was sent",
    len([m for m in _sent_mail if "booked" in m["subject"].lower()]) >= 1)
 
@@ -1848,7 +1850,8 @@ ok("Peer schedule cooldown blocks a second session within 2 weeks",
 r = client.post(f"/support-groups/meetings/{mid}/join", follow_redirects=True)
 ok("Another member can join an upcoming peer session",
    "You're in" in r.get_data(as_text=True)
-   or "Zoom link" in r.get_data(as_text=True))
+   or "Save a seat" in r.get_data(as_text=True)
+   or "Join" in r.get_data(as_text=True))
 with app.app_context():
     seated = SupportGroupApplication.query.filter_by(
         meeting_id=mid, status="selected").count()
@@ -1856,8 +1859,52 @@ with app.app_context():
     notes = Notification.query.filter_by(kind="support_group").count()
     ok("Peer booking created in-app notifications", notes >= 1)
     sample = Notification.query.filter_by(kind="support_group").first()
-    ok("Support-group notifications are not hyperlinks",
-       sample is not None and sample.href() is None)
+    ok("Support-group notifications link to the in-site room",
+       sample is not None
+       and sample.href()
+       and "/support-groups/meetings/" in (sample.href() or "")
+       and "/room" in (sample.href() or ""))
+
+r = client.get(f"/support-groups/meetings/{mid}/room")
+ok("Seated member can open the embedded Daily room page",
+   r.status_code == 200
+   and "daily-js" in r.get_data(as_text=True)
+   and "sg-daily-root" in r.get_data(as_text=True))
+
+# Topic notify-me alerts
+with app.app_context():
+    other_heal = (SupportGroupCircle.query
+                  .filter_by(track="healing")
+                  .filter(SupportGroupCircle.id != heal_cid)
+                  .first())
+    alert_cid = other_heal.id if other_heal else heal_cid
+r = client.post(f"/support-groups/circles/{alert_cid}/notify", follow_redirects=True)
+ok("Member can turn on Notify me for a plan topic",
+   "notify you" in r.get_data(as_text=True).lower()
+   or "Notifying" in r.get_data(as_text=True))
+with app.app_context():
+    watcher = User.query.filter_by(email="newperson@example.com").first()
+    host2 = User(email="sg-alert-host@example.com", username="sgalerthost",
+                 membership="healing", email_verified_at=utcnow())
+    host2.set_password(USER_PW)
+    db.session.add(host2)
+    db.session.commit()
+    when_alert = utcnow() + timedelta(days=2, hours=3)
+    m_alert, aerr = sg_svc.schedule_peer_session(
+        host2, circle_id=alert_cid,
+        date_s=when_alert.strftime("%Y-%m-%d"),
+        time_s=when_alert.strftime("%H:%M"),
+        tz_name="UTC",
+    )
+    ok("Alert host scheduled a session on watched topic",
+       m_alert is not None and not aerr, aerr)
+    alert_notes = Notification.query.filter_by(
+        user_id=watcher.id, kind="support_group_alert").count()
+    ok("Notify-me fans out when a topic session is scheduled",
+       alert_notes >= 1)
+    # Clean up so later caps tests stay stable
+    if m_alert:
+        sg_svc.cancel_meeting(m_alert, return_to_queue=False)
 
 r = client.get("/support-groups")
 sg_body = r.get_data(as_text=True)
@@ -1919,8 +1966,8 @@ with app.app_context():
     db.session.commit()
     n = sg_svc.dispatch_due_reminders()
     ok("24h reminder dispatch runs", n == 1)
-ok("Reminder email includes Zoom link",
-   any(auto_zoom in (m.get("text") or "")
+ok("Reminder email includes in-site Join link",
+   any(room_path in (m.get("text") or "")
        and "reminder" in m["subject"].lower() for m in _sent_mail))
 
 with app.app_context():

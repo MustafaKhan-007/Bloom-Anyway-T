@@ -841,11 +841,10 @@ class Notification(db.Model):
 
     def href(self) -> str | None:
         """Best link for this notification."""
-        # Support-group notices are informational (time is in the body).
-        if self.kind == "support_group":
-            return None
         if self.url:
             return self.url
+        if self.kind in ("support_group", "support_group_alert"):
+            return None
         if self.post_id:
             from flask import url_for
             try:
@@ -1411,7 +1410,7 @@ class ContentReport(db.Model):
     reporter = db.relationship("User")
 
 
-# --- support / coaching groups (Zoom circles) --------------------------------
+# --- support / coaching groups (Daily.co peer rooms) -------------------------
 
 SUPPORT_APP_STATUSES = ("pending", "selected", "cancelled", "attended")
 SUPPORT_MEETING_STATUSES = ("draft", "scheduled", "completed", "cancelled")
@@ -1469,10 +1468,13 @@ class SupportGroupCircle(db.Model):
     meetings = db.relationship(
         "SupportGroupMeeting", back_populates="circle", lazy="dynamic",
     )
+    topic_alerts = db.relationship(
+        "SupportGroupTopicAlert", back_populates="circle", lazy="dynamic",
+    )
 
 
 class SupportGroupMeeting(db.Model):
-    """A Zoom support-group session with a fixed seat count."""
+    """A Daily.co support-group session with a fixed seat count."""
     __tablename__ = "support_group_meetings"
 
     id = db.Column(db.Integer, primary_key=True)
@@ -1485,8 +1487,9 @@ class SupportGroupMeeting(db.Model):
         db.Integer, db.ForeignKey("users.id"), index=True,
     )
     scheduled_at = db.Column(db.DateTime)  # stored UTC (naive)
+    # Legacy column names; store Daily room URL + room name.
     zoom_url = db.Column(db.String(500))
-    zoom_meeting_id = db.Column(db.String(64))  # Zoom meeting id for API update/delete
+    zoom_meeting_id = db.Column(db.String(64))
     status = db.Column(db.String(20), nullable=False, default="draft", index=True)
     booked_notified_at = db.Column(db.DateTime)
     reminded_at = db.Column(db.DateTime)
@@ -1499,8 +1502,16 @@ class SupportGroupMeeting(db.Model):
         "SupportGroupApplication", back_populates="meeting", lazy="dynamic",
     )
 
+    @property
+    def room_url(self) -> str:
+        return (self.zoom_url or "").strip()
+
+    @property
+    def room_name(self) -> str:
+        return (self.zoom_meeting_id or "").strip()
+
     def is_bookable(self) -> bool:
-        return bool(self.scheduled_at and (self.zoom_url or "").strip())
+        return bool(self.scheduled_at and self.room_url)
 
     def is_peer(self) -> bool:
         return (self.kind or "peer") == "peer"
@@ -1525,3 +1536,23 @@ class SupportGroupApplication(db.Model):
     author = db.relationship("User")
     circle = db.relationship("SupportGroupCircle", back_populates="applications")
     meeting = db.relationship("SupportGroupMeeting", back_populates="applications")
+
+
+class SupportGroupTopicAlert(db.Model):
+    """Member opted in to hear when a peer session is scheduled for a topic."""
+    __tablename__ = "support_group_topic_alerts"
+    __table_args__ = (
+        db.UniqueConstraint(
+            "user_id", "circle_id", name="uq_support_topic_alert_user_circle",
+        ),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    circle_id = db.Column(
+        db.Integer, db.ForeignKey("support_group_circles.id"), nullable=False, index=True,
+    )
+    created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
+
+    author = db.relationship("User")
+    circle = db.relationship("SupportGroupCircle", back_populates="topic_alerts")

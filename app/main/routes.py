@@ -1630,6 +1630,7 @@ def support_groups_page():
     healing = [s for s in stats if s["circle"].track == "healing"]
     building = [s for s in stats if s["circle"].track == "building"]
     my_meeting_ids = set()
+    alert_circle_ids = set()
     can_schedule = False
     schedule_err = None
     member_tz = "UTC"
@@ -1637,6 +1638,7 @@ def support_groups_page():
         member_tz = (current_user.timezone or "UTC").strip() or "UTC"
         if current_user.is_member():
             can_schedule, schedule_err = sg_svc.can_schedule_peer(current_user)
+            alert_circle_ids = sg_svc.user_topic_alert_ids(current_user.id)
             for app in sg_svc.upcoming_for_user(current_user, limit=40):
                 if app.meeting_id:
                     my_meeting_ids.add(app.meeting_id)
@@ -1645,6 +1647,7 @@ def support_groups_page():
         healing_circles=healing,
         building_circles=building,
         my_meeting_ids=my_meeting_ids,
+        alert_circle_ids=alert_circle_ids,
         can_schedule=can_schedule,
         schedule_err=schedule_err,
         member_tz=member_tz,
@@ -1680,6 +1683,23 @@ def schedule_support_session():
     return redirect(url_for("main.support_groups_page") + (f"#circle-{circle_id}" if circle_id else ""))
 
 
+@bp.route("/support-groups/circles/<int:circle_id>/notify", methods=["POST"])
+@login_required
+def toggle_support_topic_alert(circle_id):
+    from ..services import support_groups as sg_svc
+    if not current_user.is_member():
+        flash("Support groups are for Healing, Creator, and Full Bloom members.", "error")
+        return redirect(url_for("main.membership", next=url_for("main.support_groups_page")))
+    now_on, err = sg_svc.toggle_topic_alert(current_user, circle_id)
+    if err:
+        flash(err, "error")
+    elif now_on:
+        flash("We'll notify you when a session is scheduled for this topic.", "success")
+    else:
+        flash("Topic alerts turned off for this circle.", "info")
+    return redirect(url_for("main.support_groups_page") + f"#circle-{circle_id}")
+
+
 @bp.route("/support-groups/meetings/<int:meeting_id>/join", methods=["POST"])
 @login_required
 def join_support_session(meeting_id):
@@ -1691,7 +1711,7 @@ def join_support_session(meeting_id):
     if err:
         flash(err, "error")
     else:
-        flash("You're in — check your email for the Zoom link.", "success")
+        flash("You're in — use Join when you're ready for the session.", "success")
     return redirect(url_for("main.support_groups_page"))
 
 
@@ -1705,6 +1725,45 @@ def leave_support_session(meeting_id):
     else:
         flash("You've left that session.", "success")
     return redirect(url_for("main.support_groups_page"))
+
+
+@bp.route("/support-groups/meetings/<int:meeting_id>/room")
+@login_required
+def support_session_room(meeting_id):
+    """Embedded Daily.co call for seated members."""
+    from ..models import SupportGroupMeeting
+    from ..services import support_groups as sg_svc
+    from ..services import daily as daily_svc
+
+    meeting = db.session.get(SupportGroupMeeting, meeting_id) or abort(404)
+    if meeting.status != "scheduled" or not meeting.room_url or not meeting.room_name:
+        flash("That session isn’t open yet.", "error")
+        return redirect(url_for("main.support_groups_page"))
+
+    seat = sg_svc.user_selected_on_meeting(current_user.id, meeting.id)
+    if seat is None and not current_user.is_admin:
+        flash("Save a seat on that session before joining the room.", "error")
+        return redirect(url_for("main.support_groups_page"))
+
+    is_host = meeting.scheduled_by_user_id == current_user.id
+    try:
+        token = daily_svc.create_meeting_token(
+            room_name=meeting.room_name,
+            user_name=current_user.public_name() or current_user.email,
+            is_owner=is_host or current_user.is_admin,
+            scheduled_at=meeting.scheduled_at,
+        )
+    except daily_svc.DailyError as exc:
+        flash(str(exc), "error")
+        return redirect(url_for("main.support_groups_page"))
+
+    return render_template(
+        "main/support_session_room.html",
+        meeting=meeting,
+        daily_room_url=meeting.room_url,
+        daily_token=token,
+        is_host=is_host,
+    )
 
 
 @bp.route("/support-groups/join", methods=["POST"])

@@ -1724,7 +1724,7 @@ def support_groups_schedule(meeting_id):
         flash(err, "error")
     else:
         flash(
-            "Meeting scheduled — Zoom link created; members were emailed and notified.",
+            "Meeting scheduled — Daily room ready; members were emailed and notified.",
             "success",
         )
     return redirect(url_for("admin.support_groups"))

@@ -80,7 +80,7 @@
         </div>
       </div>
       <p class="field-help" style="margin: 0 0 10px;">
-        Seat the earliest applicants and pick a time in Studio — Zoom is created automatically.
+        Peer sessions are member-scheduled. Open Studio to cancel or complete rooms if needed.
       </p>
       <a class="btn btn--primary btn--sm" href="{{ url_for('admin.support_groups') }}">Open in Studio &rarr;</a>
     </div>
@@ -764,7 +764,7 @@
             {{ n.created_at|localtime }}
             {% set href = n.href() %}
             {% if href %}
-            &middot; <a href="{{ href }}">Open</a>
+            &middot; <a href="{{ href }}">{% if n.kind == 'support_group' %}Join{% elif n.kind == 'support_group_alert' %}View{% else %}Open{% endif %}</a>
             {% endif %}
           </p>
         </li>

@@ -2,6 +2,24 @@
 {% block title %}Support Groups — {{ site.site_title }}{% endblock %}
 {% block meta_description %}Peer circles, creator accountability groups, facilitator sessions, and 1:1 coaching for Bloom Anyway members.{% endblock %}
 
+{% macro notify_btn(c) %}
+  {% if c.id in alert_circle_ids %}
+  <form method="post" action="{{ url_for('main.toggle_support_topic_alert', circle_id=c.id) }}" class="sg-notify">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button class="btn btn--quiet btn--sm sg-notify__btn is-on" type="submit" title="Turn off alerts for this topic">
+      Notifying
+    </button>
+  </form>
+  {% else %}
+  <form method="post" action="{{ url_for('main.toggle_support_topic_alert', circle_id=c.id) }}" class="sg-notify">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button class="btn btn--quiet btn--sm sg-notify__btn" type="submit" title="Get notified when a session is scheduled">
+      Notify me
+    </button>
+  </form>
+  {% endif %}
+{% endmacro %}
+
 {% macro session_list(s, can_use) %}
   {% set c = s.circle %}
   <details class="sg-upcoming" id="circle-{{ c.id }}">
@@ -25,21 +43,24 @@
               {% if m.host %} · hosted by {{ m.host.public_name() }}{% endif %}
             </p>
           </div>
-          {% if m.id in my_meeting_ids %}
-          <form method="post" action="{{ url_for('main.leave_support_session', meeting_id=m.id) }}">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <button class="btn btn--quiet btn--sm" type="submit">
-              {% if m.scheduled_by_user_id == current_user.id %}Cancel session{% else %}Leave{% endif %}
-            </button>
-          </form>
-          {% elif can_use and spots > 0 %}
-          <form method="post" action="{{ url_for('main.join_support_session', meeting_id=m.id) }}">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <button class="btn btn--primary btn--sm" type="submit">Join ({{ spots }} left)</button>
-          </form>
-          {% elif spots <= 0 %}
-          <span class="sg-card__spots sg-card__spots--full">Full</span>
-          {% endif %}
+          <div class="sg-upcoming__actions">
+            {% if m.id in my_meeting_ids %}
+            <a class="btn btn--primary btn--sm" href="{{ url_for('main.support_session_room', meeting_id=m.id) }}">Join</a>
+            <form method="post" action="{{ url_for('main.leave_support_session', meeting_id=m.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button class="btn btn--quiet btn--sm" type="submit">
+                {% if m.scheduled_by_user_id == current_user.id %}Cancel session{% else %}Leave seat{% endif %}
+              </button>
+            </form>
+            {% elif can_use and spots > 0 %}
+            <form method="post" action="{{ url_for('main.join_support_session', meeting_id=m.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button class="btn btn--secondary btn--sm" type="submit">Save seat ({{ spots }} left)</button>
+            </form>
+            {% elif spots <= 0 %}
+            <span class="sg-card__spots sg-card__spots--full">Full</span>
+            {% endif %}
+          </div>
         </li>
         {% endfor %}
       </ul>
@@ -95,7 +116,7 @@
       <h1>Support Groups</h1>
       <p class="sg-page__intro">
         Peer-led circles you schedule yourselves — join an upcoming session or host one
-        (once every 2 weeks). Facilitator-led sessions and 1:1 coaching stay separately booked.
+        (once every 2 weeks). Sessions open in Bloom Anyway. Facilitator-led and 1:1 stay separately booked.
       </p>
       <nav class="sg-page__tabs" aria-label="Support group sections">
         <a href="#healing">Healing Groups</a>
@@ -121,10 +142,13 @@
         {% for s in healing_circles %}
         {% set c = s.circle %}
         <article class="sg-card">
-          <span class="sg-card__icon" aria-hidden="true">&#10084;</span>
+          <div class="sg-card__top">
+            <span class="sg-card__icon" aria-hidden="true">&#10084;</span>
+            {% if is_healing %}{{ notify_btn(c) }}{% endif %}
+          </div>
           <h3>{{ c.title }}</h3>
           <p>{{ c.blurb }}</p>
-          <p class="sg-card__meta">Peer-scheduled · {{ peer_cap }} seats · Zoom</p>
+          <p class="sg-card__meta">Peer-scheduled · {{ peer_cap }} seats · in-site video</p>
           {% if s.open_sessions %}
           <span class="sg-card__spots">{{ s.open_sessions }} upcoming · {{ s.joinable_sessions }} with spots</span>
           {% else %}
@@ -157,10 +181,13 @@
         {% for s in building_circles %}
         {% set c = s.circle %}
         <article class="sg-card">
-          <span class="sg-card__icon" aria-hidden="true">&#9733;</span>
+          <div class="sg-card__top">
+            <span class="sg-card__icon" aria-hidden="true">&#9733;</span>
+            {% if is_creator %}{{ notify_btn(c) }}{% endif %}
+          </div>
           <h3>{{ c.title }}</h3>
           <p>{{ c.blurb }}</p>
-          <p class="sg-card__meta">Peer-scheduled · {{ peer_cap }} seats · Zoom</p>
+          <p class="sg-card__meta">Peer-scheduled · {{ peer_cap }} seats · in-site video</p>
           {% if s.open_sessions %}
           <span class="sg-card__spots sg-card__spots--gold">{{ s.open_sessions }} upcoming · {{ s.joinable_sessions }} with spots</span>
           {% else %}
@@ -197,7 +224,7 @@
           <h2>Go deeper with a guided session</h2>
           <p>A trained facilitator holds the room so you can speak freely, listen deeply, and leave with clarity.</p>
           <ul class="sg-page__bullets">
-            <li>60-minute Zoom session</li>
+            <li>60-minute guided session</li>
             <li>Small group — 8 women max</li>
             <li>Professionally facilitated</li>
           </ul>

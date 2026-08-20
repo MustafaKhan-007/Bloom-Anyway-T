@@ -18,7 +18,17 @@
       {% for n in nav_notifications %}
       <li class="note-bell__item {{ 'is-unread' if not n.read_at }}">
         {% set href = n.href() %}
-        {% if href %}
+        {% if n.kind == 'support_group' and href %}
+        <div class="note-bell__sg">
+          <span>{{ n.body }}</span>
+          <a class="btn btn--primary btn--sm note-bell__join" href="{{ href }}">Join</a>
+        </div>
+        {% elif n.kind == 'support_group_alert' and href %}
+        <div class="note-bell__sg">
+          <span>{{ n.body }}</span>
+          <a class="btn btn--secondary btn--sm note-bell__join" href="{{ href }}">View</a>
+        </div>
+        {% elif href %}
         <a href="{{ href }}">{{ n.body }}</a>
         {% else %}
         <span>{{ n.body }}</span>

@@ -1,4 +1,4 @@
-"""Peer-led support circles (Zoom) — member schedule/join; admin for facilitator."""
+"""Peer-led support circles (Daily.co) — member schedule/join; admin for facilitator."""
 from __future__ import annotations
 
 import logging
@@ -6,15 +6,17 @@ import time
 from datetime import datetime, timedelta, timezone
 from html import escape
 
+from flask import url_for
 from sqlalchemy.orm import joinedload
 
 from ..extensions import db
 from ..models import (SUPPORT_CIRCLE_SEED, SupportGroupApplication,
-                      SupportGroupCircle, SupportGroupMeeting, User, utcnow)
+                      SupportGroupCircle, SupportGroupMeeting,
+                      SupportGroupTopicAlert, User, utcnow)
 from .mailer import send_email
 from .social_graph import notify
 from .timefmt import format_local, normalize_timezone
-from . import zoom as zoom_svc
+from . import daily as daily_svc
 
 log = logging.getLogger(__name__)
 
@@ -266,6 +268,60 @@ def pending_count(circle_id: int | None = None) -> int:
     return q.count()
 
 
+def user_topic_alert_ids(user_id: int) -> set[int]:
+    rows = (SupportGroupTopicAlert.query
+            .filter_by(user_id=user_id)
+            .all())
+    return {r.circle_id for r in rows}
+
+
+def has_topic_alert(user_id: int, circle_id: int) -> bool:
+    return (SupportGroupTopicAlert.query
+            .filter_by(user_id=user_id, circle_id=circle_id)
+            .first()) is not None
+
+
+def toggle_topic_alert(user: User, circle_id: int
+                       ) -> tuple[bool | None, str | None]:
+    """Subscribe/unsubscribe. Returns (now_on, error)."""
+    circle = get_circle(circle_id)
+    if circle is None or not circle.active:
+        return None, "That topic isn’t available."
+    if not user_can_access_circle(user, circle):
+        return None, "That topic isn’t included in your plan."
+
+    row = (SupportGroupTopicAlert.query
+           .filter_by(user_id=user.id, circle_id=circle.id)
+           .first())
+    if row:
+        db.session.delete(row)
+        db.session.commit()
+        return False, None
+
+    db.session.add(SupportGroupTopicAlert(
+        user_id=user.id, circle_id=circle.id, created_at=utcnow(),
+    ))
+    db.session.commit()
+    return True, None
+
+
+def _meeting_room_url(meeting: SupportGroupMeeting) -> str:
+    try:
+        return url_for("main.support_session_room", meeting_id=meeting.id)
+    except RuntimeError:
+        return f"/support-groups/meetings/{meeting.id}/room"
+
+
+def _circle_browse_url(circle_id: int | None) -> str:
+    try:
+        base = url_for("main.support_groups_page")
+    except RuntimeError:
+        base = "/support-groups"
+    if circle_id:
+        return f"{base}#circle-{circle_id}"
+    return base
+
+
 def schedule_peer_session(
     user: User,
     *,
@@ -274,7 +330,7 @@ def schedule_peer_session(
     time_s: str,
     tz_name: str | None = None,
 ) -> tuple[SupportGroupMeeting | None, str | None]:
-    """Member schedules a peer Zoom session for a topic."""
+    """Member schedules a peer support session for a topic."""
     ok, err = can_schedule_peer(user)
     if not ok:
         return None, err
@@ -390,28 +446,29 @@ def leave_peer_session(user: User, meeting_id: int) -> str | None:
 
 
 def _notify_joiner(meeting: SupportGroupMeeting, user: User) -> None:
-    zoom = (meeting.zoom_url or "").strip()
+    room = _meeting_room_url(meeting)
     group = _circle_name(meeting)
     when = _when_for(user, meeting.scheduled_at)
     seats = max(0, meeting_seat_count(meeting) - 1)
     note = f"You're in for {group} — {when}."
     notify(user.id, kind="support_group", body=note[:300],
-           actor_id=meeting.scheduled_by_user_id)
+           actor_id=meeting.scheduled_by_user_id, url=room)
     text = (
         f"Hi {user.first_name() or user.public_name()},\n\n"
         f"You've joined {group}.\n\n"
         f"When: {when}\n"
         f"With: up to {PEER_MEETING_CAP - 1} other members "
         f"({seats} already seated)\n"
-        f"Zoom: {zoom}\n\n"
+        f"Join in Bloom Anyway: {room}\n\n"
         f"We'll remind you again 24 hours before.\n\n"
         f"— Bloom Anyway\n"
     )
     html = (
         f"<p>Hi {escape(user.first_name() or user.public_name())},</p>"
         f"<p>You've joined <strong>{escape(group)}</strong>.</p>"
-        f"<p><strong>When:</strong> {escape(when)}<br>"
-        f"<strong>Zoom:</strong> <a href=\"{escape(zoom)}\">{escape(zoom)}</a></p>"
+        f"<p><strong>When:</strong> {escape(when)}</p>"
+        f"<p><a href=\"{escape(room)}\">Join the session</a></p>"
+        f"<p>We'll remind you again 24 hours before.</p>"
         f"<p>— Bloom Anyway</p>"
     )
     try:
@@ -551,24 +608,26 @@ def schedule_meeting(meeting: SupportGroupMeeting, *, scheduled_at: datetime,
     topic = f"Bloom Anyway — {title}"
     try:
         if meeting.zoom_meeting_id:
-            updated = zoom_svc.update_meeting(
-                meeting.zoom_meeting_id, topic=topic, scheduled_at=scheduled_at,
+            updated = daily_svc.update_room(
+                meeting.zoom_meeting_id, scheduled_at=scheduled_at,
             )
             if updated is None:
-                info = zoom_svc.create_meeting(topic=topic, scheduled_at=scheduled_at)
-                meeting.zoom_meeting_id = info.meeting_id
-                meeting.zoom_url = info.join_url
-            elif updated.join_url:
-                meeting.zoom_url = updated.join_url
+                info = daily_svc.create_room(topic=topic, scheduled_at=scheduled_at)
+                meeting.zoom_meeting_id = info.room_name
+                meeting.zoom_url = info.room_url
+            else:
+                if updated.room_url:
+                    meeting.zoom_url = updated.room_url
+                meeting.zoom_meeting_id = updated.room_name or meeting.zoom_meeting_id
         else:
-            info = zoom_svc.create_meeting(topic=topic, scheduled_at=scheduled_at)
-            meeting.zoom_meeting_id = info.meeting_id
-            meeting.zoom_url = info.join_url
-    except zoom_svc.ZoomError as exc:
+            info = daily_svc.create_room(topic=topic, scheduled_at=scheduled_at)
+            meeting.zoom_meeting_id = info.room_name
+            meeting.zoom_url = info.room_url
+    except daily_svc.DailyError as exc:
         return str(exc)
 
     if not (meeting.zoom_url or "").strip():
-        return "Zoom did not return a join link."
+        return "Daily.co did not return a room URL."
 
     was_scheduled = meeting.status == "scheduled" and meeting.booked_notified_at
     meeting.scheduled_at = scheduled_at
@@ -580,6 +639,8 @@ def schedule_meeting(meeting: SupportGroupMeeting, *, scheduled_at: datetime,
         _notify_seats(meeting, kind="booked", actor_id=getattr(owner, "id", None))
         meeting.booked_notified_at = utcnow()
         db.session.commit()
+        if (meeting.kind or "peer") == "peer":
+            notify_topic_watchers(meeting, actor_id=getattr(owner, "id", None))
     return None
 
 
@@ -587,7 +648,7 @@ def cancel_meeting(meeting: SupportGroupMeeting, *, owner: User | None = None,
                    return_to_queue: bool = False) -> None:
     seats = meeting_seats(meeting)
     was_live = meeting.status == "scheduled" and bool(meeting.booked_notified_at)
-    zoom_id = (meeting.zoom_meeting_id or "").strip()
+    room_name = (meeting.zoom_meeting_id or "").strip()
     meeting.status = "cancelled"
     for row in seats:
         if return_to_queue:
@@ -596,11 +657,11 @@ def cancel_meeting(meeting: SupportGroupMeeting, *, owner: User | None = None,
         else:
             row.status = "cancelled"
     db.session.commit()
-    if zoom_id:
+    if room_name:
         try:
-            zoom_svc.delete_meeting(zoom_id)
+            daily_svc.delete_room(room_name)
         except Exception:
-            log.exception("Failed to delete Zoom meeting %s", zoom_id)
+            log.exception("Failed to delete Daily room %s", room_name)
     if seats:
         _notify_seats(
             meeting,
@@ -615,6 +676,43 @@ def complete_meeting(meeting: SupportGroupMeeting) -> None:
     for row in meeting_seats(meeting):
         row.status = "attended"
     db.session.commit()
+
+
+def notify_topic_watchers(meeting: SupportGroupMeeting,
+                          *, actor_id: int | None = None) -> int:
+    """Fan out to members who tapped Notify me on this topic."""
+    if not meeting.circle_id:
+        return 0
+    seated_ids = {
+        s.user_id for s in SupportGroupApplication.query
+        .filter_by(meeting_id=meeting.id, status="selected").all()
+    }
+    alerts = (SupportGroupTopicAlert.query
+              .options(joinedload(SupportGroupTopicAlert.author))
+              .filter_by(circle_id=meeting.circle_id)
+              .all())
+    group = _circle_name(meeting)
+    browse = _circle_browse_url(meeting.circle_id)
+    sent = 0
+    for alert in alerts:
+        user = alert.author
+        if not user or user.deleted_at:
+            continue
+        if user.id in seated_ids:
+            continue
+        when = _when_for(user, meeting.scheduled_at)
+        note = f"New {group} session scheduled — {when}."
+        notify(
+            user.id,
+            kind="support_group_alert",
+            body=note[:300],
+            actor_id=actor_id,
+            url=browse,
+        )
+        sent += 1
+    if sent:
+        db.session.commit()
+    return sent
 
 
 def _when_for(user: User, dt: datetime | None) -> str:
@@ -634,14 +732,16 @@ def _notify_seats(meeting: SupportGroupMeeting, *, kind: str,
                   seats: list[SupportGroupApplication] | None = None) -> None:
     seats = seats if seats is not None else meeting_seats(meeting)
     others = max(0, len(seats) - 1)
-    zoom = (meeting.zoom_url or "").strip()
+    room = _meeting_room_url(meeting)
     group = _circle_name(meeting)
+    browse = _circle_browse_url(meeting.circle_id)
 
     for row in seats:
         user = row.author
         if not user or user.deleted_at:
             continue
         when = _when_for(user, meeting.scheduled_at)
+        join_url = room if kind in ("booked", "updated", "reminder") else browse
         if kind == "booked":
             note = (
                 f"You're booked for {group} with "
@@ -653,7 +753,7 @@ def _notify_seats(meeting: SupportGroupMeeting, *, kind: str,
                 f"You're in for {group}.\n\n"
                 f"When: {when}\n"
                 f"With: {others} other member{'s' if others != 1 else ''}\n"
-                f"Zoom: {zoom}\n\n"
+                f"Join in Bloom Anyway: {room}\n\n"
                 f"We'll remind you again 24 hours before.\n\n"
                 f"See you there,\n— Bloom Anyway\n"
             )
@@ -662,8 +762,8 @@ def _notify_seats(meeting: SupportGroupMeeting, *, kind: str,
                 f"<p>You're in for <strong>{escape(group)}</strong>.</p>"
                 f"<p><strong>When:</strong> {escape(when)}<br>"
                 f"<strong>With:</strong> {others} other "
-                f"member{'s' if others != 1 else ''}<br>"
-                f"<strong>Zoom:</strong> <a href=\"{escape(zoom)}\">{escape(zoom)}</a></p>"
+                f"member{'s' if others != 1 else ''}</p>"
+                f"<p><a href=\"{escape(room)}\">Join the session</a></p>"
                 f"<p>We'll remind you again 24 hours before.</p>"
                 f"<p>— Bloom Anyway</p>"
             )
@@ -675,14 +775,14 @@ def _notify_seats(meeting: SupportGroupMeeting, *, kind: str,
                 f"Your {group} details changed.\n\n"
                 f"When: {when}\n"
                 f"With: {others} other member{'s' if others != 1 else ''}\n"
-                f"Zoom: {zoom}\n\n"
+                f"Join in Bloom Anyway: {room}\n\n"
                 f"— Bloom Anyway\n"
             )
             html = (
                 f"<p>Hi {escape(user.first_name() or user.public_name())},</p>"
                 f"<p>Your {escape(group)} details changed.</p>"
-                f"<p><strong>When:</strong> {escape(when)}<br>"
-                f"<strong>Zoom:</strong> <a href=\"{escape(zoom)}\">{escape(zoom)}</a></p>"
+                f"<p><strong>When:</strong> {escape(when)}</p>"
+                f"<p><a href=\"{escape(room)}\">Join the session</a></p>"
                 f"<p>— Bloom Anyway</p>"
             )
         elif kind == "cancelled":
@@ -713,7 +813,7 @@ def _notify_seats(meeting: SupportGroupMeeting, *, kind: str,
                 f"Friendly reminder — your {group} is in about 24 hours.\n\n"
                 f"When: {when}\n"
                 f"With: {others} other member{'s' if others != 1 else ''}\n"
-                f"Zoom: {zoom}\n\n"
+                f"Join in Bloom Anyway: {room}\n\n"
                 f"See you there,\n— Bloom Anyway\n"
             )
             html = (
@@ -721,15 +821,15 @@ def _notify_seats(meeting: SupportGroupMeeting, *, kind: str,
                 f"<p>Friendly reminder — your {escape(group)} is in about 24 hours.</p>"
                 f"<p><strong>When:</strong> {escape(when)}<br>"
                 f"<strong>With:</strong> {others} other "
-                f"member{'s' if others != 1 else ''}<br>"
-                f"<strong>Zoom:</strong> <a href=\"{escape(zoom)}\">{escape(zoom)}</a></p>"
+                f"member{'s' if others != 1 else ''}</p>"
+                f"<p><a href=\"{escape(room)}\">Join the session</a></p>"
                 f"<p>See you there,<br>— Bloom Anyway</p>"
             )
         else:
             continue
 
         notify(user.id, kind="support_group", body=note[:300],
-               actor_id=actor_id)
+               actor_id=actor_id, url=join_url)
         try:
             send_email(user.email, subject, text, html_body=html)
         except Exception:

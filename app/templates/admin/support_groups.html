@@ -99,10 +99,10 @@
             {% endfor %}
           </ul>
 
-          {% if m.status == 'scheduled' and m.zoom_url %}
+          {% if m.status == 'scheduled' and m.room_url %}
           <div class="sg-zoom-link">
-            <span class="sg-zoom-link__label">Zoom join link</span>
-            <a href="{{ m.zoom_url }}" target="_blank" rel="noopener">{{ m.zoom_url }}</a>
+            <span class="sg-zoom-link__label">In-site room</span>
+            <a href="{{ url_for('main.support_session_room', meeting_id=m.id) }}">Open session room</a>
           </div>
           <form method="post" action="{{ url_for('admin.support_groups_complete', meeting_id=m.id) }}"
                 style="margin-top: 12px;">

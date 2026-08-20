@@ -124,16 +124,24 @@ class Config:
     # Optional self-hosted digital files for ShopPurchase.file_key
     SHOP_FILES_DIR = os.environ.get("SHOP_FILES_DIR", "").strip()
 
-    # Zoom Server-to-Server OAuth (auto-create support-group meetings).
-    # Create an app at https://marketplace.zoom.us/ → Develop → Server-to-Server OAuth.
+    # Daily.co (embedded support-group rooms).
+    # API key from https://dashboard.daily.co/developers
+    DAILY_API_KEY = os.environ.get("DAILY_API_KEY", "").strip()
+    # Optional subdomain label used only for stub URLs in tests (e.g. bloomanyway).
+    DAILY_DOMAIN = os.environ.get("DAILY_DOMAIN", "bloomanyway").strip() or "bloomanyway"
+    DAILY_MEETING_DURATION = int(os.environ.get("DAILY_MEETING_DURATION", "90") or 90)
+    # Force stub rooms without calling Daily (tests); auto-on when TESTING
+    # and DAILY_API_KEY is unset.
+    DAILY_STUB = os.environ.get("DAILY_STUB", "").strip().lower() in (
+        "1", "true", "yes", "on",
+    )
+
+    # Legacy Zoom env (ignored for new sessions; kept so old Render vars don't crash).
     ZOOM_ACCOUNT_ID = os.environ.get("ZOOM_ACCOUNT_ID", "").strip()
     ZOOM_CLIENT_ID = os.environ.get("ZOOM_CLIENT_ID", "").strip()
     ZOOM_CLIENT_SECRET = os.environ.get("ZOOM_CLIENT_SECRET", "").strip()
-    # Licensed Zoom user email that will host the meetings (S2S cannot use "me").
     ZOOM_HOST_EMAIL = os.environ.get("ZOOM_HOST_EMAIL", "").strip()
     ZOOM_MEETING_DURATION = int(os.environ.get("ZOOM_MEETING_DURATION", "90") or 90)
-    # Force stub join links without calling Zoom (tests); auto-on when TESTING
-    # and Zoom env vars are unset.
     ZOOM_STUB = os.environ.get("ZOOM_STUB", "").strip().lower() in (
         "1", "true", "yes", "on",
     )
@@ -162,6 +170,8 @@ Config.MAIL_FROM = _strip_config_quotes(Config.MAIL_FROM)
 Config.TURNSTILE_SITE_KEY = _strip_config_quotes(Config.TURNSTILE_SITE_KEY)
 Config.TURNSTILE_SECRET = _strip_config_quotes(Config.TURNSTILE_SECRET)
 Config.TURNSTILE_SECRET_KEY = Config.TURNSTILE_SECRET
+Config.DAILY_API_KEY = _strip_config_quotes(Config.DAILY_API_KEY)
+Config.DAILY_DOMAIN = _strip_config_quotes(Config.DAILY_DOMAIN) or "bloomanyway"
 Config.ZOOM_ACCOUNT_ID = _strip_config_quotes(Config.ZOOM_ACCOUNT_ID)
 Config.ZOOM_CLIENT_ID = _strip_config_quotes(Config.ZOOM_CLIENT_ID)
 Config.ZOOM_CLIENT_SECRET = _strip_config_quotes(Config.ZOOM_CLIENT_SECRET)
