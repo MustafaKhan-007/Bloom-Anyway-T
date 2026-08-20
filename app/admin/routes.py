@@ -1689,21 +1689,11 @@ def support_groups():
 @bp.route("/support-groups/form", methods=["POST"])
 @admin_required
 def support_groups_form():
-    from ..services import support_groups as sg_svc
-    capacity = request.form.get("capacity") or "6"
-    circle_id = request.form.get("circle_id", type=int)
-    meeting, err = sg_svc.form_next_meeting(capacity, circle_id=circle_id)
-    if err:
-        flash(err, "error")
-    else:
-        n = sg_svc.meeting_seats(meeting)
-        label = meeting.circle.title if meeting.circle else "circle"
-        flash(
-            f"Seated {len(n)} earliest applicant{'s' if len(n) != 1 else ''} "
-            f"for {label} (capacity {meeting.capacity}). Pick a date and time "
-            f"below — Zoom is created automatically.",
-            "success",
-        )
+    flash(
+        "Peer circles are member-scheduled on Support Groups. "
+        "Studio only cancels or completes open sessions.",
+        "info",
+    )
     return redirect(url_for("admin.support_groups"))
 
 

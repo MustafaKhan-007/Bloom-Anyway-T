@@ -7,82 +7,38 @@
     <p class="eyebrow">Coaching circles</p>
     <h1>Support groups</h1>
     <p class="field-help" style="margin: 8px 0 0; max-width: 58ch;">
-      Healing &amp; Creator members apply from Support Groups. Seat the earliest applicants
-      per circle, pick a time in your timezone — Zoom is created automatically. Members get an
-      email and an in-app note with the join link, plus a 24-hour reminder.
+      Peer circles are member-scheduled on the public Support Groups page
+      (8 seats, up to 4 upcoming sessions per topic). Studio is for oversight —
+      cancel or complete sessions if needed. Facilitator-led and 1:1 stay on their booking links.
     </p>
-    {% if pending_total is defined %}
-    <p class="sg-studio__total">
-      <strong>{{ pending_total }}</strong> waiting across all circles
-    </p>
-    {% endif %}
   </header>
 
   <section class="admin-panel sg-panel">
     <div class="sg-panel__head">
-      <h2 style="margin:0;">Waiting lists</h2>
-      {% if pending_total is defined %}<span class="sg-count">{{ pending_total }}</span>{% endif %}
+      <h2 style="margin:0;">Topics</h2>
+      <span class="sg-count">{{ circle_stats|length }}</span>
     </div>
     <p class="field-help" style="margin-top: 6px;">
-      Occupancy and seating per circle. Earliest applications are seated first.
+      Upcoming peer sessions and seats across each circle.
     </p>
 
     {% if circle_stats %}
     <div class="sg-circles">
       {% for s in circle_stats %}
       {% set c = s.circle %}
-      {% set cap = c.capacity or 1 %}
-      {% set used_pct = ((s.used / cap) * 100)|int if cap else 0 %}
       <article class="sg-circle-card studio-card">
         <header class="sg-circle-card__head">
           <div>
             <p class="eyebrow">{{ c.track|capitalize }}</p>
             <h3 style="margin: 4px 0 0;">{{ c.title }}</h3>
           </div>
-          <span class="sg-count">{{ s.pending }} waiting</span>
+          <span class="sg-count">{{ s.open_sessions }} upcoming</span>
         </header>
-
-        <div class="sg-occ">
-          <div class="sg-occ__meta">
-            <span>{{ s.seated }} / {{ c.capacity }} seated</span>
-            <span>
-              {% if s.full %}Full{% else %}{{ s.spots_left }} spot{{ '' if s.spots_left == 1 else 's' }} left{% endif %}
-            </span>
-          </div>
-          <div class="sg-occ__bar" role="img" aria-label="{{ used_pct }} percent full">
-            <span style="width: {{ [used_pct, 100]|min }}%;"></span>
-          </div>
-          <p class="field-help" style="margin: 8px 0 0;">
-            {{ s.pending }} pending &middot; {{ s.seated }} seated in open meetings
-          </p>
-        </div>
-
-        {% if s.queue %}
-        <ol class="sg-queue">
-          {% for row in s.queue[:8] %}
-          <li>
-            <strong>#{{ loop.index }}</strong>
-            {{ row.author.public_name() if row.author else 'Member' }}
-            <span class="field-help">{{ row.created_at|localtime('%b %d') }}</span>
-          </li>
-          {% endfor %}
-        </ol>
-        {% endif %}
-
-        <form method="post" action="{{ url_for('admin.support_groups_form') }}"
-              class="sg-seat-form">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <input type="hidden" name="circle_id" value="{{ c.id }}">
-          <label class="sg-seat-form__label">
-            Seats for next meeting
-            <input type="number" name="capacity" min="2" max="40"
-                   value="{{ [s.pending, c.capacity, 6]|min if s.pending else 6 }}" required>
-          </label>
-          <button class="btn btn--primary" type="submit"
-                  {% if not s.pending %}disabled{% endif %}>
-            Seat earliest ({{ s.pending }} waiting)
-          </button>
-        </form>
+        <p class="field-help" style="margin: 8px 0 0;">
+          {{ s.seated }} seated across open sessions
+          · {{ s.joinable_sessions }} with spots left
+          {% if s.sessions_full %} · topic at max (4){% endif %}
+        </p>
       </article>
       {% endfor %}
     </div>
@@ -98,8 +54,7 @@
         <span class="sg-count">{{ open_meetings|length }}</span>
       </div>
       <p class="field-help" style="margin-top: 6px;">
-        Times below use your timezone
-        (<strong>{{ owner_tz }}</strong>). Members see it in theirs.
+        Times use your timezone (<strong>{{ owner_tz }}</strong>). Cancel if a peer session needs cleanup.
       </p>
 
       {% if open_meetings %}
@@ -110,22 +65,26 @@
           <div class="sg-meeting__top">
             <div>
               <span class="sg-pill sg-pill--{{ m.status }}">{{ m.status }}</span>
+              <span class="sg-pill">{{ m.kind or 'peer' }}</span>
               {% if m.circle %}
               <p class="field-help" style="margin: 6px 0 0;">{{ m.circle.title }}</p>
               {% endif %}
               <h3 style="margin: 8px 0 4px;">
                 {{ seats|length }} of {{ m.capacity }} seated
               </h3>
+              {% if m.host %}
+              <p class="field-help" style="margin:0;">Hosted by {{ m.host.public_name() }}</p>
+              {% endif %}
               {% if m.scheduled_at %}
-              <p class="field-help" style="margin:0;">
+              <p class="field-help" style="margin:4px 0 0;">
                 {{ m.scheduled_at|localtime('%A, %b %d · %I:%M %p') }}
               </p>
-              {% else %}
-              <p class="field-help" style="margin:0;">Needs a date and time — Zoom is created when you schedule.</p>
               {% endif %}
             </div>
             <form method="post" action="{{ url_for('admin.support_groups_cancel', meeting_id=m.id) }}"
-                  onsubmit="return confirm('Cancel this meeting?');">
+                  data-confirm="Cancel this meeting and notify seated members?"
+                  data-confirm-title="Cancel session?"
+                  data-confirm-ok="Cancel session">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <button class="btn btn--secondary btn--sm" type="submit">Cancel</button>
             </form>
@@ -145,58 +104,40 @@
             <span class="sg-zoom-link__label">Zoom join link</span>
             <a href="{{ m.zoom_url }}" target="_blank" rel="noopener">{{ m.zoom_url }}</a>
           </div>
+          <form method="post" action="{{ url_for('admin.support_groups_complete', meeting_id=m.id) }}"
+                style="margin-top: 12px;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="btn btn--secondary btn--sm" type="submit">Mark complete</button>
+          </form>
           {% endif %}
 
+          {% if m.kind == 'facilitator' and m.status in ('draft', 'scheduled') %}
           <form method="post" action="{{ url_for('admin.support_groups_schedule', meeting_id=m.id) }}"
-                class="stack-form sg-schedule">
+                class="stack-form sg-schedule" style="margin-top: 14px;">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="timezone" value="{{ owner_tz }}">
-            <div class="sg-schedule__stack">
-              <div class="field sg-schedule__when">
-                <label>Date &amp; time
-                  <span class="sg-schedule__tz">{{ owner_tz }}</span>
-                </label>
-                <div class="sg-schedule__when-row">
-                  <div class="sg-schedule__part">
-                    <span class="sg-schedule__part-label" id="date-label-{{ m.id }}">Date</span>
-                    <input type="date" id="date-{{ m.id }}" name="meeting_date" required
-                           aria-labelledby="date-label-{{ m.id }}"
-                           value="{% if m.scheduled_at %}{{ m.scheduled_at|localtime('%Y-%m-%d', owner_tz) }}{% endif %}">
-                  </div>
-                  <div class="sg-schedule__part">
-                    <span class="sg-schedule__part-label" id="time-label-{{ m.id }}">Time</span>
-                    <input type="time" id="time-{{ m.id }}" name="meeting_time" required
-                           aria-labelledby="time-label-{{ m.id }}"
-                           value="{% if m.scheduled_at %}{{ m.scheduled_at|localtime('%H:%M', owner_tz) }}{% endif %}">
-                  </div>
-                </div>
-                <p class="field-help">
-                  Pick the day, then the clock time in your timezone. Members see it in theirs.
-                  {% if m.status != 'scheduled' %}
-                  Scheduling creates the Zoom meeting and emails the join link.
-                  {% else %}
-                  Updating the time also updates the Zoom meeting and re-notifies members.
-                  {% endif %}
-                </p>
+            <div class="sg-schedule__when-row">
+              <div class="sg-schedule__part">
+                <span class="sg-schedule__part-label">Date</span>
+                <input type="date" name="meeting_date" required
+                       value="{% if m.scheduled_at %}{{ m.scheduled_at|localtime('%Y-%m-%d', owner_tz) }}{% endif %}">
+              </div>
+              <div class="sg-schedule__part">
+                <span class="sg-schedule__part-label">Time</span>
+                <input type="time" name="meeting_time" required
+                       value="{% if m.scheduled_at %}{{ m.scheduled_at|localtime('%H:%M', owner_tz) }}{% endif %}">
               </div>
             </div>
-            <div class="sg-schedule__actions">
-              <button class="btn btn--primary" type="submit">
-                {% if m.status == 'scheduled' %}Update &amp; notify{% else %}Schedule &amp; notify{% endif %}
-              </button>
-              {% if m.status == 'scheduled' %}
-              <button class="btn btn--secondary" type="submit"
-                      formaction="{{ url_for('admin.support_groups_complete', meeting_id=m.id) }}">
-                Mark complete
-              </button>
-              {% endif %}
-            </div>
+            <button class="btn btn--primary" type="submit" style="margin-top:10px;">
+              {% if m.status == 'scheduled' %}Update facilitator session{% else %}Schedule facilitator session{% endif %}
+            </button>
           </form>
+          {% endif %}
         </article>
         {% endfor %}
       </div>
       {% else %}
-      <p class="sg-empty">Seat people from a circle waiting list to open a meeting.</p>
+      <p class="sg-empty">No open sessions yet. Members schedule peer circles from Support Groups.</p>
       {% endif %}
     </section>
   </div>
@@ -206,12 +147,13 @@
     <h2 style="margin-top:0;">Recent</h2>
     <table class="admin-table">
       <thead>
-        <tr><th>Circle</th><th>When</th><th>Seats</th><th>Status</th></tr>
+        <tr><th>Circle</th><th>Kind</th><th>When</th><th>Seats</th><th>Status</th></tr>
       </thead>
       <tbody>
         {% for m in past_meetings %}
         <tr>
           <td>{% if m.circle %}{{ m.circle.title }}{% else %}—{% endif %}</td>
+          <td>{{ m.kind or 'peer' }}</td>
           <td>
             {% if m.scheduled_at %}
             {{ m.scheduled_at|localtime('%b %d, %Y · %I:%M %p') }}

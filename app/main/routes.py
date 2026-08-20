@@ -786,6 +786,7 @@ def account():
         my_listings=my_listings,
         listing_count=active_listing_count(current_user),
         listing_cap=listing_limit(current_user),
+        support_upcoming=sg_svc.upcoming_for_user(current_user, limit=6),
     )
 
 
@@ -1628,38 +1629,92 @@ def support_groups_page():
     stats = sg_svc.circle_stats()
     healing = [s for s in stats if s["circle"].track == "healing"]
     building = [s for s in stats if s["circle"].track == "building"]
-    my_circle_ids = set()
-    if current_user.is_authenticated and current_user.is_member():
-        for app in sg_svc.applications_for(current_user.id, limit=40):
-            if app.status in ("pending", "selected") and app.circle_id:
-                my_circle_ids.add(app.circle_id)
+    my_meeting_ids = set()
+    can_schedule = False
+    schedule_err = None
+    member_tz = "UTC"
+    if current_user.is_authenticated:
+        member_tz = (current_user.timezone or "UTC").strip() or "UTC"
+        if current_user.is_member():
+            can_schedule, schedule_err = sg_svc.can_schedule_peer(current_user)
+            for app in sg_svc.upcoming_for_user(current_user, limit=40):
+                if app.meeting_id:
+                    my_meeting_ids.add(app.meeting_id)
     return render_template(
         "main/support_groups.html",
         healing_circles=healing,
         building_circles=building,
-        my_circle_ids=my_circle_ids,
+        my_meeting_ids=my_meeting_ids,
+        can_schedule=can_schedule,
+        schedule_err=schedule_err,
+        member_tz=member_tz,
+        peer_cap=sg_svc.PEER_MEETING_CAP,
+        max_sessions=sg_svc.MAX_OPEN_SESSIONS_PER_CIRCLE,
     )
 
 
-@bp.route("/support-groups/join", methods=["POST"])
+@bp.route("/support-groups/schedule", methods=["POST"])
 @login_required
-def join_support_circle():
+def schedule_support_session():
     from ..services import support_groups as sg_svc
     if not current_user.is_member():
         flash("Support groups are for Healing, Creator, and Full Bloom members.", "error")
         return redirect(url_for("main.membership", next=url_for("main.support_groups_page")))
     circle_id = request.form.get("circle_id", type=int)
-    slug = (request.form.get("circle_slug") or "").strip() or None
-    _, err = sg_svc.apply(
+    tz = (request.form.get("timezone") or current_user.timezone or "UTC").strip()
+    meeting, err = sg_svc.schedule_peer_session(
         current_user,
-        request.form.get("message") or "",
         circle_id=circle_id,
-        circle_slug=slug,
+        date_s=request.form.get("meeting_date") or "",
+        time_s=request.form.get("meeting_time") or "",
+        tz_name=tz,
     )
     if err:
         flash(err, "error")
     else:
-        flash("You're on the list. We'll email and notify you when a circle opens.", "success")
+        flash(
+            f"Session scheduled for {meeting.circle.title if meeting and meeting.circle else 'your circle'}. "
+            "Others can join from upcoming sessions.",
+            "success",
+        )
+    return redirect(url_for("main.support_groups_page") + (f"#circle-{circle_id}" if circle_id else ""))
+
+
+@bp.route("/support-groups/meetings/<int:meeting_id>/join", methods=["POST"])
+@login_required
+def join_support_session(meeting_id):
+    from ..services import support_groups as sg_svc
+    if not current_user.is_member():
+        flash("Support groups are for Healing, Creator, and Full Bloom members.", "error")
+        return redirect(url_for("main.membership", next=url_for("main.support_groups_page")))
+    _, err = sg_svc.join_peer_session(current_user, meeting_id)
+    if err:
+        flash(err, "error")
+    else:
+        flash("You're in — check your email for the Zoom link.", "success")
+    return redirect(url_for("main.support_groups_page"))
+
+
+@bp.route("/support-groups/meetings/<int:meeting_id>/leave", methods=["POST"])
+@login_required
+def leave_support_session(meeting_id):
+    from ..services import support_groups as sg_svc
+    err = sg_svc.leave_peer_session(current_user, meeting_id)
+    if err:
+        flash(err, "error")
+    else:
+        flash("You've left that session.", "success")
+    return redirect(url_for("main.support_groups_page"))
+
+
+@bp.route("/support-groups/join", methods=["POST"])
+@login_required
+def join_support_circle():
+    """Legacy waitlist endpoint — peer sessions use schedule/join now."""
+    flash(
+        "Peer circles are join-as-you-go now. Open upcoming sessions below, or schedule a new one.",
+        "info",
+    )
     return redirect(url_for("main.support_groups_page"))
 
 
@@ -1671,7 +1726,7 @@ def withdraw_support_group(app_id):
     if err:
         flash(err, "error")
     else:
-        flash("Application withdrawn.", "success")
+        flash("You've left that session.", "success")
     return redirect(url_for("main.support_groups_page"))
 
 

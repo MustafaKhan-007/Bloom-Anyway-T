@@ -1,4 +1,4 @@
-"""Named peer circles (Zoom) — apply, seat, schedule, remind."""
+"""Peer-led support circles (Zoom) — member schedule/join; admin for facilitator."""
 from __future__ import annotations
 
 import logging
@@ -20,6 +20,10 @@ log = logging.getLogger(__name__)
 
 _last_sweep_mono = 0.0
 _SWEEP_GAP_SEC = 60
+
+PEER_MEETING_CAP = 8
+MAX_OPEN_SESSIONS_PER_CIRCLE = 4
+PEER_SCHEDULE_COOLDOWN_DAYS = 14
 
 
 def ensure_circles() -> list[SupportGroupCircle]:
@@ -57,6 +61,368 @@ def get_circle(circle_id: int | None = None, *, slug: str | None = None
     return None
 
 
+def user_can_access_circle(user: User | None, circle: SupportGroupCircle) -> bool:
+    if not user or not getattr(user, "is_authenticated", True):
+        return False
+    if not user.is_member() and not user.is_admin:
+        return False
+    if circle.track == "building":
+        return user.has_feature("support_creator")
+    if circle.track == "healing":
+        return user.has_feature("support_healing")
+    return False
+
+
+def meeting_seat_count(meeting: SupportGroupMeeting) -> int:
+    return (SupportGroupApplication.query
+            .filter_by(meeting_id=meeting.id, status="selected")
+            .count())
+
+
+def meeting_spots_left(meeting: SupportGroupMeeting) -> int:
+    cap = int(meeting.capacity or PEER_MEETING_CAP)
+    return max(0, cap - meeting_seat_count(meeting))
+
+
+def open_peer_sessions(circle_id: int) -> list[SupportGroupMeeting]:
+    """Scheduled peer sessions for a topic, soonest first."""
+    now = utcnow()
+    return (SupportGroupMeeting.query
+            .options(joinedload(SupportGroupMeeting.circle),
+                     joinedload(SupportGroupMeeting.host))
+            .filter(
+                SupportGroupMeeting.circle_id == circle_id,
+                SupportGroupMeeting.kind == "peer",
+                SupportGroupMeeting.status == "scheduled",
+                SupportGroupMeeting.scheduled_at.isnot(None),
+                SupportGroupMeeting.scheduled_at > now,
+            )
+            .order_by(SupportGroupMeeting.scheduled_at.asc())
+            .all())
+
+
+def open_peer_session_count(circle_id: int) -> int:
+    return (SupportGroupMeeting.query
+            .filter(
+                SupportGroupMeeting.circle_id == circle_id,
+                SupportGroupMeeting.kind == "peer",
+                SupportGroupMeeting.status == "scheduled",
+                SupportGroupMeeting.scheduled_at.isnot(None),
+                SupportGroupMeeting.scheduled_at > utcnow(),
+            )
+            .count())
+
+
+def user_selected_on_meeting(user_id: int, meeting_id: int
+                             ) -> SupportGroupApplication | None:
+    return (SupportGroupApplication.query
+            .filter_by(user_id=user_id, meeting_id=meeting_id, status="selected")
+            .first())
+
+
+def user_open_seat_in_circle(user_id: int, circle_id: int
+                            ) -> SupportGroupApplication | None:
+    row = (SupportGroupApplication.query
+           .options(joinedload(SupportGroupApplication.meeting))
+           .filter(
+               SupportGroupApplication.user_id == user_id,
+               SupportGroupApplication.circle_id == circle_id,
+               SupportGroupApplication.status == "selected",
+           )
+           .order_by(SupportGroupApplication.created_at.desc())
+           .first())
+    if row is None or row.meeting is None:
+        return None
+    if row.meeting.status not in ("draft", "scheduled"):
+        return None
+    if (row.meeting.status == "scheduled"
+            and row.meeting.scheduled_at
+            and row.meeting.scheduled_at <= utcnow()):
+        return None
+    return row
+
+
+def last_peer_schedule_at(user_id: int) -> datetime | None:
+    row = (SupportGroupMeeting.query
+           .filter(
+               SupportGroupMeeting.scheduled_by_user_id == user_id,
+               SupportGroupMeeting.kind == "peer",
+               SupportGroupMeeting.status.in_(("draft", "scheduled", "completed")),
+           )
+           .order_by(SupportGroupMeeting.created_at.desc())
+           .first())
+    return row.created_at if row else None
+
+
+def can_schedule_peer(user: User) -> tuple[bool, str | None]:
+    if not user or not user.is_member():
+        return False, "Support groups are for Healing, Creator, and Full Bloom members."
+    last = last_peer_schedule_at(user.id)
+    if last is None:
+        return True, None
+    unlock = last + timedelta(days=PEER_SCHEDULE_COOLDOWN_DAYS)
+    if utcnow() < unlock:
+        when = format_local(unlock, "%b %d", tz_name=getattr(user, "timezone", None) or "UTC")
+        return False, (
+            f"You can schedule another peer session after {when or 'two weeks'} "
+            f"(one every {PEER_SCHEDULE_COOLDOWN_DAYS} days)."
+        )
+    return True, None
+
+
+def circle_stats() -> list[dict]:
+    """Per-circle cards for the public page + Studio overview."""
+    out = []
+    for c in circles_by_track():
+        sessions = open_peer_sessions(c.id)
+        open_n = len(sessions)
+        joinable = sum(1 for m in sessions if meeting_spots_left(m) > 0)
+        out.append({
+            "circle": c,
+            "open_sessions": open_n,
+            "joinable_sessions": joinable,
+            "sessions_full": open_n >= MAX_OPEN_SESSIONS_PER_CIRCLE,
+            "sessions": sessions,
+            "session_seats": {m.id: meeting_seat_count(m) for m in sessions},
+            "session_spots": {m.id: meeting_spots_left(m) for m in sessions},
+            # Legacy keys used by older Studio occupancy widgets
+            "pending": 0,
+            "seated": sum(meeting_seat_count(m) for m in sessions),
+            "used": sum(meeting_seat_count(m) for m in sessions),
+            "spots_left": joinable,
+            "full": open_n >= MAX_OPEN_SESSIONS_PER_CIRCLE and joinable == 0,
+            "queue": [],
+        })
+    return out
+
+
+def applications_for(user_id: int, limit: int = 12):
+    return (SupportGroupApplication.query
+            .options(joinedload(SupportGroupApplication.meeting),
+                     joinedload(SupportGroupApplication.circle))
+            .filter_by(user_id=user_id)
+            .order_by(SupportGroupApplication.created_at.desc())
+            .limit(limit)
+            .all())
+
+
+def upcoming_for_user(user: User, limit: int = 12) -> list[SupportGroupApplication]:
+    """Selected seats on upcoming peer (or facilitator) sessions."""
+    rows = (SupportGroupApplication.query
+            .options(joinedload(SupportGroupApplication.meeting)
+                     .joinedload(SupportGroupMeeting.circle),
+                     joinedload(SupportGroupApplication.circle))
+            .filter_by(user_id=user.id, status="selected")
+            .order_by(SupportGroupApplication.created_at.desc())
+            .limit(40)
+            .all())
+    out = []
+    now = utcnow()
+    for row in rows:
+        m = row.meeting
+        if m is None or m.status != "scheduled" or not m.scheduled_at:
+            continue
+        if m.scheduled_at <= now:
+            continue
+        out.append(row)
+        if len(out) >= limit:
+            break
+    out.sort(key=lambda r: r.meeting.scheduled_at or now)
+    return out
+
+
+def open_meetings():
+    return (SupportGroupMeeting.query
+            .options(joinedload(SupportGroupMeeting.circle),
+                     joinedload(SupportGroupMeeting.host))
+            .filter(SupportGroupMeeting.status.in_(("draft", "scheduled")))
+            .order_by(SupportGroupMeeting.created_at.desc())
+            .all())
+
+
+def recent_meetings(limit: int = 20):
+    return (SupportGroupMeeting.query
+            .options(joinedload(SupportGroupMeeting.circle),
+                     joinedload(SupportGroupMeeting.host))
+            .filter(SupportGroupMeeting.status.in_(("completed", "cancelled")))
+            .order_by(SupportGroupMeeting.created_at.desc())
+            .limit(limit)
+            .all())
+
+
+def meeting_seats(meeting: SupportGroupMeeting):
+    return (SupportGroupApplication.query
+            .options(joinedload(SupportGroupApplication.author))
+            .filter_by(meeting_id=meeting.id, status="selected")
+            .order_by(SupportGroupApplication.created_at.asc())
+            .all())
+
+
+def pending_count(circle_id: int | None = None) -> int:
+    """Legacy waitlist count (peer flow no longer uses pending)."""
+    q = SupportGroupApplication.query.filter_by(status="pending")
+    if circle_id is not None:
+        q = q.filter_by(circle_id=circle_id)
+    return q.count()
+
+
+def schedule_peer_session(
+    user: User,
+    *,
+    circle_id: int,
+    date_s: str,
+    time_s: str,
+    tz_name: str | None = None,
+) -> tuple[SupportGroupMeeting | None, str | None]:
+    """Member schedules a peer Zoom session for a topic."""
+    ok, err = can_schedule_peer(user)
+    if not ok:
+        return None, err
+
+    circle = get_circle(circle_id)
+    if circle is None or not circle.active:
+        return None, "Choose a support group topic."
+    if not user_can_access_circle(user, circle):
+        if circle.track == "building":
+            return None, "Creator accountability groups aren’t included in your plan."
+        return None, "Healing peer groups aren’t included in your plan."
+
+    if open_peer_session_count(circle.id) >= MAX_OPEN_SESSIONS_PER_CIRCLE:
+        return None, (
+            f"{circle.title} already has {MAX_OPEN_SESSIONS_PER_CIRCLE} upcoming "
+            "sessions. Join one of those, or try another topic."
+        )
+
+    if user_open_seat_in_circle(user.id, circle.id):
+        return None, f"You're already booked in an upcoming {circle.title} session."
+
+    when = parse_owner_parts(date_s, time_s, tz_name or getattr(user, "timezone", None))
+    if when is None:
+        return None, "Pick a date and time for the session."
+    if when <= utcnow():
+        return None, "Choose a time in the future."
+
+    meeting = SupportGroupMeeting(
+        circle_id=circle.id,
+        capacity=PEER_MEETING_CAP,
+        kind="peer",
+        scheduled_by_user_id=user.id,
+        status="draft",
+        created_at=utcnow(),
+    )
+    db.session.add(meeting)
+    db.session.flush()
+
+    seat = SupportGroupApplication(
+        user_id=user.id,
+        circle_id=circle.id,
+        meeting_id=meeting.id,
+        message="",
+        status="selected",
+        created_at=utcnow(),
+    )
+    db.session.add(seat)
+    db.session.commit()
+
+    err = schedule_meeting(meeting, scheduled_at=when, owner=user)
+    if err:
+        # Roll the draft back so the member can try again.
+        cancel_meeting(meeting, owner=user, return_to_queue=False)
+        return None, err
+    return meeting, None
+
+
+def join_peer_session(user: User, meeting_id: int
+                     ) -> tuple[SupportGroupApplication | None, str | None]:
+    meeting = db.session.get(SupportGroupMeeting, meeting_id)
+    if meeting is None or meeting.kind != "peer" or meeting.status != "scheduled":
+        return None, "That session isn’t open to join."
+    if not meeting.circle or not meeting.circle.active:
+        return None, "That topic isn’t available."
+    if not user_can_access_circle(user, meeting.circle):
+        return None, "That session isn’t included in your plan."
+    if not meeting.scheduled_at or meeting.scheduled_at <= utcnow():
+        return None, "That session has already started or ended."
+    if meeting_spots_left(meeting) <= 0:
+        return None, "That session is full (8 women max)."
+
+    existing = user_selected_on_meeting(user.id, meeting.id)
+    if existing:
+        return existing, None
+
+    other = user_open_seat_in_circle(user.id, meeting.circle_id)
+    if other and other.meeting_id != meeting.id:
+        return None, (
+            f"You're already booked for another {meeting.circle.title} session. "
+            "Leave that one first if you want to switch."
+        )
+
+    row = SupportGroupApplication(
+        user_id=user.id,
+        circle_id=meeting.circle_id,
+        meeting_id=meeting.id,
+        message="",
+        status="selected",
+        created_at=utcnow(),
+    )
+    db.session.add(row)
+    db.session.commit()
+    _notify_joiner(meeting, user)
+    return row, None
+
+
+def leave_peer_session(user: User, meeting_id: int) -> str | None:
+    meeting = db.session.get(SupportGroupMeeting, meeting_id)
+    if meeting is None:
+        return "Session not found."
+    row = user_selected_on_meeting(user.id, meeting.id)
+    if row is None:
+        return "You're not in that session."
+
+    # Host leaving cancels the whole peer session.
+    if meeting.scheduled_by_user_id == user.id and meeting.kind == "peer":
+        cancel_meeting(meeting, owner=user, return_to_queue=False)
+        return None
+
+    row.status = "cancelled"
+    db.session.commit()
+    return None
+
+
+def _notify_joiner(meeting: SupportGroupMeeting, user: User) -> None:
+    zoom = (meeting.zoom_url or "").strip()
+    group = _circle_name(meeting)
+    when = _when_for(user, meeting.scheduled_at)
+    seats = max(0, meeting_seat_count(meeting) - 1)
+    note = f"You're in for {group} — {when}."
+    notify(user.id, kind="support_group", body=note[:300],
+           actor_id=meeting.scheduled_by_user_id)
+    text = (
+        f"Hi {user.first_name() or user.public_name()},\n\n"
+        f"You've joined {group}.\n\n"
+        f"When: {when}\n"
+        f"With: up to {PEER_MEETING_CAP - 1} other members "
+        f"({seats} already seated)\n"
+        f"Zoom: {zoom}\n\n"
+        f"We'll remind you again 24 hours before.\n\n"
+        f"— Bloom Anyway\n"
+    )
+    html = (
+        f"<p>Hi {escape(user.first_name() or user.public_name())},</p>"
+        f"<p>You've joined <strong>{escape(group)}</strong>.</p>"
+        f"<p><strong>When:</strong> {escape(when)}<br>"
+        f"<strong>Zoom:</strong> <a href=\"{escape(zoom)}\">{escape(zoom)}</a></p>"
+        f"<p>— Bloom Anyway</p>"
+    )
+    try:
+        send_email(user.email, f"You're in for {group}", text, html_body=html)
+    except Exception:
+        log.exception("Support-group join email failed for user %s", user.id)
+    db.session.commit()
+
+
+# --- legacy waitlist helpers (kept for older rows / smoke migration) ---------
+
 def active_application(user_id: int, circle_id: int | None = None
                        ) -> SupportGroupApplication | None:
     q = (SupportGroupApplication.query
@@ -87,115 +453,22 @@ def pending_queue(circle_id: int | None = None, limit: int = 200):
     return q.order_by(SupportGroupApplication.created_at.asc()).limit(limit).all()
 
 
-def pending_count(circle_id: int | None = None) -> int:
-    q = SupportGroupApplication.query.filter_by(status="pending")
-    if circle_id is not None:
-        q = q.filter_by(circle_id=circle_id)
-    return q.count()
-
-
-def seated_open_count(circle_id: int) -> int:
-    """Selected seats on draft/scheduled meetings for a circle."""
-    return (SupportGroupApplication.query
-            .join(SupportGroupMeeting)
-            .filter(
-                SupportGroupApplication.circle_id == circle_id,
-                SupportGroupApplication.status == "selected",
-                SupportGroupMeeting.status.in_(("draft", "scheduled")),
-            )
-            .count())
-
-
-def spots_left(circle: SupportGroupCircle) -> int:
-    """Open seats on the current draft/scheduled meeting cohort."""
-    return max(0, int(circle.capacity) - seated_open_count(circle.id))
-
-
-def circle_stats() -> list[dict]:
-    """Per-circle occupancy for Studio + public page cards."""
-    out = []
-    for c in circles_by_track():
-        pending = pending_count(c.id)
-        seated = seated_open_count(c.id)
-        left = max(0, c.capacity - seated)
-        queue = pending_queue(circle_id=c.id, limit=40)
-        out.append({
-            "circle": c,
-            "pending": pending,
-            "seated": seated,
-            "used": seated,
-            "spots_left": left,
-            "full": left <= 0,
-            "queue": queue,
-        })
-    return out
-
-
-def applications_for(user_id: int, limit: int = 12):
-    return (SupportGroupApplication.query
-            .options(joinedload(SupportGroupApplication.meeting),
-                     joinedload(SupportGroupApplication.circle))
-            .filter_by(user_id=user_id)
-            .order_by(SupportGroupApplication.created_at.desc())
-            .limit(limit)
-            .all())
-
-
-def open_meetings():
-    return (SupportGroupMeeting.query
-            .options(joinedload(SupportGroupMeeting.circle))
-            .filter(SupportGroupMeeting.status.in_(("draft", "scheduled")))
-            .order_by(SupportGroupMeeting.created_at.desc())
-            .all())
-
-
-def recent_meetings(limit: int = 20):
-    return (SupportGroupMeeting.query
-            .options(joinedload(SupportGroupMeeting.circle))
-            .filter(SupportGroupMeeting.status.in_(("completed", "cancelled")))
-            .order_by(SupportGroupMeeting.created_at.desc())
-            .limit(limit)
-            .all())
-
-
-def meeting_seats(meeting: SupportGroupMeeting):
-    return (SupportGroupApplication.query
-            .options(joinedload(SupportGroupApplication.author))
-            .filter_by(meeting_id=meeting.id, status="selected")
-            .order_by(SupportGroupApplication.created_at.asc())
-            .all())
-
-
 def apply(user: User, message: str = "", *, circle_id: int | None = None,
           circle_slug: str | None = None
           ) -> tuple[SupportGroupApplication | None, str | None]:
-    if not user or not user.is_member():
-        return None, "Support groups are for Healing, Creator, and Full Bloom members."
-    circle = get_circle(circle_id, slug=circle_slug)
-    if circle is None or not circle.active:
-        return None, "Choose a support group circle."
-    if circle.track == "building" and not user.has_feature("support_creator"):
-        return None, "Creator accountability groups aren’t included in your plan."
-    if circle.track == "healing" and not user.has_feature("support_healing"):
-        return None, "Healing peer groups aren’t included in your plan."
-    if active_application(user.id, circle.id):
-        return None, f"You're already in the queue (or booked) for {circle.title}."
-    body = (message or "").strip()
-    if len(body) > 2000:
-        return None, "Keep your note under 2,000 characters."
-    row = SupportGroupApplication(
-        user_id=user.id, circle_id=circle.id, message=body,
-        status="pending", created_at=utcnow(),
+    """Deprecated waitlist apply — peer flow uses schedule/join instead."""
+    return None, (
+        "Peer circles are join-as-you-go now. Open upcoming sessions on the "
+        "Support Groups page, or schedule a new one."
     )
-    db.session.add(row)
-    db.session.commit()
-    return row, None
 
 
 def withdraw(user: User, app_id: int) -> str | None:
     row = db.session.get(SupportGroupApplication, app_id)
     if row is None or row.user_id != user.id:
         return "Application not found."
+    if row.status == "selected" and row.meeting_id:
+        return leave_peer_session(user, row.meeting_id)
     if row.status != "pending":
         return "Only pending applications can be withdrawn."
     row.status = "cancelled"
@@ -205,24 +478,28 @@ def withdraw(user: User, app_id: int) -> str | None:
 
 def form_next_meeting(capacity: int, *, circle_id: int | None = None
                       ) -> tuple[SupportGroupMeeting | None, str | None]:
+    """Admin-only: create a facilitator-led draft from any leftover waitlist."""
     try:
         capacity = int(capacity)
     except (TypeError, ValueError):
         return None, "Enter how many seats you want."
-    if capacity < 2 or capacity > 40:
-        return None, "Seat count must be between 2 and 40."
+    if capacity < 2 or capacity > PEER_MEETING_CAP:
+        return None, f"Seat count must be between 2 and {PEER_MEETING_CAP}."
     circle = get_circle(circle_id) if circle_id else None
     if circle_id and circle is None:
         return None, "Unknown circle."
-    # Prefer seating from the named circle; fall back to global queue for legacy.
     queue = pending_queue(circle_id=circle.id if circle else None, limit=capacity)
     if not queue:
-        return None, "No pending applicants yet."
+        return None, (
+            "No waitlist applicants. Peer sessions are member-scheduled — "
+            "use Facilitator booking for guided sessions."
+        )
     if circle is None and queue[0].circle_id:
         circle = get_circle(queue[0].circle_id)
     meeting = SupportGroupMeeting(
         circle_id=circle.id if circle else None,
-        capacity=capacity, status="draft", created_at=utcnow(),
+        capacity=capacity, status="draft", kind="facilitator",
+        created_at=utcnow(),
     )
     db.session.add(meeting)
     db.session.flush()
@@ -307,7 +584,7 @@ def schedule_meeting(meeting: SupportGroupMeeting, *, scheduled_at: datetime,
 
 
 def cancel_meeting(meeting: SupportGroupMeeting, *, owner: User | None = None,
-                   return_to_queue: bool = True) -> None:
+                   return_to_queue: bool = False) -> None:
     seats = meeting_seats(meeting)
     was_live = meeting.status == "scheduled" and bool(meeting.booked_notified_at)
     zoom_id = (meeting.zoom_meeting_id or "").strip()
@@ -409,30 +686,22 @@ def _notify_seats(meeting: SupportGroupMeeting, *, kind: str,
                 f"<p>— Bloom Anyway</p>"
             )
         elif kind == "cancelled":
-            note = (
-                f"Your {group} meeting was cancelled. "
-                "You're back on the waiting list with your original place."
-            )
+            note = f"Your {group} meeting was cancelled."
             subject = f"{group} cancelled"
             text = (
                 f"Hi {user.first_name() or user.public_name()},\n\n"
                 f"The {group} you were booked for has been cancelled.\n"
-                f"You're back on the waiting list — no need to re-apply, and you "
-                f"keep your place ahead of anyone who applied after you.\n\n"
+                f"You can join or schedule another session on Support Groups.\n\n"
                 f"— Bloom Anyway\n"
             )
             html = None
         elif kind == "cancelled_draft":
-            note = (
-                f"The {group} circle you were seated for was cancelled. "
-                "You're back on the waiting list with your original place."
-            )
+            note = f"The {group} session you were seated for was cancelled."
             subject = f"{group} cancelled"
             text = (
                 f"Hi {user.first_name() or user.public_name()},\n\n"
-                f"The {group} circle you were seated for has been cancelled "
-                f"before a date was set.\n"
-                f"You're back on the waiting list — no need to re-apply.\n\n"
+                f"The {group} session was cancelled before it went live.\n"
+                f"You can join or schedule another on Support Groups.\n\n"
                 f"— Bloom Anyway\n"
             )
             html = None

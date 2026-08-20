@@ -1415,34 +1415,36 @@ class ContentReport(db.Model):
 
 SUPPORT_APP_STATUSES = ("pending", "selected", "cancelled", "attended")
 SUPPORT_MEETING_STATUSES = ("draft", "scheduled", "completed", "cancelled")
+SUPPORT_MEETING_KINDS = ("peer", "facilitator")
 SUPPORT_CIRCLE_TRACKS = ("healing", "building")
 
 # Seed catalogue for peer circles shown on /support-groups and in Studio.
+# Capacity is seats per session (peer meetings are capped at 8).
 SUPPORT_CIRCLE_SEED = (
     ("divorce-recovery", "healing", "Divorce Recovery",
      "Process endings, paperwork, and the quiet after — with women who get it.",
-     12, "Mondays, 8pm", "heart"),
+     8, "Peer-scheduled", "heart"),
     ("co-parenting", "healing", "Co-Parenting Circle",
      "Navigate shared parenting, boundaries, and hard conversations with care.",
-     12, "Tuesdays, 7pm", "people"),
+     8, "Peer-scheduled", "people"),
     ("starting-over", "healing", "Starting Over",
      "Rebuild identity, routines, and confidence when life looks nothing like before.",
-     12, "Wednesdays, 8pm", "sun"),
+     8, "Peer-scheduled", "sun"),
     ("grief-loss", "healing", "Grief & Loss",
      "Hold space for what was lost — without having to rush toward fine.",
-     12, "Thursdays, 7pm", "candle"),
+     8, "Peer-scheduled", "candle"),
     ("new-creators", "building", "New Creators Circle",
      "Launch your first posts, offers, and habits without spinning alone.",
-     10, "Mondays, 7pm", "plant"),
+     8, "Peer-scheduled", "plant"),
     ("digital-products", "building", "Digital Product Builders",
      "Ship guides, templates, and downloads with peers who understand the messy middle.",
-     10, "Tuesdays, 8pm", "box"),
+     8, "Peer-scheduled", "box"),
     ("scaling-up", "building", "Scaling Up",
      "Systems, launches, and sustainable growth when ready to level up.",
-     10, "Wednesdays, 7pm", "arrow"),
+     8, "Peer-scheduled", "arrow"),
     ("money-investing", "building", "Money & Investing",
      "Normalize talking numbers, pricing, and building wealth on your terms.",
-     10, "Thursdays, 8pm", "wallet"),
+     8, "Peer-scheduled", "wallet"),
 )
 
 
@@ -1477,7 +1479,11 @@ class SupportGroupMeeting(db.Model):
     circle_id = db.Column(
         db.Integer, db.ForeignKey("support_group_circles.id"), index=True,
     )
-    capacity = db.Column(db.Integer, nullable=False, default=6)
+    capacity = db.Column(db.Integer, nullable=False, default=8)
+    kind = db.Column(db.String(20), nullable=False, default="peer", index=True)
+    scheduled_by_user_id = db.Column(
+        db.Integer, db.ForeignKey("users.id"), index=True,
+    )
     scheduled_at = db.Column(db.DateTime)  # stored UTC (naive)
     zoom_url = db.Column(db.String(500))
     zoom_meeting_id = db.Column(db.String(64))  # Zoom meeting id for API update/delete
@@ -1488,12 +1494,16 @@ class SupportGroupMeeting(db.Model):
     created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
 
     circle = db.relationship("SupportGroupCircle", back_populates="meetings")
+    host = db.relationship("User", foreign_keys=[scheduled_by_user_id])
     applications = db.relationship(
         "SupportGroupApplication", back_populates="meeting", lazy="dynamic",
     )
 
     def is_bookable(self) -> bool:
         return bool(self.scheduled_at and (self.zoom_url or "").strip())
+
+    def is_peer(self) -> bool:
+        return (self.kind or "peer") == "peer"
 
 
 class SupportGroupApplication(db.Model):

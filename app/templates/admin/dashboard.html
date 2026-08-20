@@ -171,14 +171,15 @@
       {% if support_occupancy %}
       <ul class="studio-dash-exact__occ">
         {% for row in support_occupancy %}
-        {% set cap = row.circle.capacity if row.circle else 0 %}
-        {% set used = row.used if row.used is defined else row.seated %}
-        {% set pct = ((100 * used / cap)|int) if cap else 0 %}
+        {% set open_n = row.open_sessions if row.open_sessions is defined else 0 %}
+        {% set seated = row.seated if row.seated is defined else (row.used or 0) %}
+        {% set max_sessions = 4 %}
+        {% set pct = ((100 * open_n / max_sessions)|int) if max_sessions else 0 %}
         {% if pct > 100 %}{% set pct = 100 %}{% endif %}
         <li>
           <div class="sg-occ__meta">
             <span class="sg-occ__name">{{ row.circle.title if row.circle else 'Circle' }}</span>
-            <span class="sg-occ__count">{{ used }} / {{ cap }}{% if row.pending %} · {{ row.pending }} waiting{% endif %}</span>
+            <span class="sg-occ__count">{{ open_n }} / {{ max_sessions }} sessions · {{ seated }} seated</span>
           </div>
           <div class="sg-occ__bar" aria-hidden="true"><span style="width: {{ pct }}%;"></span></div>
         </li>

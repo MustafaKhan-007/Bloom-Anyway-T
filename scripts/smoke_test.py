@@ -1780,7 +1780,7 @@ ok("Page loader uses an animated sunflower",
    and "page-loader__leaf" in r.get_data(as_text=True)
    and "page-loader__spin" in r.get_data(as_text=True))
 
-# support / coaching groups
+# support / coaching groups — peer schedule/join (admin oversight only)
 from app.models import (Notification, SupportGroupApplication, SupportGroupCircle,
                         SupportGroupMeeting)
 from app.services import support_groups as sg_svc
@@ -1801,89 +1801,119 @@ with app.app_context():
     heal_cid = _heal_circle.id
     build_cid = _build_circle.id
 
-r = free_client.post("/support-groups/join",
-                     data={"circle_id": heal_cid, "message": "hi"},
+_when = datetime.utcnow() + timedelta(hours=36)
+_sg_date = _when.strftime("%Y-%m-%d")
+_sg_time = _when.strftime("%H:%M")
+
+r = free_client.post("/support-groups/schedule",
+                     data={"circle_id": heal_cid, "meeting_date": _sg_date,
+                           "meeting_time": _sg_time, "timezone": "UTC"},
                      follow_redirects=True)
-ok("Free members cannot apply for support groups",
-   "Healing and Creator" in r.get_data(as_text=True)
+ok("Free members cannot schedule peer sessions",
+   "Healing, Creator, and Full Bloom" in r.get_data(as_text=True)
    or free_client.get("/membership").status_code == 200)
 
-r = stranger_client.post("/support-groups/join",
-                         data={"circle_id": heal_cid,
-                               "message": "Need a gentle circle"},
+r = stranger_client.post("/support-groups/schedule",
+                         data={"circle_id": heal_cid, "meeting_date": _sg_date,
+                               "meeting_time": _sg_time, "timezone": "UTC"},
                          follow_redirects=True)
-ok("Healing member can apply for a support group",
-   "on the list" in r.get_data(as_text=True).lower())
-r = client.post("/support-groups/join",
-                data={"circle_id": heal_cid, "message": "Creator joining too"},
-                follow_redirects=True)
-ok("Creator member can apply for a support group",
-   "on the list" in r.get_data(as_text=True).lower())
+ok("Healing member can schedule a peer session",
+   "Session scheduled" in r.get_data(as_text=True),
+   r.get_data(as_text=True)[:500])
+with app.app_context():
+    peer = (SupportGroupMeeting.query
+            .filter_by(circle_id=heal_cid, kind="peer", status="scheduled")
+            .order_by(SupportGroupMeeting.id.desc()).first())
+    ok("Peer meeting exists after member schedule", peer is not None)
+    mid = peer.id
+    ok("Scheduler is seated as host",
+       SupportGroupApplication.query.filter_by(
+           meeting_id=mid, status="selected").count() == 1)
+    ok("Schedule auto-created a Zoom join URL",
+       (peer.zoom_url or "").startswith("https://zoom.us/j/")
+       and bool(peer.zoom_meeting_id))
+    auto_zoom = peer.zoom_url
+ok("Host booking email was sent",
+   len([m for m in _sent_mail if "booked" in m["subject"].lower()]) >= 1)
+
+r = stranger_client.post("/support-groups/schedule",
+                         data={"circle_id": heal_cid,
+                               "meeting_date": (_when + timedelta(days=1)).strftime("%Y-%m-%d"),
+                               "meeting_time": _sg_time, "timezone": "UTC"},
+                         follow_redirects=True)
+ok("Peer schedule cooldown blocks a second session within 2 weeks",
+   "every 14 days" in r.get_data(as_text=True).lower()
+   or "after" in r.get_data(as_text=True).lower())
+
+r = client.post(f"/support-groups/meetings/{mid}/join", follow_redirects=True)
+ok("Another member can join an upcoming peer session",
+   "You're in" in r.get_data(as_text=True)
+   or "Zoom link" in r.get_data(as_text=True))
+with app.app_context():
+    seated = SupportGroupApplication.query.filter_by(
+        meeting_id=mid, status="selected").count()
+    ok("Joined peer session has two seats", seated == 2)
+    notes = Notification.query.filter_by(kind="support_group").count()
+    ok("Peer booking created in-app notifications", notes >= 1)
+    sample = Notification.query.filter_by(kind="support_group").first()
+    ok("Support-group notifications are not hyperlinks",
+       sample is not None and sample.href() is None)
 
 r = client.get("/support-groups")
-ok("Support groups page lists named circles",
+sg_body = r.get_data(as_text=True)
+ok("Support groups page lists named circles and upcoming sessions",
    r.status_code == 200
-   and "Divorce Recovery" in r.get_data(as_text=True)
-   and "New Creators Circle" in r.get_data(as_text=True)
-   and "Apply from My Space" not in r.get_data(as_text=True))
+   and "Divorce Recovery" in sg_body
+   and "New Creators Circle" in sg_body
+   and "View upcoming sessions" in sg_body
+   and "Apply from My Space" not in sg_body)
 r = client.get("/account")
-ok("My space no longer hosts the support-group apply fold",
-   "data-coaching-toggle" not in r.get_data(as_text=True)
-   and 'id="support-groups"' not in r.get_data(as_text=True))
+acct = r.get_data(as_text=True)
+ok("My space shows upcoming peer sessions",
+   "Upcoming Sessions" in acct
+   and "Manage sessions" in acct)
 ok("Membership matrix lists support groups",
    "Support groups" in app.test_client().get("/membership").get_data(as_text=True))
 
+# Creator-only cannot schedule healing topics
+with app.app_context():
+    creator_only = User(email="sg-creator@example.com", username="sgcreator",
+                        membership="creator", email_verified_at=utcnow())
+    creator_only.set_password(USER_PW)
+    db.session.add(creator_only)
+    db.session.commit()
+creator_sg = app.test_client()
+creator_sg.post("/login", data={"email": "sg-creator@example.com", "password": USER_PW})
+r = creator_sg.post("/support-groups/schedule",
+                    data={"circle_id": heal_cid, "meeting_date": _sg_date,
+                          "meeting_time": _sg_time, "timezone": "UTC"},
+                    follow_redirects=True)
+ok("Creator plan cannot schedule healing peer groups",
+   "aren’t included" in r.get_data(as_text=True)
+   or "aren't included" in r.get_data(as_text=True)
+   or "not included" in r.get_data(as_text=True).lower())
+
 r = admin.get("/admin/support-groups")
-ok("Studio support-groups page loads",
+ok("Studio support-groups page loads for peer oversight",
    r.status_code == 200
-   and ("Waiting list" in r.get_data(as_text=True)
-        or "Waiting lists" in r.get_data(as_text=True))
-   and "Divorce Recovery" in r.get_data(as_text=True))
+   and "member-scheduled" in r.get_data(as_text=True).lower()
+   and "Divorce Recovery" in r.get_data(as_text=True)
+   and "Waiting list" not in r.get_data(as_text=True))
 dash = admin.get("/admin/").get_data(as_text=True)
 ok("Dashboard occupancy labels each circle by title",
    "Support Group Occupancy" in dash
    and "sg-occ__name" in dash
    and "Divorce Recovery" in dash
-   and "New Creators Circle" in dash)
+   and "New Creators Circle" in dash
+   and "sessions" in dash.lower())
 r = admin.post("/admin/support-groups/form",
                data={"capacity": "2", "circle_id": str(heal_cid)},
                follow_redirects=True)
-ok("Owner can seat earliest applicants",
-   "Seated 2" in r.get_data(as_text=True),
-   r.get_data(as_text=True)[:500])
-with app.app_context():
-    meeting = SupportGroupMeeting.query.filter_by(status="draft").first()
-    ok("Draft meeting exists after seating", meeting is not None)
-    mid = meeting.id
-    seated = SupportGroupApplication.query.filter_by(
-        meeting_id=mid, status="selected").count()
-    ok("Exactly two applicants were seated", seated == 2)
+ok("Studio no longer seats waitlists for peer circles",
+   "member-scheduled" in r.get_data(as_text=True).lower())
 
-# Schedule ~36h out so booking notify fires, then backdate into the 24h window
-when_local = (datetime.utcnow() + timedelta(hours=36)).strftime("%Y-%m-%dT%H:%M")
-_when_date, _when_time = when_local.split("T", 1)
-r = admin.post(f"/admin/support-groups/{mid}/schedule", data={
-    "meeting_date": _when_date,
-    "meeting_time": _when_time,
-    "timezone": "UTC",
-}, follow_redirects=True)
-ok("Owner can schedule Zoom meeting and notify seats",
-   "Meeting scheduled" in r.get_data(as_text=True),
-   r.get_data(as_text=True)[:500])
-ok("Booking emails were sent to seated members",
-   len([m for m in _sent_mail if "booked" in m["subject"].lower()]) >= 2)
 with app.app_context():
-    notes = Notification.query.filter_by(kind="support_group").count()
-    ok("Booking created in-app notifications", notes >= 2)
-    sample = Notification.query.filter_by(kind="support_group").first()
-    ok("Support-group notifications are not hyperlinks",
-       sample is not None and sample.href() is None)
     meeting = db.session.get(SupportGroupMeeting, mid)
-    ok("Schedule auto-created a Zoom join URL",
-       meeting is not None
-       and (meeting.zoom_url or "").startswith("https://zoom.us/j/")
-       and bool(meeting.zoom_meeting_id))
-    auto_zoom = meeting.zoom_url
     meeting.scheduled_at = utcnow() + timedelta(hours=20)
     meeting.reminded_at = None
     db.session.commit()
@@ -1893,78 +1923,61 @@ ok("Reminder email includes Zoom link",
    any(auto_zoom in (m.get("text") or "")
        and "reminder" in m["subject"].lower() for m in _sent_mail))
 
-# Someone applies while the booked circle is still open — they should sit
-# behind the cancelled booked members once those return to the queue.
 with app.app_context():
-    late = User(email="sg-late@example.com", username="sglate",
-                membership="healing", email_verified_at=utcnow())
-    late.set_password(USER_PW)
-    db.session.add(late)
-    db.session.commit()
-    late_app, _ = sg_svc.apply(late, "applied after seating", circle_id=heal_cid)
-    late_id = late.id
-    late_created = late_app.created_at
-    booked_apps = SupportGroupApplication.query.filter_by(
-        meeting_id=mid, status="selected").all()
-    booked_user_ids = [a.user_id for a in booked_apps]
-    for a in booked_apps:
-        ok("Booked applicants applied before the late joiner",
-           a.created_at < late_created)
     notes_before_cancel = Notification.query.filter_by(kind="support_group").count()
 r = admin.post(f"/admin/support-groups/{mid}/cancel", follow_redirects=True)
-ok("Owner can cancel a scheduled support group",
+ok("Owner can cancel a peer session from Studio",
    "cancelled" in r.get_data(as_text=True).lower())
-ok("Cancel emails were sent to selected members",
+ok("Cancel emails were sent to seated members",
    len([m for m in _sent_mail if "cancelled" in m["subject"].lower()]) >= 2)
 with app.app_context():
     notes_after = Notification.query.filter_by(kind="support_group").count()
-    ok("Cancel creates in-app notifications for selected members",
+    ok("Cancel creates in-app notifications for seated members",
        notes_after >= notes_before_cancel + 2)
-    restored = SupportGroupApplication.query.filter(
-        SupportGroupApplication.user_id.in_(booked_user_ids),
-        SupportGroupApplication.status == "pending",
-        SupportGroupApplication.meeting_id.is_(None),
-    ).count()
-    ok("Booked cancel returns members to the waiting list", restored == 2)
-    queue = sg_svc.pending_queue()
-    queue_ids = [a.user_id for a in queue]
-    ok("Cancelled booked members keep priority over later applicants",
-       all(uid in queue_ids for uid in booked_user_ids)
-       and late_id in queue_ids
-       and max(queue_ids.index(uid) for uid in booked_user_ids)
-       < queue_ids.index(late_id))
+    cancelled_seats = SupportGroupApplication.query.filter_by(
+        meeting_id=mid, status="cancelled").count()
+    ok("Peer cancel marks seats cancelled (no waitlist return)", cancelled_seats == 2)
 
-# Draft circle cancel (seated, not yet scheduled) also notifies
+# Cap: max 4 open peer sessions per topic
 with app.app_context():
-    d1 = User(email="sg-draft1@example.com", username="sgdraft1",
-              membership="healing", email_verified_at=utcnow())
-    d1.set_password(USER_PW)
-    d2 = User(email="sg-draft2@example.com", username="sgdraft2",
-              membership="healing", email_verified_at=utcnow())
-    d2.set_password(USER_PW)
-    db.session.add_all([d1, d2])
+    # Clear any leftover open peer sessions on this topic from earlier steps.
+    for leftover in SupportGroupMeeting.query.filter_by(
+            circle_id=heal_cid, kind="peer", status="scheduled").all():
+        sg_svc.cancel_meeting(leftover, return_to_queue=False)
+    hosts = []
+    for i in range(4):
+        u = User(email=f"sg-host{i}@example.com", username=f"sghost{i}",
+                 membership="healing", email_verified_at=utcnow())
+        u.set_password(USER_PW)
+        db.session.add(u)
+        hosts.append(u)
     db.session.commit()
-    sg_svc.apply(d1, "draft one", circle_id=heal_cid)
-    sg_svc.apply(d2, "draft two", circle_id=heal_cid)
-    draft, derr = sg_svc.form_next_meeting(2, circle_id=heal_cid)
-    ok("Draft seating for cancel test", draft is not None and not derr)
-    draft_id = draft.id
-    notes_before_draft = Notification.query.filter_by(kind="support_group").count()
-r = admin.post(f"/admin/support-groups/{draft_id}/cancel", follow_redirects=True)
-ok("Owner can cancel a draft support group",
-   "cancelled" in r.get_data(as_text=True).lower())
-with app.app_context():
-    notes_after_draft = Notification.query.filter_by(kind="support_group").count()
-    ok("Draft cancel notifies seated applicants",
-       notes_after_draft >= notes_before_draft + 2)
-    pending_again = SupportGroupApplication.query.filter(
-        SupportGroupApplication.user_id.in_(
-            [User.query.filter_by(email="sg-draft1@example.com").first().id,
-             User.query.filter_by(email="sg-draft2@example.com").first().id]
-        ),
-        SupportGroupApplication.status == "pending",
-    ).count()
-    ok("Draft cancel returns applicants to the waiting list", pending_again == 2)
+    host_ids = [u.id for u in hosts]
+    for i, uid in enumerate(host_ids):
+        u = db.session.get(User, uid)
+        when = utcnow() + timedelta(days=3 + i, hours=2)
+        m, err = sg_svc.schedule_peer_session(
+            u, circle_id=heal_cid,
+            date_s=when.strftime("%Y-%m-%d"),
+            time_s=when.strftime("%H:%M"),
+            tz_name="UTC",
+        )
+        ok(f"Peer session {i + 1}/4 schedules for topic cap test",
+           m is not None and not err, err)
+    fifth = User(email="sg-host5@example.com", username="sghost5",
+                 membership="healing", email_verified_at=utcnow())
+    fifth.set_password(USER_PW)
+    db.session.add(fifth)
+    db.session.commit()
+    when5 = utcnow() + timedelta(days=10, hours=2)
+    m5, err5 = sg_svc.schedule_peer_session(
+        fifth, circle_id=heal_cid,
+        date_s=when5.strftime("%Y-%m-%d"),
+        time_s=when5.strftime("%H:%M"),
+        tz_name="UTC",
+    )
+    ok("Topic blocks a 5th upcoming peer session",
+       m5 is None and err5 and "4 upcoming" in err5)
 
 # site image uploads (hero / story teaser)
 from io import BytesIO

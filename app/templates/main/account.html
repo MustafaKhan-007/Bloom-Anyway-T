@@ -342,7 +342,22 @@
 
         <div class="ms-card">
           <p class="eyebrow">Upcoming Sessions</p>
+          {% if support_upcoming %}
+          <ul class="ms-exact__benefits">
+            {% for row in support_upcoming[:4] %}
+            <li>
+              {{ row.circle.title if row.circle else 'Support group' }}
+              {% if row.meeting and row.meeting.scheduled_at %}
+              — {{ row.meeting.scheduled_at|localtime('%b %d · %I:%M %p') }}
+              {% endif %}
+            </li>
+            {% endfor %}
+          </ul>
+          <a class="btn btn--secondary btn--sm" href="{{ url_for('main.support_groups_page') }}">Manage sessions</a>
+          {% else %}
           <p class="field-help" style="margin:0;">Nothing scheduled right now.</p>
+          <a class="btn btn--secondary btn--sm" style="margin-top:10px;" href="{{ url_for('main.support_groups_page') }}">Browse Support Groups</a>
+          {% endif %}
         </div>
 
         <div class="ms-card">
