@@ -21,12 +21,15 @@
         {% if n.kind == 'support_group' and href %}
         <div class="note-bell__sg">
           <span>{{ n.body }}</span>
-          <a class="btn btn--primary btn--sm note-bell__join" href="{{ href }}">Join</a>
+          <a class="note-bell__join-btn" href="{{ href }}">
+            <span class="note-bell__join-label">Join session</span>
+            <span class="note-bell__join-arrow" aria-hidden="true">→</span>
+          </a>
         </div>
         {% elif n.kind == 'support_group_alert' and href %}
         <div class="note-bell__sg">
           <span>{{ n.body }}</span>
-          <a class="btn btn--secondary btn--sm note-bell__join" href="{{ href }}">View</a>
+          <a class="note-bell__view-btn" href="{{ href }}">View</a>
         </div>
         {% elif href %}
         <a href="{{ href }}">{{ n.body }}</a>

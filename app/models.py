@@ -1371,7 +1371,17 @@ class SiteImage(db.Model):
 FEEDBACK_KINDS = ("feedback", "complaint", "error")
 FEEDBACK_STATUSES = ("new", "reviewed")
 CONTENT_REPORT_STATUSES = ("open", "resolved", "dismissed")
-CONTENT_REPORT_TARGETS = ("post", "comment")
+CONTENT_REPORT_TARGETS = ("post", "comment", "user")
+
+# Peer-session report reasons (dropdown on the post-meeting wrap page).
+SUPPORT_REPORT_REASONS = (
+    ("harassment", "Harassment or hostility"),
+    ("inappropriate", "Inappropriate or sexual content"),
+    ("spam", "Spam or solicitation"),
+    ("privacy", "Sharing private information"),
+    ("disrupting", "Disrupting the session"),
+    ("other", "Other"),
+)
 
 
 class SiteFeedback(db.Model):
@@ -1392,13 +1402,14 @@ class SiteFeedback(db.Model):
 
 
 class ContentReport(db.Model):
-    """Member report of a forum post or comment; may auto-hide on light checks."""
+    """Member report of a forum post/comment or a peer-session member."""
     __tablename__ = "content_reports"
 
     id = db.Column(db.Integer, primary_key=True)
-    target_type = db.Column(db.String(20), nullable=False)  # post / comment
+    target_type = db.Column(db.String(20), nullable=False)  # post / comment / user
     target_id = db.Column(db.Integer, nullable=False, index=True)
     reporter_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    reason = db.Column(db.String(80))  # structured reason key (esp. user reports)
     note = db.Column(db.String(500), nullable=False, default="")
     status = db.Column(db.String(20), nullable=False, default="open", index=True)
     auto_hidden = db.Column(db.Boolean, nullable=False, default=False)
@@ -1408,6 +1419,13 @@ class ContentReport(db.Model):
     resolved_at = db.Column(db.DateTime)
 
     reporter = db.relationship("User")
+
+    def reason_label(self) -> str:
+        key = (self.reason or "").strip()
+        for k, label in SUPPORT_REPORT_REASONS:
+            if k == key:
+                return label
+        return key or (self.auto_reason or "")
 
 
 # --- support / coaching groups (Daily.co peer rooms) -------------------------

@@ -1763,7 +1763,64 @@ def support_session_room(meeting_id):
         daily_room_url=meeting.room_url,
         daily_token=token,
         is_host=is_host,
+        wrap_url=url_for("main.support_session_wrap", meeting_id=meeting.id),
     )
+
+
+@bp.route("/support-groups/meetings/<int:meeting_id>/wrap")
+@login_required
+def support_session_wrap(meeting_id):
+    """Skippable post-session page: peers + optional report."""
+    from ..models import SUPPORT_REPORT_REASONS, SupportGroupMeeting
+    from ..services import support_groups as sg_svc
+
+    meeting = db.session.get(SupportGroupMeeting, meeting_id) or abort(404)
+    seat = sg_svc.user_selected_on_meeting(current_user.id, meeting.id)
+    # Also allow wrap after cancel/complete if they were seated (selected seats gone).
+    if seat is None and not current_user.is_admin:
+        # Fall back: any historical seat on this meeting for this user.
+        from ..models import SupportGroupApplication
+        past = (SupportGroupApplication.query
+                .filter_by(user_id=current_user.id, meeting_id=meeting.id)
+                .first())
+        if past is None:
+            flash("That session wrap isn’t available.", "error")
+            return redirect(url_for("main.support_groups_page"))
+
+    peers = sg_svc.wrap_peers(meeting, current_user)
+    return render_template(
+        "main/support_session_wrap.html",
+        meeting=meeting,
+        peers=peers,
+        report_reasons=SUPPORT_REPORT_REASONS,
+    )
+
+
+@bp.route("/support-groups/meetings/<int:meeting_id>/report/<int:user_id>",
+          methods=["POST"])
+@login_required
+def support_session_report(meeting_id, user_id):
+    from ..models import SupportGroupMeeting
+    from ..services import support_groups as sg_svc
+    from ..services.content_reports import submit_member_report
+
+    meeting = db.session.get(SupportGroupMeeting, meeting_id) or abort(404)
+    peers = {u.id for u in sg_svc.wrap_peers(meeting, current_user)}
+    if user_id not in peers and not current_user.is_admin:
+        flash("You can only report someone from this session.", "error")
+        return redirect(url_for("main.support_session_wrap", meeting_id=meeting_id))
+
+    label = meeting.circle.title if meeting.circle else "Support session"
+    _, msg = submit_member_report(
+        reporter=current_user,
+        user_id=user_id,
+        reason=request.form.get("reason") or "",
+        note=request.form.get("note") or "",
+        meeting_id=meeting.id,
+        meeting_label=label,
+    )
+    flash(msg, "success")
+    return redirect(url_for("main.support_session_wrap", meeting_id=meeting_id))
 
 
 @bp.route("/support-groups/join", methods=["POST"])

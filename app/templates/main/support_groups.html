@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Support Groups — {{ site.site_title }}{% endblock %}
 {% block meta_description %}Peer circles, creator accountability groups, facilitator sessions, and 1:1 coaching for Bloom Anyway members.{% endblock %}
+{% from "partials/avatar.html" import author_name %}
 
 {% macro notify_btn(c) %}
   {% if c.id in alert_circle_ids %}
@@ -40,12 +41,12 @@
             <strong>{{ m.scheduled_at|localtime('%a %b %d · %I:%M %p') }}</strong>
             <p class="field-help" style="margin:2px 0 0;">
               {{ seated }}/{{ m.capacity or peer_cap }} seated
-              {% if m.host %} · hosted by {{ m.host.public_name() }}{% endif %}
+              {% if m.host %} · hosted by {{ author_name(m.host) }}{% endif %}
             </p>
           </div>
           <div class="sg-upcoming__actions">
             {% if m.id in my_meeting_ids %}
-            <a class="btn btn--primary btn--sm" href="{{ url_for('main.support_session_room', meeting_id=m.id) }}">Join</a>
+            <a class="btn btn--primary btn--sm sg-upcoming__join" href="{{ url_for('main.support_session_room', meeting_id=m.id) }}">Join session</a>
             <form method="post" action="{{ url_for('main.leave_support_session', meeting_id=m.id) }}">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <button class="btn btn--quiet btn--sm" type="submit">

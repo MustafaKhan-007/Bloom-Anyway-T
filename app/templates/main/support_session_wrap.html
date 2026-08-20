@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% from "partials/avatar.html" import avatar, author_name %}
+{% block title %}Session wrap — {{ site.site_title }}{% endblock %}
+
+{% block content %}
+<div class="sg-wrap">
+  <div class="sg-wrap__inner">
+    <header class="sg-wrap__head">
+      <p class="sg-wrap__eyebrow">After your session</p>
+      <h1>{{ meeting.circle.title if meeting.circle else 'Peer circle' }}</h1>
+      <p class="sg-wrap__lede">
+        Here’s who was in the room with you. You can visit a profile or quietly report someone if needed — then skip anytime.
+      </p>
+    </header>
+
+    {% if peers %}
+    <ul class="sg-wrap__list">
+      {% for peer in peers %}
+      <li class="sg-wrap__card">
+        <div class="sg-wrap__who">
+          <a class="sg-wrap__avatar-link" href="{{ url_for('main.profile', user_id=peer.id) }}">
+            {{ avatar(peer, 'md') }}
+          </a>
+          <div>
+            <p class="sg-wrap__name">{{ author_name(peer) }}</p>
+            {% if peer.username and peer.display_name %}
+            <p class="field-help" style="margin:2px 0 0;">{{ peer.display_name }}</p>
+            {% endif %}
+          </div>
+        </div>
+
+        <details class="sg-wrap__report">
+          <summary class="sg-wrap__report-btn">Report</summary>
+          <form method="post"
+                action="{{ url_for('main.support_session_report', meeting_id=meeting.id, user_id=peer.id) }}"
+                class="sg-wrap__report-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <label class="sg-wrap__label" for="reason-{{ peer.id }}">Reason</label>
+            <div class="sg-wrap__select-wrap">
+              <select id="reason-{{ peer.id }}" name="reason" required>
+                <option value="" disabled selected>Choose a reason…</option>
+                {% for key, label in report_reasons %}
+                <option value="{{ key }}">{{ label }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <label class="sg-wrap__label" for="note-{{ peer.id }}">Extra notes <span>(optional)</span></label>
+            <textarea id="note-{{ peer.id }}" name="note" maxlength="500" rows="3"
+                      placeholder="Anything the team should know…"></textarea>
+            <button class="btn btn--primary btn--sm" type="submit">Submit report</button>
+            <p class="field-help sg-wrap__privacy">Reports go to Studio only. The member isn’t notified.</p>
+          </form>
+        </details>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <div class="sg-wrap__empty">
+      <p>You were the only one seated for this session.</p>
+    </div>
+    {% endif %}
+
+    <div class="sg-wrap__actions">
+      <a class="btn btn--primary" href="{{ url_for('main.support_groups_page') }}">Skip &amp; continue</a>
+    </div>
+  </div>
+</div>
+{% endblock %}

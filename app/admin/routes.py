@@ -1436,10 +1436,18 @@ def inbox():
             target = db.session.get(ForumPost, r.target_id)
             if target:
                 snippet = f"{target.title}: {(target.body or '')[:160]}"
-        else:
+        elif r.target_type == "comment":
             target = db.session.get(ForumComment, r.target_id)
             if target:
                 snippet = (target.body or "")[:200]
+        elif r.target_type == "user":
+            target = db.session.get(User, r.target_id)
+            if target:
+                snippet = (
+                    f"{target.public_name()}"
+                    f"{' · @' + target.username if target.username else ''}"
+                    f" · warnings {target.forum_warnings or 0}"
+                )
         enriched.append({"report": r, "target": target, "snippet": snippet})
 
     counts = {

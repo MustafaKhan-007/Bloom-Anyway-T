@@ -3,14 +3,17 @@
 Keeps the check intentionally cheap: reuse the existing profanity filter plus a
 few spam / harassment heuristics. A match hides the content and notifies the
 author; otherwise the report stays open for Studio review.
+
+Peer-session member reports silently flag the user (forum_warnings++) and land
+in Studio inbox without notifying the reported member.
 """
 from __future__ import annotations
 
 import re
 
 from ..extensions import db
-from ..models import (CONTENT_REPORT_TARGETS, ContentReport, ForumComment,
-                      ForumPost, utcnow)
+from ..models import (SUPPORT_REPORT_REASONS, ContentReport, ForumComment,
+                      ForumPost, User, utcnow)
 from .moderation import contains_profanity
 from .social_graph import notify, notify_owners
 
@@ -21,6 +24,9 @@ _HOSTILE = (
 )
 _SPAM_URL_RE = re.compile(r"https?://\S+", re.I)
 _REPEAT_RE = re.compile(r"(.)\1{9,}")
+
+_REASON_KEYS = {k for k, _ in SUPPORT_REPORT_REASONS}
+_REASON_LABELS = dict(SUPPORT_REPORT_REASONS)
 
 
 def review_text(text: str) -> str | None:
@@ -50,16 +56,22 @@ def _load_target(target_type: str, target_id: int):
         return db.session.get(ForumPost, target_id)
     if target_type == "comment":
         return db.session.get(ForumComment, target_id)
+    if target_type == "user":
+        return db.session.get(User, target_id)
     return None
 
 
 def _target_text(target) -> str:
     if isinstance(target, ForumPost):
         return f"{target.title or ''}\n{target.body or ''}"
-    return target.body or ""
+    if isinstance(target, ForumComment):
+        return target.body or ""
+    return ""
 
 
 def _target_author_id(target) -> int | None:
+    if isinstance(target, User):
+        return target.id
     return getattr(target, "user_id", None)
 
 
@@ -70,9 +82,19 @@ def _target_url(target) -> str | None:
             return url_for("forums.post", post_id=target.id)
         if isinstance(target, ForumComment) and target.post_id:
             return url_for("forums.post", post_id=target.post_id) + "#comments"
+        if isinstance(target, User):
+            return url_for("main.profile", user_id=target.id)
     except RuntimeError:
         pass
     return None
+
+
+def _inbox_url() -> str:
+    try:
+        from flask import url_for
+        return url_for("admin.inbox", filter="reports")
+    except RuntimeError:
+        return "/admin/inbox?filter=reports"
 
 
 def submit_report(*, reporter, target_type: str, target_id: int,
@@ -81,7 +103,7 @@ def submit_report(*, reporter, target_type: str, target_id: int,
 
     Returns (report, flash_message).
     """
-    if target_type not in CONTENT_REPORT_TARGETS:
+    if target_type not in ("post", "comment"):
         return None, "That report couldn't be filed."
     target = _load_target(target_type, target_id)
     if target is None or getattr(target, "hidden", False):
@@ -111,11 +133,7 @@ def submit_report(*, reporter, target_type: str, target_id: int,
     db.session.add(report)
 
     what = "post" if target_type == "post" else "comment"
-    try:
-        from flask import url_for
-        inbox_url = url_for("admin.inbox", filter="reports")
-    except RuntimeError:
-        inbox_url = "/admin/inbox?filter=reports"
+    inbox_url = _inbox_url()
     if reason:
         target.hidden = True
         if author_id:
@@ -147,8 +165,81 @@ def submit_report(*, reporter, target_type: str, target_id: int,
     return report, "Thank you — the team will take a look."
 
 
+def submit_member_report(
+    *,
+    reporter,
+    user_id: int,
+    reason: str,
+    note: str = "",
+    meeting_id: int | None = None,
+    meeting_label: str = "",
+) -> tuple[ContentReport | None, str]:
+    """Report a peer from a support session. Silently flags the member."""
+    reason_key = (reason or "").strip()
+    if reason_key not in _REASON_KEYS:
+        return None, "Pick a reason from the list."
+
+    target = db.session.get(User, user_id)
+    if target is None or target.deleted_at is not None:
+        return None, "That member isn’t available."
+    if target.id == reporter.id:
+        return None, "You can’t report yourself."
+
+    existing = ContentReport.query.filter_by(
+        reporter_id=reporter.id, target_type="user", target_id=user_id,
+        status="open").first()
+    if existing:
+        return existing, "You've already reported this member — thank you."
+
+    extra = (note or "").strip()
+    context_bits = []
+    if meeting_label:
+        context_bits.append(meeting_label)
+    if meeting_id:
+        context_bits.append(f"session #{meeting_id}")
+    context = " · ".join(context_bits)
+    full_note = extra
+    if context:
+        full_note = f"{context}\n{extra}".strip() if extra else context
+
+    report = ContentReport(
+        target_type="user",
+        target_id=user_id,
+        reporter_id=reporter.id,
+        reason=reason_key,
+        note=full_note[:500],
+        status="open",
+        auto_hidden=False,
+        auto_reason=_REASON_LABELS.get(reason_key),
+        created_at=utcnow(),
+    )
+    db.session.add(report)
+
+    # Silent flag — no notification to the reported member.
+    target.forum_warnings = int(target.forum_warnings or 0) + 1
+
+    notify_owners(
+        kind="inbox",
+        body=(
+            f"Peer session report: {_REASON_LABELS.get(reason_key, reason_key)} "
+            f"— {target.public_name()} flagged."
+        ),
+        url=_inbox_url(),
+        actor_id=reporter.id,
+    )
+    db.session.commit()
+    return report, "Thank you — the team will take a look."
+
+
 def hide_target(report: ContentReport, *, owner_note: str = "") -> bool:
     """Owner action: hide the reported content and mark resolved."""
+    if report.target_type == "user":
+        report.status = "resolved"
+        report.resolved_at = utcnow()
+        report.owner_note = (owner_note or "Member flag reviewed")[:500]
+        db.session.commit()
+        return True
+
     target = _load_target(report.target_type, report.target_id)
     if target is None:
         report.status = "resolved"

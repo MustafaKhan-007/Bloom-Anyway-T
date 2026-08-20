@@ -2026,6 +2026,62 @@ with app.app_context():
     ok("Topic blocks a 5th upcoming peer session",
        m5 is None and err5 and "4 upcoming" in err5)
 
+# Post-session wrap + silent peer report
+with app.app_context():
+    for leftover in SupportGroupMeeting.query.filter_by(
+            circle_id=heal_cid, kind="peer", status="scheduled").all():
+        sg_svc.cancel_meeting(leftover, return_to_queue=False)
+    wrap_host = User(email="sg-wrap-host@example.com", username="sgwraphost",
+                     membership="healing", email_verified_at=utcnow())
+    wrap_host.set_password(USER_PW)
+    wrap_peer = User(email="sg-wrap-peer@example.com", username="sgwrappeer",
+                     membership="healing", email_verified_at=utcnow())
+    wrap_peer.set_password(USER_PW)
+    db.session.add_all([wrap_host, wrap_peer])
+    db.session.commit()
+    host_warnings = wrap_host.forum_warnings or 0
+    when_w = utcnow() + timedelta(days=1, hours=4)
+    wm, werr = sg_svc.schedule_peer_session(
+        wrap_host, circle_id=heal_cid,
+        date_s=when_w.strftime("%Y-%m-%d"),
+        time_s=when_w.strftime("%H:%M"),
+        tz_name="UTC",
+    )
+    ok("Wrap test session scheduled", wm is not None and not werr, werr)
+    wrap_mid = wm.id
+    wrap_host_id = wrap_host.id
+    joined, jerr = sg_svc.join_peer_session(wrap_peer, wrap_mid)
+    ok("Wrap peer seated", joined is not None and not jerr, jerr)
+
+wrap_client = app.test_client()
+wrap_client.post("/login", data={"email": "sg-wrap-peer@example.com", "password": USER_PW})
+r = wrap_client.get(f"/support-groups/meetings/{wrap_mid}/wrap")
+ok("Post-session wrap page lists peers with profile links",
+   r.status_code == 200
+   and "sgwraphost" in r.get_data(as_text=True)
+   and "/u/" in r.get_data(as_text=True)
+   and "Skip" in r.get_data(as_text=True))
+r = wrap_client.post(
+    f"/support-groups/meetings/{wrap_mid}/report/{wrap_host_id}",
+    data={"reason": "harassment", "note": "was unkind"},
+    follow_redirects=True,
+)
+ok("Peer session report submits quietly",
+   "thank you" in r.get_data(as_text=True).lower())
+with app.app_context():
+    from app.models import ContentReport
+    flagged = User.query.filter_by(email="sg-wrap-host@example.com").first()
+    rep = ContentReport.query.filter_by(
+        target_type="user", target_id=flagged.id, status="open").first()
+    ok("Peer report lands as open user report with reason",
+       rep is not None and rep.reason == "harassment")
+    ok("Reported member is silently flagged",
+       (flagged.forum_warnings or 0) >= host_warnings + 1)
+    notes_to_flagged = Notification.query.filter_by(
+        user_id=flagged.id, kind="moderation").count()
+    ok("Reported member is not notified about the flag", notes_to_flagged == 0)
+
+
 # site image uploads (hero / story teaser)
 from io import BytesIO
 from PIL import Image as _PILImage

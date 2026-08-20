@@ -8,7 +8,7 @@
       <p class="eyebrow">Moderation</p>
       <h1>Inbox</h1>
       <p class="field-help" style="margin: 6px 0 0; max-width: 62ch;">
-        Star feedback, complaints, error reports, and community content reports in one place.
+        Star feedback, complaints, error reports, community content reports, and peer-session flags in one place.
       </p>
     </div>
   </div>
@@ -61,10 +61,10 @@
 
   {% if report_rows %}
   <section class="admin-panel studio-card">
-    <h2>Community content reports</h2>
+    <h2>Community &amp; peer-session reports</h2>
     <table class="admin-table" data-collapsible="12">
       <thead>
-        <tr><th>When</th><th>Status</th><th>Target</th><th>Snippet</th><th>Reporter note</th><th>Auto</th><th></th></tr>
+        <tr><th>When</th><th>Status</th><th>Target</th><th>Snippet</th><th>Reason / note</th><th>Auto</th><th></th></tr>
       </thead>
       <tbody>
         {% for item in report_rows %}
@@ -74,20 +74,32 @@
           <td>
             <span class="status-pill">{{ r.status }}</span>
             {% if r.auto_hidden %}<div class="field-help">auto-hidden</div>{% endif %}
+            {% if r.target_type == 'user' %}<div class="field-help">silent flag</div>{% endif %}
           </td>
-          <td>{{ r.target_type }} #{{ r.target_id }}
-            {% if item.target and r.target_type == 'post' and not item.target.hidden %}
-              <br><a href="{{ url_for('forums.post', post_id=item.target.id) }}" target="_blank" rel="noopener">View</a>
-            {% elif item.target is none %}
-              <br><span class="field-help">gone</span>
-            {% elif item.target.hidden %}
-              <br><span class="field-help">hidden</span>
+          <td>
+            {% if r.target_type == 'user' %}
+              member #{{ r.target_id }}
+              {% if item.target %}
+              <br><a href="{{ url_for('main.profile', user_id=item.target.id) }}" target="_blank" rel="noopener">{{ item.target.public_name() }}</a>
+              {% endif %}
+            {% else %}
+              {{ r.target_type }} #{{ r.target_id }}
+              {% if item.target and r.target_type == 'post' and not item.target.hidden %}
+                <br><a href="{{ url_for('forums.post', post_id=item.target.id) }}" target="_blank" rel="noopener">View</a>
+              {% elif item.target is none %}
+                <br><span class="field-help">gone</span>
+              {% elif item.target.hidden %}
+                <br><span class="field-help">hidden</span>
+              {% endif %}
             {% endif %}
           </td>
           <td style="max-width: 28ch;">{{ item.snippet or '—' }}</td>
-          <td style="max-width: 20ch;">{{ r.note or '—' }}</td>
+          <td style="max-width: 22ch; white-space: pre-wrap;">
+            {% if r.reason_label() %}<strong>{{ r.reason_label() }}</strong><br>{% endif %}
+            {{ r.note or '—' }}
+          </td>
           <td>
-            {% if r.auto_reason %}
+            {% if r.auto_reason and r.target_type != 'user' %}
               <strong>Resolved</strong><br>
               <span class="field-help">{{ r.auto_reason }}</span>
             {% elif r.owner_note %}
@@ -96,6 +108,7 @@
           </td>
           <td>
             {% if r.status == 'open' %}
+            {% if r.target_type != 'user' %}
             <form method="post" action="{{ url_for('admin.inbox_report_hide', report_id=r.id) }}" class="inline-form" style="margin-bottom: 6px;"
                   data-confirm="Hide this content and notify the author?"
                   data-confirm-title="Hide content?"
@@ -104,6 +117,13 @@
               <input type="hidden" name="filter" value="{{ filter }}">
               <button class="btn btn--danger btn--sm" type="submit">Hide</button>
             </form>
+            {% else %}
+            <form method="post" action="{{ url_for('admin.inbox_report_hide', report_id=r.id) }}" class="inline-form" style="margin-bottom: 6px;">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="filter" value="{{ filter }}">
+              <button class="btn btn--secondary btn--sm" type="submit">Mark reviewed</button>
+            </form>
+            {% endif %}
             <form method="post" action="{{ url_for('admin.inbox_report_dismiss', report_id=r.id) }}" class="inline-form">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <input type="hidden" name="filter" value="{{ filter }}">

@@ -260,6 +260,17 @@ def meeting_seats(meeting: SupportGroupMeeting):
             .all())
 
 
+def wrap_peers(meeting: SupportGroupMeeting, viewer: User) -> list[User]:
+    """Other seated members shown on the post-session wrap page."""
+    peers = []
+    for seat in meeting_seats(meeting):
+        user = seat.author
+        if not user or user.deleted_at or user.id == viewer.id:
+            continue
+        peers.append(user)
+    return peers
+
+
 def pending_count(circle_id: int | None = None) -> int:
     """Legacy waitlist count (peer flow no longer uses pending)."""
     q = SupportGroupApplication.query.filter_by(status="pending")

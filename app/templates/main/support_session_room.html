@@ -16,7 +16,7 @@
         {% if is_host %}
         <span class="sg-room__host-pill">You’re hosting</span>
         {% endif %}
-        <a class="btn btn--secondary btn--sm" href="{{ url_for('main.support_groups_page') }}">Leave page</a>
+        <a class="btn btn--secondary btn--sm" href="{{ wrap_url }}">Leave session</a>
       </div>
     </div>
   </header>
@@ -41,6 +41,7 @@
   }
   var roomUrl = {{ daily_room_url|tojson }};
   var token = {{ daily_token|tojson }};
+  var wrapUrl = {{ wrap_url|tojson }};
   var callFrame = window.DailyIframe.createFrame(root, {
     showLeaveButton: true,
     showFullscreenButton: true,
@@ -74,7 +75,7 @@
       if (statusEl) statusEl.textContent = "Couldn’t join the room. Check permissions and try again.";
     });
   callFrame.on("left-meeting", function () {
-    window.location.href = {{ url_for('main.support_groups_page')|tojson }};
+    window.location.href = wrapUrl;
   });
 })();
 </script>
