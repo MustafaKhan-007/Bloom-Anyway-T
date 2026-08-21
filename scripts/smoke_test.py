@@ -1301,6 +1301,29 @@ ok("Membership page has Monthly/Annual billing toggle",
    and "membership-billing.js" in mbody
    and "Annual (best value)" in mbody)
 
+with app.app_context():
+    from datetime import date as _date, timedelta as _td
+    from app.services.settings import set_setting
+    from app.models import MembershipPlan
+    set_setting("founder_price_ends", (_date.today() + _td(days=20)).isoformat())
+    for tier, cents in (("healing", 900), ("creator", 1500), ("full_bloom", 2200)):
+        plan = MembershipPlan.query.filter_by(tier=tier).first()
+        if plan is not None and plan.price_cents is None:
+            plan.price_cents = cents
+            plan.active = True
+    db.session.commit()
+r = app.test_client().get("/membership")
+founder_body = r.get_data(as_text=True)
+ok("Founder launch banner shows promo codes and first-month off",
+   "MEMBERFOUNDER" in founder_body
+   and "FULLBLOOMFOUNDER" in founder_body
+   and "25% off" in founder_body
+   and "20% off" in founder_body
+   and "first month" in founder_body.lower())
+ok("Founder prices show discounted first month on cards",
+   "Founder first month" in founder_body
+   and "/ first month" in founder_body)
+
 
 def _order_webhook(order_id, email, product_id, event="payment.succeeded"):
     body = _payment_payload(order_id, email, product_id, event=event, amount=1900)

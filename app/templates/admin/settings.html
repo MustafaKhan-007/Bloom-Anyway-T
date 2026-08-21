@@ -238,7 +238,12 @@
           <label for="founder_price_ends">Founder pricing ends (optional)</label>
           <input type="date" id="founder_price_ends" name="founder_price_ends"
                  value="{{ values.founder_price_ends }}">
-          <p class="field-help">Shows the countdown banner on Membership when set.</p>
+          <p class="field-help">
+            Turns on the launch banner + first-month founder prices on /membership.
+            Healing &amp; Creator use code <strong>MEMBERFOUNDER</strong> (25% off first charge);
+            Full Bloom uses <strong>FULLBLOOMFOUNDER</strong> (20% off). Create matching
+            promotion codes in Stripe (once / first invoice). Set this to about one month from launch.
+          </p>
         </div>
       </div>
     </section>

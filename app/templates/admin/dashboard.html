@@ -80,17 +80,14 @@
     </div>
     <div class="admin-panel studio-card studio-dash-exact__founder">
       <h2>Founder pricing</h2>
-      {% if cards.founder_price %}
-      <p class="studio-card__metric">{{ cards.founder_price }}</p>
-      {% else %}
-      <p class="studio-card__metric">Founder rate</p>
-      {% endif %}
+      <p class="studio-card__metric">First month off</p>
+      <p class="field-help" style="margin:0 0 8px;">25% Healing/Creator · 20% Full Bloom via Stripe codes</p>
       {% if founder_days is not none %}
       <p class="studio-dash-exact__founder-days"><strong>{{ founder_days }}</strong> day{{ '' if founder_days == 1 else 's' }} remaining</p>
       {% elif site.founder_price_ends %}
       <p class="field-help">Ends {{ site.founder_price_ends }}</p>
       {% else %}
-      <p class="field-help">No end date set.</p>
+      <p class="field-help">No end date set — banner is off.</p>
       {% endif %}
       <a class="btn btn--secondary btn--sm" href="{{ url_for('admin.settings') }}">Edit in Settings</a>
     </div>

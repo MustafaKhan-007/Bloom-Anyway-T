@@ -377,10 +377,13 @@ def membership():
         matrix = build_membership_matrix(all_plans)
     except Exception:
         matrix = MEMBERSHIP_MATRIX
+    from ..services import founder_pricing as founder_svc
+    founder = founder_svc.public_state(all_plans)
     return render_template("main/membership.html",
                            plans=all_plans,
                            matrix=matrix, current=current,
                            checkout=checkout,
+                           founder=founder,
                            back_url=back_url, back_label=back_label)
 
 

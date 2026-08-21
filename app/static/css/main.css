@@ -4964,13 +4964,46 @@ a.at-handle:hover { text-decoration: underline; }
 .mem-page__founder {
   background: var(--rm-plum);
   color: #fff;
-  padding: 14px 0;
+  padding: 18px 0;
 }
 .mem-page__founder-inner {
-  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
-  gap: 12px;
+  display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between;
+  gap: 16px;
 }
-.mem-page__founder p { margin: 0; font-size: 15px; max-width: 62ch; }
+.mem-page__founder-copy { max-width: 70ch; }
+.mem-page__founder-kicker {
+  margin: 0 0 6px !important;
+  font-size: 12px !important;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--rm-gold);
+}
+.mem-page__founder p { margin: 0; font-size: 15px; line-height: 1.5; }
+.mem-page__founder-codes {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+}
+.mem-page__founder-codes li {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+.mem-page__founder-codes code {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.14);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #fff;
+}
 .mem-page__founder-pill {
   display: inline-flex;
   padding: 7px 14px;
@@ -5119,10 +5152,26 @@ a.at-handle:hover { text-decoration: underline; }
   color: var(--rm-gold);
 }
 .mem-card__price--box { margin: 0 0 2px; font-size: 30px; }
+.mem-card__was {
+  display: inline-block;
+  margin-left: 8px;
+  font-size: 0.55em;
+  font-weight: 600;
+  color: var(--ink-soft);
+  vertical-align: middle;
+}
 .mem-card__lock {
   margin: 0;
   font-size: 13px; font-weight: 600;
   color: var(--rm-ink);
+}
+.mem-card__lock code {
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: rgba(90, 49, 88, 0.1);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
 }
 .mem-card__trial {
   margin: 0 0 12px;
