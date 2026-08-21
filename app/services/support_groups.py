@@ -178,6 +178,9 @@ def last_peer_schedule_at(user_id: int) -> datetime | None:
 def can_schedule_peer(user: User) -> tuple[bool, str | None]:
     if not user or not user.is_member():
         return False, "Support groups are for Healing, Creator, and Full Bloom members."
+    # Owners/admins can schedule freely — no cooldown.
+    if getattr(user, "is_admin", False):
+        return True, None
     last = last_peer_schedule_at(user.id)
     if last is None:
         return True, None

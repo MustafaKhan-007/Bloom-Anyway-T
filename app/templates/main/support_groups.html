@@ -91,7 +91,13 @@
           </label>
           <button class="btn btn--primary btn--sm" type="submit">Schedule</button>
         </div>
-        <p class="field-help" style="margin:6px 0 0;">One session every 2 weeks per member.</p>
+        <p class="field-help" style="margin:6px 0 0;">
+          {% if current_user.is_authenticated and current_user.is_admin %}
+          Owners can schedule without the two-week limit.
+          {% else %}
+          One session every 2 weeks per member.
+          {% endif %}
+        </p>
       </form>
       {% elif schedule_err %}
       <p class="field-help" style="margin:10px 0 0;">{{ schedule_err }}</p>
