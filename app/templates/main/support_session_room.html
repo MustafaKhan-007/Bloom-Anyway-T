@@ -16,6 +16,9 @@
         {% if is_host %}
         <span class="sg-room__host-pill">You’re hosting</span>
         {% endif %}
+        {% if duration_min %}
+        <span class="sg-room__host-pill">{{ duration_min }} min</span>
+        {% endif %}
         <a class="btn btn--secondary btn--sm" href="{{ wrap_url }}">Leave session</a>
       </div>
     </div>

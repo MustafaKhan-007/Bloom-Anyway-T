@@ -28,6 +28,25 @@ MAX_OPEN_SESSIONS_PER_CIRCLE = 4
 PEER_SCHEDULE_COOLDOWN_DAYS = 14
 
 
+def peer_meeting_minutes() -> int:
+    return daily_svc.meeting_duration_minutes()
+
+
+def meeting_phase(meeting: SupportGroupMeeting, *, now: datetime | None = None
+                  ) -> str:
+    """Return ``waiting``, ``live``, ``ended``, or ``unavailable``."""
+    if meeting is None or meeting.status != "scheduled" or not meeting.scheduled_at:
+        return "unavailable"
+    now = now or utcnow()
+    start = meeting.scheduled_at
+    end = start + timedelta(minutes=peer_meeting_minutes())
+    if now < start:
+        return "waiting"
+    if now >= end:
+        return "ended"
+    return "live"
+
+
 def ensure_circles() -> list[SupportGroupCircle]:
     """Seed the catalogue if the table is empty (dev / smoke / fresh DB)."""
     rows = (SupportGroupCircle.query

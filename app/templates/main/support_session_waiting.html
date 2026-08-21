@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}Waiting room — {{ meeting.circle.title if meeting.circle else 'Support session' }}{% endblock %}
+
+{% block content %}
+<div class="sg-wait" data-sg-wait
+     data-starts-at="{{ starts_at_iso }}"
+     data-room-url="{{ room_url }}">
+  <div class="sg-wait__inner">
+    <p class="sg-wait__eyebrow">Waiting room</p>
+    <h1>{{ meeting.circle.title if meeting.circle else 'Peer circle' }}</h1>
+    {% if meeting.scheduled_at %}
+    <p class="sg-wait__when">
+      Starts {{ meeting.scheduled_at|localtime('%A, %b %d · %I:%M %p') }}
+      · {{ duration_min }} minutes
+    </p>
+    {% endif %}
+
+    <div class="sg-wait__card">
+      <p class="sg-wait__label">The room opens at start time</p>
+      <p class="sg-wait__countdown" data-sg-countdown aria-live="polite">Getting ready…</p>
+      <p class="sg-wait__hint">
+        Stay on this page — you’ll enter automatically when the session begins.
+        Camera and mic stay off until you turn them on.
+      </p>
+    </div>
+
+    <div class="sg-wait__actions">
+      <a class="btn btn--secondary" href="{{ url_for('main.support_groups_page') }}">Back to Support Groups</a>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+(function () {
+  var root = document.querySelector("[data-sg-wait]");
+  if (!root) return;
+  var startsAt = Date.parse(root.getAttribute("data-starts-at") || "");
+  var roomUrl = root.getAttribute("data-room-url") || "";
+  var el = root.querySelector("[data-sg-countdown]");
+  if (!startsAt || !roomUrl) {
+    if (el) el.textContent = "Session time unavailable.";
+    return;
+  }
+  function pad(n) { return String(n).padStart(2, "0"); }
+  function tick() {
+    var left = startsAt - Date.now();
+    if (left <= 0) {
+      if (el) el.textContent = "Opening the room…";
+      window.location.href = roomUrl;
+      return;
+    }
+    var totalSec = Math.floor(left / 1000);
+    var d = Math.floor(totalSec / 86400);
+    var h = Math.floor((totalSec % 86400) / 3600);
+    var m = Math.floor((totalSec % 3600) / 60);
+    var s = totalSec % 60;
+    var parts = [];
+    if (d > 0) parts.push(d + "d");
+    if (d > 0 || h > 0) parts.push(pad(h) + "h");
+    parts.push(pad(m) + "m");
+    parts.push(pad(s) + "s");
+    if (el) el.textContent = parts.join(" ");
+    window.setTimeout(tick, 250);
+  }
+  tick();
+})();
+</script>
+{% endblock %}

@@ -129,7 +129,7 @@ class Config:
     DAILY_API_KEY = os.environ.get("DAILY_API_KEY", "").strip()
     # Optional subdomain label used only for stub URLs in tests (e.g. bloomanyway).
     DAILY_DOMAIN = os.environ.get("DAILY_DOMAIN", "bloomanyway").strip() or "bloomanyway"
-    DAILY_MEETING_DURATION = int(os.environ.get("DAILY_MEETING_DURATION", "90") or 90)
+    DAILY_MEETING_DURATION = int(os.environ.get("DAILY_MEETING_DURATION", "45") or 45)
     # Force stub rooms without calling Daily (tests); auto-on when TESTING
     # and DAILY_API_KEY is unset.
     DAILY_STUB = os.environ.get("DAILY_STUB", "").strip().lower() in (

@@ -37,10 +37,14 @@ def _use_stub() -> bool:
 
 def _duration_minutes() -> int:
     try:
-        n = int(current_app.config.get("DAILY_MEETING_DURATION") or 90)
+        n = int(current_app.config.get("DAILY_MEETING_DURATION") or 45)
     except (TypeError, ValueError):
-        n = 90
+        n = 45
     return max(15, min(n, 480))
+
+
+def meeting_duration_minutes() -> int:
+    return _duration_minutes()
 
 
 def _headers() -> dict:
@@ -57,15 +61,14 @@ def _slug_name(topic: str, scheduled_at: datetime) -> str:
 
 
 def _exp_unix(scheduled_at: datetime) -> int:
-    """Room expires a few hours after the planned end."""
-    end = scheduled_at + timedelta(minutes=_duration_minutes() + 180)
+    """Room closes shortly after the 45-minute session ends."""
+    end = scheduled_at + timedelta(minutes=_duration_minutes() + 10)
     return int(end.timestamp())
 
 
 def _nbf_unix(scheduled_at: datetime) -> int:
-    """Allow joining up to 45 minutes early."""
-    start = scheduled_at - timedelta(minutes=45)
-    return int(start.timestamp())
+    """Daily room unlocks at the scheduled start — not early."""
+    return int(scheduled_at.replace(microsecond=0).timestamp())
 
 
 def _room_properties(scheduled_at: datetime) -> dict:

@@ -1865,11 +1865,39 @@ with app.app_context():
        and "/support-groups/meetings/" in (sample.href() or "")
        and "/room" in (sample.href() or ""))
 
+r = client.get(f"/support-groups/meetings/{mid}/room", follow_redirects=False)
+ok("Early Join redirects to the waiting room",
+   r.status_code in (301, 302)
+   and f"/support-groups/meetings/{mid}/waiting" in (r.headers.get("Location") or ""))
+r = client.get(f"/support-groups/meetings/{mid}/waiting")
+ok("Waiting room shows countdown before start",
+   r.status_code == 200
+   and "Waiting room" in r.get_data(as_text=True)
+   and "data-sg-countdown" in r.get_data(as_text=True))
+with app.app_context():
+    live = db.session.get(SupportGroupMeeting, mid)
+    live.scheduled_at = utcnow() - timedelta(minutes=1)
+    db.session.commit()
 r = client.get(f"/support-groups/meetings/{mid}/room")
-ok("Seated member can open the embedded Daily room page",
+ok("Seated member can open the embedded Daily room once live",
    r.status_code == 200
    and "daily-js" in r.get_data(as_text=True)
    and "sg-daily-root" in r.get_data(as_text=True))
+with app.app_context():
+    ended = db.session.get(SupportGroupMeeting, mid)
+    # Put the original future time back so later reminder/cancel tests stay valid,
+    # then temporarily verify ended → wrap.
+    ended.scheduled_at = utcnow() - timedelta(minutes=50)
+    db.session.commit()
+r = client.get(f"/support-groups/meetings/{mid}/room", follow_redirects=False)
+ok("After 45 minutes the room redirects to wrap",
+   r.status_code in (301, 302)
+   and f"/support-groups/meetings/{mid}/wrap" in (r.headers.get("Location") or ""))
+with app.app_context():
+    restore = db.session.get(SupportGroupMeeting, mid)
+    restore.scheduled_at = utcnow() + timedelta(hours=20)
+    restore.reminded_at = None
+    db.session.commit()
 
 # Topic notify-me alerts
 with app.app_context():

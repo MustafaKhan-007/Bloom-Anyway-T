@@ -1730,7 +1730,7 @@ def leave_support_session(meeting_id):
 @bp.route("/support-groups/meetings/<int:meeting_id>/room")
 @login_required
 def support_session_room(meeting_id):
-    """Embedded Daily.co call for seated members."""
+    """Embedded Daily.co call for seated members (live window only)."""
     from ..models import SupportGroupMeeting
     from ..services import support_groups as sg_svc
     from ..services import daily as daily_svc
@@ -1744,6 +1744,12 @@ def support_session_room(meeting_id):
     if seat is None and not current_user.is_admin:
         flash("Save a seat on that session before joining the room.", "error")
         return redirect(url_for("main.support_groups_page"))
+
+    phase = sg_svc.meeting_phase(meeting)
+    if phase == "waiting":
+        return redirect(url_for("main.support_session_waiting", meeting_id=meeting.id))
+    if phase == "ended":
+        return redirect(url_for("main.support_session_wrap", meeting_id=meeting.id))
 
     is_host = meeting.scheduled_by_user_id == current_user.id
     try:
@@ -1763,7 +1769,42 @@ def support_session_room(meeting_id):
         daily_room_url=meeting.room_url,
         daily_token=token,
         is_host=is_host,
+        duration_min=sg_svc.peer_meeting_minutes(),
         wrap_url=url_for("main.support_session_wrap", meeting_id=meeting.id),
+    )
+
+
+@bp.route("/support-groups/meetings/<int:meeting_id>/waiting")
+@login_required
+def support_session_waiting(meeting_id):
+    """Pre-start waiting room — room unlocks at the scheduled time."""
+    from datetime import timezone as _tz
+    from ..models import SupportGroupMeeting
+    from ..services import support_groups as sg_svc
+
+    meeting = db.session.get(SupportGroupMeeting, meeting_id) or abort(404)
+    if meeting.status != "scheduled" or not meeting.scheduled_at:
+        flash("That session isn’t available.", "error")
+        return redirect(url_for("main.support_groups_page"))
+
+    seat = sg_svc.user_selected_on_meeting(current_user.id, meeting.id)
+    if seat is None and not current_user.is_admin:
+        flash("Save a seat on that session before joining the room.", "error")
+        return redirect(url_for("main.support_groups_page"))
+
+    phase = sg_svc.meeting_phase(meeting)
+    if phase == "live":
+        return redirect(url_for("main.support_session_room", meeting_id=meeting.id))
+    if phase == "ended":
+        return redirect(url_for("main.support_session_wrap", meeting_id=meeting.id))
+
+    start = meeting.scheduled_at.replace(tzinfo=_tz.utc)
+    return render_template(
+        "main/support_session_waiting.html",
+        meeting=meeting,
+        duration_min=sg_svc.peer_meeting_minutes(),
+        starts_at_iso=start.isoformat().replace("+00:00", "Z"),
+        room_url=url_for("main.support_session_room", meeting_id=meeting.id),
     )
 
 
