@@ -1510,9 +1510,9 @@ def community():
 @bp.route("/community/post/<int:post_id>/delete", methods=["POST"])
 @admin_required
 def community_delete_post(post_id):
+    from ..services import forum_moderation
     post = db.session.get(ForumPost, post_id) or abort(404)
-    db.session.delete(post)
-    db.session.commit()
+    forum_moderation.delete_post(post)
     flash("Post removed.", "success")
     return redirect(url_for("admin.community"))
 
@@ -1520,9 +1520,9 @@ def community_delete_post(post_id):
 @bp.route("/community/comment/<int:comment_id>/delete", methods=["POST"])
 @admin_required
 def community_delete_comment(comment_id):
+    from ..services import forum_moderation
     comment = db.session.get(ForumComment, comment_id) or abort(404)
-    db.session.delete(comment)
-    db.session.commit()
+    forum_moderation.delete_comment(comment)
     flash("Comment removed.", "success")
     return redirect(url_for("admin.community"))
 

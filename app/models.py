@@ -830,7 +830,7 @@ class Notification(db.Model):
     actor_id = db.Column(db.Integer, db.ForeignKey("users.id"))
     kind = db.Column(db.String(30), nullable=False)
     # follow_post / mention / followed / follow_listing / content_hub / shop
-    post_id = db.Column(db.Integer, db.ForeignKey("forum_posts.id"))
+    post_id = db.Column(db.Integer, db.ForeignKey("forum_posts.id", ondelete="SET NULL"))
     body = db.Column(db.String(300), nullable=False, default="")
     url = db.Column(db.String(300))  # optional deep link when not a forum post
     read_at = db.Column(db.DateTime)

@@ -2446,6 +2446,46 @@ ok("Feed lists report control on posts",
    f"/forums/p/{clean_id}/report" in r.get_data(as_text=True)
    and "report-note-feed-" in r.get_data(as_text=True))
 
+# Studio can remove a post that still has likes, replies, and notifications
+with app.app_context():
+    from app.models import (ContentReport, ForumCommentLike, ForumPostLike,
+                            Notification)
+    doomed_studio = User(email="studio-rm@example.com", display_name="Studio Rm",
+                         membership="healing", email_verified_at=utcnow())
+    doomed_studio.set_password(USER_PW)
+    db.session.add(doomed_studio)
+    db.session.flush()
+    victim = ForumPost(category_id=healing_cat_id, user_id=doomed_studio.id,
+                       title="Studio will remove me", body="with baggage",
+                       anonymous=False)
+    db.session.add(victim)
+    db.session.flush()
+    top = ForumComment(post_id=victim.id, user_id=doomed_studio.id,
+                       body="top comment", anonymous=False)
+    db.session.add(top)
+    db.session.flush()
+    reply = ForumComment(post_id=victim.id, user_id=doomed_studio.id,
+                         parent_id=top.id, body="a reply", anonymous=False)
+    db.session.add(reply)
+    db.session.add(ForumPostLike(user_id=doomed_studio.id, post_id=victim.id))
+    db.session.add(ForumCommentLike(user_id=doomed_studio.id, comment_id=top.id))
+    db.session.add(Notification(user_id=doomed_studio.id, kind="mention",
+                                post_id=victim.id, body="you were mentioned"))
+    db.session.add(ContentReport(target_type="post", target_id=victim.id,
+                                 reporter_id=doomed_studio.id, note="noise"))
+    db.session.commit()
+    victim_id = victim.id
+
+r = admin.post(f"/admin/community/post/{victim_id}/delete", follow_redirects=True)
+ok("Studio removes community post with dependents",
+   r.status_code == 200 and b"Post removed" in r.data)
+with app.app_context():
+    from app.models import Notification
+    ok("Removed community post is gone",
+       db.session.get(ForumPost, victim_id) is None)
+    ok("Post notifications cleared on studio remove",
+       Notification.query.filter_by(post_id=victim_id).count() == 0)
+
 with app.app_context():
     doomed = User(email="doomed@example.com", display_name="Doomed Soul",
                   username="doomedx", bio="secret bio", membership="healing",
