@@ -3,6 +3,8 @@
 - Loads data/quotes_seed.json, skipping quotes whose text already exists
   (case-insensitive).
 - Creates starter FAQ items and legal page stubs if none exist.
+- Seeds realistic community members + conversations for a busy launch feed
+  (display-only accounts under @bloomanyway.seed — no usable passwords).
 
 The owner/admin account is created in the browser at /setup (one-time page,
 locks itself after the owner's first sign-in). Passwords are never written
@@ -157,6 +159,19 @@ def seed():
         from app.services.settings import ensure_brand_title
         if ensure_brand_title():
             print("Site title updated to Bloom Anyway")
+
+        # 8. Launch buzz — realistic community members + threads (idempotent)
+        from app.services.community_seed import seed_community_buzz
+        buzz = seed_community_buzz()
+        if buzz.get("skipped"):
+            synced = buzz.get("synced") or 0
+            extra = f" (synced {synced} profiles)" if synced else ""
+            print(f"Community buzz: already seeded, skipped{extra}")
+        else:
+            print(
+                f"Community buzz: {buzz['members']} members, "
+                f"{buzz['posts']} posts, {buzz['comments']} comments"
+            )
 
         db.session.commit()
         print("Seed complete.")
