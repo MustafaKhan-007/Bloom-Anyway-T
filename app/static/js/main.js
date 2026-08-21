@@ -139,9 +139,15 @@
       else dialog.removeAttribute("open");
     }
 
-    cancelBtn.addEventListener("click", closeDialog);
+    function dismissConfirm() {
+      closeDialog();
+      document.dispatchEvent(new CustomEvent("site-confirm-dismiss"));
+    }
+
+    cancelBtn.addEventListener("click", dismissConfirm);
     dialog.addEventListener("cancel", function () {
       pendingForm = null;
+      document.dispatchEvent(new CustomEvent("site-confirm-dismiss"));
     });
     okBtn.addEventListener("click", function () {
       var form = pendingForm;

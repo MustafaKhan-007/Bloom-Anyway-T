@@ -75,6 +75,11 @@
     if (!form || form.tagName !== "FORM") return;
     if (form.getAttribute("data-no-loader") != null) return;
     if (form.target && form.target !== "_self") return;
+    // Confirm dialogs intercept submit in the bubble phase. Skip the loader until
+    // the user accepts (dataset.confirmAccepted), or Cancel leaves it spinning forever.
+    if (form.hasAttribute("data-confirm") && form.dataset.confirmAccepted !== "1") return;
     show();
   }, true);
+
+  document.addEventListener("site-confirm-dismiss", hide);
 })();

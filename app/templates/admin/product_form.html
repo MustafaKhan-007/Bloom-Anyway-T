@@ -218,8 +218,7 @@
         {% for url in product.gallery() %}
         <figure class="studio-teaser-grid__item">
           <img src="{{ url }}" alt="" loading="lazy">
-          <button class="btn btn--danger btn--sm" type="submit" form="rm-teaser-{{ loop.index }}"
-                  data-confirm="Remove this teaser?">Remove</button>
+          <button class="btn btn--danger btn--sm" type="submit" form="rm-teaser-{{ loop.index }}">Remove</button>
         </figure>
         {% endfor %}
       </div>
@@ -276,8 +275,7 @@
           <strong>{{ a.display_title() }}</strong>
           <small>{{ a.kind|upper }} · {{ a.size_mb() }} MB</small>
         </div>
-        <button class="btn btn--danger btn--sm" type="submit" form="del-asset-{{ a.id }}"
-                data-confirm="Remove “{{ a.display_title() }}”?">Remove</button>
+        <button class="btn btn--danger btn--sm" type="submit" form="del-asset-{{ a.id }}">Remove</button>
       </li>
       {% endfor %}
     </ul>
@@ -321,14 +319,20 @@
   </form>
   {% for url in product.gallery() %}
   <form id="rm-teaser-{{ loop.index }}" method="post"
-        action="{{ url_for('admin.product_gallery_upload', product_id=product.id) }}" hidden>
+        action="{{ url_for('admin.product_gallery_upload', product_id=product.id) }}" hidden
+        data-confirm="Remove this teaser?"
+        data-confirm-title="Remove teaser?"
+        data-confirm-ok="Remove">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <input type="hidden" name="remove_url" value="{{ url }}">
   </form>
   {% endfor %}
   {% for a in product.assets %}
   <form id="del-asset-{{ a.id }}" method="post"
-        action="{{ url_for('admin.product_asset_delete', product_id=product.id, asset_id=a.id) }}" hidden>
+        action="{{ url_for('admin.product_asset_delete', product_id=product.id, asset_id=a.id) }}" hidden
+        data-confirm="Remove “{{ a.display_title() }}”?"
+        data-confirm-title="Remove file?"
+        data-confirm-ok="Remove">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   </form>
   {% endfor %}
