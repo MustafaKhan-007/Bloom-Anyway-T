@@ -355,18 +355,9 @@
           </ul>
           <a class="btn btn--secondary btn--sm" href="{{ url_for('main.support_groups_page') }}">Manage sessions</a>
           {% else %}
-          <p class="field-help" style="margin:0;">Nothing scheduled right now.</p>
+          <p class="field-help" style="margin:0;">Nothing on your calendar yet. Peer circles live in Support Groups.</p>
           <a class="btn btn--secondary btn--sm" style="margin-top:10px;" href="{{ url_for('main.support_groups_page') }}">Browse Support Groups</a>
           {% endif %}
-        </div>
-
-        <div class="ms-card">
-          <div class="ms-card__head">
-            <p class="eyebrow">My Groups</p>
-            <a href="{{ url_for('main.support_groups_page') }}">Open &rarr;</a>
-          </div>
-          <p>Peer circles and Creator accountability live on Support Groups.</p>
-          <a class="btn btn--secondary btn--sm" href="{{ url_for('main.support_groups_page') }}">Open Support Groups</a>
         </div>
 
         <div class="ms-card">
