@@ -14,6 +14,9 @@ from ..models import (ForumCategory, ForumComment, ForumCommentLike, ForumPost,
                       ForumPostLike, ForumTag, User, utcnow)
 
 SEED_EMAIL_DOMAIN = "bloomanyway.seed"
+#: Bump to refresh post/comment copy on already-seeded sites (keeps members).
+COPY_VERSION = "human-v2"
+COPY_SETTING_KEY = "_community_seed_copy"
 
 # Personas — mixed Healing / Creator / Full Bloom, imperfect bios, real handles.
 MEMBERS = (
@@ -22,7 +25,7 @@ MEMBERS = (
         "email": f"maya.r@{SEED_EMAIL_DOMAIN}",
         "display_name": "Maya R.",
         "username": "mayarises",
-        "bio": "Single mom of 1. Rebuilding slower than Instagram makes it look.",
+        "bio": "single mom of 1. rebuilding slower than IG makes it look lol",
         "membership": "healing",
         "timezone": "America/Chicago",
     },
@@ -31,7 +34,7 @@ MEMBERS = (
         "email": f"jordan.lee@{SEED_EMAIL_DOMAIN}",
         "display_name": "Jordan Lee",
         "username": "jordanbuilds",
-        "bio": "Left corporate last year. Still figuring out what 'enough' means.",
+        "bio": "left corporate last year. still figuring out what \"enough\" even means",
         "membership": "full_bloom",
         "timezone": "America/New_York",
     },
@@ -40,7 +43,7 @@ MEMBERS = (
         "email": f"priya.n@{SEED_EMAIL_DOMAIN}",
         "display_name": "Priya N.",
         "username": "priyanotes",
-        "bio": "Co-parenting + a tiny digital shop. Coffee first, bravery second.",
+        "bio": "co-parenting + a tiny shop. coffee first bravery second",
         "membership": "full_bloom",
         "timezone": "America/Los_Angeles",
     },
@@ -49,7 +52,7 @@ MEMBERS = (
         "email": f"alisha.m@{SEED_EMAIL_DOMAIN}",
         "display_name": "Alisha M.",
         "username": "alishamornings",
-        "bio": "Grief is weird. Some days I journal. Some days I just survive.",
+        "bio": "grief is weird. some days i journal. some days i just get thru it",
         "membership": "healing",
         "timezone": "America/Denver",
     },
@@ -58,7 +61,7 @@ MEMBERS = (
         "email": f"nina.k@{SEED_EMAIL_DOMAIN}",
         "display_name": "Nina K.",
         "username": "ninakcreates",
-        "bio": "Templates, Canva, and posting when the toddler naps (sometimes).",
+        "bio": "canva + templates. posting whenever the toddler naps (sometimes)",
         "membership": "healing",
         "timezone": "Europe/London",
     },
@@ -67,7 +70,7 @@ MEMBERS = (
         "email": f"samira.h@{SEED_EMAIL_DOMAIN}",
         "display_name": "Samira H.",
         "username": "samirahustle",
-        "bio": "Money used to scare me. Learning in public, one spreadsheet at a time.",
+        "bio": "money used to scare me tbh. learning in public one spreadsheet at a time",
         "membership": "full_bloom",
         "timezone": "America/New_York",
     },
@@ -76,7 +79,7 @@ MEMBERS = (
         "email": f"taylor.b@{SEED_EMAIL_DOMAIN}",
         "display_name": "Taylor B.",
         "username": "taylorbsoft",
-        "bio": "Soft life in progress. Custody weekends are my reset button.",
+        "bio": "soft life in progress. custody weekends = my reset",
         "membership": "healing",
         "timezone": "America/Chicago",
     },
@@ -85,7 +88,7 @@ MEMBERS = (
         "email": f"reece.o@{SEED_EMAIL_DOMAIN}",
         "display_name": "Reece O.",
         "username": "reeceopens",
-        "bio": "Starting over at 34. New city, new inbox, same nervous system.",
+        "bio": "starting over at 34. new city new inbox same anxious brain",
         "membership": "healing",
         "timezone": "America/Phoenix",
     },
@@ -94,7 +97,7 @@ MEMBERS = (
         "email": f"carmen.d@{SEED_EMAIL_DOMAIN}",
         "display_name": "Carmen D.",
         "username": "carmendaily",
-        "bio": "I show up messy. Healing circle regular. Proud of that.",
+        "bio": "i show up messy. healing circle regular. proud of that",
         "membership": "healing",
         "timezone": "America/Toronto",
     },
@@ -103,7 +106,7 @@ MEMBERS = (
         "email": f"alexis.w@{SEED_EMAIL_DOMAIN}",
         "display_name": "Alexis W.",
         "username": "alexiswrites",
-        "bio": "Writing guides between school runs. Consistency > perfect.",
+        "bio": "writing guides between school runs. consistency > perfect always",
         "membership": "healing",
         "timezone": "America/Chicago",
     },
@@ -112,7 +115,7 @@ MEMBERS = (
         "email": f"dee.s@{SEED_EMAIL_DOMAIN}",
         "display_name": "Dee S.",
         "username": "deesettle",
-        "bio": "Divorce finalized in March. Still learning how to take up space.",
+        "bio": "divorce finalized in march. still learning how to take up space",
         "membership": "healing",
         "timezone": "America/New_York",
     },
@@ -121,13 +124,13 @@ MEMBERS = (
         "email": f"mira.p@{SEED_EMAIL_DOMAIN}",
         "display_name": "Mira P.",
         "username": "mirapixels",
-        "bio": "Brand of one. Selling quiet tools for loud seasons.",
+        "bio": "brand of one. selling quiet tools for loud seasons",
         "membership": "full_bloom",
         "timezone": "Europe/Berlin",
     },
 )
 
-# Threads: forum slug, tag slug, author key, looking_for, timing, conversation.
+# Threads — intentionally imperfect typing (real phone energy).
 THREADS = (
     # --- Healing ---
     {
@@ -137,12 +140,12 @@ THREADS = (
         "looking_for": "listening",
         "anonymous": False,
         "days_ago": 14,
-        "title": "Anyone else get weirdly angry at happy couples lately?",
+        "title": "anyone else getting weirdly mad at happy couples lately",
         "body": (
-            "Not proud of it. Saw a 'date night' reel and just… shut my phone.\n\n"
-            "I'm doing the work. Therapy when I can afford it. Showing up for my kid. "
-            "But some evenings the bitterness sneaks in and I don't know where to put it.\n\n"
-            "Please tell me this is a phase and not my new personality."
+            "ok not proud of this but i saw a date night reel and just closed the app like 😐\n\n"
+            "im doing the work. therapy when i can afford it. showing up for my kid. "
+            "but some nights the bitterness just sneaks in and idk where to put it\n\n"
+            "please tell me this is a phase and not my whole personality now"
         ),
         "likes": ["jordan", "carmen", "taylor", "dee"],
         "comments": [
@@ -150,15 +153,15 @@ THREADS = (
                 "author": "carmen",
                 "hours_after": 2,
                 "body": (
-                    "Girl same. I used to think it meant I was stuck. Now I think it means "
-                    "my nervous system is still catching up. You're not becoming bitter — "
-                    "you're noticing the gap. That counts."
+                    "girl SAME. i used to think it meant i was stuck but honestly "
+                    "i think it just means my nervous system is still catching up. "
+                    "youre not becoming bitter youre just noticing the gap"
                 ),
                 "replies": [
                     {
                         "author": "maya",
                         "hours_after": 4,
-                        "body": "Thank you. 'Noticing the gap' feels kinder than calling myself mean.",
+                        "body": "ok \"noticing the gap\" hits softer than calling myself mean lol thank u",
                     },
                 ],
             },
@@ -166,8 +169,8 @@ THREADS = (
                 "author": "dee",
                 "hours_after": 6,
                 "body": (
-                    "Phase for me too. Peaked around month 8 post-split, then softens. "
-                    "Mute the couples for a bit if you need to. Protect your peace like rent."
+                    "phase for me too. peaked around month 8 after the split then it softened. "
+                    "mute the couple content for a bit if u need. protect ur peace like its rent"
                 ),
             },
             {
@@ -175,8 +178,8 @@ THREADS = (
                 "hours_after": 11,
                 "anonymous": True,
                 "body": (
-                    "Posting anon because this is tender — I cried in the Target parking lot "
-                    "over a Father's Day display. You're not alone in the ugly feelings."
+                    "posting anon bc this is tender but i cried in a target parking lot "
+                    "over a fathers day display once so yeah. ur not alone in the ugly feelings"
                 ),
             },
         ],
@@ -188,12 +191,12 @@ THREADS = (
         "looking_for": "advice",
         "anonymous": False,
         "days_ago": 11,
-        "title": "First solo holiday weekend with my kid — tips that aren't Pinterest?",
+        "title": "first solo holiday w my kid... tips that arent pinterest please",
         "body": (
-            "Ex has them every other holiday. This is my first Thanksgiving alone with my daughter "
-            "and I'm spiraling about making it 'special enough.'\n\n"
-            "I don't need a turkey centerpiece tutorial. I need the real stuff — what actually "
-            "helped your kid feel okay when the other house felt louder."
+            "ex has them every other holiday. this is my first thanksgiving alone with my daughter "
+            "and im spiraling about making it \"special enough\"\n\n"
+            "i dont need a turkey centerpiece tutorial i need the real stuff. what actually "
+            "helped ur kid feel ok when the other house felt louder"
         ),
         "likes": ["maya", "taylor", "priya", "alisha", "carmen"],
         "comments": [
@@ -201,22 +204,22 @@ THREADS = (
                 "author": "taylor",
                 "hours_after": 1,
                 "body": (
-                    "We do pajamas at 4pm, takeout, and a movie we've already seen. "
-                    "Low pressure = she actually laughs. The pressure was for me, not her."
+                    "we do pajamas at like 4pm takeout and a movie weve already seen. "
+                    "low pressure = she actually laughs. the pressure was for ME not her"
                 ),
             },
             {
                 "author": "priya",
                 "hours_after": 3,
                 "body": (
-                    "I let my son pick one tradition that stays ours — for us it's cinnamon rolls "
-                    "for dinner. Weird. Sacred. He owns it."
+                    "i let my son pick one thing thats ours. for us its cinnamon rolls for dinner "
+                    "which is weird but sacred and he owns it"
                 ),
                 "replies": [
                     {
                         "author": "dee",
                         "hours_after": 5,
-                        "body": "Cinnamon rolls for dinner is going on the list. Thank you both.",
+                        "body": "cinnamon rolls for dinner is going on the list thank u both 😭",
                     },
                 ],
             },
@@ -224,8 +227,8 @@ THREADS = (
                 "author": "alisha",
                 "hours_after": 8,
                 "body": (
-                    "Also: narrate less. I used to over-explain why dad wasn't there. "
-                    "Kids mostly need presence, not a TED talk."
+                    "also narrate less. i used to over explain why dad wasnt there and "
+                    "kids mostly just need you there not a ted talk"
                 ),
             },
         ],
@@ -237,12 +240,12 @@ THREADS = (
         "looking_for": "support",
         "anonymous": False,
         "days_ago": 9,
-        "title": "Grief anniversary tomorrow and I keep opening/closing the same draft text",
+        "title": "grief anniversary tomorrow and i keep drafting texts then deleting them",
         "body": (
-            "It's been two years since my mom. Tomorrow is the day and I keep typing messages "
-            "to people who already know, then deleting them.\n\n"
-            "I don't need advice exactly. Just… company in the weirdness of grief that doesn't "
-            "look like crying on the floor anymore. Sometimes it's just restless."
+            "2 years since my mom. tomorrow is the day and i keep typing messages to people "
+            "who already know and then deleting them\n\n"
+            "dont really need advice. just company in the weird grief that doesnt look like "
+            "crying on the floor anymore. sometimes its just restless and weird"
         ),
         "likes": ["maya", "carmen", "dee", "taylor"],
         "comments": [
@@ -250,22 +253,22 @@ THREADS = (
                 "author": "carmen",
                 "hours_after": 1,
                 "body": (
-                    "Sitting with you from here. Restless grief is still grief. "
-                    "You don't owe anyone a polished version of missing her."
+                    "sitting with you from here. restless grief is still grief. "
+                    "you dont owe anybody a polished version of missing her"
                 ),
             },
             {
                 "author": "maya",
                 "hours_after": 4,
                 "body": (
-                    "I light a candle and put on a song she liked even if I only last 20 seconds. "
-                    "Tiny ritual, zero performance. Sending you a soft tomorrow."
+                    "i light a candle and put on a song she liked even if i only last like 20 sec. "
+                    "tiny ritual zero performance. sending you a soft tomorrow"
                 ),
                 "replies": [
                     {
                         "author": "alisha",
                         "hours_after": 7,
-                        "body": "Candle + song. I'm going to try that. Thank you for not rushing me.",
+                        "body": "candle + song. gonna try that. thank u for not rushing me",
                     },
                 ],
             },
@@ -278,31 +281,28 @@ THREADS = (
         "looking_for": "recognition",
         "anonymous": False,
         "days_ago": 7,
-        "title": "I said no to a favor that would've wrecked my week",
+        "title": "i said no to a favor that wouldve wrecked my week",
         "body": (
-            "Old me would've said yes and resented everyone. Today I said, "
-            "'I can't this week' and didn't write a novel of apologies after.\n\n"
-            "My hands were shaking. Still proud. Needed somewhere to put that."
+            "old me would’ve said yes and then resented everyone. today i just said "
+            "\"i cant this week\" and didnt write a whole essay of apologies after\n\n"
+            "hands were shaking ngl. still proud tho. needed somewhere to put that"
         ),
         "likes": ["jordan", "priya", "nina", "samira", "maya", "alexis"],
         "comments": [
             {
                 "author": "jordan",
                 "hours_after": 2,
-                "body": "That's a win. Screenshot this for the days you forget.",
+                "body": "thats a win. screenshot this for the days you forget",
             },
             {
                 "author": "samira",
                 "hours_after": 5,
-                "body": (
-                    "Shaking hands + clear boundary = growth that counts. "
-                    "I'm clapping for you in my kitchen rn."
-                ),
+                "body": "shaking hands + clear boundary = growth. im clapping in my kitchen rn fr",
                 "replies": [
                     {
                         "author": "taylor",
                         "hours_after": 9,
-                        "body": "Y'all made me tear up in a good way. Thank you.",
+                        "body": "yall made me tear up in a good way thank u",
                     },
                 ],
             },
@@ -315,12 +315,11 @@ THREADS = (
         "looking_for": "company",
         "anonymous": True,
         "days_ago": 5,
-        "title": "Tired of being the 'strong friend'",
+        "title": "tired of being the \"strong friend\"",
         "body": (
-            "Everyone comes to me. I love my people. But tonight I want someone else "
-            "to hold the bag for once.\n\n"
-            "Posting anon because they'd recognize my voice if I used my name. "
-            "Just needed to say it out loud somewhere safe."
+            "everyone comes to me. i love my people. but tonight i want someone else "
+            "to hold the bag for once\n\n"
+            "anon bc theyd recognize my voice. just needed to say it somewhere safe"
         ),
         "likes": ["alisha", "dee", "maya", "taylor"],
         "comments": [
@@ -328,14 +327,14 @@ THREADS = (
                 "author": "alisha",
                 "hours_after": 3,
                 "body": (
-                    "Being the strong friend is lonely. You get to need soft landing too. "
-                    "Hope tonight gives you even 10 quiet minutes that are just yours."
+                    "being the strong friend is lonely as hell. you get to need a soft landing too. "
+                    "hope tonight gives you even like 10 quiet minutes that are just yours"
                 ),
             },
             {
                 "author": "dee",
                 "hours_after": 6,
-                "body": "Heard. You're allowed to be held. Full stop.",
+                "body": "heard. youre allowed to be held. full stop",
             },
         ],
     },
@@ -346,11 +345,11 @@ THREADS = (
         "looking_for": "resources",
         "anonymous": False,
         "days_ago": 3,
-        "title": "Anyone use a shared calendar that doesn't turn into a battlefield?",
+        "title": "anyone use a shared calendar that doesnt turn into a war zone",
         "body": (
-            "Looking for practical tools — not 'just communicate better' advice. "
-            "Ex and I text and it goes sideways fast. What apps or systems actually "
-            "lowered the temperature for you?"
+            "looking for practical tools not the \"just communicate better\" stuff. "
+            "me and my ex text and it goes sideways so fast. what apps or systems "
+            "actually lowered the temperature for u"
         ),
         "likes": ["priya", "dee", "taylor"],
         "comments": [
@@ -358,22 +357,22 @@ THREADS = (
                 "author": "priya",
                 "hours_after": 2,
                 "body": (
-                    "We moved logistics to OurFamilyWizard. Not free, but fewer 11pm arguments. "
-                    "Anything emotional stays out of the app on purpose."
+                    "we moved logistics to ourfamilywizard. not free but fewer 11pm fights. "
+                    "anything emotional stays OUT of the app on purpose"
                 ),
             },
             {
                 "author": "dee",
                 "hours_after": 5,
                 "body": (
-                    "Google Calendar + a hard rule: only schedule/pickup notes, no commentary. "
-                    "If it needs feelings, it waits for mediation or a cool-down day."
+                    "google calendar + hard rule: only schedule/pickup notes. no commentary. "
+                    "if it needs feelings it waits"
                 ),
                 "replies": [
                     {
                         "author": "maya",
                         "hours_after": 8,
-                        "body": "The 'no commentary' rule might save my life. Trying that this week.",
+                        "body": "the no commentary rule might save my life trying that this week",
                     },
                 ],
             },
@@ -386,11 +385,10 @@ THREADS = (
         "looking_for": "support",
         "anonymous": False,
         "days_ago": 1,
-        "title": "New city, no friends yet — how did you rebuild community without forcing it?",
+        "title": "new city no friends yet... how did u rebuild community without forcing it",
         "body": (
-            "Moved three weeks ago. Apartment is fine. Evenings are loud-quiet. "
-            "I don't want to join 12 things and burn out. What actually worked for you "
-            "when you were the new person?"
+            "moved 3 weeks ago. apt is fine. evenings feel loud-quiet if that makes sense. "
+            "dont wanna join 12 things and burn out. what actually worked when u were the new person"
         ),
         "likes": ["jordan", "nina", "alexis", "carmen"],
         "comments": [
@@ -398,22 +396,22 @@ THREADS = (
                 "author": "nina",
                 "hours_after": 2,
                 "body": (
-                    "One recurring thing > five one-offs. For me it was a Wednesday writing cafe. "
-                    "Same faces, low small-talk pressure."
+                    "one recurring thing > five random one offs. for me it was a wednesday "
+                    "writing cafe. same faces low small talk pressure"
                 ),
             },
             {
                 "author": "jordan",
                 "hours_after": 4,
                 "body": (
-                    "Also: parallel play energy. Library, gym, coworking. You're around people "
-                    "without performing friendship on day one."
+                    "also parallel play energy. library gym coworking. ur around people "
+                    "without performing friendship on day one"
                 ),
                 "replies": [
                     {
                         "author": "reece",
                         "hours_after": 7,
-                        "body": "Parallel play is exactly the language I needed. Thank you.",
+                        "body": "parallel play is exactly what i needed thank u",
                     },
                 ],
             },
@@ -427,11 +425,11 @@ THREADS = (
         "looking_for": "accountability",
         "anonymous": False,
         "days_ago": 13,
-        "title": "I posted 4 times this week and my brain still says I'm inconsistent",
+        "title": "posted 4x this week and my brain still says im inconsistent",
         "body": (
-            "Logically I know showing up 4x is better than the months I vanished. "
-            "Emotionally I compare myself to people who batch 30 reels before breakfast.\n\n"
-            "Anyone else fighting the 'if it's not daily it doesn't count' lie?"
+            "logically i know 4 posts is better than the months i vanished. "
+            "emotionally im comparing myself to people who batch 30 reels before breakfast\n\n"
+            "anyone else fighting the \"if its not daily it doesnt count\" lie"
         ),
         "likes": ["alexis", "jordan", "mira", "priya", "samira"],
         "comments": [
@@ -439,22 +437,22 @@ THREADS = (
                 "author": "alexis",
                 "hours_after": 1,
                 "body": (
-                    "Daily is a strategy, not a moral law. 4 thoughtful posts beat 7 empty ones. "
-                    "You're building a habit, not failing a streak app."
+                    "daily is a strategy not a moral law lol. 4 thoughtful posts beat 7 empty ones. "
+                    "ur building a habit not failing a streak app"
                 ),
             },
             {
                 "author": "mira",
                 "hours_after": 3,
                 "body": (
-                    "I batch on Sundays when I can, and when I can't I do 2 solid posts. "
-                    "The algorithm is not your landlord."
+                    "i batch on sundays when i can and when i cant i just do 2 solid posts. "
+                    "the algorithm is not ur landlord"
                 ),
                 "replies": [
                     {
                         "author": "nina",
                         "hours_after": 6,
-                        "body": "'The algorithm is not your landlord' — tattooing that on my mood board.",
+                        "body": "\"algorithm is not ur landlord\" im putting that on my mood board 💀",
                     },
                 ],
             },
@@ -467,11 +465,11 @@ THREADS = (
         "looking_for": "advice",
         "anonymous": False,
         "days_ago": 10,
-        "title": "Starting a tiny offer with almost no audience — what would you sell first?",
+        "title": "starting a tiny offer w almost no audience... what would u sell first",
         "body": (
-            "I have a skill (resume + LinkedIn makeovers) and like 400 followers who barely "
-            "know I exist online. Tempted to build a huge course. Also tempted to freeze.\n\n"
-            "If you started from near-zero, what was your first paid thing that wasn't embarrassing?"
+            "i have a skill (resume + linkedin makeovers) and like 400 followers who barely "
+            "know i exist online. tempted to build a huge course. also tempted to freeze\n\n"
+            "if u started from near zero what was ur first paid thing that wasnt embarrassing"
         ),
         "likes": ["jordan", "nina", "alexis", "samira"],
         "comments": [
@@ -479,29 +477,29 @@ THREADS = (
                 "author": "jordan",
                 "hours_after": 2,
                 "body": (
-                    "I sold 1:1 before any product. Five clients taught me what people actually "
-                    "pay for. Course came later from their repeated questions."
+                    "i sold 1:1 before any product. like five clients taught me what people "
+                    "actually pay for. course came later from their repeated questions"
                 ),
             },
             {
                 "author": "alexis",
                 "hours_after": 5,
                 "body": (
-                    "A $27 PDF that answered one painful question. Ugly Canva. Sold 11. "
-                    "Then I improved it. Starting ugly is allowed."
+                    "$27 pdf that answered one painful question. ugly canva. sold 11. "
+                    "then i improved it. starting ugly is allowed"
                 ),
                 "replies": [
                     {
                         "author": "reece",
                         "hours_after": 9,
-                        "body": "Ugly Canva courage unlocked. Going to draft a mini offer this weekend.",
+                        "body": "ugly canva courage unlocked. drafting a mini offer this weekend",
                     },
                 ],
             },
             {
                 "author": "samira",
                 "hours_after": 12,
-                "body": "Also: DM the quiet engagers. Warm > cold. Your 400 aren't zero.",
+                "body": "also dm the quiet engagers. warm > cold. ur 400 arent zero",
             },
         ],
     },
@@ -512,12 +510,11 @@ THREADS = (
         "looking_for": "resources",
         "anonymous": False,
         "days_ago": 8,
-        "title": "First $100 into investing — what did you actually open?",
+        "title": "first $100 into investing... what did u actually open",
         "body": (
-            "Not looking for stock tips. Looking for 'I was scared and I did X app / Y account "
-            "and survived.'\n\n"
-            "I finally have $100 that isn't rent-or-groceries money and my brain wants to "
-            "keep it in checking forever 'just in case.'"
+            "not looking for stock tips. looking for \"i was scared and i opened X and survived\"\n\n"
+            "i finally have $100 that isnt rent or groceries money and my brain wants to "
+            "keep it in checking forever \"just in case\""
         ),
         "likes": ["priya", "jordan", "mira", "maya", "alexis"],
         "comments": [
@@ -525,22 +522,22 @@ THREADS = (
                 "author": "priya",
                 "hours_after": 2,
                 "body": (
-                    "I started with a basic brokerage + a target-date fund. Boring on purpose. "
-                    "The win was separating 'emergency' from 'investing' so I stopped raiding it."
+                    "started with a basic brokerage + a target date fund. boring on purpose. "
+                    "the win was separating emergency money from investing so i stopped raiding it"
                 ),
             },
             {
                 "author": "mira",
                 "hours_after": 4,
                 "body": (
-                    "Automate $25 transfers so you don't negotiate with yourself weekly. "
-                    "Small and boring beat heroic and abandoned."
+                    "automate like $25 transfers so u dont negotiate with yourself every week. "
+                    "small and boring beats heroic then abandoned"
                 ),
                 "replies": [
                     {
                         "author": "samira",
                         "hours_after": 7,
-                        "body": "Automating the decision is smart. Setting $25 for Friday. Thank you.",
+                        "body": "ooo automating the decision is smart. setting $25 for friday thank u",
                     },
                 ],
             },
@@ -553,35 +550,35 @@ THREADS = (
         "looking_for": "celebration",
         "anonymous": False,
         "days_ago": 6,
-        "title": "Sold my first guide while my kid was glued to a cartoon — screaming quietly",
+        "title": "sold my first guide while my kid was glued to a cartoon im screaming quietly",
         "body": (
-            "It's not six figures. It's one sale. But I built it between nap times and "
-            "self-doubt for months.\n\n"
-            "Needed a room that gets why this feels enormous."
+            "its not six figures. its ONE sale. but i built it between nap times and "
+            "self doubt for months\n\n"
+            "needed a room that gets why this feels enormous"
         ),
         "likes": ["nina", "jordan", "samira", "priya", "mira", "reece", "maya"],
         "comments": [
             {
                 "author": "nina",
                 "hours_after": 1,
-                "body": "SCREAMING WITH YOU. First sale energy is unmatched. Go celebrate something tiny tonight.",
+                "body": "SCREAMING WITH U. first sale energy is unmatched. go celebrate something tiny tonight",
             },
             {
                 "author": "jordan",
                 "hours_after": 3,
-                "body": "Proof you can finish. That's the hard part. Congrats for real.",
+                "body": "proof u can finish. thats the hard part. congrats for real",
                 "replies": [
                     {
                         "author": "alexis",
                         "hours_after": 5,
-                        "body": "We got ice cream. Cartoon still playing. Perfect chaos.",
+                        "body": "we got ice cream. cartoon still playing. perfect chaos lol",
                     },
                 ],
             },
             {
                 "author": "priya",
                 "hours_after": 8,
-                "body": "Put the screenshot somewhere you'll see it on hard days.",
+                "body": "put the screenshot somewhere ull see it on hard days",
             },
         ],
     },
@@ -592,11 +589,11 @@ THREADS = (
         "looking_for": "advice",
         "anonymous": False,
         "days_ago": 4,
-        "title": "Do you write captions before filming or after (and regret either way)?",
+        "title": "do u write captions before filming or after (and regret either way)",
         "body": (
-            "I film 'vibes' then stare at a blank caption box for 40 minutes. "
-            "Or I write a perfect caption and then hate every take. What's your order "
-            "when you're short on time?"
+            "i film \"vibes\" then stare at a blank caption box for like 40 min. "
+            "or i write a perfect caption and then hate every take. whats ur order "
+            "when ur short on time"
         ),
         "likes": ["nina", "alexis", "jordan"],
         "comments": [
@@ -604,22 +601,22 @@ THREADS = (
                 "author": "nina",
                 "hours_after": 2,
                 "body": (
-                    "Hook line first (even ugly). Film to that line. Polish caption after. "
-                    "Stops me from collecting random clips with no point."
+                    "hook line first even if its ugly. film to that line. polish caption after. "
+                    "stops me from collecting random clips with no point"
                 ),
             },
             {
                 "author": "alexis",
                 "hours_after": 5,
                 "body": (
-                    "Voice note the idea while walking. Transcribe later. My best captions "
-                    "sound like how I talk, not how I 'should' write."
+                    "voice note the idea while walking then transcribe later. my best captions "
+                    "sound like how i talk not how i \"should\" write"
                 ),
                 "replies": [
                     {
                         "author": "mira",
                         "hours_after": 8,
-                        "body": "Voice notes while walking = genius. Trying that tomorrow.",
+                        "body": "voice notes while walking = genius trying that tmw",
                     },
                 ],
             },
@@ -632,12 +629,11 @@ THREADS = (
         "looking_for": "accountability",
         "anonymous": False,
         "days_ago": 2,
-        "title": "Raising my rate next month and my stomach hates me already",
+        "title": "raising my rate next month and my stomach already hates me",
         "body": (
-            "Been undercharging 'to be nice.' Clients are happy. My bank account is not. "
-            "I'm bumping rates for new work starting next month and I keep rehearsing "
-            "apologies that nobody asked for.\n\n"
-            "If you've done this — what did you say in the email that didn't sound desperate?"
+            "been undercharging \"to be nice.\" clients are happy. my bank account is not. "
+            "bumping rates for new work next month and i keep rehearsing apologies nobody asked for\n\n"
+            "if uve done this what did u say in the email that didnt sound desperate"
         ),
         "likes": ["samira", "mira", "priya", "alexis", "nina"],
         "comments": [
@@ -645,22 +641,22 @@ THREADS = (
                 "author": "samira",
                 "hours_after": 2,
                 "body": (
-                    "Short and warm: 'My rates update on [date] to reflect current scope. "
-                    "Happy to lock current pricing if you book before then.' No novel."
+                    "keep it short: \"my rates update on [date]. happy to lock current pricing "
+                    "if you book before then.\" no novel needed"
                 ),
             },
             {
                 "author": "mira",
                 "hours_after": 4,
                 "body": (
-                    "You don't need to justify the raise with your life story. Clarity is kindness. "
-                    "The ones who value you stay; the rest were never priced right."
+                    "u dont need to justify the raise with ur whole life story. clarity is kindness. "
+                    "the ones who value u stay. the rest were never priced right anyway"
                 ),
                 "replies": [
                     {
                         "author": "jordan",
                         "hours_after": 6,
-                        "body": "Drafting the short version now. Hands still shaky. Doing it anyway.",
+                        "body": "drafting the short version now. hands still shaky. doing it anyway",
                     },
                 ],
             },
@@ -673,28 +669,28 @@ THREADS = (
         "looking_for": "celebration",
         "anonymous": False,
         "days_ago": 1,
-        "title": "Hit $1k in digital product sales this month (while co-parenting on hard mode)",
+        "title": "hit $1k in digital product sales this month (co-parenting on hard mode)",
         "body": (
-            "Not flexing at anyone — more like pinning this so I remember on the weeks "
-            "I feel behind. School emails, schedule swaps, and still shipping.\n\n"
-            "If you're in the messy middle: keep going. Quiet progress counts."
+            "not flexing at anyone more like pinning this so i remember on the weeks "
+            "i feel behind. school emails schedule swaps and still shipping\n\n"
+            "if ur in the messy middle keep going. quiet progress counts"
         ),
         "likes": ["samira", "nina", "alexis", "mira", "jordan", "maya", "reece"],
         "comments": [
             {
                 "author": "samira",
                 "hours_after": 1,
-                    "body": "THIS. Quiet progress is still an empire brick. Congrats, Priya.",
+                "body": "THIS. quiet progress is still an empire brick. congrats priya 👏",
             },
             {
                 "author": "maya",
                 "hours_after": 3,
-                "body": "Needed this today. Thank you for sharing the middle, not just the highlight.",
+                "body": "needed this today. thank u for sharing the middle not just the highlight",
                 "replies": [
                     {
                         "author": "priya",
                         "hours_after": 5,
-                        "body": "The middle is where we live. Glad it landed.",
+                        "body": "the middle is where we live lol. glad it landed",
                     },
                 ],
             },
@@ -707,11 +703,11 @@ THREADS = (
         "looking_for": "listening",
         "anonymous": False,
         "days_ago": 0,
-        "title": "Deleted a half-built offer and it felt like failure + relief",
+        "title": "deleted a half built offer and it felt like failure + relief",
         "body": (
-            "Spent weeks on something that wasn't me. Scrapped it this morning. "
-            "Part of me thinks I wasted time. Part of me feels lighter.\n\n"
-            "Anyone else have to kill a project to make room for the right one?"
+            "spent weeks on something that wasnt me. scrapped it this morning. "
+            "part of me thinks i wasted time. part of me feels lighter??\n\n"
+            "anyone else have to kill a project to make room for the right one"
         ),
         "likes": ["reece", "jordan", "alexis", "mira"],
         "comments": [
@@ -719,14 +715,14 @@ THREADS = (
                 "author": "reece",
                 "hours_after": 1,
                 "body": (
-                    "Killing a wrong offer is progress. You learned what you don't want to sell. "
-                    "That's expensive research if you paid someone else for it."
+                    "killing a wrong offer is still progress. u learned what u dont wanna sell. "
+                    "thats expensive research if u paid someone else for it"
                 ),
             },
             {
                 "author": "jordan",
                 "hours_after": 3,
-                "body": "Relief is data. Listen to it.",
+                "body": "relief is data. listen to it",
             },
         ],
     },
@@ -740,6 +736,60 @@ def _seed_emails_exist() -> bool:
         .first()
         is not None
     )
+
+
+def _seed_user_ids() -> list[int]:
+    return [
+        uid for (uid,) in
+        db.session.query(User.id)
+        .filter(User.email.like(f"%@{SEED_EMAIL_DOMAIN}"))
+        .all()
+    ]
+
+
+def _wipe_seed_threads(user_ids: list[int]) -> None:
+    """Delete posts (and dependents) authored by seed members. No commit."""
+    if not user_ids:
+        return
+    from ..models import ContentReport, Notification
+
+    post_ids = [
+        pid for (pid,) in
+        db.session.query(ForumPost.id).filter(ForumPost.user_id.in_(user_ids)).all()
+    ]
+    if not post_ids:
+        return
+    comment_ids = [
+        cid for (cid,) in
+        db.session.query(ForumComment.id)
+        .filter(ForumComment.post_id.in_(post_ids))
+        .all()
+    ]
+    Notification.query.filter(Notification.post_id.in_(post_ids)).delete(
+        synchronize_session=False
+    )
+    ContentReport.query.filter(
+        ContentReport.target_type == "post",
+        ContentReport.target_id.in_(post_ids),
+    ).delete(synchronize_session=False)
+    if comment_ids:
+        ContentReport.query.filter(
+            ContentReport.target_type == "comment",
+            ContentReport.target_id.in_(comment_ids),
+        ).delete(synchronize_session=False)
+        ForumCommentLike.query.filter(
+            ForumCommentLike.comment_id.in_(comment_ids)
+        ).delete(synchronize_session=False)
+        ForumComment.query.filter(ForumComment.id.in_(comment_ids)).update(
+            {ForumComment.parent_id: None}, synchronize_session=False
+        )
+        ForumComment.query.filter(ForumComment.id.in_(comment_ids)).delete(
+            synchronize_session=False
+        )
+    ForumPostLike.query.filter(ForumPostLike.post_id.in_(post_ids)).delete(
+        synchronize_session=False
+    )
+    ForumPost.query.filter(ForumPost.id.in_(post_ids)).delete(synchronize_session=False)
 
 
 def _sync_existing_members() -> int:
@@ -768,54 +818,21 @@ def _sync_existing_members() -> int:
     return updated
 
 
-def seed_community_buzz() -> dict[str, int]:
-    """Create launch buzz members + threads. Returns counts added."""
-    if _seed_emails_exist():
-        synced = _sync_existing_members()
-        return {"members": 0, "posts": 0, "comments": 0, "skipped": 1, "synced": synced}
-
-    cats = {c.slug: c for c in ForumCategory.query.all()}
-    if "healing" not in cats or "building" not in cats:
-        return {"members": 0, "posts": 0, "comments": 0, "skipped": 1}
-
-    tags_by = {}
-    for cat in cats.values():
-        tags_by[cat.slug] = {t.slug: t for t in cat.tags}
-
-    now = utcnow()
-    # Unusable shared password material — accounts are display-only.
-    lock = secrets.token_urlsafe(48)
-
+def _load_members_by_key() -> dict[str, User]:
     by_key: dict[str, User] = {}
     for row in MEMBERS:
-        if User.query.filter_by(email=row["email"]).first() is not None:
-            continue
-        if User.query.filter_by(username=row["username"]).first() is not None:
-            continue
-        user = User(
-            email=row["email"],
-            display_name=row["display_name"],
-            username=row["username"],
-            bio=row["bio"],
-            membership=row["membership"],
-            timezone=row.get("timezone"),
-            email_verified_at=now - timedelta(days=30),
-            created_at=now - timedelta(days=40),
-        )
-        user.set_password(lock)
-        db.session.add(user)
-        by_key[row["key"]] = user
+        user = User.query.filter_by(email=row["email"]).first()
+        if user is not None:
+            by_key[row["key"]] = user
+    return by_key
 
-    db.session.flush()
 
-    # Reload any that already existed (partial prior run)
-    for row in MEMBERS:
-        if row["key"] not in by_key:
-            existing = User.query.filter_by(email=row["email"]).first()
-            if existing is not None:
-                by_key[row["key"]] = existing
-
+def _create_threads(by_key: dict[str, User]) -> tuple[int, int]:
+    cats = {c.slug: c for c in ForumCategory.query.all()}
+    tags_by = {slug: {t.slug: t for t in cat.tags} for slug, cat in cats.items()}
+    now = utcnow()
     posts_n = comments_n = 0
+
     for thread in THREADS:
         author = by_key.get(thread["author"])
         cat = cats.get(thread["forum"])
@@ -861,7 +878,6 @@ def seed_community_buzz() -> dict[str, int]:
             db.session.flush()
             comments_n += 1
 
-            # A few organic comment likes
             if c_idx % 2 == 0:
                 for like_key in (thread.get("likes") or ())[:2]:
                     liker = by_key.get(like_key)
@@ -891,6 +907,73 @@ def seed_community_buzz() -> dict[str, int]:
                 db.session.add(reply)
                 comments_n += 1
 
+    return posts_n, comments_n
+
+
+def seed_community_buzz() -> dict[str, int]:
+    """Create launch buzz members + threads. Returns counts added."""
+    from .settings import get_setting, set_setting
+
+    cats = {c.slug: c for c in ForumCategory.query.all()}
+    if "healing" not in cats or "building" not in cats:
+        return {"members": 0, "posts": 0, "comments": 0, "skipped": 1}
+
+    current_copy = (get_setting(COPY_SETTING_KEY) or "").strip()
+    need_fresh_copy = current_copy != COPY_VERSION
+
+    if _seed_emails_exist():
+        synced = _sync_existing_members()
+        if not need_fresh_copy:
+            return {
+                "members": 0, "posts": 0, "comments": 0,
+                "skipped": 1, "synced": synced,
+            }
+        by_key = _load_members_by_key()
+        _wipe_seed_threads(_seed_user_ids())
+        db.session.flush()
+        posts_n, comments_n = _create_threads(by_key)
+        set_setting(COPY_SETTING_KEY, COPY_VERSION)
+        db.session.flush()
+        return {
+            "members": 0,
+            "posts": posts_n,
+            "comments": comments_n,
+            "skipped": 0,
+            "synced": synced,
+            "refreshed": 1,
+        }
+
+    now = utcnow()
+    lock = secrets.token_urlsafe(48)
+    by_key: dict[str, User] = {}
+    for row in MEMBERS:
+        if User.query.filter_by(email=row["email"]).first() is not None:
+            continue
+        if User.query.filter_by(username=row["username"]).first() is not None:
+            continue
+        user = User(
+            email=row["email"],
+            display_name=row["display_name"],
+            username=row["username"],
+            bio=row["bio"],
+            membership=row["membership"],
+            timezone=row.get("timezone"),
+            email_verified_at=now - timedelta(days=30),
+            created_at=now - timedelta(days=40),
+        )
+        user.set_password(lock)
+        db.session.add(user)
+        by_key[row["key"]] = user
+
+    db.session.flush()
+    for row in MEMBERS:
+        if row["key"] not in by_key:
+            existing = User.query.filter_by(email=row["email"]).first()
+            if existing is not None:
+                by_key[row["key"]] = existing
+
+    posts_n, comments_n = _create_threads(by_key)
+    set_setting(COPY_SETTING_KEY, COPY_VERSION)
     db.session.flush()
     return {
         "members": len(by_key),

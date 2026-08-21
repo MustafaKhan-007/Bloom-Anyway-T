@@ -163,7 +163,12 @@ def seed():
         # 8. Launch buzz — realistic community members + threads (idempotent)
         from app.services.community_seed import seed_community_buzz
         buzz = seed_community_buzz()
-        if buzz.get("skipped"):
+        if buzz.get("refreshed"):
+            print(
+                f"Community buzz: refreshed copy — "
+                f"{buzz['posts']} posts, {buzz['comments']} comments"
+            )
+        elif buzz.get("skipped"):
             synced = buzz.get("synced") or 0
             extra = f" (synced {synced} profiles)" if synced else ""
             print(f"Community buzz: already seeded, skipped{extra}")
