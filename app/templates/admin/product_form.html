@@ -185,7 +185,7 @@
         <div class="field">
           <label for="cover">Cover image (optional)</label>
           <input type="file" id="cover" name="cover" accept="image/png,image/jpeg,image/webp">
-          <p class="field-help">JPG/PNG, cropped to 3∶4. Leave blank for the flower cover.</p>
+          <p class="field-help">JPG/PNG — full image kept (shown in a 3∶4 frame). Leave blank for the flower cover.</p>
         </div>
         <div class="field" style="flex:2;">
           <label for="teasers">Teaser pictures (optional)</label>
@@ -206,6 +206,7 @@
             <label for="cover_file">{% if product.cover_url %}Replace cover{% else %}Upload cover{% endif %}</label>
             <input type="file" id="cover_file" name="cover" form="upload-cover"
                    accept="image/png,image/jpeg,image/webp">
+            <p class="field-help">Full image is kept — nothing is cropped.</p>
           </div>
           <div class="field">
             <button class="btn btn--secondary" type="submit" form="upload-cover">Save cover</button>

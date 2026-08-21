@@ -20,7 +20,6 @@ from ..models import Product, ProductGalleryImage
 
 MAX_UPLOAD_BYTES = 8 * 1024 * 1024
 MAX_EDGE = 1200
-ASPECT = (3, 4)
 OUTPUT_MIME = "image/jpeg"
 
 
@@ -53,8 +52,13 @@ def _crop_to_aspect(img: Image.Image, aw: int, ah: int) -> Image.Image:
     return img.crop((0, top, tw, top + nh))
 
 
-def _read_jpeg(upload: FileStorage, *, label: str, aspect: tuple[int, int],
-               max_edge: tuple[int, int]) -> bytes:
+def _read_jpeg(
+    upload: FileStorage,
+    *,
+    label: str,
+    max_edge: tuple[int, int],
+    aspect: tuple[int, int] | None = None,
+) -> bytes:
     if not upload or not getattr(upload, "filename", None):
         raise CoverError(f"Choose a {label} image first.")
     raw = upload.read(MAX_UPLOAD_BYTES + 1)
@@ -70,7 +74,8 @@ def _read_jpeg(upload: FileStorage, *, label: str, aspect: tuple[int, int],
         raise CoverError("That doesn't look like a usable image.") from exc
 
     img = img.convert("RGB")
-    img = _crop_to_aspect(img, aspect[0], aspect[1])
+    if aspect is not None:
+        img = _crop_to_aspect(img, aspect[0], aspect[1])
     img.thumbnail(max_edge, Image.LANCZOS)
     out = io.BytesIO()
     img.save(out, format="JPEG", quality=88, optimize=True)
@@ -78,11 +83,11 @@ def _read_jpeg(upload: FileStorage, *, label: str, aspect: tuple[int, int],
 
 
 def process_and_save(product_id: int, upload: FileStorage) -> str:
-    """Validate, crop to 3:4, store JPEG in the product row. Returns public URL."""
+    """Validate and store a full JPEG cover (no crop). Returns public URL."""
     product = db.session.get(Product, int(product_id))
     if product is None:
         raise CoverError("That product was already gone.")
-    data = _read_jpeg(upload, label="cover", aspect=ASPECT, max_edge=(MAX_EDGE, MAX_EDGE))
+    data = _read_jpeg(upload, label="cover", max_edge=(MAX_EDGE, MAX_EDGE))
     product.cover_data = data
     product.cover_mime = OUTPUT_MIME
     # Best-effort: drop any leftover ephemeral disk file from older deploys

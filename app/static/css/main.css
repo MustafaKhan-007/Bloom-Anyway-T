@@ -6407,6 +6407,8 @@ a.at-handle:hover { text-decoration: underline; }
 .lib-card__cover--photo {
   padding: 0;
   background: #1a1020;
+  aspect-ratio: 3 / 4;
+  min-height: 0;
 }
 .lib-card__cover-img {
   display: block;
@@ -6414,6 +6416,11 @@ a.at-handle:hover { text-decoration: underline; }
   height: 100%;
   min-height: 168px;
   object-fit: cover;
+}
+.lib-card__cover--photo .lib-card__cover-img {
+  min-height: 0;
+  object-fit: contain;
+  object-position: center;
 }
 .lib-card__bloom {
   position: absolute;
@@ -6590,6 +6597,13 @@ a.at-handle:hover { text-decoration: underline; }
   .lib-card__cover {
     min-height: 140px;
     max-width: 180px;
+  }
+  .lib-card__cover--photo {
+    min-height: 0;
+    max-width: 180px;
+  }
+  .lib-card__cover--photo .lib-card__cover-img {
+    min-height: 0;
   }
 }
 
@@ -6820,6 +6834,10 @@ a.at-handle:hover { text-decoration: underline; }
     min-height: 124px;
     border-radius: 12px;
   }
+  .lib-card__cover--photo,
+  .lib-card__cover--photo .lib-card__cover-img {
+    min-height: 0;
+  }
   .lib-card__ring,
   .lib-card__meta,
   .lib-card__progress-label span:first-child {
@@ -6955,6 +6973,15 @@ a.at-handle:hover { text-decoration: underline; }
 }
 .pd-hero__cover { max-width: 280px; width: 100%; }
 .pd-hero__cover .lib-card__cover { width: 100%; border-radius: 18px; overflow: hidden; }
+.pd-hero__cover .lib-card__cover--photo {
+  aspect-ratio: auto;
+  background: transparent;
+}
+.pd-hero__cover .lib-card__cover--photo .lib-card__cover-img {
+  height: auto;
+  max-height: none;
+  object-fit: contain;
+}
 .pd-intro { margin: 0 0 22px; }
 .pd-hero__eyebrow {
   margin: 0 0 8px; font-size: 12px; font-weight: 800;
