@@ -243,8 +243,8 @@
         {% set full_checkout_y = checkout.annual.get('full_bloom') %}
         {% set full_price = full.price_display() if full and full.price_cents is not none else '$22' %}
         {% set full_year = full.annual_price_display() if full and full.annual_price_cents is not none else '$199' %}
-        <article class="mem-card mem-card--creator {{ 'is-current' if current == 'full_bloom' }}">
-          <span class="mem-card__ribbon mem-card__ribbon--gold">Both halves &#10022;</span>
+        <article class="mem-card mem-card--bloom {{ 'is-current' if current == 'full_bloom' }}">
+          <span class="mem-card__ribbon mem-card__ribbon--bloom">Both halves &#10022;</span>
           <p class="mem-card__eyebrow mem-card__eyebrow--pill">Full Bloom membership</p>
           <h2>{{ full.name if full else 'Full Bloom membership' }}</h2>
           {% if founder_on and ff and ff.founder_month %}
@@ -299,14 +299,14 @@
           {% else %}
           <span class="mem-cta mem-cta--month">
             {% if full_checkout_m %}
-            <a class="btn btn--gold btn--block" href="{{ full_checkout_m }}">Go Full Bloom &rarr;</a>
+            <a class="btn btn--bloom btn--block" href="{{ full_checkout_m }}">Go Full Bloom &rarr;</a>
             {% else %}
             <span class="btn btn--secondary btn--block is-disabled">Coming soon</span>
             {% endif %}
           </span>
           <span class="mem-cta mem-cta--year">
             {% if full_checkout_y %}
-            <a class="btn btn--gold btn--block" href="{{ full_checkout_y }}">Get Full Bloom annually &rarr;</a>
+            <a class="btn btn--bloom btn--block" href="{{ full_checkout_y }}">Get Full Bloom annually &rarr;</a>
             {% else %}
             <span class="btn btn--secondary btn--block is-disabled">Annual coming soon</span>
             {% endif %}
