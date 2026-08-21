@@ -9,7 +9,9 @@
       <h1>Membership plans</h1>
       <p class="field-help" style="margin: 6px 0 0; max-width: 640px;">
         Public page: <a href="{{ url_for('main.membership') }}" target="_blank">/membership</a>.
-        Set prices, paste each <strong>Stripe price ID</strong>, then flip <strong>Live</strong>.
+        Set regular prices, optional <strong>founder first-payment</strong> prices, paste each
+        <strong>Stripe price ID</strong>, then flip <strong>Live</strong>.
+        Turn on the founder banner via the end date in Settings.
         The owner always has Full Bloom access.
       </p>
     </div>
@@ -63,6 +65,29 @@
           <label for="{{ plan.tier }}_stripe_annual">Stripe price ID (annual)</label>
           <input type="text" id="{{ plan.tier }}_stripe_annual" name="{{ plan.tier }}_stripe_annual"
                  placeholder="price_…" value="{{ plan.stripe_price_id_annual or '' }}">
+        </div>
+      </div>
+
+      <h3 class="studio-subsection">Founder first payment</h3>
+      <p class="field-help studio-section__lede">
+        Shown on /membership while Founder pricing is live (set the end date in
+        <a href="{{ url_for('admin.settings') }}">Settings</a>).
+        First charge only — then the regular monthly/annual price above.
+        Members still enter the Stripe promo code at checkout
+        ({% if plan.tier == 'full_bloom' %}<strong>FULLBLOOMFOUNDER</strong>{% else %}<strong>MEMBERFOUNDER</strong>{% endif %}).
+        Leave blank to auto-calculate
+        ({% if plan.tier == 'full_bloom' %}20%{% else %}25%{% endif %} off).
+      </p>
+      <div class="form-row">
+        <div class="field">
+          <label for="{{ plan.tier }}_founder_price">Founder monthly (first month)</label>
+          <input type="text" id="{{ plan.tier }}_founder_price" name="{{ plan.tier }}_founder_price"
+                 placeholder="e.g. 9" value="{{ '%.2f'|format(plan.founder_price_cents / 100) if plan.founder_price_cents is not none else '' }}">
+        </div>
+        <div class="field">
+          <label for="{{ plan.tier }}_founder_annual_price">Founder annual (first year)</label>
+          <input type="text" id="{{ plan.tier }}_founder_annual_price" name="{{ plan.tier }}_founder_annual_price"
+                 placeholder="e.g. 56" value="{{ '%.2f'|format(plan.founder_annual_price_cents / 100) if plan.founder_annual_price_cents is not none else '' }}">
         </div>
       </div>
 

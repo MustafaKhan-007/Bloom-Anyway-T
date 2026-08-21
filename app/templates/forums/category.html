@@ -13,13 +13,12 @@
     <aside class="fc-side" aria-label="Access and filters">
       {% if not is_paid %}
       <div class="fc-trial">
-        <p class="fc-trial__eyebrow">Free trial</p>
-        <p class="fc-trial__title">Try full membership free for 2 weeks</p>
+        <p class="fc-trial__eyebrow">Membership</p>
+        <p class="fc-trial__title">Ready for the full community?</p>
         <p class="fc-trial__copy">
           Unlimited posts &amp; replies, support groups, and everything in both communities.
-          No card required to look around first.
         </p>
-        <a class="btn fc-trial__btn" href="{{ membership_url }}">Start Free Trial &rarr;</a>
+        <a class="btn fc-trial__btn" href="{{ membership_url }}">See memberships &rarr;</a>
       </div>
       {% endif %}
 
@@ -200,7 +199,7 @@
         <span>
           Free access: you can start one conversation and leave five replies each week, and like any post.
         </span>
-        <a href="{{ membership_url }}">Start free trial</a>
+        <a href="{{ membership_url }}">See memberships</a>
       </div>
       {% endif %}
 

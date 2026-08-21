@@ -578,6 +578,9 @@ class MembershipPlan(db.Model):
     tagline = db.Column(db.String(160))
     price_cents = db.Column(db.Integer)
     annual_price_cents = db.Column(db.Integer)
+    # Optional launch-window first payment amounts (shown while founder pricing is live)
+    founder_price_cents = db.Column(db.Integer)
+    founder_annual_price_cents = db.Column(db.Integer)
     currency = db.Column(db.String(3), nullable=False, default="USD")
     period = db.Column(db.String(20), nullable=False, default="month")  # month / year / once
     ls_variant_id = db.Column(db.String(40), index=True)  # legacy

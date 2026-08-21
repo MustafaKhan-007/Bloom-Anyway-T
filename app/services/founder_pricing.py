@@ -3,6 +3,9 @@
 Healing & Creator → 25% off first payment with ``MEMBERFOUNDER``.
 Full Bloom → 20% off first payment with ``FULLBLOOMFOUNDER``.
 
+Studio can set explicit founder monthly/annual list prices per plan; otherwise
+we fall back to the percent off the regular price.
+
 Active while ``founder_price_ends`` (ISO date in site settings) is today or later.
 Actual discount is applied in Stripe checkout when the member enters the code;
 this module drives the membership page banner and displayed founder prices.
@@ -13,7 +16,7 @@ from datetime import date
 
 from .settings import get_setting
 
-#: percent off the first payment during the founder window
+#: percent off the first payment during the founder window (fallback)
 DISCOUNT_PCT = {
     "healing": 25,
     "creator": 25,
@@ -78,28 +81,49 @@ def _money(cents: int | None, currency: str = "USD") -> str:
     return f"{symbol}{amount:,.2f}"
 
 
+def _pct_saved(regular: int | None, founder: int | None, tier: str) -> int:
+    """Display percent: from explicit prices when possible, else tier default."""
+    if regular and founder is not None and regular > 0 and founder <= regular:
+        return max(0, min(100, round((1 - (founder / regular)) * 100)))
+    return discount_pct(tier) or 0
+
+
+def _founder_amount(regular: int | None, explicit: int | None, tier: str) -> int | None:
+    if explicit is not None and explicit >= 0:
+        return explicit
+    return discounted_cents(regular, tier)
+
+
 def tier_bid(plan) -> dict | None:
     """Public display fields for one plan during the founder window."""
     if plan is None:
         return None
     tier = plan.tier
-    pct = discount_pct(tier)
     code = promo_code(tier)
-    if not pct or not code:
+    if not code:
         return None
     currency = getattr(plan, "currency", None) or "USD"
     monthly = getattr(plan, "price_cents", None)
     annual = getattr(plan, "annual_price_cents", None)
+    f_month = _founder_amount(
+        monthly, getattr(plan, "founder_price_cents", None), tier
+    )
+    f_year = _founder_amount(
+        annual, getattr(plan, "founder_annual_price_cents", None), tier
+    )
+    if f_month is None and f_year is None:
+        return None
+    pct = _pct_saved(monthly, f_month, tier) if f_month is not None else (
+        _pct_saved(annual, f_year, tier)
+    )
     return {
         "tier": tier,
         "pct": pct,
         "code": code,
         "regular_month": _money(monthly, currency) if monthly is not None else "",
-        "founder_month": _money(discounted_cents(monthly, tier), currency)
-        if monthly is not None else "",
+        "founder_month": _money(f_month, currency) if f_month is not None else "",
         "regular_year": _money(annual, currency) if annual is not None else "",
-        "founder_year": _money(discounted_cents(annual, tier), currency)
-        if annual is not None else "",
+        "founder_year": _money(f_year, currency) if f_year is not None else "",
     }
 
 

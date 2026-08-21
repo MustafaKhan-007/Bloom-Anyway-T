@@ -1285,6 +1285,18 @@ def membership_plans():
                 plan.annual_price_cents = round(float(raw_y) * 100) if raw_y else None
             except ValueError:
                 plan.annual_price_cents = plan.annual_price_cents
+            raw_f = (request.form.get(f"{p}_founder_price") or "").strip().replace(",", "")
+            try:
+                plan.founder_price_cents = round(float(raw_f) * 100) if raw_f else None
+            except ValueError:
+                plan.founder_price_cents = plan.founder_price_cents
+            raw_fy = (request.form.get(f"{p}_founder_annual_price") or "").strip().replace(",", "")
+            try:
+                plan.founder_annual_price_cents = (
+                    round(float(raw_fy) * 100) if raw_fy else None
+                )
+            except ValueError:
+                plan.founder_annual_price_cents = plan.founder_annual_price_cents
         db.session.commit()
         flash("Membership plans saved.", "success")
         return redirect(url_for("admin.membership_plans"))
