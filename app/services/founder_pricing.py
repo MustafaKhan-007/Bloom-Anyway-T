@@ -1,7 +1,10 @@
-"""Launch founder pricing: first-month promo via Stripe codes.
+"""Launch founder pricing: locked-in promo via Stripe codes.
 
-Healing & Creator → 25% off first payment with ``MEMBERFOUNDER``.
-Full Bloom → 20% off first payment with ``FULLBLOOMFOUNDER``.
+Healing & Creator → 25% off with ``MEMBERFOUNDER``.
+Full Bloom → 20% off with ``FULLBLOOMFOUNDER``.
+
+Subscribers who join during the founder window keep that rate for as long as
+their subscription continues (configured in Stripe so renewals stay discounted).
 
 Studio can set explicit founder monthly/annual list prices per plan; otherwise
 we fall back to the percent off the regular price.
@@ -16,7 +19,7 @@ from datetime import date
 
 from .settings import get_setting
 
-#: percent off the first payment during the founder window (fallback)
+#: percent off during the founder window (fallback display + Stripe codes)
 DISCOUNT_PCT = {
     "healing": 25,
     "creator": 25,

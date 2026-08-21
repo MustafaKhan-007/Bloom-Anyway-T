@@ -1314,15 +1314,16 @@ with app.app_context():
     db.session.commit()
 r = app.test_client().get("/membership")
 founder_body = r.get_data(as_text=True)
-ok("Founder launch banner shows promo codes and first-month off",
+ok("Founder launch banner shows promo codes and locked-in off",
    "MEMBERFOUNDER" in founder_body
    and "FULLBLOOMFOUNDER" in founder_body
    and "25% off" in founder_body
    and "20% off" in founder_body
-   and "first month" in founder_body.lower())
-ok("Founder prices show discounted first month on cards",
-   "Founder first month" in founder_body
-   and "/ first month" in founder_body)
+   and "lock in founder pricing forever" in founder_body.lower())
+ok("Founder prices show locked-in rate on cards",
+   "Founder rate" in founder_body
+   and "locked in forever" in founder_body.lower()
+   and "/ month" in founder_body)
 
 
 def _order_webhook(order_id, email, product_id, event="payment.succeeded"):

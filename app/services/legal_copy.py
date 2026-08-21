@@ -1,7 +1,7 @@
 """Canonical legal page bodies (seeded / refreshed when version changes)."""
 
 #: Bump to push Terms / Refunds / Privacy to live Page rows on next seed.
-LEGAL_COPY_VERSION = "2026-08-21"
+LEGAL_COPY_VERSION = "2026-08-21b"
 
 PRIVACY = """# Privacy Policy
 
@@ -69,7 +69,7 @@ Bloom Anyway offers daily quotes, community forums (Healing and Building), membe
 - **Free** accounts can browse courses and quotes, use limited community participation, and access free Content Hub picks where marked.
 - Paid plans — **Healing**, **Creator**, and **Full Bloom** — unlock the perks described on the [Membership](/membership) page at the time of purchase. Full Bloom combines Healing and Creator access.
 - There is **no free trial** on memberships unless we clearly advertise one later. Checkout charges according to the plan and billing interval you choose (monthly or annual).
-- **Founder / launch promos:** When a founder window is live on the Membership page, a discounted **first payment** may be available if you subscribe before the stated end date and enter the published Stripe promotion code at checkout (`MEMBERFOUNDER` for Healing and Creator; `FULLBLOOMFOUNDER` for Full Bloom). After that first discounted charge, billing continues at the regular plan rate unless you cancel. Promo availability, codes, and amounts can change; the Membership page and Stripe checkout are the source of truth at purchase time.
+- **Founder / launch pricing:** When a founder window is live on the Membership page, a discounted membership rate may be available if you subscribe before the stated end date and enter the published Stripe promotion code at checkout (`MEMBERFOUNDER` for Healing and Creator; `FULLBLOOMFOUNDER` for Full Bloom). That founder rate is **locked in for as long as your subscription continues** — it does not step up to the regular list price after the first charge. If you cancel and later resubscribe after the founder window has closed, the then-current list price applies. Promo availability, codes, and amounts can change for new sign-ups; the Membership page and Stripe checkout are the source of truth at purchase time.
 - Memberships are billed through Stripe. Prices, currency, billing interval, taxes, and any promo you apply are confirmed at checkout.
 - Benefits apply while a membership is active. Cancelling stops future renewals per Stripe's terms. Refunds or chargebacks may remove the related tier.
 - Site owners retain Full Bloom–level access for operating the studio.
@@ -117,7 +117,7 @@ Access to that product in My space may be revoked when a refund is issued.
 ## Memberships
 - Memberships renew through Stripe on the interval you chose (monthly or annual) until you cancel.
 - **Cancel anytime** to stop future renewals — use the links on your Stripe receipt or Stripe customer portal when available, or contact us if you can't find them. Cancelling does **not** by itself refund time already billed.
-- **Founder / launch first-payment discounts** (when offered) apply only to the first successful charge where you correctly enter the promo code at checkout during the published founder window. They do not lock in a permanent discounted rate, and they are not a free trial.
+- **Founder / launch rates** (when offered): if you correctly enter the promo code at checkout during the published founder window, the discounted rate is **locked in for the life of that subscription** (it does not revert to the regular list price after the first month or year). Cancelling ends the lock-in; rejoining later uses the then-current price. Founder pricing is not a free trial.
 - **Refunds for memberships** are handled **case by case**. We are most likely to help when:
   - you were charged in error (duplicate charge, wrong plan), or
   - you could not access paid features for a meaningful period because of a fault on our side, and you write to us promptly.

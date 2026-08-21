@@ -38,10 +38,10 @@
     <div class="container mem-page__founder-inner">
       <div class="mem-page__founder-copy">
         <p class="mem-page__founder-kicker">Launch week energy &#10024;</p>
-        <p><strong>First payment is on us (well — mostly).</strong>
-          Healing &amp; Creator get <strong>25% off</strong> their first charge.
-          Full Bloom gets <strong>20% off</strong>. Then your plan rolls at the regular rate.
-          Subscribe before {{ founder.ends_display }} and enter your code at Stripe checkout:</p>
+        <p><strong>Lock in founder pricing forever.</strong>
+          Subscribe before {{ founder.ends_display }} and keep the discounted rate for as long as you stay subscribed —
+          Healing &amp; Creator get <strong>25% off</strong>, Full Bloom gets <strong>20% off</strong>.
+          Enter your code at Stripe checkout:</p>
         <ul class="mem-page__founder-codes">
           <li><code>{{ founder.member_code }}</code> — Healing &amp; Creator</li>
           <li><code>{{ founder.full_code }}</code> — Full Bloom</li>
@@ -103,19 +103,19 @@
           <h2>{{ healing.name if healing else 'Healing membership' }}</h2>
           {% if founder_on and fh and fh.founder_month %}
           <div class="mem-card__founder-box">
-            <p class="mem-card__founder-label">&#10022; Founder first month &mdash; {{ fh.pct }}% off</p>
+            <p class="mem-card__founder-label">&#10022; Founder rate &mdash; locked in forever</p>
             <p class="mem-card__price mem-card__price--box">
               <span class="mem-price--month">
-                {{ fh.founder_month }} <span>/ first month</span>
+                {{ fh.founder_month }} <span>/ month</span>
                 {% if fh.regular_month %}<s class="mem-card__was">{{ fh.regular_month }}</s>{% endif %}
               </span>
               <span class="mem-price--year">
-                {% if fh.founder_year %}{{ fh.founder_year }} <span>/ first year</span>
+                {% if fh.founder_year %}{{ fh.founder_year }} <span>/ year</span>
                 {% if fh.regular_year %}<s class="mem-card__was">{{ fh.regular_year }}</s>{% endif %}
                 {% else %}{{ healing_year }} <span>/ year</span>{% endif %}
               </span>
             </p>
-            <p class="mem-card__lock">Then {{ fh.regular_month or healing_price }}/mo. Code <code>{{ fh.code }}</code> at checkout.</p>
+            <p class="mem-card__lock">{{ fh.pct }}% off forever while you stay. Code <code>{{ fh.code }}</code> at checkout.</p>
           </div>
           {% else %}
           <p class="mem-card__price">
@@ -179,19 +179,19 @@
           <h2>{{ creator.name if creator else 'Creator membership' }}</h2>
           {% if founder_on and fc and fc.founder_month %}
           <div class="mem-card__founder-box">
-            <p class="mem-card__founder-label">&#10022; Founder first month &mdash; {{ fc.pct }}% off</p>
+            <p class="mem-card__founder-label">&#10022; Founder rate &mdash; locked in forever</p>
             <p class="mem-card__price mem-card__price--box">
               <span class="mem-price--month">
-                {{ fc.founder_month }} <span>/ first month</span>
+                {{ fc.founder_month }} <span>/ month</span>
                 {% if fc.regular_month %}<s class="mem-card__was">{{ fc.regular_month }}</s>{% endif %}
               </span>
               <span class="mem-price--year">
-                {% if fc.founder_year %}{{ fc.founder_year }} <span>/ first year</span>
+                {% if fc.founder_year %}{{ fc.founder_year }} <span>/ year</span>
                 {% if fc.regular_year %}<s class="mem-card__was">{{ fc.regular_year }}</s>{% endif %}
                 {% else %}{{ creator_year }} <span>/ year</span>{% endif %}
               </span>
             </p>
-            <p class="mem-card__lock">Then {{ fc.regular_month or creator_price }}/mo. Code <code>{{ fc.code }}</code> at checkout.</p>
+            <p class="mem-card__lock">{{ fc.pct }}% off forever while you stay. Code <code>{{ fc.code }}</code> at checkout.</p>
           </div>
           {% else %}
           <p class="mem-card__price">
@@ -261,19 +261,19 @@
           <h2>{{ full.name if full else 'Full Bloom membership' }}</h2>
           {% if founder_on and ff and ff.founder_month %}
           <div class="mem-card__founder-box">
-            <p class="mem-card__founder-label">&#10022; Founder first month &mdash; {{ ff.pct }}% off</p>
+            <p class="mem-card__founder-label">&#10022; Founder rate &mdash; locked in forever</p>
             <p class="mem-card__price mem-card__price--box">
               <span class="mem-price--month">
-                {{ ff.founder_month }} <span>/ first month</span>
+                {{ ff.founder_month }} <span>/ month</span>
                 {% if ff.regular_month %}<s class="mem-card__was">{{ ff.regular_month }}</s>{% endif %}
               </span>
               <span class="mem-price--year">
-                {% if ff.founder_year %}{{ ff.founder_year }} <span>/ first year</span>
+                {% if ff.founder_year %}{{ ff.founder_year }} <span>/ year</span>
                 {% if ff.regular_year %}<s class="mem-card__was">{{ ff.regular_year }}</s>{% endif %}
                 {% else %}{{ full_year }} <span>/ year</span>{% endif %}
               </span>
             </p>
-            <p class="mem-card__lock">Then {{ ff.regular_month or full_price }}/mo. Code <code>{{ ff.code }}</code> at checkout.</p>
+            <p class="mem-card__lock">{{ ff.pct }}% off forever while you stay. Code <code>{{ ff.code }}</code> at checkout.</p>
           </div>
           {% else %}
           <p class="mem-card__price">
