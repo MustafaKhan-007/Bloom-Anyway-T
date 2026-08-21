@@ -16,7 +16,7 @@ from ..models import (ForumCategory, ForumComment, ForumCommentLike, ForumPost,
 SEED_EMAIL_DOMAIN = "bloomanyway.seed"
 #: Bump to refresh post/comment copy on already-seeded sites (keeps members).
 COPY_VERSION = "human-v2"
-COPY_SETTING_KEY = "_community_seed_copy"
+COPY_SETTING_KEY = "community_seed_copy"
 
 # Personas — mixed Healing / Creator / Full Bloom, imperfect bios, real handles.
 MEMBERS = (
