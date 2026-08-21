@@ -71,6 +71,9 @@
       <div class="mem-page__plan-grid">
         <!-- Free -->
         <article class="mem-card mem-card--free {{ 'is-current' if current == 'none' or not current }}">
+          {% if current == 'none' or not current %}
+          <span class="mem-card__here">You are here</span>
+          {% endif %}
           <p class="mem-card__eyebrow">Free</p>
           <h2>Free</h2>
           <p class="mem-card__price">$0 <span>/ forever</span></p>
@@ -92,6 +95,9 @@
 
         <!-- Healing -->
         <article class="mem-card mem-card--heal {{ 'is-current' if current == 'healing' }}">
+          {% if current == 'healing' %}
+          <span class="mem-card__here">You are here</span>
+          {% endif %}
           <span class="mem-card__ribbon">Most caring &#10084;</span>
           <p class="mem-card__eyebrow mem-card__eyebrow--pill">Healing membership</p>
           <h2>{{ healing.name if healing else 'Healing membership' }}</h2>
@@ -165,6 +171,9 @@
 
         <!-- Creator -->
         <article class="mem-card mem-card--creator {{ 'is-current' if current == 'creator' }}">
+          {% if current == 'creator' %}
+          <span class="mem-card__here">You are here</span>
+          {% endif %}
           <span class="mem-card__ribbon mem-card__ribbon--gold">Most loved &#9733;</span>
           <p class="mem-card__eyebrow mem-card__eyebrow--pill">Creator membership</p>
           <h2>{{ creator.name if creator else 'Creator membership' }}</h2>
@@ -244,6 +253,9 @@
         {% set full_price = full.price_display() if full and full.price_cents is not none else '$22' %}
         {% set full_year = full.annual_price_display() if full and full.annual_price_cents is not none else '$199' %}
         <article class="mem-card mem-card--bloom {{ 'is-current' if current == 'full_bloom' }}">
+          {% if current == 'full_bloom' %}
+          <span class="mem-card__here">You are here</span>
+          {% endif %}
           <span class="mem-card__ribbon mem-card__ribbon--bloom">Both halves &#10022;</span>
           <p class="mem-card__eyebrow mem-card__eyebrow--pill">Full Bloom membership</p>
           <h2>{{ full.name if full else 'Full Bloom membership' }}</h2>
