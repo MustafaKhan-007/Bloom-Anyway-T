@@ -7014,6 +7014,17 @@ a.at-handle:hover { text-decoration: underline; }
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 22px 28px;
   margin: 0 0 28px;
+  align-items: start;
+}
+.pd-body-grid--about-only,
+.pd-body-grid--rail-only {
+  grid-template-columns: 1fr;
+}
+.pd-body-grid__rail {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  min-width: 0;
 }
 .pd-section { margin: 0 0 28px; max-width: none; }
 .pd-section--wide { grid-column: 1 / -1; }
