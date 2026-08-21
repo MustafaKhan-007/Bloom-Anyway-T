@@ -28,7 +28,8 @@ DEFAULTS = {
     "ayesha_booking_url": "",
     "saman_booking_url": "",
     "facilitator_booking_url": "",
-    "founder_price_ends": "",  # ISO date for founder-pricing banner
+    # ISO date — banner + founder prices on /membership while today <= this date
+    "founder_price_ends": "2026-09-30",
 }
 
 #: old brand names that should be rewritten to the current default on boot/seed

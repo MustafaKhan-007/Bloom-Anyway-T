@@ -2307,7 +2307,7 @@ ok("Quote mini archive cards are centered",
    ".quote-mini" in css and "align-items: center" in css)
 
 for path, needle in (("/privacy", "What we collect"),
-                     ("/terms", "Memberships"),
+                     ("/terms", "Full Bloom"),
                      ("/refunds", "14 days")):
     rr = client.get(path)
     body = rr.get_data(as_text=True)

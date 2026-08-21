@@ -239,10 +239,12 @@
           <input type="date" id="founder_price_ends" name="founder_price_ends"
                  value="{{ values.founder_price_ends }}">
           <p class="field-help">
-            Turns on the launch banner + first-month founder prices on /membership.
-            Healing &amp; Creator use code <strong>MEMBERFOUNDER</strong> (25% off first charge);
-            Full Bloom uses <strong>FULLBLOOMFOUNDER</strong> (20% off). Create matching
-            promotion codes in Stripe (once / first invoice). Set this to about one month from launch.
+            Turns on the launch banner + first-month founder prices on /membership while
+            today is on or before this date (blank = off). Current launch window ends
+            <strong>30 Sep 2026</strong>. Healing &amp; Creator:
+            <strong>MEMBERFOUNDER</strong> (25% off first charge); Full Bloom:
+            <strong>FULLBLOOMFOUNDER</strong> (20% off). Create matching promotion codes
+            in Stripe (once / first invoice).
           </p>
         </div>
       </div>

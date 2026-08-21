@@ -1,41 +1,46 @@
-"""Canonical legal page bodies (seeded / refreshed when still marked TODO)."""
+"""Canonical legal page bodies (seeded / refreshed when version changes)."""
+
+#: Bump to push Terms / Refunds / Privacy to live Page rows on next seed.
+LEGAL_COPY_VERSION = "2026-08-21"
 
 PRIVACY = """# Privacy Policy
 
-**Last updated:** August 8, 2026
+**Last updated:** August 21, 2026
 
 Bloom Anyway ("we", "us") respects your privacy. This page explains what we collect, why, and how you can ask us to change or remove it.
 
 ## Who we are
-Bloom Anyway is a community and content platform. Digital product checkout is handled by **Stripe** as merchant of record — they process payments and deliver purchase receipts. We never see or store your card number.
+Bloom Anyway is a community and content platform. Digital product and membership checkout is handled by **Stripe** as merchant of record — they process payments and deliver purchase receipts. We never see or store your card number.
 
 ## What we collect
 - **Account data** — email address, password hash, optional display name / username, bio, profile links, timezone, and avatar if you upload one.
 - **Community content** — posts, comments, likes, Showcase listings, journal entries, and check-ins you choose to create.
-- **Membership & orders** — membership tier and purchase records synced from Stripe Payments (product name, amount, status). Card details stay with Stripe.
+- **Membership & orders** — membership tier and purchase records synced from Stripe (product name, amount, status, billing interval). Card details stay with Stripe.
+- **Support sessions** — peer circle bookings you schedule or join (topic, time, seat), and related notifications.
 - **Operational data** — anonymised page-view counts (path + date only; no IP stored in that counter), first-touch traffic source (UTM / referrer labels such as Instagram or organic search — no advertising pixels), feedback you send us, and content reports.
-- **Email** — messages we send for verification, password reset, and optional contact replies. If you join the Sunday letter, we store that email for the list.
+- **Email** — messages we send for verification, password reset, membership notices, and optional contact replies. If you join the Sunday letter, we store that email for the list.
 
 ## Cookies & similar tech
 We use a session cookie (and an optional "remember me" cookie) so you stay signed in. Your browser may also store a timezone preference cookie so dates show in your local time. We do **not** use advertising pixels or third-party tracking cookies on this site. Cloudflare Turnstile may run on signup to reduce bots — that verification is handled by Cloudflare.
 
 ## How we use your data
-To run your account, show community features, honour memberships, prevent abuse, improve the product from feedback you send, and meet legal obligations. We do not sell your personal information.
+To run your account, show community features, honour memberships, run peer support sessions, prevent abuse, improve the product from feedback you send, and meet legal obligations. We do not sell your personal information.
 
 ## Sharing
-We share data only with processors needed to run the service (hosting, email delivery, payment via Stripe, and Turnstile on signup). We may disclose information if required by law or to protect people from serious harm.
+We share data only with processors needed to run the service (hosting, email delivery, payment via Stripe, video rooms for support sessions, and Turnstile on signup). We may disclose information if required by law or to protect people from serious harm.
 
 ## How long we keep it
 Account and community data stay while your account is open. Closing your account scrubs personal profile fields, removes your login, hides your posts/comments from public view, and replaces your email with a non-contactable placeholder. Purchase history may remain with Stripe under their policies. Aggregated analytics without personal identifiers may be kept.
 
 ## Your choices
 - Update profile details in Settings.
+- Cancel membership renewal through Stripe's customer portal or your receipt links when available.
 - Close your account in Settings (confirmation required).
 - Contact us via the Contact page to ask questions about your data.
 - Unsubscribe guidance for the Sunday letter is included in those emails when we send them.
 
 ## Children
-This service is intended for adults. If you believe a child has created an account, contact us and we will take it down.
+This service is intended for adults (18+). If you believe a minor has created an account, contact us and we will take it down.
 
 ## Changes
 We may update this policy. The "Last updated" date above will change when we do. Continued use after an update means you accept the revised policy.
@@ -46,42 +51,50 @@ Use the [Contact](/contact) page for privacy questions.
 
 TERMS = """# Terms of Service
 
-**Last updated:** August 8, 2026
+**Last updated:** August 21, 2026
 
-Welcome to Bloom Anyway. By creating an account, buying a membership or digital product, or using the community, you agree to these terms.
+Welcome to Bloom Anyway. By creating an account, buying a membership or digital product, joining a support session, or using the community, you agree to these terms.
 
 ## The service
-Bloom Anyway offers daily quotes, community forums, member Showcase listings, a Content Hub, optional memberships, and courses/guides sold on this site through Stripe. Content is for personal growth and education. **It is not therapy, medical advice, legal advice, or crisis care.** If you are in crisis, contact a local emergency service or helpline first.
+Bloom Anyway offers daily quotes, community forums (Healing and Building), member Showcase listings, a Content Hub, peer support groups, optional paid memberships, and courses/guides sold on this site through Stripe. Content is for personal growth, peer support, and education. **It is not therapy, medical advice, legal advice, financial advice, or crisis care.** If you are in crisis, contact a local emergency service or helpline first.
 
 ## Accounts
 - You must provide a real email you control and keep your password private.
 - One person per account. Do not share login credentials.
 - You are responsible for activity under your account.
 - We may suspend or close accounts that break these terms, abuse others, or create security risk.
-- You may close your account in Settings. Closing does not automatically refund purchases (see Refunds).
+- You may close your account in Settings. Closing does not automatically refund purchases (see [Refunds](/refunds)).
 
 ## Memberships
-- Free accounts can browse courses, quotes, and free Content Hub picks. Community access requires a Healing or Creator membership.
-- **Healing** and **Creator** memberships unlock the perks described on the Membership page at the time of purchase.
-- Memberships are billed through Stripe. Prices, billing interval, and taxes are shown at checkout.
-- Benefits apply while a membership is active. Refunds or cancellations through Stripe may remove the related tier.
-- The site owner always retains Creator-level access for operating the studio.
+- **Free** accounts can browse courses and quotes, use limited community participation, and access free Content Hub picks where marked.
+- Paid plans — **Healing**, **Creator**, and **Full Bloom** — unlock the perks described on the [Membership](/membership) page at the time of purchase. Full Bloom combines Healing and Creator access.
+- There is **no free trial** on memberships unless we clearly advertise one later. Checkout charges according to the plan and billing interval you choose (monthly or annual).
+- **Founder / launch promos:** When a founder window is live on the Membership page, a discounted **first payment** may be available if you subscribe before the stated end date and enter the published Stripe promotion code at checkout (`MEMBERFOUNDER` for Healing and Creator; `FULLBLOOMFOUNDER` for Full Bloom). After that first discounted charge, billing continues at the regular plan rate unless you cancel. Promo availability, codes, and amounts can change; the Membership page and Stripe checkout are the source of truth at purchase time.
+- Memberships are billed through Stripe. Prices, currency, billing interval, taxes, and any promo you apply are confirmed at checkout.
+- Benefits apply while a membership is active. Cancelling stops future renewals per Stripe's terms. Refunds or chargebacks may remove the related tier.
+- Site owners retain Full Bloom–level access for operating the studio.
 - Membership is a licence to use features — not ownership of the platform, brand, or other members' content.
 
+## Support groups & peer sessions
+- Eligible members may schedule or join peer support sessions for topics included in their plan.
+- Sessions are peer-led community spaces, not clinical groups. Be respectful; follow community rules.
+- Seats are limited. Cancelling or missing a session does not create a cash refund unless we say otherwise for a specific paid add-on.
+- Facilitator-led or 1:1 add-ons (when offered) are booked and paid separately under the terms shown at booking.
+
 ## Community rules
-Be kind. No harassment, hate, threats, sexual exploitation, illegal content, spam, or impersonation. We may hide or remove content, issue warnings, or pause posting access. Reporting tools exist on posts and comments; automated checks may remove clearly violating content, and the studio reviews other reports.
+Be kind. No harassment, hate, threats, sexual exploitation, illegal content, spam, or impersonation. We may hide or remove content, issue warnings, or pause posting access. Reporting tools exist on posts, comments, and after peer sessions; automated checks may remove clearly violating content, and the studio reviews other reports.
 
 ## Your content
 You keep ownership of what you post. You grant Bloom Anyway a non-exclusive licence to host, display, and moderate that content so the community can function. Do not post material you do not have rights to share.
 
 ## Digital products & shop
-Courses and guides sold on the Courses & Guides page are licensed for **personal use** unless a product page says otherwise. Redistribution or resale is not allowed. Delivery, taxes, and payment disputes are handled by Stripe as merchant of record.
+Courses and guides sold on the Courses & Guides page are licensed for **personal use** unless a product page says otherwise. Redistribution or resale is not allowed. Delivery, taxes, and payment disputes for those purchases are handled with Stripe as merchant of record.
 
 ## Acceptable use
-Do not attempt to break, scrape abusively, overload, or reverse-engineer the service; do not bypass membership gates, rate limits, or security checks (including signup verification).
+Do not attempt to break, scrape abusively, overload, or reverse-engineer the service; do not bypass membership gates, rate limits, or security checks (including signup verification); do not disrupt support sessions or share private session links publicly.
 
 ## Disclaimers
-The service is provided "as is." We work hard to keep it reliable, but we do not guarantee uninterrupted access or perfect content. To the fullest extent allowed by law, we are not liable for indirect or consequential losses arising from use of the site. Nothing here limits rights you cannot waive under applicable consumer law.
+The service is provided "as is." We work hard to keep it reliable, but we do not guarantee uninterrupted access, perfect content, or specific outcomes from community support or courses. To the fullest extent allowed by law, we are not liable for indirect or consequential losses arising from use of the site. Nothing here limits rights you cannot waive under applicable consumer law.
 
 ## Changes
 We may update these terms. Material changes will update the date above. Continued use after changes means you accept them.
@@ -92,21 +105,31 @@ Questions? Use the [Contact](/contact) page.
 
 REFUNDS = """# Refund Policy
 
-**Last updated:** August 8, 2026
+**Last updated:** August 21, 2026
 
-We want you to feel treated fairly.
+We want you to feel treated fairly. Stripe is the merchant of record for Bloom Anyway checkouts.
 
 ## Digital products (courses & guides)
-Stripe is the merchant of record. If a purchase isn't right for you, reply to your Stripe receipt within **14 days** of purchase and explain what went wrong. We'll work with you (and Stripe's process) to make it right where the product page or applicable law requires a refund.
+If a course or guide purchase isn't right for you, reply to your Stripe receipt within **14 days** of purchase and tell us what went wrong. We'll work with you (and Stripe's process) to make it right where the product page or applicable law requires a refund.
 
-Access may be revoked when a refund is issued.
+Access to that product in My space may be revoked when a refund is issued.
 
 ## Memberships
-Membership billing and cancellation are managed through Stripe. Cancelling stops future renewal according to their checkout terms. Refunds for unused time are handled case by case via your receipt email or Stripe's customer portal — especially if you were charged in error or could not access paid features due to a fault on our side.
+- Memberships renew through Stripe on the interval you chose (monthly or annual) until you cancel.
+- **Cancel anytime** to stop future renewals — use the links on your Stripe receipt or Stripe customer portal when available, or contact us if you can't find them. Cancelling does **not** by itself refund time already billed.
+- **Founder / launch first-payment discounts** (when offered) apply only to the first successful charge where you correctly enter the promo code at checkout during the published founder window. They do not lock in a permanent discounted rate, and they are not a free trial.
+- **Refunds for memberships** are handled **case by case**. We are most likely to help when:
+  - you were charged in error (duplicate charge, wrong plan), or
+  - you could not access paid features for a meaningful period because of a fault on our side, and you write to us promptly.
+- We generally do **not** refund simply for change of mind after you have used paid community, support sessions, or Hub access — but if something feels unfair, still reach out and explain. We'd rather talk than leave you stuck.
+- Chargebacks filed without contacting us first may result in account review or suspension while we sort out payment status.
+
+## Support sessions & add-ons
+Peer support seats included with membership are not separately refundable. Paid facilitator or 1:1 bookings follow the cancellation / refund note shown at the time of booking (or reply to that receipt within 14 days if nothing else is stated).
 
 ## How to ask
 1. Find your Stripe receipt email, or  
-2. Message us through [Contact](/contact) with the order email and approximate date.
+2. Message us through [Contact](/contact) with the order email, approximate date, and what you bought.
 
 We aim to respond within a few business days.
 """

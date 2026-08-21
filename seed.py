@@ -19,9 +19,11 @@ from app import create_app
 from app.extensions import db
 from app.models import (FaqItem, ForumCategory, ForumTag, MembershipPlan, Page,
                         Quote)
+from app.services.legal_copy import LEGAL_COPY_VERSION
 from app.services.legal_copy import PRIVACY as _PRIVACY
 from app.services.legal_copy import REFUNDS as _REFUNDS
 from app.services.legal_copy import TERMS as _TERMS
+from app.services.settings import get_setting, set_setting
 
 SEED_FILE = Path(__file__).parent / "data" / "quotes_seed.json"
 
@@ -95,16 +97,22 @@ def seed():
                 db.session.add(FaqItem(question=question, answer_md=answer, sort_order=order))
             print(f"Added {len(STARTER_FAQS)} starter FAQ items")
 
-        # 3. legal pages (create, or refresh if still marked TODO)
+        # 3. legal pages — create missing, refresh TODO stubs, or force-sync
+        #    when LEGAL_COPY_VERSION bumps (so deploy picks up Terms/Refunds).
+        legal_version = get_setting("legal_copy_version", "")
+        force_legal = legal_version != LEGAL_COPY_VERSION
         for slug, (title, body) in LEGAL_STUBS.items():
             page = Page.query.filter_by(slug=slug).first()
             if page is None:
                 db.session.add(Page(slug=slug, title=title, body_md=body))
                 print(f"Created page: {slug}")
-            elif page.body_md and "*TODO: legal review.*" in page.body_md:
+            elif force_legal or (page.body_md and "*TODO: legal review.*" in page.body_md):
                 page.title = title
                 page.body_md = body
                 print(f"Refreshed legal page: {slug}")
+        if force_legal:
+            set_setting("legal_copy_version", LEGAL_COPY_VERSION)
+            print(f"Legal copy version → {LEGAL_COPY_VERSION}")
 
         # 4. forums + topic tags (idempotent). Retire the old single-topic
         #    categories once they're empty — they live on as tags now.
@@ -159,6 +167,12 @@ def seed():
         from app.services.settings import ensure_brand_title
         if ensure_brand_title():
             print("Site title updated to Bloom Anyway")
+
+        # 7b. Founder launch window — banner on /membership through end of Sept 2026
+        #     (Sept has 30 days; active while founder_price_ends >= today).
+        FOUNDER_ENDS = "2026-09-30"
+        set_setting("founder_price_ends", FOUNDER_ENDS)
+        print(f"Founder pricing ends → {FOUNDER_ENDS}")
 
         # 8. Launch buzz — realistic community members + threads (idempotent)
         from app.services.community_seed import seed_community_buzz
