@@ -45,9 +45,9 @@
           </td>
           <td class="studio-product-list__actions">
             <a class="btn btn--secondary btn--sm" href="{{ url_for('admin.product_edit', product_id=p.id) }}">Edit</a>
-            {% if p.status == 'published' %}
-            <a class="btn btn--quiet btn--sm" href="{{ url_for('main.course_detail', slug=p.slug) }}" target="_blank">View</a>
-            {% endif %}
+            <a class="btn btn--quiet btn--sm" href="{{ url_for('main.course_detail', slug=p.slug) }}" target="_blank" rel="noopener">
+              {{ 'View' if p.status == 'published' else 'Preview' }}
+            </a>
           </td>
         </tr>
         {% endfor %}

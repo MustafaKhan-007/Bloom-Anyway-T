@@ -6915,6 +6915,27 @@ a.at-handle:hover { text-decoration: underline; }
 
 /* ======================== Product detail page ============================= */
 .pd-page { padding: 28px 0 64px; }
+.pd-preview-banner {
+  background: linear-gradient(135deg, #3d1431 0%, #7A2E62 100%);
+  color: #fff8f3;
+  padding: 12px 0;
+  margin: -28px 0 28px;
+}
+.pd-preview-banner__inner {
+  max-width: 1100px;
+  display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center;
+  font-size: 14px;
+}
+.pd-preview-banner__inner strong {
+  letter-spacing: 0.06em; text-transform: uppercase; font-size: 12px;
+}
+.pd-preview-banner__inner a {
+  margin-left: auto; color: #fff8f3; font-weight: 700;
+  text-underline-offset: 3px;
+}
+.pd-hero__cta:disabled {
+  opacity: 0.55; cursor: not-allowed;
+}
 .pd-page__inner { max-width: 1100px; }
 .pd-page__back { margin: 0 0 22px; }
 .pd-page__back a { color: var(--ink-soft); text-decoration: none; font-weight: 700; }

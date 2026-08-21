@@ -209,16 +209,25 @@ def courses():
 
 @bp.route("/courses/<slug>")
 def course_detail(slug):
-    """Public product page — cover, copy, teasers, and buy / open CTA."""
+    """Public product page — cover, copy, teasers, and buy / open CTA.
+
+    Drafts are 404 for the public; owners can open them as a Studio preview.
+    """
     try:
         if remove_demo_catalog():
             db.session.commit()
     except Exception:
         db.session.rollback()
 
-    product = Product.query.filter_by(slug=slug, status="published").first_or_404()
+    product = Product.query.filter_by(slug=slug).first_or_404()
+    is_preview = False
+    if product.status != "published":
+        if not (current_user.is_authenticated and current_user.is_admin):
+            abort(404)
+        is_preview = True
+
     owned_purchase_id = None
-    if current_user.is_authenticated:
+    if current_user.is_authenticated and not is_preview:
         from ..services import course_reader as reader_svc
         for purchase in linked_purchases_for(current_user):
             prod = reader_svc.catalog_product_for_purchase(purchase)
@@ -229,6 +238,7 @@ def course_detail(slug):
         "main/course_detail.html",
         product=product,
         owned_purchase_id=owned_purchase_id,
+        is_preview=is_preview,
     )
 
 

@@ -12,9 +12,10 @@
       {% if not is_new %}
       <p class="field-help" style="margin:6px 0 0;">
         {% if product.status == 'published' %}
-        Live at <a href="{{ url_for('main.course_detail', slug=product.slug) }}" target="_blank">/courses/{{ product.slug }}</a>
+        Live at <a href="{{ url_for('main.course_detail', slug=product.slug) }}" target="_blank" rel="noopener">/courses/{{ product.slug }}</a>
         {% else %}
         Draft — not shown on Courses until you mark it live.
+        <a href="{{ url_for('main.course_detail', slug=product.slug) }}" target="_blank" rel="noopener">Preview page</a>
         {% endif %}
       </p>
       {% endif %}

@@ -9,7 +9,17 @@
 {% set gallery = product.gallery() %}
 {% set contents = product.contents_list() %}
 {% set curriculum = product.curriculum() %}
+{% set is_preview = is_preview|default(false) %}
 <div class="pd-page pd-page--{{ lane }}"{% if product.card_style() %} style="{{ product.card_style() }}"{% endif %}>
+  {% if is_preview %}
+  <div class="pd-preview-banner" role="status">
+    <div class="container pd-preview-banner__inner">
+      <strong>Studio preview</strong>
+      <span>This draft isn’t public yet — only owners can see this page.</span>
+      <a href="{{ url_for('admin.product_edit', product_id=product.id) }}">Back to edit</a>
+    </div>
+  </div>
+  {% endif %}
   <div class="container pd-page__inner">
     <p class="pd-page__back">
       <a href="{{ url_for('main.courses', lane=lane if lane in ('healing','building') else none) }}">&larr; Back to Courses &amp; Guides</a>
@@ -25,7 +35,10 @@
             <strong>{{ product.price_display() or '—' }}</strong>
             {% if product.compare_at_display() %}<s>{{ product.compare_at_display() }}</s>{% endif %}
           </div>
-          {% if owned_purchase_id %}
+          {% if is_preview %}
+          <button class="btn btn--primary pd-hero__cta" type="button" disabled>Buy now</button>
+          <p class="pd-hero__note">Preview only — checkout stays off until this product is live.</p>
+          {% elif owned_purchase_id %}
           <a class="btn btn--primary pd-hero__cta" href="{{ url_for('main.course_reader', purchase_id=owned_purchase_id) }}">Open &amp; read</a>
           <p class="pd-hero__note">You already own this — open it in My space anytime.</p>
           {% else %}
