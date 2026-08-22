@@ -43,7 +43,8 @@ def _stripe_headers(body: bytes) -> dict:
 
 def _payment_payload(payment_id, email, product_id, *,
                      event="payment.succeeded", amount=4900,
-                     product_name=None, gift_to=None):
+                     product_name=None, gift_to=None,
+                     payment_status="paid", payment_intent=True):
     meta = {"price_id": str(product_id)}
     if product_name:
         meta["product_name"] = product_name
@@ -54,14 +55,16 @@ def _payment_payload(payment_id, email, product_id, *,
         obj = {
             "id": f"cs_{payment_id}",
             "object": "checkout.session",
-            "payment_status": "paid",
+            "status": "complete",
+            "payment_status": payment_status,
             "amount_total": amount,
             "currency": "usd",
             "customer_details": {"email": email},
             "customer_email": email,
-            "payment_intent": str(payment_id),
+            "payment_intent": str(payment_id) if payment_intent else None,
+            "subscription": f"sub_{payment_id}" if not payment_intent else None,
             "metadata": meta,
-            "mode": "payment",
+            "mode": "subscription" if not payment_intent else "payment",
         }
     elif event == "payment.failed":
         stripe_type = "invoice.payment_failed"
@@ -408,6 +411,21 @@ ok("Buyer email lowercased", orders[0].buyer_email == "buyer@example.com")
 ok("Unknown-email shop purchase is pending_link",
    shops[0].status == "pending_link" and shops[0].user_id is None)
 ok("Shop purchase product name from webhook", shops[0].product_name == "Begin Again")
+
+# 100% off / $0 checkout — no PaymentIntent; checkout.session.completed still fulfills
+zero_payload = _payment_payload(
+    "9001-free", "freebie@example.com", "prod_begin_again",
+    amount=0, payment_status="no_payment_required", payment_intent=False,
+    product_name="Begin Again Free")
+r = client.post("/webhooks/stripe", data=zero_payload, headers=_stripe_headers(zero_payload))
+with app.app_context():
+    zero_order = Order.query.filter_by(ls_order_id="sub_9001-free").first()
+    zero_shop = ShopPurchase.query.filter_by(lemon_squeezy_order_id="sub_9001-free").first()
+ok("$0 checkout.session.completed accepted", r.status_code == 200)
+ok("$0 checkout creates paid order",
+   zero_order is not None and zero_order.status == "paid" and zero_order.total_cents == 0)
+ok("$0 checkout creates shop purchase",
+   zero_shop is not None and zero_shop.status == "pending_link")
 
 # purchase auto-links when that email signs up / logs in
 with app.app_context():

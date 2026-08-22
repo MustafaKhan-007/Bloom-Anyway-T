@@ -293,7 +293,7 @@ def checkout_membership(tier):
     try:
         url = pay.create_checkout_session(
             product_id=product_id,
-            return_url=url_for("main.account", _external=True),
+            return_url=url_for("main.account", purchased=1, _external=True),
             customer_email=email,
             customer_name=name,
             metadata={"tier": tier, "kind": "membership", "billing": billing},
@@ -715,10 +715,13 @@ def account():
     if tab == "settings":
         return redirect(url_for("main.settings"))
 
-    # After checkout return (?purchased=1), pull from Stripe so Courses updates
-    # even if the webhook lagged or was misconfigured.
-    if request.args.get("purchased") and pay.configured():
+    # After checkout return, fulfill the exact session (incl. $0 / 100% off)
+    # and sync recent payments so My space updates even if the webhook lagged.
+    session_id = (request.args.get("session_id") or "").strip()
+    if (request.args.get("purchased") or session_id) and pay.configured():
         try:
+            if session_id:
+                pay.fulfill_checkout_session_id(session_id)
             pay.sync_recent_payments(days=14, max_pages=1)
             link_pending_purchases(current_user)
             db.session.commit()

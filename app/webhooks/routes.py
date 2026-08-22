@@ -13,7 +13,11 @@ from . import bp
 log = logging.getLogger(__name__)
 
 HANDLED = {
+    # Primary fulfillment path — fires for $0 / 100% off checkouts too
+    # (payment_status paid or no_payment_required; no PaymentIntent required).
     "checkout.session.completed",
+    "checkout.session.async_payment_succeeded",
+    "invoice.paid",
     "invoice.payment_failed",
     "charge.refunded",
     "charge.refund.updated",

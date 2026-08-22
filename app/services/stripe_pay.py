@@ -296,6 +296,36 @@ def _as_dict(obj) -> dict:
         return {}
 
 
+def _stripe_id(value) -> str | None:
+    """Normalize a Stripe id that may arrive as a string or expanded object."""
+    if value is None:
+        return None
+    if isinstance(value, str):
+        key = value.strip()
+        return key or None
+    if isinstance(value, dict):
+        return _stripe_id(value.get("id"))
+    return _stripe_id(getattr(value, "id", None))
+
+
+def _session_should_fulfill(session: dict) -> bool:
+    """True when a Checkout Session should grant access (incl. $0 / 100% off)."""
+    status = (session.get("status") or "").strip().lower()
+    if status and status not in ("complete", "completed"):
+        return False
+    ps = (session.get("payment_status") or "").strip().lower()
+    if ps in ("paid", "no_payment_required"):
+        return True
+    # Fully discounted sessions sometimes omit payment_status; still fulfill.
+    try:
+        amount = int(session.get("amount_total") if session.get("amount_total") is not None else -1)
+    except (TypeError, ValueError):
+        amount = -1
+    if amount == 0 and (not status or status in ("complete", "completed")):
+        return True
+    return False
+
+
 def _session_to_payment_data(session) -> dict:
     """Normalize a Checkout Session into our fulfillment shape."""
     session = _as_dict(session)
@@ -314,9 +344,9 @@ def _session_to_payment_data(session) -> dict:
                 price_id = price
     email = _buyer_email(session)
     payment_id = (
-        session.get("payment_intent")
-        or session.get("subscription")
-        or session.get("id")
+        _stripe_id(session.get("payment_intent"))
+        or _stripe_id(session.get("subscription"))
+        or _stripe_id(session.get("id"))
     )
     return {
         "payment_id": str(payment_id) if payment_id else "",
@@ -324,21 +354,60 @@ def _session_to_payment_data(session) -> dict:
         "currency": (session.get("currency") or "usd").upper(),
         "customer": {"email": email},
         "customer_email": email,
+        "customer_details": session.get("customer_details") or {},
         "product_cart": [{"product_id": str(price_id), "quantity": 1}] if price_id else [],
         "metadata": dict(meta or {}),
         "payment_status": session.get("payment_status"),
         "mode": session.get("mode"),
-        "id": session.get("id"),
+        "id": _stripe_id(session.get("id")) or session.get("id"),
     }
 
 
 def stripe_event_to_internal(event_type: str, obj: dict) -> tuple[str | None, dict]:
     """Map a Stripe event type + object into (internal_event, payment_data)."""
-    if event_type == "checkout.session.completed":
+    if event_type in (
+        "checkout.session.completed",
+        "checkout.session.async_payment_succeeded",
+    ):
         data = _session_to_payment_data(obj)
-        if (obj.get("payment_status") or "").lower() not in ("paid", "no_payment_required"):
+        if not _session_should_fulfill(obj):
             return None, data
         return "payment.succeeded", data
+    if event_type == "invoice.paid":
+        # Subscription first invoice can be $0 with a 100% promo — still grant access.
+        meta = obj.get("metadata") if isinstance(obj.get("metadata"), dict) else {}
+        lines = (obj.get("lines") or {}).get("data") or []
+        price_id = (meta or {}).get("price_id")
+        if not price_id and lines:
+            price = (lines[0].get("price") or {})
+            price_id = price.get("id") if isinstance(price, dict) else None
+            if not price_id and isinstance(lines[0].get("pricing"), dict):
+                # newer invoice line shape
+                price_details = (lines[0].get("pricing") or {}).get("price_details") or {}
+                price_id = price_details.get("price")
+        email = ""
+        cust = obj.get("customer_email")
+        if cust:
+            email = str(cust).strip().lower()
+        if not email:
+            email = _buyer_email(obj)
+        payment_id = (
+            _stripe_id(obj.get("payment_intent"))
+            or _stripe_id(obj.get("subscription"))
+            or _stripe_id(obj.get("id"))
+        )
+        amount = obj.get("amount_paid")
+        if amount is None:
+            amount = obj.get("total") or 0
+        return "payment.succeeded", {
+            "payment_id": str(payment_id) if payment_id else "",
+            "total_amount": amount or 0,
+            "currency": (obj.get("currency") or "usd").upper(),
+            "customer": {"email": email},
+            "customer_email": email,
+            "product_cart": [{"product_id": str(price_id), "quantity": 1}] if price_id else [],
+            "metadata": dict(meta or {}),
+        }
     if event_type == "invoice.payment_failed":
         meta = obj.get("metadata") if isinstance(obj.get("metadata"), dict) else {}
         lines = (obj.get("lines") or {}).get("data") or []
@@ -351,7 +420,9 @@ def stripe_event_to_internal(event_type: str, obj: dict) -> tuple[str | None, di
         if cust:
             email = str(cust).strip().lower()
         return "payment.failed", {
-            "payment_id": str(obj.get("payment_intent") or obj.get("id") or ""),
+            "payment_id": str(
+                _stripe_id(obj.get("payment_intent")) or _stripe_id(obj.get("id")) or ""
+            ),
             "total_amount": obj.get("amount_due") or 0,
             "currency": (obj.get("currency") or "usd").upper(),
             "customer": {"email": email},
@@ -359,9 +430,9 @@ def stripe_event_to_internal(event_type: str, obj: dict) -> tuple[str | None, di
             "metadata": dict(meta or {}),
         }
     if event_type in ("charge.refunded", "charge.refund.updated"):
-        pi = obj.get("payment_intent")
+        pi = _stripe_id(obj.get("payment_intent"))
         return "payment.refunded", {
-            "payment_id": str(pi or obj.get("id") or ""),
+            "payment_id": str(pi or _stripe_id(obj.get("id")) or ""),
             "total_amount": obj.get("amount_refunded") or obj.get("amount") or 0,
             "currency": (obj.get("currency") or "usd").upper(),
             "customer": {"email": _buyer_email(obj)},
@@ -376,7 +447,7 @@ def stripe_event_to_internal(event_type: str, obj: dict) -> tuple[str | None, di
             price = (items[0].get("price") or {})
             price_id = price.get("id") if isinstance(price, dict) else None
         return "payment.refunded", {
-            "payment_id": str(obj.get("id") or ""),
+            "payment_id": str(_stripe_id(obj.get("id")) or ""),
             "total_amount": 0,
             "currency": "USD",
             "customer": {"email": ""},
@@ -384,6 +455,32 @@ def stripe_event_to_internal(event_type: str, obj: dict) -> tuple[str | None, di
             "metadata": dict(meta or {}),
         }
     return None, {}
+
+
+def fulfill_checkout_session_id(session_id: str) -> Order | None:
+    """Retrieve a Checkout Session by id and fulfill it (webhook backup / $0 codes)."""
+    sid = (session_id or "").strip()
+    if not sid or not configured():
+        return None
+    if current_app.config.get("TESTING"):
+        return None
+    _configure_stripe()
+    try:
+        full = stripe.checkout.Session.retrieve(sid, expand=["line_items"])
+    except Exception as exc:
+        log.warning("stripe: could not retrieve session %s: %s", sid, exc)
+        return None
+    session = _as_dict(full)
+    if not _session_should_fulfill(session):
+        log.info(
+            "stripe: session %s not ready to fulfill (status=%s payment_status=%s)",
+            sid, session.get("status"), session.get("payment_status"),
+        )
+        return None
+    data = _session_to_payment_data(session)
+    if not data.get("payment_id"):
+        return None
+    return handle_payment_event("payment.succeeded", data)
 
 
 def sync_recent_payments(*, days: int = 60, max_pages: int = 3) -> dict:
@@ -437,8 +534,7 @@ def sync_recent_payments(*, days: int = 60, max_pages: int = 3) -> dict:
                     continue
                 before = Order.query.filter_by(ls_order_id=str(payment_id)).first()
                 was_new = before is None or before.status != "paid"
-                if (full.get("payment_status") or "").lower() not in (
-                        "paid", "no_payment_required"):
+                if not _session_should_fulfill(_as_dict(full)):
                     continue
                 handle_payment_event("payment.succeeded", data)
                 db.session.commit()
