@@ -1803,6 +1803,58 @@ def support_session_room(meeting_id):
     )
 
 
+@bp.route("/support-groups/meetings/<int:meeting_id>/status")
+@login_required
+@limiter.limit("60 per minute")
+def support_session_status(meeting_id):
+    """Lightweight live status for the waiting room (phase, countdown, seats)."""
+    from datetime import timezone as _tz
+    from ..models import SupportGroupMeeting
+    from ..services import support_groups as sg_svc
+
+    meeting = db.session.get(SupportGroupMeeting, meeting_id) or abort(404)
+    if meeting.status != "scheduled" or not meeting.scheduled_at:
+        return jsonify({"phase": "unavailable"}), 200
+
+    seat = sg_svc.user_selected_on_meeting(current_user.id, meeting.id)
+    if seat is None and not current_user.is_admin:
+        return jsonify({"phase": "forbidden"}), 403
+
+    phase = sg_svc.meeting_phase(meeting)
+    start = meeting.scheduled_at.replace(tzinfo=_tz.utc)
+    now = utcnow().replace(tzinfo=_tz.utc)
+    seats = sg_svc.meeting_seats(meeting)
+    members = []
+    for row in seats:
+        user = row.author
+        if not user or user.deleted_at:
+            continue
+        members.append({
+            "id": user.id,
+            "name": user.public_name() or "Member",
+            "is_you": user.id == current_user.id,
+            "is_host": meeting.scheduled_by_user_id == user.id,
+        })
+    payload = {
+        "phase": phase,
+        "starts_at": start.isoformat().replace("+00:00", "Z"),
+        "server_now": now.isoformat().replace("+00:00", "Z"),
+        "seats": len(members),
+        "capacity": int(meeting.capacity or sg_svc.PEER_MEETING_CAP),
+        "members": members,
+        "duration_min": sg_svc.peer_meeting_minutes(),
+        "room_url": (
+            url_for("main.support_session_room", meeting_id=meeting.id)
+            if phase == "live" else None
+        ),
+        "wrap_url": (
+            url_for("main.support_session_wrap", meeting_id=meeting.id)
+            if phase == "ended" else None
+        ),
+    }
+    return jsonify(payload)
+
+
 @bp.route("/support-groups/meetings/<int:meeting_id>/waiting")
 @login_required
 def support_session_waiting(meeting_id):
@@ -1828,12 +1880,28 @@ def support_session_waiting(meeting_id):
         return redirect(url_for("main.support_session_wrap", meeting_id=meeting.id))
 
     start = meeting.scheduled_at.replace(tzinfo=_tz.utc)
+    now = utcnow().replace(tzinfo=_tz.utc)
+    seats = sg_svc.meeting_seats(meeting)
     return render_template(
         "main/support_session_waiting.html",
         meeting=meeting,
         duration_min=sg_svc.peer_meeting_minutes(),
         starts_at_iso=start.isoformat().replace("+00:00", "Z"),
+        server_now_iso=now.isoformat().replace("+00:00", "Z"),
         room_url=url_for("main.support_session_room", meeting_id=meeting.id),
+        status_url=url_for("main.support_session_status", meeting_id=meeting.id),
+        initial_seats=len(seats),
+        capacity=int(meeting.capacity or sg_svc.PEER_MEETING_CAP),
+        initial_members=[
+            {
+                "id": row.author.id,
+                "name": row.author.public_name() or "Member",
+                "is_you": row.author.id == current_user.id,
+                "is_host": meeting.scheduled_by_user_id == row.author.id,
+            }
+            for row in seats
+            if row.author and not row.author.deleted_at
+        ],
     )
 
 

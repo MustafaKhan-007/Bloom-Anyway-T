@@ -1915,10 +1915,21 @@ ok("Early Join redirects to the waiting room",
    r.status_code in (301, 302)
    and f"/support-groups/meetings/{mid}/waiting" in (r.headers.get("Location") or ""))
 r = client.get(f"/support-groups/meetings/{mid}/waiting")
+wait_body = r.get_data(as_text=True)
 ok("Waiting room shows countdown before start",
    r.status_code == 200
-   and "Waiting room" in r.get_data(as_text=True)
-   and "data-sg-countdown" in r.get_data(as_text=True))
+   and "Waiting room" in wait_body
+   and "data-sg-countdown" in wait_body
+   and "Starts in" in wait_body
+   and "data-status-url" in wait_body)
+r = client.get(f"/support-groups/meetings/{mid}/status")
+ok("Waiting-room status endpoint returns live JSON",
+   r.status_code == 200
+   and r.is_json
+   and r.get_json().get("phase") == "waiting"
+   and "starts_at" in r.get_json()
+   and "server_now" in r.get_json()
+   and "members" in r.get_json())
 with app.app_context():
     live = db.session.get(SupportGroupMeeting, mid)
     live.scheduled_at = utcnow() - timedelta(minutes=1)

@@ -5598,11 +5598,60 @@ a.at-handle:hover { text-decoration: underline; }
 }
 .sg-wait__countdown {
   margin: 14px 0 0; font-family: var(--font-display);
-  font-size: clamp(32px, 7vw, 48px); color: var(--plum-deep, #3d1431);
-  letter-spacing: 0.04em;
+  font-size: clamp(40px, 9vw, 56px); color: var(--plum-deep, #3d1431);
+  letter-spacing: 0.06em; font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+  line-height: 1.1;
+}
+.sg-wait__subcount {
+  margin: 8px 0 0; font-size: 13px; font-weight: 600; color: #8a7383;
 }
 .sg-wait__hint {
   margin: 14px auto 0; max-width: 36ch; color: #6b5a66; font-size: 14px; line-height: 1.5;
+}
+.sg-wait__roster {
+  margin: 22px 0 0; padding: 18px 18px 14px; border-radius: 18px;
+  background: rgba(255,255,255,0.75);
+  border: 1px solid rgba(61,20,49,0.08);
+  text-align: left;
+}
+.sg-wait__roster-head {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+  margin-bottom: 10px;
+}
+.sg-wait__roster-title {
+  margin: 0; font-size: 12px; font-weight: 800; letter-spacing: 0.06em;
+  text-transform: uppercase; color: var(--plum, #7A2E62);
+}
+.sg-wait__roster-count {
+  margin: 0; font-size: 13px; font-weight: 700; color: #6b5a66;
+}
+.sg-wait__members {
+  list-style: none; margin: 0; padding: 0;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.sg-wait__member {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 10px 12px; border-radius: 12px;
+  background: rgba(61, 20, 49, 0.04);
+  font-size: 14px; font-weight: 600; color: var(--plum-deep, #3d1431);
+}
+.sg-wait__member.is-you {
+  background: rgba(122, 46, 98, 0.1);
+  outline: 1px solid rgba(122, 46, 98, 0.18);
+}
+.sg-wait__member--empty {
+  justify-content: center; color: #8a7383; font-weight: 500; font-style: italic;
+  background: transparent;
+}
+.sg-wait__member-name { flex: 1; min-width: 0; }
+.sg-wait__tag {
+  font-size: 10px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase;
+  padding: 3px 8px; border-radius: 999px;
+  background: rgba(61, 20, 49, 0.1); color: var(--plum-deep, #3d1431);
+}
+.sg-wait__tag--you {
+  background: var(--plum, #7A2E62); color: #fff;
 }
 .sg-wait__actions { margin-top: 22px; }
 
