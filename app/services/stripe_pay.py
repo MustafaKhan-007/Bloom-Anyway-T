@@ -857,3 +857,169 @@ def handle_payment_event(event_type: str, data: dict) -> Order | None:
                 log.exception("Card-declined email failed for %s", payment_id)
 
     return order
+
+
+def _membership_price_ids() -> set[str]:
+    from ..models import MembershipPlan
+    ids: set[str] = set()
+    for plan in MembershipPlan.query.all():
+        for raw in (
+            plan.stripe_price_id,
+            plan.stripe_price_id_annual,
+            plan.ls_variant_id,
+        ):
+            key = (raw or "").strip()
+            if key:
+                ids.add(key)
+    return ids
+
+
+def _subscription_id_from_payment_ref(payment_id: str) -> str | None:
+    """Resolve a stored order id (sub_ / cs_ / pi_) to a Stripe subscription id."""
+    key = (payment_id or "").strip()
+    if not key or not configured():
+        return None
+    if key.startswith("sub_"):
+        return key
+    _configure_stripe()
+    try:
+        if key.startswith("cs_"):
+            session = _as_dict(stripe.checkout.Session.retrieve(key))
+            return _stripe_id(session.get("subscription"))
+        if key.startswith("pi_"):
+            pi = _as_dict(stripe.PaymentIntent.retrieve(key))
+            invoice_id = _stripe_id(pi.get("invoice"))
+            if not invoice_id:
+                return None
+            inv = _as_dict(stripe.Invoice.retrieve(invoice_id))
+            return _stripe_id(inv.get("subscription"))
+    except Exception:
+        log.exception("stripe: could not resolve subscription from %s", key)
+    return None
+
+
+def _cancel_stripe_subscription(sub_id: str) -> bool:
+    sid = (sub_id or "").strip()
+    if not sid.startswith("sub_"):
+        return False
+    _configure_stripe()
+    try:
+        if hasattr(stripe.Subscription, "cancel"):
+            stripe.Subscription.cancel(sid)
+        else:
+            stripe.Subscription.delete(sid)
+        log.info("stripe: cancelled subscription %s", sid)
+        return True
+    except Exception as exc:
+        msg = str(exc).lower()
+        if "already been canceled" in msg or "no such subscription" in msg:
+            log.info("stripe: subscription %s already gone (%s)", sid, exc)
+            return True
+        log.exception("stripe: failed to cancel subscription %s", sid)
+        return False
+
+
+def cancel_membership_subscriptions(email: str) -> dict:
+    """Cancel Stripe membership subscriptions for this email and end local orders.
+
+    Finds active/trialing/past_due subscriptions on Stripe customers with this
+    email whose price matches a MembershipPlan, cancels them immediately, and
+    marks matching paid Orders as refunded so access does not come back.
+    """
+    email_norm = (email or "").strip().lower()
+    result: dict[str, Any] = {
+        "ok": True, "cancelled": [], "errors": [], "orders_ended": 0,
+    }
+    if not email_norm:
+        result["ok"] = False
+        result["errors"].append("missing_email")
+        return result
+
+    price_ids = _membership_price_ids()
+    if not price_ids:
+        result["errors"].append("no_membership_prices")
+        return result
+
+    from sqlalchemy import func
+
+    paid = (
+        Order.query
+        .filter(
+            func.lower(Order.buyer_email) == email_norm,
+            Order.status == "paid",
+            Order.ls_variant_id.in_(list(price_ids)),
+        )
+        .all()
+    )
+
+    sub_ids: set[str] = set()
+    for order in paid:
+        sid = _subscription_id_from_payment_ref(order.ls_order_id or "")
+        if sid:
+            sub_ids.add(sid)
+
+    if configured() and not current_app.config.get("TESTING"):
+        try:
+            _configure_stripe()
+            customers_data = []
+            try:
+                # Prefer Search API (email filter). Fall back if unavailable.
+                safe = email_norm.replace("\\", "\\\\").replace("'", "\\'")
+                found = stripe.Customer.search(
+                    query=f"email:'{safe}'", limit=20,
+                )
+                customers_data = list(found.data or [])
+            except Exception:
+                listed = stripe.Customer.list(limit=100)
+                customers_data = [
+                    c for c in list(listed.data or [])
+                    if (getattr(c, "email", None) or "").strip().lower() == email_norm
+                ]
+            for cust in customers_data:
+                cust_id = _stripe_id(cust) or getattr(cust, "id", None)
+                if not cust_id:
+                    continue
+                for status in ("active", "trialing", "past_due"):
+                    page = stripe.Subscription.list(
+                        customer=cust_id, status=status, limit=20,
+                    )
+                    for sub in list(page.data or []):
+                        sub_d = _as_dict(sub)
+                        items = (sub_d.get("items") or {}).get("data") or []
+                        matched = False
+                        for item in items:
+                            item_d = _as_dict(item)
+                            pid = _stripe_id(item_d.get("price"))
+                            if pid and pid in price_ids:
+                                matched = True
+                                break
+                        if matched:
+                            sid = _stripe_id(sub_d.get("id"))
+                            if sid:
+                                sub_ids.add(sid)
+        except Exception as exc:
+            log.exception("stripe: list subscriptions failed for %s", email_norm)
+            result["errors"].append(str(exc))
+
+    for sid in sorted(sub_ids):
+        if current_app.config.get("TESTING") or not configured():
+            result["cancelled"].append(sid)
+            continue
+        if _cancel_stripe_subscription(sid):
+            result["cancelled"].append(sid)
+        else:
+            result["ok"] = False
+            result["errors"].append(f"cancel_failed:{sid}")
+
+    ended = 0
+    for order in paid:
+        if order.status == "paid":
+            order.status = "refunded"
+            ended += 1
+    result["orders_ended"] = ended
+    if ended:
+        log.info(
+            "stripe: ended %s membership order(s) for %s after cancel",
+            ended, email_norm,
+        )
+    return result

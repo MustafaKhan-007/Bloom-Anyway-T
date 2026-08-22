@@ -1108,6 +1108,20 @@ def cancel_membership():
     # Cancel takes effect immediately in-app; access ends today.
     access_end = date.today().strftime("%b %d, %Y")
 
+    stripe_result = {"ok": True, "cancelled": [], "errors": []}
+    if pay.configured():
+        try:
+            stripe_result = pay.cancel_membership_subscriptions(current_user.email)
+        except Exception:
+            log.exception(
+                "Stripe membership cancel failed for user %s", current_user.id,
+            )
+            stripe_result = {
+                "ok": False,
+                "cancelled": [],
+                "errors": ["exception"],
+            }
+
     current_user.membership = "none"
     from ..services.listings import enforce_listing_limits
     enforce_listing_limits(current_user)
@@ -1122,8 +1136,24 @@ def cancel_membership():
     except Exception:
         log.exception("Cancel email failed for user %s", current_user.id)
 
-    flash("Your membership is cancelled. If you were billed through Stripe, "
-          "also cancel the subscription there so you're not charged again.", "success")
+    if stripe_result.get("cancelled"):
+        flash("Your membership is cancelled. Billing has been stopped in Stripe.",
+              "success")
+    elif not pay.configured():
+        flash("Your membership is cancelled on Bloom Anyway.", "success")
+    elif stripe_result.get("ok"):
+        flash(
+            "Your membership is cancelled. No active Stripe subscription was "
+            "found for this email (you will not be charged again from Bloom).",
+            "success",
+        )
+    else:
+        flash(
+            "Your membership is cancelled here, but we could not reach Stripe "
+            "to stop billing automatically. Check Stripe or your receipt email "
+            "so you are not charged again.",
+            "error",
+        )
     return redirect(dest)
 
 
