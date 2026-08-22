@@ -229,12 +229,34 @@ def _resolve_product(data: dict, price_id: str | None) -> Product | None:
     return _product_for_price_id(price_id) or _product_from_metadata(data)
 
 
+def _price_id_from_membership_meta(meta: dict | None) -> str | None:
+    """Resolve Stripe price id from membership checkout metadata (tier + billing)."""
+    if not isinstance(meta, dict):
+        return None
+    tier = str(meta.get("tier") or "").strip().lower()
+    if tier not in ("healing", "creator", "full_bloom"):
+        return None
+    from ..models import MembershipPlan
+    plan = MembershipPlan.query.filter_by(tier=tier).first()
+    if plan is None:
+        return None
+    billing = str(meta.get("billing") or "monthly").strip().lower()
+    if billing in ("year", "yearly", "annual"):
+        billing = "annual"
+    else:
+        billing = "monthly"
+    return plan.payment_product_id(billing)
+
+
 def _first_price_id(data: dict) -> str | None:
     meta = data.get("metadata") if isinstance(data.get("metadata"), dict) else {}
     if isinstance(meta, dict):
         pid = meta.get("price_id") or meta.get("product_id")
         if pid:
             return str(pid)
+        tier_pid = _price_id_from_membership_meta(meta)
+        if tier_pid:
+            return tier_pid
     cart = data.get("product_cart") or data.get("line_items") or []
     if isinstance(cart, list) and cart:
         first = cart[0] or {}
@@ -326,11 +348,66 @@ def _session_should_fulfill(session: dict) -> bool:
     return False
 
 
+def enrich_checkout_session(obj: dict) -> dict:
+    """Pull full session from Stripe when webhook payload is missing price/email.
+
+    Checkout webhooks omit ``line_items``; $0 / 100% off sessions also omit
+    ``payment_intent``. If metadata is thin, retrieve the session so we can still
+    grant membership / course access.
+    """
+    if not isinstance(obj, dict):
+        return {}
+    try:
+        from flask import has_app_context
+        if not has_app_context():
+            return obj
+        if current_app.config.get("TESTING") or not configured():
+            return obj
+    except RuntimeError:
+        return obj
+    meta = obj.get("metadata") if isinstance(obj.get("metadata"), dict) else {}
+    has_price = bool(
+        (meta or {}).get("price_id")
+        or _price_id_from_membership_meta(meta)
+        or _first_price_id({"metadata": meta, "product_cart": [],
+                            "line_items": obj.get("line_items")})
+    )
+    has_email = bool(_buyer_email(obj))
+    if has_price and has_email:
+        return obj
+    sid = _stripe_id(obj.get("id"))
+    if not sid:
+        return obj
+    try:
+        _configure_stripe()
+        full = stripe.checkout.Session.retrieve(sid, expand=["line_items"])
+        merged = _as_dict(full)
+        # Prefer webhook metadata when Stripe retrieve returns empty metadata.
+        wh_meta = meta or {}
+        full_meta = merged.get("metadata") if isinstance(merged.get("metadata"), dict) else {}
+        if wh_meta and not full_meta:
+            merged["metadata"] = dict(wh_meta)
+        elif wh_meta and full_meta:
+            combined = dict(full_meta)
+            combined.update({k: v for k, v in wh_meta.items() if v})
+            merged["metadata"] = combined
+        log.info(
+            "stripe: hydrated checkout session %s (had_price=%s had_email=%s)",
+            sid, has_price, has_email,
+        )
+        return merged
+    except Exception:
+        log.exception("stripe: failed to hydrate checkout session %s", sid)
+        return obj
+
+
 def _session_to_payment_data(session) -> dict:
     """Normalize a Checkout Session into our fulfillment shape."""
     session = _as_dict(session)
     meta = session.get("metadata") if isinstance(session.get("metadata"), dict) else {}
     price_id = (meta or {}).get("price_id")
+    if not price_id:
+        price_id = _price_id_from_membership_meta(meta)
     if not price_id:
         items = session.get("line_items") or {}
         items = _as_dict(items)
@@ -343,6 +420,7 @@ def _session_to_payment_data(session) -> dict:
             elif price:
                 price_id = price
     email = _buyer_email(session)
+    # $0 / 100% off: no PaymentIntent — fall back to subscription or session id.
     payment_id = (
         _stripe_id(session.get("payment_intent"))
         or _stripe_id(session.get("subscription"))
@@ -369,9 +447,21 @@ def stripe_event_to_internal(event_type: str, obj: dict) -> tuple[str | None, di
         "checkout.session.completed",
         "checkout.session.async_payment_succeeded",
     ):
+        obj = enrich_checkout_session(obj)
         data = _session_to_payment_data(obj)
         if not _session_should_fulfill(obj):
+            log.info(
+                "stripe: skip checkout session %s (status=%s payment_status=%s amount=%s)",
+                obj.get("id"), obj.get("status"), obj.get("payment_status"),
+                obj.get("amount_total"),
+            )
             return None, data
+        if not data.get("product_cart"):
+            log.warning(
+                "stripe: checkout session %s has no price_id/line items "
+                "(metadata=%s) — membership may not apply",
+                obj.get("id"), obj.get("metadata"),
+            )
         return "payment.succeeded", data
     if event_type == "invoice.paid":
         # Subscription first invoice can be $0 with a 100% promo — still grant access.

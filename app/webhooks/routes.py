@@ -48,13 +48,27 @@ def stripe_webhook():
 
     internal, data = pay.stripe_event_to_internal(event_type, obj)
     if not internal:
+        log.info(
+            "stripe webhook: ignored %s (id=%s payment_status=%s amount=%s)",
+            event_type,
+            (obj.get("id") if isinstance(obj, dict) else None),
+            (obj.get("payment_status") if isinstance(obj, dict) else None),
+            (obj.get("amount_total") if isinstance(obj, dict) else None),
+        )
         return {"status": "ignored", "event": event_type}, 200
 
     try:
         pay.handle_payment_event(internal, data)
         db.session.commit()
-        log.info("stripe webhook: %s → %s (payment %s)",
-                 event_type, internal, data.get("payment_id") or data.get("id"))
+        log.info(
+            "stripe webhook: %s → %s (payment %s email=%s price=%s amount=%s)",
+            event_type, internal,
+            data.get("payment_id") or data.get("id"),
+            data.get("customer_email") or (data.get("customer") or {}).get("email"),
+            (data.get("product_cart") or [{}])[0].get("product_id")
+            if data.get("product_cart") else None,
+            data.get("total_amount"),
+        )
         return {"status": "ok"}, 200
     except Exception:
         db.session.rollback()
