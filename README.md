@@ -87,9 +87,12 @@ Everything else is optional or auto-managed:
 1. **API key** — Stripe Dashboard → API keys → set `STRIPE_SECRET_KEY`.
    Use `STRIPE_SECRET_KEY=test` locally and `live` in production.
 2. **Webhook** — Developer → Webhooks:
-   - URL: `https://<your-app>.onrender.com/webhooks/stripe`
-   - Signing secret → `STRIPE_WEBHOOK_SECRET`
-   - Subscribe to at least: `payment.succeeded`, `refund.succeeded`
+   - URL: `https://www.bloomanyway.online/webhooks/stripe`
+     (use the **www** host — apex `bloomanyway.online` 307-redirects and Stripe
+     will fail every delivery with HTTP 307)
+   - Signing secret → `STRIPE_WEBHOOK_SECRET` (must match this endpoint)
+   - Subscribe to: `checkout.session.completed`, `invoice.paid`,
+     `invoice.payment_failed`, `charge.refunded`, `customer.subscription.deleted`
 3. **Products** — create each course/guide/membership in Stripe, then paste the
    product IDs in Studio → Courses & Guides / Plans.
 4. Paid webhooks create `Order` (+ `ShopPurchase` for non-membership products).
