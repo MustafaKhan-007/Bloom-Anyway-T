@@ -67,8 +67,9 @@ def _exp_unix(scheduled_at: datetime) -> int:
 
 
 def _nbf_unix(scheduled_at: datetime) -> int:
-    """Daily room unlocks at the scheduled start — not early."""
-    return int(scheduled_at.replace(microsecond=0).timestamp())
+    """Room unlocks a few minutes before start (waiting page still gates early entry)."""
+    open_at = scheduled_at - timedelta(minutes=10)
+    return int(open_at.replace(microsecond=0).timestamp())
 
 
 def _room_properties(scheduled_at: datetime) -> dict:

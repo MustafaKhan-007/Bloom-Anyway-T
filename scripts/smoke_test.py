@@ -1680,6 +1680,9 @@ h = r.headers
 ok("Security headers present",
    h.get("X-Content-Type-Options") == "nosniff" and h.get("X-Frame-Options") == "DENY"
    and "Content-Security-Policy" in h)
+ok("CSP allows Daily.co video rooms",
+   "https://*.daily.co" in (h.get("Content-Security-Policy") or "")
+   and "https://unpkg.com" in (h.get("Content-Security-Policy") or ""))
 
 # quotes archive: visitors see only today; members see back to their signup date
 anon = app.test_client()

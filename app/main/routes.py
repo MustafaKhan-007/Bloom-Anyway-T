@@ -1768,6 +1768,19 @@ def support_session_room(meeting_id):
         return redirect(url_for("main.support_session_wrap", meeting_id=meeting.id))
 
     is_host = meeting.scheduled_by_user_id == current_user.id
+    # Refresh nbf/exp so older rooms (created before early-open) become joinable.
+    if meeting.scheduled_at and meeting.room_name:
+        try:
+            info = daily_svc.update_room(
+                meeting.room_name, scheduled_at=meeting.scheduled_at,
+            )
+            if info and info.room_url:
+                meeting.zoom_url = info.room_url
+                db.session.commit()
+        except daily_svc.DailyError:
+            log.warning(
+                "daily: could not refresh room %s before join", meeting.room_name,
+            )
     try:
         token = daily_svc.create_meeting_token(
             room_name=meeting.room_name,
