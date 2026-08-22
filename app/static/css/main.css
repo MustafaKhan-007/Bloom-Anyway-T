@@ -6889,6 +6889,13 @@ a.at-handle:hover { text-decoration: underline; }
   color: var(--plum-deep); text-decoration: none; font-size: 13px; font-weight: 700;
 }
 .lib-card__more-menu a:hover { background: var(--dawn-ivory); }
+.lib-card__more-menu form { margin: 0; }
+.lib-card__more-menu button.lib-card__more-danger {
+  display: block; width: 100%; text-align: left; border: 0; background: transparent;
+  padding: 8px 10px; border-radius: 8px; font: inherit; font-size: 13px; font-weight: 700;
+  color: #9b2c4a; cursor: pointer;
+}
+.lib-card__more-menu button.lib-card__more-danger:hover { background: rgba(155, 44, 74, 0.08); }
 .lib-shelf__empty { margin-top: 16px; }
 @media (max-width: 560px) {
   .lib-card {
