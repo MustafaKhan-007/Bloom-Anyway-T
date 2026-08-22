@@ -31,9 +31,16 @@ def stripe_webhook():
     headers = {k.lower(): v for k, v in request.headers.items()}
     try:
         event = pay.construct_event(raw, headers)
-    except pay.StripeError:
-        log.warning("stripe webhook: invalid signature (ip=%s)", request.remote_addr)
-        return {"error": "invalid signature"}, 401
+    except pay.StripeError as exc:
+        log.warning(
+            "stripe webhook: signature rejected (ip=%s detail=%s) — "
+            "confirm STRIPE_WEBHOOK_SECRET matches the www endpoint signing secret",
+            request.remote_addr, exc,
+        )
+        return {
+            "error": "invalid signature",
+            "hint": "STRIPE_WEBHOOK_SECRET must match this endpoint's whsec_ in Stripe",
+        }, 401
     except Exception:
         log.exception("stripe webhook: could not parse event")
         return {"error": "invalid payload"}, 400

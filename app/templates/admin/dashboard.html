@@ -77,6 +77,17 @@
         </form>
         {% endif %}
       </div>
+      {% if stripe_configured %}
+      <form method="post" action="{{ url_for('admin.import_checkout_session') }}"
+            style="margin-top: 12px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <label class="field-help" for="checkout-session-id" style="margin:0;">Missed webhook?</label>
+        <input id="checkout-session-id" name="session_id" type="text"
+               placeholder="cs_live_…" autocomplete="off"
+               style="flex: 1 1 220px; min-width: 180px; max-width: 420px;">
+        <button type="submit" class="btn btn--secondary btn--sm">Import session</button>
+      </form>
+      {% endif %}
     </div>
     <div class="admin-panel studio-card studio-dash-exact__founder">
       <h2>Founder pricing</h2>

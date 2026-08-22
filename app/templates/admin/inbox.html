@@ -26,24 +26,25 @@
   {% if feedback_rows %}
   <section class="admin-panel studio-card">
     <h2>Feedback &amp; reports from the site</h2>
-    <table class="admin-table" data-collapsible="12">
+    <table class="admin-table inbox-feedback-table" data-collapsible="12">
       <thead>
         <tr><th>When</th><th>Type</th><th>Stars</th><th>Note</th><th>Where</th><th>Who</th><th></th></tr>
       </thead>
       <tbody>
         {% for row in feedback_rows %}
         <tr>
-          <td>{{ row.created_at.strftime('%b %d, %H:%M') }}</td>
-          <td><span class="status-pill">{{ row.kind }}</span>
-            {% if row.status == 'reviewed' %}<span class="field-help">reviewed</span>{% endif %}
+          <td class="inbox-cell--when">{{ row.created_at.strftime('%b %d, %H:%M') }}</td>
+          <td>
+            <span class="status-pill">{{ row.kind }}</span>
+            {% if row.status == 'reviewed' %}<div class="field-help">reviewed</div>{% endif %}
           </td>
           <td>{% if row.stars %}{{ '★' * row.stars }}{{ '☆' * (5 - row.stars) }}{% else %}—{% endif %}</td>
-          <td style="max-width: 28ch; white-space: pre-wrap;">{{ row.body }}</td>
-          <td><code style="font-size: 12px;">{{ row.page_path or '—' }}</code></td>
+          <td class="inbox-cell--note">{{ row.body }}</td>
+          <td><code class="inbox-path">{{ row.page_path or '—' }}</code></td>
           <td>
             {% if row.author %}{{ row.author.public_name() }}{% elif row.contact_email %}{{ row.contact_email }}{% else %}Guest{% endif %}
           </td>
-          <td>
+          <td class="inbox-cell--actions">
             {% if row.status != 'reviewed' %}
             <form method="post" action="{{ url_for('admin.inbox_feedback_reviewed', item_id=row.id) }}" class="inline-form">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -62,79 +63,98 @@
   {% if report_rows %}
   <section class="admin-panel studio-card">
     <h2>Community &amp; peer-session reports</h2>
-    <table class="admin-table" data-collapsible="12">
-      <thead>
-        <tr><th>When</th><th>Status</th><th>Target</th><th>Snippet</th><th>Reason / note</th><th>Auto</th><th></th></tr>
-      </thead>
-      <tbody>
-        {% for item in report_rows %}
-        {% set r = item.report %}
-        <tr>
-          <td>{{ r.created_at.strftime('%b %d, %H:%M') }}</td>
-          <td>
-            <span class="status-pill">{{ r.status }}</span>
-            {% if r.auto_hidden %}<div class="field-help">auto-hidden</div>{% endif %}
-            {% if r.target_type == 'user' %}<div class="field-help">silent flag</div>{% endif %}
-          </td>
-          <td>
-            {% if r.target_type == 'user' %}
-              member #{{ r.target_id }}
-              {% if item.target %}
-              <br><a href="{{ url_for('main.profile', user_id=item.target.id) }}" target="_blank" rel="noopener">{{ item.target.public_name() }}</a>
+    <ul class="inbox-reports">
+      {% for item in report_rows %}
+      {% set r = item.report %}
+      {% set note_lines = (r.note or '').split('\n') %}
+      <li class="inbox-report">
+        <div class="inbox-report__meta">
+          <time datetime="{{ r.created_at.isoformat() }}">{{ r.created_at.strftime('%b %d, %H:%M') }}</time>
+          <span class="status-pill">{{ r.status }}</span>
+          {% if r.auto_hidden %}<span class="inbox-report__tag">auto-hidden</span>{% endif %}
+          {% if r.target_type == 'user' %}<span class="inbox-report__tag">silent flag</span>{% endif %}
+        </div>
+
+        <div class="inbox-report__grid">
+          <div class="inbox-report__block">
+            <p class="inbox-report__label">Target</p>
+            <p class="inbox-report__value">
+              {% if r.target_type == 'user' %}
+                Member #{{ r.target_id }}
+                {% if item.target %}
+                · <a href="{{ url_for('main.profile', user_id=item.target.id) }}" target="_blank" rel="noopener">{{ item.target.public_name() }}</a>
+                {% endif %}
+              {% else %}
+                {{ r.target_type|capitalize }} #{{ r.target_id }}
+                {% if item.target and r.target_type == 'post' and not item.target.hidden %}
+                  · <a href="{{ url_for('forums.post', post_id=item.target.id) }}" target="_blank" rel="noopener">View</a>
+                {% elif item.target is none %}
+                  · <span class="field-help">gone</span>
+                {% elif item.target.hidden %}
+                  · <span class="field-help">hidden</span>
+                {% endif %}
               {% endif %}
-            {% else %}
-              {{ r.target_type }} #{{ r.target_id }}
-              {% if item.target and r.target_type == 'post' and not item.target.hidden %}
-                <br><a href="{{ url_for('forums.post', post_id=item.target.id) }}" target="_blank" rel="noopener">View</a>
-              {% elif item.target is none %}
-                <br><span class="field-help">gone</span>
-              {% elif item.target.hidden %}
-                <br><span class="field-help">hidden</span>
-              {% endif %}
+            </p>
+            {% if item.snippet %}
+            <p class="inbox-report__snippet">{{ item.snippet }}</p>
             {% endif %}
-          </td>
-          <td style="max-width: 28ch;">{{ item.snippet or '—' }}</td>
-          <td style="max-width: 22ch; white-space: pre-wrap;">
-            {% if r.reason_label() %}<strong>{{ r.reason_label() }}</strong><br>{% endif %}
-            {{ r.note or '—' }}
-          </td>
-          <td>
+          </div>
+
+          <div class="inbox-report__block inbox-report__block--reason">
+            <p class="inbox-report__label">Reason / note</p>
+            {% if r.reason_label() %}
+            <p class="inbox-report__reason">{{ r.reason_label() }}</p>
+            {% endif %}
+            {% if note_lines|length > 1 %}
+            <p class="inbox-report__context">{{ note_lines[0] }}</p>
+            <p class="inbox-report__note">{{ note_lines[1:]|join('\n') }}</p>
+            {% elif r.note %}
+            <p class="inbox-report__note">{{ r.note }}</p>
+            {% else %}
+            <p class="inbox-report__note">—</p>
+            {% endif %}
+          </div>
+
+          <div class="inbox-report__block">
+            <p class="inbox-report__label">Auto / studio</p>
             {% if r.auto_reason and r.target_type != 'user' %}
-              <strong>Resolved</strong><br>
-              <span class="field-help">{{ r.auto_reason }}</span>
+            <p class="inbox-report__value"><strong>Resolved</strong> — {{ r.auto_reason }}</p>
             {% elif r.owner_note %}
-              <span class="field-help">{{ r.owner_note }}</span>
-            {% else %}—{% endif %}
-          </td>
-          <td>
-            {% if r.status == 'open' %}
-            {% if r.target_type != 'user' %}
-            <form method="post" action="{{ url_for('admin.inbox_report_hide', report_id=r.id) }}" class="inline-form" style="margin-bottom: 6px;"
-                  data-confirm="Hide this content and notify the author?"
-                  data-confirm-title="Hide content?"
-                  data-confirm-ok="Hide">
-              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-              <input type="hidden" name="filter" value="{{ filter }}">
-              <button class="btn btn--danger btn--sm" type="submit">Hide</button>
-            </form>
+            <p class="inbox-report__note">{{ r.owner_note }}</p>
             {% else %}
-            <form method="post" action="{{ url_for('admin.inbox_report_hide', report_id=r.id) }}" class="inline-form" style="margin-bottom: 6px;">
-              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-              <input type="hidden" name="filter" value="{{ filter }}">
-              <button class="btn btn--secondary btn--sm" type="submit">Mark reviewed</button>
-            </form>
+            <p class="inbox-report__value">—</p>
             {% endif %}
-            <form method="post" action="{{ url_for('admin.inbox_report_dismiss', report_id=r.id) }}" class="inline-form">
-              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-              <input type="hidden" name="filter" value="{{ filter }}">
-              <button class="btn btn--secondary btn--sm" type="submit">Keep up</button>
-            </form>
-            {% endif %}
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+          </div>
+        </div>
+
+        {% if r.status == 'open' %}
+        <div class="inbox-report__actions">
+          {% if r.target_type != 'user' %}
+          <form method="post" action="{{ url_for('admin.inbox_report_hide', report_id=r.id) }}" class="inline-form"
+                data-confirm="Hide this content and notify the author?"
+                data-confirm-title="Hide content?"
+                data-confirm-ok="Hide">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="filter" value="{{ filter }}">
+            <button class="btn btn--danger btn--sm" type="submit">Hide</button>
+          </form>
+          {% else %}
+          <form method="post" action="{{ url_for('admin.inbox_report_hide', report_id=r.id) }}" class="inline-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="filter" value="{{ filter }}">
+            <button class="btn btn--secondary btn--sm" type="submit">Mark reviewed</button>
+          </form>
+          {% endif %}
+          <form method="post" action="{{ url_for('admin.inbox_report_dismiss', report_id=r.id) }}" class="inline-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="filter" value="{{ filter }}">
+            <button class="btn btn--secondary btn--sm" type="submit">Keep up</button>
+          </form>
+        </div>
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ul>
   </section>
   {% endif %}
 

@@ -1,12 +1,13 @@
 """Dashboard statistics, computed from the local database only."""
 from datetime import date, datetime, time, timedelta
 
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import joinedload
 
 from ..extensions import db
-from ..models import (ForumPost, MarketplaceListing, Order, PageView, Product,
-                      SiteFeedback, User, Video, VisitEvent)
+from ..models import (ForumPost, MarketplaceListing, MembershipPlan, Order,
+                      PageView, Product, ShopPurchase, SiteFeedback, User, Video,
+                      VisitEvent)
 from . import support_groups as sg_svc
 
 
@@ -17,6 +18,108 @@ def _dt(day: date) -> datetime:
 def _money(cents: int, currency: str = "USD") -> str:
     symbol = {"USD": "$", "EUR": "\u20ac", "GBP": "\u00a3"}.get(currency, currency + " ")
     return f"{symbol}{(cents or 0) / 100:,.0f}"
+
+
+def _is_stripe_ish_id(value: str) -> bool:
+    v = (value or "").strip()
+    return v.startswith(("price_", "prod_", "pdt_", "cs_", "pi_", "sub_"))
+
+
+def _chart_title_maps(orders: list[Order]) -> tuple[dict[str, str], dict[str, str]]:
+    """Resolve Stripe/Lemon ids → human titles for chart filters.
+
+    Returns (variant_id → title, payment_id → title).
+    """
+    variants = {
+        (o.ls_variant_id or "").strip()
+        for o in orders
+        if (o.ls_variant_id or "").strip() and not (o.product_id and o.product)
+    }
+    payment_ids = {
+        (o.ls_order_id or "").strip()
+        for o in orders
+        if (o.ls_order_id or "").strip() and not (o.product_id and o.product)
+    }
+    by_variant: dict[str, str] = {}
+    by_payment: dict[str, str] = {}
+    if not variants and not payment_ids:
+        return by_variant, by_payment
+
+    if variants:
+        products = (
+            Product.query
+            .filter(or_(
+                Product.stripe_price_id.in_(variants),
+                Product.ls_variant_id.in_(variants),
+            ))
+            .all()
+        )
+        for p in products:
+            for key in ((p.stripe_price_id or "").strip(), (p.ls_variant_id or "").strip()):
+                if key and key in variants and p.title:
+                    by_variant[key] = p.title
+
+        plans = (
+            MembershipPlan.query
+            .filter(or_(
+                MembershipPlan.stripe_price_id.in_(variants),
+                MembershipPlan.stripe_price_id_annual.in_(variants),
+                MembershipPlan.ls_variant_id.in_(variants),
+            ))
+            .all()
+        )
+        for plan in plans:
+            label = (plan.name or "").strip() or f"{plan.tier} membership".replace("_", " ").title()
+            for key in (
+                (plan.stripe_price_id or "").strip(),
+                (plan.stripe_price_id_annual or "").strip(),
+                (plan.ls_variant_id or "").strip(),
+            ):
+                if key and key in variants and key not in by_variant:
+                    by_variant[key] = label
+
+    if payment_ids:
+        shops = (
+            ShopPurchase.query
+            .filter(ShopPurchase.lemon_squeezy_order_id.in_(payment_ids))
+            .all()
+        )
+        generic = {"", "course purchase", "shop purchase"}
+        for row in shops:
+            name = (row.product_name or "").strip()
+            if not name or name.lower() in generic:
+                continue
+            pid = (row.lemon_squeezy_order_id or "").strip()
+            if pid:
+                by_payment[pid] = name
+            vid = (row.variant_id or row.product_id or "").strip()
+            if vid and vid in variants and vid not in by_variant:
+                by_variant[vid] = name
+
+    return by_variant, by_payment
+
+
+def _order_chart_series(order: Order, by_variant: dict[str, str],
+                        by_payment: dict[str, str]) -> tuple[str, str]:
+    """Return (series_key, display_title) for one paid order."""
+    if order.product_id and order.product and (order.product.title or "").strip():
+        return f"p{order.product_id}", order.product.title.strip()
+
+    variant = (order.ls_variant_id or "").strip()
+    payment = (order.ls_order_id or "").strip()
+    title = (
+        (by_variant.get(variant) if variant else None)
+        or (by_payment.get(payment) if payment else None)
+    )
+    if variant and title:
+        return f"v{variant}", title
+    if variant and _is_stripe_ish_id(variant):
+        return f"v{variant}", "Unmatched product"
+    if variant:
+        return f"v{variant}", variant
+    if title:
+        return f"pay{payment}" if payment else "other", title
+    return "other", "Other / unmatched"
 
 
 def payment_insights(days: int = 30) -> dict:
@@ -246,6 +349,8 @@ def purchases_over_time(days: int = 90) -> dict:
             .filter(Order.status == "paid", Order.created_at >= _dt(start))
             .all())
 
+    by_variant, by_payment = _chart_title_maps(paid)
+
     all_counts = [0] * days
     by_key: dict[str, list[int]] = {}
     products_meta: dict[str, str] = {}
@@ -257,15 +362,7 @@ def purchases_over_time(days: int = 90) -> dict:
         if idx is None:
             continue
         all_counts[idx] += 1
-        if o.product_id and o.product:
-            key = f"p{o.product_id}"
-            title = o.product.title
-        elif (o.ls_variant_id or "").strip():
-            key = f"v{(o.ls_variant_id or '').strip()}"
-            title = (o.ls_variant_id or "").strip()
-        else:
-            key = "other"
-            title = "Other / unmatched"
+        key, title = _order_chart_series(o, by_variant, by_payment)
         if key not in by_key:
             by_key[key] = [0] * days
             products_meta[key] = title
@@ -299,12 +396,15 @@ def trending_product(window_days: int = 7) -> dict | None:
     )
     if not rows:
         # Fall back to ShopPurchase names when Order.product_id wasn't linked.
-        from ..models import ShopPurchase
         shop_rows = (
             db.session.query(ShopPurchase.product_name, func.count(ShopPurchase.id))
             .filter(
                 ShopPurchase.status.in_(("linked", "pending_link")),
                 ShopPurchase.purchased_at >= start,
+                ShopPurchase.product_name.isnot(None),
+                ShopPurchase.product_name != "",
+                func.lower(ShopPurchase.product_name) != "course purchase",
+                func.lower(ShopPurchase.product_name) != "shop purchase",
             )
             .group_by(ShopPurchase.product_name)
             .order_by(func.count(ShopPurchase.id).desc())

@@ -189,6 +189,40 @@ def sync_purchases():
     return redirect(url_for("admin.dashboard"))
 
 
+@bp.route("/import-checkout-session", methods=["POST"])
+@admin_required
+def import_checkout_session():
+    """Fulfill one Checkout Session by id (bypasses webhook — useful for $0 / missed deliveries)."""
+    from ..services import stripe_pay as pay
+    if not pay.configured():
+        flash("Add STRIPE_SECRET_KEY (live mode) before importing.", "error")
+        return redirect(url_for("admin.dashboard"))
+    sid = (request.form.get("session_id") or "").strip()
+    if not sid.startswith("cs_"):
+        flash("Paste a Checkout Session id starting with cs_live_ or cs_test_.", "error")
+        return redirect(url_for("admin.dashboard"))
+    try:
+        order = pay.fulfill_checkout_session_id(sid)
+        if order is None:
+            flash(
+                "Could not import that session (not complete/paid, or Stripe retrieve failed). "
+                "Check Render logs and that STRIPE_SECRET_KEY is the live key.",
+                "error",
+            )
+            return redirect(url_for("admin.dashboard"))
+        db.session.commit()
+        flash(
+            f"Imported {order.buyer_email} — {order.status} "
+            f"({order.total_display()}). Buyer must use that same email in My Space.",
+            "success",
+        )
+    except Exception as exc:
+        db.session.rollback()
+        log.exception("import checkout session failed: %s", sid)
+        flash(f"Import failed: {exc}", "error")
+    return redirect(url_for("admin.dashboard"))
+
+
 # =============================== PRODUCTS ====================================
 
 def _parse_accent(raw: str | None) -> str | None:
@@ -1445,11 +1479,13 @@ def inbox():
         elif r.target_type == "user":
             target = db.session.get(User, r.target_id)
             if target:
-                snippet = (
-                    f"{target.public_name()}"
-                    f"{' · @' + target.username if target.username else ''}"
-                    f" · warnings {target.forum_warnings or 0}"
-                )
+                name = (target.public_name() or "").strip()
+                handle = (target.username or "").strip()
+                bits = [name] if name else []
+                if handle and name.lstrip("@").lower() != handle.lower():
+                    bits.append(f"@{handle}")
+                bits.append(f"warnings {target.forum_warnings or 0}")
+                snippet = " · ".join(bits)
         enriched.append({"report": r, "target": target, "snippet": snippet})
 
     counts = {

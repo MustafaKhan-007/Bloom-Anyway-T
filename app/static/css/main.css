@@ -5905,6 +5905,119 @@ a.at-handle:hover { text-decoration: underline; }
 .admin-main .page-head h1 { color: #3d1431; }
 .admin-body { background: #f6efe6 !important; }
 
+/* Studio inbox — readable report cards (avoid cramped table wrap) */
+.inbox-feedback-table .inbox-cell--note {
+  max-width: 36ch;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.45;
+}
+.inbox-feedback-table .inbox-path {
+  font-size: 12px;
+  word-break: break-all;
+}
+.inbox-feedback-table .inbox-cell--actions {
+  white-space: nowrap;
+}
+.inbox-reports {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.inbox-report {
+  margin: 0;
+  padding: 16px 16px 14px;
+  border-radius: 14px;
+  background: #fffaf4;
+  border: 1px solid rgba(61, 20, 49, 0.08);
+}
+.inbox-report__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  margin: 0 0 12px;
+}
+.inbox-report__meta time {
+  font-size: 13px;
+  font-weight: 700;
+  color: #6b5a66;
+}
+.inbox-report__tag {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #8a7383;
+  background: rgba(61, 20, 49, 0.06);
+  padding: 3px 8px;
+  border-radius: 999px;
+}
+.inbox-report__grid {
+  display: grid;
+  gap: 14px 20px;
+  grid-template-columns: 1fr;
+}
+@media (min-width: 860px) {
+  .inbox-report__grid {
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.4fr) minmax(0, 0.9fr);
+  }
+}
+.inbox-report__block { min-width: 0; }
+.inbox-report__label {
+  margin: 0 0 4px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #8a7383;
+  max-width: none;
+}
+.inbox-report__value,
+.inbox-report__reason,
+.inbox-report__context,
+.inbox-report__note,
+.inbox-report__snippet {
+  margin: 0;
+  max-width: none;
+  text-align: left;
+  line-height: 1.45;
+  color: #3d1431;
+  overflow-wrap: anywhere;
+}
+.inbox-report__reason {
+  font-weight: 800;
+  font-size: 15px;
+  margin-bottom: 4px;
+}
+.inbox-report__context {
+  font-size: 13px;
+  font-weight: 600;
+  color: #6b5a66;
+  margin-bottom: 4px;
+}
+.inbox-report__note {
+  font-size: 14px;
+  white-space: pre-wrap;
+}
+.inbox-report__snippet {
+  margin-top: 6px;
+  font-size: 13px;
+  color: #6b5a66;
+}
+.inbox-report__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(61, 20, 49, 0.08);
+}
+
 /* ======================== Exact mock layouts (hub / myspace / studio) ===== */
 .hub-exact {
   --rm-plum: #3d1431;

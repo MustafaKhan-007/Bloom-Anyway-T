@@ -15,7 +15,7 @@ from ..models import (SUPPORT_CIRCLE_SEED, SupportGroupApplication,
                       SupportGroupTopicAlert, User, utcnow)
 from .mailer import send_email
 from .social_graph import notify
-from .timefmt import format_local, normalize_timezone
+from .timefmt import format_local, normalize_timezone, to_local
 from . import daily as daily_svc
 
 log = logging.getLogger(__name__)
@@ -754,6 +754,49 @@ def _when_for(user: User, dt: datetime | None) -> str:
     return f"{stamp} ({tz})" if stamp else "the scheduled time"
 
 
+def _reminder_day_and_timing(
+    user: User, scheduled_at: datetime | None, *, now: datetime | None = None,
+) -> tuple[str | None, str]:
+    """Return (day_word, timing) for reminder copy in the member's timezone.
+
+    day_word is ``today``, ``tomorrow``, or None. timing is a short phrase like
+    ``starting soon`` / ``later today`` / ``in about 20 hours``.
+    """
+    now = now or utcnow()
+    if scheduled_at is None:
+        return None, "coming up"
+
+    start = scheduled_at
+    if start.tzinfo is not None:
+        start = start.astimezone(timezone.utc).replace(tzinfo=None)
+    ref = now
+    if ref.tzinfo is not None:
+        ref = ref.astimezone(timezone.utc).replace(tzinfo=None)
+
+    tz = normalize_timezone(getattr(user, "timezone", None)) or "UTC"
+    local_now = to_local(ref, tz)
+    local_start = to_local(start, tz)
+    delta = start - ref
+    secs = max(0, int(delta.total_seconds()))
+
+    if local_now is not None and local_start is not None:
+        day_delta = (local_start.date() - local_now.date()).days
+        if day_delta <= 0:
+            day_word = "today"
+            timing = "starting soon" if secs <= 90 * 60 else "later today"
+            return day_word, timing
+        if day_delta == 1:
+            hours = max(1, int(round(secs / 3600)))
+            return "tomorrow", (
+                f"in about {hours} hour{'s' if hours != 1 else ''}"
+            )
+
+    if secs <= 90 * 60:
+        return None, "starting soon"
+    hours = max(1, int(round(secs / 3600)))
+    return None, f"in about {hours} hour{'s' if hours != 1 else ''}"
+
+
 def _circle_name(meeting: SupportGroupMeeting) -> str:
     if meeting.circle:
         return meeting.circle.title
@@ -839,11 +882,17 @@ def _notify_seats(meeting: SupportGroupMeeting, *, kind: str,
             )
             html = None
         elif kind == "reminder":
-            note = f"Reminder: {group} tomorrow — {when}."
-            subject = f"Reminder: {group} in 24 hours"
+            day_word, timing = _reminder_day_and_timing(
+                user, meeting.scheduled_at)
+            if day_word:
+                note = f"Reminder: {group} {day_word} — {when}."
+                subject = f"Reminder: {group} {day_word}"
+            else:
+                note = f"Reminder: {group} — {when}."
+                subject = f"Reminder: {group}"
             text = (
                 f"Hi {user.first_name() or user.public_name()},\n\n"
-                f"Friendly reminder — your {group} is in about 24 hours.\n\n"
+                f"Friendly reminder — your {group} is {timing}.\n\n"
                 f"When: {when}\n"
                 f"With: {others} other member{'s' if others != 1 else ''}\n"
                 f"Join in Bloom Anyway: {room}\n\n"
@@ -851,7 +900,8 @@ def _notify_seats(meeting: SupportGroupMeeting, *, kind: str,
             )
             html = (
                 f"<p>Hi {escape(user.first_name() or user.public_name())},</p>"
-                f"<p>Friendly reminder — your {escape(group)} is in about 24 hours.</p>"
+                f"<p>Friendly reminder — your {escape(group)} is "
+                f"{escape(timing)}.</p>"
                 f"<p><strong>When:</strong> {escape(when)}<br>"
                 f"<strong>With:</strong> {others} other "
                 f"member{'s' if others != 1 else ''}</p>"
