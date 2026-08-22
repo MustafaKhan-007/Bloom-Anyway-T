@@ -5136,6 +5136,8 @@ a.at-handle:hover { text-decoration: underline; }
   line-height: 1.2;
   white-space: nowrap;
 }
+.mem-card__cancel { margin: 0; }
+.mem-card__cancel .btn { width: 100%; }
 .mem-card--heal .mem-card__here {
   background: rgba(61, 20, 49, 0.1);
 }
