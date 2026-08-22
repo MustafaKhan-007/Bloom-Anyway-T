@@ -596,6 +596,26 @@
                   {% if can_read %}
                   <a href="{{ url_for('main.course_reader', purchase_id=item.id) }}">Open reader</a>
                   {% endif %}
+                  <form method="post" action="{{ url_for('main.shop_remove', purchase_id=item.id) }}"
+                        data-confirm="Remove “{{ item.product_name }}” from your library? This does not refund Stripe."
+                        data-confirm-title="Remove from library?"
+                        data-confirm-ok="Remove">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="lib-card__more-danger">Remove from library</button>
+                  </form>
+                </div>
+              </details>
+              {% else %}
+              <details class="lib-card__more">
+                <summary aria-label="More options">···</summary>
+                <div class="lib-card__more-menu">
+                  <form method="post" action="{{ url_for('main.shop_remove', purchase_id=item.id) }}"
+                        data-confirm="Remove “{{ item.product_name }}” from your library?"
+                        data-confirm-title="Remove from library?"
+                        data-confirm-ok="Remove">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="lib-card__more-danger">Remove from library</button>
+                  </form>
                 </div>
               </details>
               {% endif %}

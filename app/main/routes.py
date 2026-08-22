@@ -30,7 +30,10 @@ from ..services.mailer import send_contact_notification
 from ..services.recommend import INTENTS, valid_intent_keys
 from ..services.listings import (ListingError, can_add_listing, listing_limit,
                                  process_listing_image)
-from ..services.shop_purchases import linked_purchases_for, link_pending_purchases
+from ..services.shop_purchases import (
+    collapse_duplicate_purchases, linked_purchases_for, link_pending_purchases,
+    remove_from_library,
+)
 from ..services.social import (instagram_embed_url, instagram_from_links,
                                instagram_handle, instagram_profile_url,
                                upsert_instagram_link)
@@ -764,7 +767,10 @@ def account():
     today_entry = next((e for e in journal if e.day == date.today()), None)
     participation_n = community_participation_count(current_user)
     from ..services import course_reader as reader_svc
-    shop_list = linked_purchases_for(current_user)
+    # Collapse repeated test checkouts of the same guide into one library card.
+    if collapse_duplicate_purchases(current_user):
+        db.session.commit()
+    shop_list = linked_purchases_for(current_user, dedupe=True)
     progress_by_purchase = reader_svc.progress_map_for(
         current_user.id, [p.id for p in shop_list])
     readable = {}
@@ -820,6 +826,18 @@ def mark_notifications_read():
     if wants_json:
         return {"ok": True, "marked": n}
     return redirect(url_for("main.account", tab="activity"))
+
+
+@bp.route("/account/shop/<int:purchase_id>/remove", methods=["POST"])
+@login_required
+def shop_remove(purchase_id):
+    """Hide a library item (e.g. test checkouts / wrong product). Does not refund Stripe."""
+    if remove_from_library(current_user, purchase_id):
+        db.session.commit()
+        flash("Removed from your library.", "success")
+    else:
+        flash("Could not remove that item.", "error")
+    return redirect(url_for("main.account", tab="saved"))
 
 
 @bp.route("/account/shop/<int:purchase_id>/download")

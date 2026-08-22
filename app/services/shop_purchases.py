@@ -81,7 +81,8 @@ def upsert_shop_purchase(
             cleaned = (product_name or "").strip()[:200]
             if cleaned:
                 row.product_name = cleaned
-        if row.status != "refunded" and (row.user_id is None or row.status == "pending_link"):
+        if row.status not in ("refunded", "removed") and (
+                row.user_id is None or row.status == "pending_link"):
             user = (User.query
                     .filter(func.lower(User.email) == email, User.deleted_at.is_(None))
                     .first())
@@ -123,11 +124,82 @@ def link_pending_purchases(user: User) -> int:
     return len(pending)
 
 
-def linked_purchases_for(user: User):
+def _library_dedupe_key(purchase: ShopPurchase) -> str:
+    """Stable key so repeated checkouts of the same guide collapse in the library."""
+    from . import course_reader as reader_svc
+    prod = reader_svc.catalog_product_for_purchase(purchase)
+    if prod is not None:
+        return f"p:{prod.id}"
+    variant = (purchase.variant_id or purchase.product_id or "").strip().lower()
+    if variant:
+        return f"v:{variant}"
+    name = (purchase.product_name or "").strip().lower()
+    if name:
+        return f"n:{name}"
+    return f"id:{purchase.id}"
+
+
+def dedupe_library_purchases(rows: list[ShopPurchase]) -> list[ShopPurchase]:
+    """Keep the newest purchase per catalogue product / title."""
+    seen: set[str] = set()
+    out: list[ShopPurchase] = []
+    for row in rows:
+        key = _library_dedupe_key(row)
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(row)
+    return out
+
+
+def collapse_duplicate_purchases(user: User) -> int:
+    """Mark older same-product library rows as removed. Returns how many were hidden."""
+    if user is None or not getattr(user, "id", None):
+        return 0
+    rows = (ShopPurchase.query
+            .filter_by(user_id=user.id, status="linked")
+            .order_by(ShopPurchase.purchased_at.desc(), ShopPurchase.id.desc())
+            .all())
+    seen: set[str] = set()
+    hidden = 0
+    for row in rows:
+        key = _library_dedupe_key(row)
+        if key in seen:
+            row.status = "removed"
+            hidden += 1
+        else:
+            seen.add(key)
+    return hidden
+
+
+def linked_purchases_for(user: User, *, dedupe: bool = False):
     """Shop purchases shown in My Space (linked only)."""
     if user is None or not getattr(user, "is_authenticated", False):
         return []
-    return (ShopPurchase.query
+    rows = (ShopPurchase.query
             .filter_by(user_id=user.id, status="linked")
-            .order_by(ShopPurchase.purchased_at.desc())
+            .order_by(ShopPurchase.purchased_at.desc(), ShopPurchase.id.desc())
             .all())
+    if dedupe:
+        return dedupe_library_purchases(rows)
+    return rows
+
+
+def remove_from_library(user: User, purchase_id: int) -> bool:
+    """Hide a linked purchase from My Space (owner only). Does not refund Stripe."""
+    if user is None or not getattr(user, "id", None):
+        return False
+    row = db.session.get(ShopPurchase, purchase_id)
+    if row is None or row.user_id != user.id or row.status != "linked":
+        return False
+    row.status = "removed"
+    return True
+
+
+def admin_remove_purchase(purchase_id: int) -> ShopPurchase | None:
+    """Studio: hide a shop purchase from the buyer's library."""
+    row = db.session.get(ShopPurchase, purchase_id)
+    if row is None:
+        return None
+    row.status = "removed"
+    return row
