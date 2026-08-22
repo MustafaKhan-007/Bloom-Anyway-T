@@ -907,8 +907,8 @@ class Order(db.Model):
     __tablename__ = "orders"
 
     id = db.Column(db.Integer, primary_key=True)
-    ls_order_id = db.Column(db.String(40), unique=True, nullable=False)
-    ls_variant_id = db.Column(db.String(40))
+    ls_order_id = db.Column(db.String(120), unique=True, nullable=False)
+    ls_variant_id = db.Column(db.String(80))
     product_id = db.Column(db.Integer, db.ForeignKey("products.id"))
     buyer_email = db.Column(db.String(255), nullable=False, index=True)
     # if the buyer gifted this to a friend, the friend's account email gets
@@ -942,7 +942,7 @@ class ShopPurchase(db.Model):
     STATUSES = ("pending_link", "linked", "refunded")
 
     id = db.Column(db.Integer, primary_key=True)
-    lemon_squeezy_order_id = db.Column(db.String(40), unique=True, nullable=False)
+    lemon_squeezy_order_id = db.Column(db.String(120), unique=True, nullable=False)
     customer_email = db.Column(db.String(255), nullable=False, index=True)
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), index=True)
     product_name = db.Column(db.String(200), nullable=False, default="Shop purchase")
