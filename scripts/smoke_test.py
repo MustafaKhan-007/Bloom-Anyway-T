@@ -1946,7 +1946,7 @@ with app.app_context():
     ended.scheduled_at = utcnow() - timedelta(minutes=50)
     db.session.commit()
 r = client.get(f"/support-groups/meetings/{mid}/room", follow_redirects=False)
-ok("After 45 minutes the room redirects to wrap",
+ok("After 30 minutes the room redirects to wrap",
    r.status_code in (301, 302)
    and f"/support-groups/meetings/{mid}/wrap" in (r.headers.get("Location") or ""))
 with app.app_context():

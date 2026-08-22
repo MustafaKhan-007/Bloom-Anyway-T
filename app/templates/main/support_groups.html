@@ -143,7 +143,7 @@
           <span class="sg-pill">8 MAX</span>
         </div>
         <h2>Healing peer groups</h2>
-        <p>Members schedule sessions. Up to {{ max_sessions }} upcoming per topic, {{ peer_cap }} women per session, 45 minutes each. Healing &amp; Full Bloom.</p>
+        <p>Members schedule sessions. Up to {{ max_sessions }} upcoming per topic, {{ peer_cap }} women per session, {{ peer_minutes }} minutes each. Healing &amp; Full Bloom.</p>
       </div>
       <div class="sg-page__grid">
         {% for s in healing_circles %}
@@ -155,7 +155,7 @@
           </div>
           <h3>{{ c.title }}</h3>
           <p>{{ c.blurb }}</p>
-          <p class="sg-card__meta">Peer-scheduled · {{ peer_cap }} seats · 45 min · in-site video</p>
+          <p class="sg-card__meta">Peer-scheduled · {{ peer_cap }} seats · {{ peer_minutes }} min · in-site video</p>
           {% if s.open_sessions %}
           <span class="sg-card__spots">{{ s.open_sessions }} upcoming · {{ s.joinable_sessions }} with spots</span>
           {% else %}
@@ -194,7 +194,7 @@
           </div>
           <h3>{{ c.title }}</h3>
           <p>{{ c.blurb }}</p>
-          <p class="sg-card__meta">Peer-scheduled · {{ peer_cap }} seats · 45 min · in-site video</p>
+          <p class="sg-card__meta">Peer-scheduled · {{ peer_cap }} seats · {{ peer_minutes }} min · in-site video</p>
           {% if s.open_sessions %}
           <span class="sg-card__spots sg-card__spots--gold">{{ s.open_sessions }} upcoming · {{ s.joinable_sessions }} with spots</span>
           {% else %}

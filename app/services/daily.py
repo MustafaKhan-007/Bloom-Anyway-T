@@ -37,9 +37,9 @@ def _use_stub() -> bool:
 
 def _duration_minutes() -> int:
     try:
-        n = int(current_app.config.get("DAILY_MEETING_DURATION") or 45)
+        n = int(current_app.config.get("DAILY_MEETING_DURATION") or 30)
     except (TypeError, ValueError):
-        n = 45
+        n = 30
     return max(15, min(n, 480))
 
 
@@ -61,7 +61,7 @@ def _slug_name(topic: str, scheduled_at: datetime) -> str:
 
 
 def _exp_unix(scheduled_at: datetime) -> int:
-    """Room closes shortly after the 45-minute session ends."""
+    """Room closes shortly after the session ends."""
     end = scheduled_at + timedelta(minutes=_duration_minutes() + 10)
     return int(end.timestamp())
 
