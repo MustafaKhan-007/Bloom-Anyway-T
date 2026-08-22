@@ -1921,7 +1921,9 @@ ok("Waiting room shows countdown before start",
    and "Waiting room" in wait_body
    and "data-sg-countdown" in wait_body
    and "Starts in" in wait_body
-   and "data-status-url" in wait_body)
+   and "data-status-url" in wait_body
+   and "support-waiting.js" in wait_body
+   and "data-starts-ms" in wait_body)
 r = client.get(f"/support-groups/meetings/{mid}/status")
 ok("Waiting-room status endpoint returns live JSON",
    r.status_code == 200
@@ -1938,7 +1940,8 @@ r = client.get(f"/support-groups/meetings/{mid}/room")
 ok("Seated member can open the embedded Daily room once live",
    r.status_code == 200
    and "daily-js" in r.get_data(as_text=True)
-   and "sg-daily-root" in r.get_data(as_text=True))
+   and "sg-daily-root" in r.get_data(as_text=True)
+   and "support-room.js" in r.get_data(as_text=True))
 with app.app_context():
     ended = db.session.get(SupportGroupMeeting, mid)
     # Put the original future time back so later reminder/cancel tests stay valid,

@@ -1839,7 +1839,9 @@ def support_session_status(meeting_id):
     payload = {
         "phase": phase,
         "starts_at": start.isoformat().replace("+00:00", "Z"),
+        "starts_ms": int(start.timestamp() * 1000),
         "server_now": now.isoformat().replace("+00:00", "Z"),
+        "server_ms": int(now.timestamp() * 1000),
         "seats": len(members),
         "capacity": int(meeting.capacity or sg_svc.PEER_MEETING_CAP),
         "members": members,
@@ -1883,12 +1885,22 @@ def support_session_waiting(meeting_id):
     start = meeting.scheduled_at.replace(tzinfo=_tz.utc)
     now = utcnow().replace(tzinfo=_tz.utc)
     seats = sg_svc.meeting_seats(meeting)
+    left_sec = max(0, int((start - now).total_seconds()))
+    h, rem = divmod(left_sec, 3600)
+    m, s = divmod(rem, 60)
+    if h > 0:
+        initial_countdown = f"{h:02d}:{m:02d}:{s:02d}"
+    else:
+        initial_countdown = f"{m:02d}:{s:02d}"
     return render_template(
         "main/support_session_waiting.html",
         meeting=meeting,
         duration_min=sg_svc.peer_meeting_minutes(),
         starts_at_iso=start.isoformat().replace("+00:00", "Z"),
+        starts_at_ms=int(start.timestamp() * 1000),
         server_now_iso=now.isoformat().replace("+00:00", "Z"),
+        server_now_ms=int(now.timestamp() * 1000),
+        initial_countdown=initial_countdown,
         room_url=url_for("main.support_session_room", meeting_id=meeting.id),
         status_url=url_for("main.support_session_status", meeting_id=meeting.id),
         initial_seats=len(seats),
