@@ -1085,12 +1085,15 @@ def settings():
 @bp.route("/account/membership/cancel", methods=["POST"])
 @login_required
 def cancel_membership():
+    next_page = (request.form.get("next") or "").strip().lower()
+    dest = url_for("main.membership") if next_page == "membership" else url_for("main.settings")
+
     if current_user.is_admin:
         flash("The owner account always keeps Full Bloom access.", "info")
-        return redirect(url_for("main.settings"))
+        return redirect(dest)
     if current_user.membership == "none":
         flash("You're on the free plan already.", "info")
-        return redirect(url_for("main.settings"))
+        return redirect(dest)
 
     from ..models import MembershipPlan
     from ..services.mailer import send_membership_cancelled
@@ -1121,7 +1124,7 @@ def cancel_membership():
 
     flash("Your membership is cancelled. If you were billed through Stripe, "
           "also cancel the subscription there so you're not charged again.", "success")
-    return redirect(url_for("main.settings"))
+    return redirect(dest)
 
 
 @bp.route("/account/checkin", methods=["POST"])

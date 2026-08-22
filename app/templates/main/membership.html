@@ -71,9 +71,6 @@
       <div class="mem-page__plan-grid">
         <!-- Free -->
         <article class="mem-card mem-card--free {{ 'is-current' if current == 'none' or not current }}">
-          {% if current == 'none' or not current %}
-          <span class="mem-card__here">You are here</span>
-          {% endif %}
           <p class="mem-card__eyebrow">Free</p>
           <h2>Free</h2>
           <p class="mem-card__price">$0 <span>/ forever</span></p>
@@ -88,16 +85,13 @@
             <li>Always free &mdash; no card needed</li>
           </ul>
           {% if current == 'none' or not current %}
-          <span class="btn btn--quiet btn--block is-disabled">You are here</span>
+          <span class="btn btn--quiet btn--block is-disabled">Free plan</span>
           <p class="mem-card__foot">Always free. No card needed.</p>
           {% endif %}
         </article>
 
         <!-- Healing -->
         <article class="mem-card mem-card--heal {{ 'is-current' if current == 'healing' }}">
-          {% if current == 'healing' %}
-          <span class="mem-card__here">You are here</span>
-          {% endif %}
           <span class="mem-card__ribbon">Most caring &#10084;</span>
           <p class="mem-card__eyebrow mem-card__eyebrow--pill">Healing membership</p>
           <h2>{{ healing.name if healing else 'Healing membership' }}</h2>
@@ -150,7 +144,18 @@
             <li>Cancel any time</li>
           </ul>
           {% if current == 'healing' %}
+          {% if current_user.is_authenticated and not current_user.is_admin %}
+          <form method="post" action="{{ url_for('main.cancel_membership') }}" class="mem-card__cancel"
+                data-confirm="Cancel Healing membership? Access ends today. Marketplace listings may be hidden."
+                data-confirm-title="Cancel membership?"
+                data-confirm-ok="Yes, cancel">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="next" value="membership">
+            <button class="btn btn--secondary btn--block" type="submit">Cancel membership</button>
+          </form>
+          {% else %}
           <span class="btn btn--secondary btn--block is-disabled">Your current plan</span>
+          {% endif %}
           {% else %}
           <span class="mem-cta mem-cta--month">
             {% if healing_checkout_m %}
@@ -171,9 +176,6 @@
 
         <!-- Creator -->
         <article class="mem-card mem-card--creator {{ 'is-current' if current == 'creator' }}">
-          {% if current == 'creator' %}
-          <span class="mem-card__here">You are here</span>
-          {% endif %}
           <span class="mem-card__ribbon mem-card__ribbon--gold">Most loved &#9733;</span>
           <p class="mem-card__eyebrow mem-card__eyebrow--pill">Creator membership</p>
           <h2>{{ creator.name if creator else 'Creator membership' }}</h2>
@@ -227,7 +229,18 @@
             <li>Cancel any time</li>
           </ul>
           {% if current == 'creator' %}
+          {% if current_user.is_authenticated and not current_user.is_admin %}
+          <form method="post" action="{{ url_for('main.cancel_membership') }}" class="mem-card__cancel"
+                data-confirm="Cancel Creator membership? Access ends today. Marketplace listings may be hidden."
+                data-confirm-title="Cancel membership?"
+                data-confirm-ok="Yes, cancel">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="next" value="membership">
+            <button class="btn btn--secondary btn--block" type="submit">Cancel membership</button>
+          </form>
+          {% else %}
           <span class="btn btn--secondary btn--block is-disabled">Your current plan</span>
+          {% endif %}
           {% else %}
           <span class="mem-cta mem-cta--month">
             {% if creator_checkout_m %}
@@ -253,9 +266,6 @@
         {% set full_price = full.price_display() if full and full.price_cents is not none else '$22' %}
         {% set full_year = full.annual_price_display() if full and full.annual_price_cents is not none else '$199' %}
         <article class="mem-card mem-card--bloom {{ 'is-current' if current == 'full_bloom' }}">
-          {% if current == 'full_bloom' %}
-          <span class="mem-card__here">You are here</span>
-          {% endif %}
           <span class="mem-card__ribbon mem-card__ribbon--bloom">Both halves &#10022;</span>
           <p class="mem-card__eyebrow mem-card__eyebrow--pill">Full Bloom membership</p>
           <h2>{{ full.name if full else 'Full Bloom membership' }}</h2>
@@ -307,7 +317,18 @@
             <li>Cancel any time</li>
           </ul>
           {% if current == 'full_bloom' %}
+          {% if current_user.is_authenticated and not current_user.is_admin %}
+          <form method="post" action="{{ url_for('main.cancel_membership') }}" class="mem-card__cancel"
+                data-confirm="Cancel Full Bloom membership? Access ends today. Marketplace listings may be hidden."
+                data-confirm-title="Cancel membership?"
+                data-confirm-ok="Yes, cancel">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="next" value="membership">
+            <button class="btn btn--secondary btn--block" type="submit">Cancel membership</button>
+          </form>
+          {% else %}
           <span class="btn btn--secondary btn--block is-disabled">Your current plan</span>
+          {% endif %}
           {% else %}
           <span class="mem-cta mem-cta--month">
             {% if full_checkout_m %}
