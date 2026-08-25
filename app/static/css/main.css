@@ -3976,9 +3976,45 @@ a.at-handle:hover { text-decoration: underline; }
 .sg-page__section-head { margin: 0 0 28px; max-width: 52ch; }
 .sg-page__section-head h2 { margin: 0 0 8px; color: var(--rm-plum); }
 .sg-page__section-head p { margin: 0; color: var(--rm-ink); }
+/* Five equal tiles (4 topics + Custom) — one clean row on desktop */
+.sg-page__band > .container {
+  max-width: min(1280px, 100%);
+}
 .sg-page__grid {
-  display: grid; gap: 20px;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  align-items: stretch;
+}
+.sg-page__grid .sg-card {
+  padding: 16px 14px;
+  border-radius: 16px;
+  gap: 6px;
+  min-width: 0;
+}
+.sg-page__grid .sg-card h3 {
+  font-size: 1.05rem;
+  line-height: 1.25;
+}
+.sg-page__grid .sg-card > p:not(.sg-card__meta):not(.sg-card__foot) {
+  font-size: 13px;
+  line-height: 1.4;
+  margin: 0;
+}
+.sg-page__grid .sg-card__meta { font-size: 12px; }
+.sg-page__grid .sg-card__spots { font-size: 11px; padding: 3px 8px; }
+.sg-page__grid .sg-notify__btn {
+  font-size: 11px; min-height: 28px; padding: 3px 10px;
+}
+@media (max-width: 1100px) {
+  .sg-page__grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+  }
+  .sg-page__grid .sg-card { padding: 18px 16px; }
+}
+@media (max-width: 700px) {
+  .sg-page__grid { grid-template-columns: 1fr; gap: 14px; }
 }
 .sg-page__coach-grid {
   display: grid; gap: 22px; grid-template-columns: 1fr;
