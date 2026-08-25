@@ -2017,7 +2017,6 @@ def support_groups():
     stats = sg_svc.circle_stats()
     open_rows = sg_svc.open_meetings()
     past = sg_svc.recent_meetings()
-    seat_map = {m.id: sg_svc.meeting_seats(m) for m in open_rows + past}
     owner_tz = (current_user.timezone or "UTC").strip() or "UTC"
     from ..services.timefmt import timezone_groups, timezone_label
     tz_groups = timezone_groups(selected=owner_tz)
@@ -2032,19 +2031,26 @@ def support_groups():
         break
     saman_windows = intake_svc.list_availability("saman")
     saman_intakes = intake_svc.studio_intakes("saman", limit=30)
-    intake_by_meeting = {
-        i.meeting_id: i for i in saman_intakes if i.meeting_id
-    }
+    intake_meeting_ids = {i.meeting_id for i in saman_intakes if i.meeting_id}
+    # Intake-linked 1:1s live only in the intakes panel (not duplicated below).
+    open_rows = [m for m in open_rows if m.id not in intake_meeting_ids]
+    seat_map = {m.id: sg_svc.meeting_seats(m) for m in open_rows + past}
+    for intake in saman_intakes:
+        if intake.meeting_id and intake.meeting_id not in seat_map and intake.meeting:
+            seat_map[intake.meeting_id] = sg_svc.meeting_seats(intake.meeting)
     intake_rows = []
-    intake_answers = {}
     for intake in saman_intakes:
         answers = intake_svc.answer_rows(intake)
+        meeting = intake.meeting
         intake_rows.append({
             "intake": intake,
             "answers": answers,
             "member": intake.member,
+            "meeting": meeting,
+            "seats": (
+                seat_map.get(intake.meeting_id, []) if intake.meeting_id else []
+            ),
         })
-        intake_answers[intake.id] = answers
     window_rows = [
         {
             "window": w,
@@ -2063,8 +2069,6 @@ def support_groups():
         saman_windows=saman_windows,
         window_rows=window_rows,
         intake_rows=intake_rows,
-        intake_by_meeting=intake_by_meeting,
-        intake_answers=intake_answers,
         weekday_labels=intake_svc.WEEKDAY_LABELS,
         minutes_to_hhmm=intake_svc.minutes_to_hhmm,
         tz_groups=tz_groups,

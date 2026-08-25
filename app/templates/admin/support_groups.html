@@ -12,6 +12,101 @@
     </p>
   </header>
 
+  <section class="admin-panel sg-panel" style="margin-top: 24px;">
+    <div class="sg-panel__head">
+      <h2 style="margin:0;">Saman intakes</h2>
+      <span class="sg-count">{{ intake_rows|length }}</span>
+    </div>
+    <p class="field-help" style="margin-top: 6px;">
+      Booked 1:1s from the questionnaire live here only — change the time below to
+      notify the member (email + in-app). Expand a row for full answers.
+    </p>
+    {% if intake_rows %}
+    <div class="sg-intakes">
+      {% for row in intake_rows %}
+      {% set intake = row.intake %}
+      {% set meeting = row.meeting %}
+      <details class="sg-intake" {% if intake.status in ('paid', 'scheduled') %}open{% endif %}>
+        <summary class="sg-intake__summary">
+          <span class="sg-pill">{{ intake.status }}</span>
+          <strong>{{ row.member.public_name() if row.member else 'Member' }}</strong>
+          <span class="field-help">{{ row.member.email if row.member else '' }}</span>
+          {% if intake.scheduled_at %}
+          <span class="field-help">· {{ intake.scheduled_at|localtime('%a %b %d · %I:%M %p') }}</span>
+          {% endif %}
+        </summary>
+        <div class="sg-intake__body">
+          {% if meeting and meeting.status in ('draft', 'scheduled') %}
+          <form method="post" action="{{ url_for('admin.support_groups_schedule', meeting_id=meeting.id) }}"
+                class="stack-form sg-schedule" style="margin-bottom: 16px;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="timezone" value="{{ owner_tz }}">
+            <p class="sg-intake__section" style="margin-top:0;">Session time ({{ owner_tz }})</p>
+            <div class="sg-schedule__when-row">
+              <div class="sg-schedule__part">
+                <span class="sg-schedule__part-label">Date</span>
+                <input type="date" name="meeting_date" required
+                       value="{% if meeting.scheduled_at %}{{ meeting.scheduled_at|localtime('%Y-%m-%d', owner_tz) }}{% elif intake.scheduled_at %}{{ intake.scheduled_at|localtime('%Y-%m-%d', owner_tz) }}{% endif %}">
+              </div>
+              <div class="sg-schedule__part">
+                <span class="sg-schedule__part-label">Time</span>
+                <input type="time" name="meeting_time" required
+                       value="{% if meeting.scheduled_at %}{{ meeting.scheduled_at|localtime('%H:%M', owner_tz) }}{% elif intake.scheduled_at %}{{ intake.scheduled_at|localtime('%H:%M', owner_tz) }}{% endif %}">
+              </div>
+            </div>
+            <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; align-items:center;">
+              <button class="btn btn--primary btn--sm" type="submit">
+                {% if meeting.status == 'scheduled' and meeting.booked_notified_at %}Update time{% else %}Confirm session{% endif %}
+              </button>
+              {% if meeting.status == 'scheduled' and meeting.room_url %}
+              <a class="btn btn--secondary btn--sm" href="{{ url_for('main.support_session_room', meeting_id=meeting.id) }}">Open room</a>
+              {% endif %}
+            </div>
+          </form>
+          <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom: 14px;">
+            {% if meeting.status == 'scheduled' %}
+            <form method="post" action="{{ url_for('admin.support_groups_complete', meeting_id=meeting.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button class="btn btn--secondary btn--sm" type="submit">Mark complete</button>
+            </form>
+            {% endif %}
+            <form method="post" action="{{ url_for('admin.support_groups_cancel', meeting_id=meeting.id) }}"
+                  data-confirm="Cancel this 1:1 and notify the member?"
+                  data-confirm-title="Cancel 1:1?"
+                  data-confirm-ok="Cancel session">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button class="btn btn--secondary btn--sm" type="submit">Cancel</button>
+            </form>
+          </div>
+          {% elif intake.scheduled_at %}
+          <p class="field-help" style="margin: 0 0 12px;">
+            Chosen slot: {{ intake.scheduled_at|localtime('%A, %b %d · %I:%M %p') }}
+            {% if intake.status == 'pending_payment' %} · waiting on checkout{% endif %}
+          </p>
+          {% endif %}
+
+          {% set ns = namespace(prev='') %}
+          {% for a in row.answers %}
+            {% if a.section != ns.prev %}
+            <p class="sg-intake__section">{{ a.section }}</p>
+            {% set ns.prev = a.section %}
+            {% endif %}
+            <div class="sg-intake__qa">
+              <p class="sg-intake__q">{{ a.label }}</p>
+              <p class="sg-intake__a">{{ a.value }}</p>
+            </div>
+          {% else %}
+          <p class="field-help">No answers stored.</p>
+          {% endfor %}
+        </div>
+      </details>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="sg-empty">No Saman intakes yet.</p>
+    {% endif %}
+  </section>
+
   <section class="admin-panel sg-panel">
     <div class="sg-panel__head">
       <h2 style="margin:0;">Schedule a session</h2>
@@ -157,50 +252,6 @@
 
   <section class="admin-panel sg-panel" style="margin-top: 24px;">
     <div class="sg-panel__head">
-      <h2 style="margin:0;">Saman intakes</h2>
-      <span class="sg-count">{{ intake_rows|length }}</span>
-    </div>
-    <p class="field-help" style="margin-top: 6px;">
-      Questionnaire answers from Book with Saman — expand a row to read the full intake.
-    </p>
-    {% if intake_rows %}
-    <div class="sg-intakes">
-      {% for row in intake_rows %}
-      {% set intake = row.intake %}
-      <details class="sg-intake">
-        <summary class="sg-intake__summary">
-          <span class="sg-pill">{{ intake.status }}</span>
-          <strong>{{ row.member.public_name() if row.member else 'Member' }}</strong>
-          <span class="field-help">{{ row.member.email if row.member else '' }}</span>
-          {% if intake.scheduled_at %}
-          <span class="field-help">· {{ intake.scheduled_at|localtime('%a %b %d · %I:%M %p') }}</span>
-          {% endif %}
-        </summary>
-        <div class="sg-intake__body">
-          {% set ns = namespace(prev='') %}
-          {% for a in row.answers %}
-            {% if a.section != ns.prev %}
-            <p class="sg-intake__section">{{ a.section }}</p>
-            {% set ns.prev = a.section %}
-            {% endif %}
-            <div class="sg-intake__qa">
-              <p class="sg-intake__q">{{ a.label }}</p>
-              <p class="sg-intake__a">{{ a.value }}</p>
-            </div>
-          {% else %}
-          <p class="field-help">No answers stored.</p>
-          {% endfor %}
-        </div>
-      </details>
-      {% endfor %}
-    </div>
-    {% else %}
-    <p class="sg-empty">No Saman intakes yet.</p>
-    {% endif %}
-  </section>
-
-  <section class="admin-panel sg-panel" style="margin-top: 24px;">
-    <div class="sg-panel__head">
       <h2 style="margin:0;">Topics</h2>
       <span class="sg-count">{{ circle_stats|length }}</span>
     </div>
@@ -240,7 +291,8 @@
         <span class="sg-count">{{ open_meetings|length }}</span>
       </div>
       <p class="field-help" style="margin-top: 6px;">
-        Times use your timezone (<strong>{{ owner_tz }}</strong>). Cancel if a session needs cleanup.
+        Facilitator and peer sessions. Booked Saman 1:1s are managed under Intakes above.
+        Times use your timezone (<strong>{{ owner_tz }}</strong>).
       </p>
 
       {% if open_meetings %}
@@ -287,28 +339,6 @@
             {% endfor %}
           </ul>
 
-          {% set meeting_intake = intake_by_meeting.get(m.id) if intake_by_meeting is defined else none %}
-          {% if meeting_intake %}
-          <details class="sg-intake sg-intake--inline">
-            <summary class="sg-intake__summary">Intake answers</summary>
-            <div class="sg-intake__body">
-              {% set ns = namespace(prev='') %}
-              {% for a in intake_answers.get(meeting_intake.id, []) %}
-                {% if a.section != ns.prev %}
-                <p class="sg-intake__section">{{ a.section }}</p>
-                {% set ns.prev = a.section %}
-                {% endif %}
-                <div class="sg-intake__qa">
-                  <p class="sg-intake__q">{{ a.label }}</p>
-                  <p class="sg-intake__a">{{ a.value }}</p>
-                </div>
-              {% else %}
-              <p class="field-help">No answers stored.</p>
-              {% endfor %}
-            </div>
-          </details>
-          {% endif %}
-
           {% if m.status == 'scheduled' and m.room_url %}
           <div class="sg-zoom-link">
             <span class="sg-zoom-link__label">In-site room</span>
@@ -347,7 +377,7 @@
         {% endfor %}
       </div>
       {% else %}
-      <p class="sg-empty">No open sessions yet. Schedule a facilitator or 1:1 above, or wait for peer hosts.</p>
+      <p class="sg-empty">No open sessions yet. Schedule a facilitator session above, or wait for peer hosts.</p>
       {% endif %}
     </section>
   </div>

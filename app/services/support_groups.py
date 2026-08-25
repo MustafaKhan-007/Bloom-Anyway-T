@@ -18,6 +18,7 @@ from .mailer import (
     send_email,
     send_facilitator_booked,
     send_facilitator_cancelled,
+    send_general,
     send_one_on_one_booked,
     send_one_on_one_cancelled,
     send_support_group_booked,
@@ -956,6 +957,16 @@ def schedule_meeting(meeting: SupportGroupMeeting, *, scheduled_at: datetime,
     was_scheduled = meeting.status == "scheduled" and meeting.booked_notified_at
     meeting.scheduled_at = scheduled_at
     meeting.status = "scheduled"
+    # Keep linked coaching intake slot in sync with the meeting.
+    try:
+        from .coaching_intake import intake_for_meeting
+        intake = intake_for_meeting(meeting.id)
+        if intake is not None:
+            intake.scheduled_at = scheduled_at
+            if intake.status in ("pending_payment", "paid"):
+                intake.status = "scheduled"
+    except Exception:
+        log.exception("Failed syncing coaching intake for meeting %s", meeting.id)
     db.session.commit()
     if was_scheduled:
         _notify_seats(meeting, kind="updated", actor_id=getattr(owner, "id", None))
@@ -980,6 +991,13 @@ def cancel_meeting(meeting: SupportGroupMeeting, *, owner: User | None = None,
             row.meeting_id = None
         else:
             row.status = "cancelled"
+    try:
+        from .coaching_intake import intake_for_meeting
+        intake = intake_for_meeting(meeting.id)
+        if intake is not None and intake.status in ("paid", "scheduled", "pending_payment"):
+            intake.status = "cancelled"
+    except Exception:
+        log.exception("Failed syncing cancelled intake for meeting %s", meeting.id)
     db.session.commit()
     if room_name:
         try:
@@ -1252,6 +1270,60 @@ def _send_host_cancelled_email(meeting: SupportGroupMeeting, user: User) -> None
         )
 
 
+def _send_updated_email(meeting: SupportGroupMeeting, user: User) -> None:
+    """Notify a member that their session time changed (general template #10 for 1:1)."""
+    kind = (meeting.kind or "peer").strip().lower()
+    if (kind in ("facilitator", "one_on_one")
+            and meeting.scheduled_by_user_id
+            and user.id == meeting.scheduled_by_user_id):
+        return
+    group = _circle_name(meeting)
+    when = _when_for(user, meeting.scheduled_at)
+    room = _meeting_room_url(meeting)
+    browse = _circle_browse_url(meeting.circle_id)
+    button_url = room if room else browse
+    try:
+        if kind == "one_on_one":
+            send_general(
+                user.email,
+                subject=f"{group} time updated",
+                preview=f"Your session was moved to {when}.",
+                header="Session update",
+                title=f"Your {group} was rescheduled",
+                body=(
+                    f"Your private session time changed.\n\n"
+                    f"New time: {when}\n\n"
+                    "Join from Support Groups in Bloom Anyway when it’s time."
+                ),
+                button_text="Open Support Groups",
+                button_url=button_url,
+            )
+            return
+        seats = meeting_seats(meeting)
+        others = max(0, len(seats) - 1)
+        send_email(
+            user.email,
+            f"{group} time updated",
+            (
+                f"Hi {user.first_name() or user.public_name()},\n\n"
+                f"Your {group} details changed.\n\n"
+                f"When: {when}\n"
+                f"With: {others} other member{'s' if others != 1 else ''}\n"
+                f"Join in Bloom Anyway: {room}\n\n"
+                f"— Bloom Anyway\n"
+            ),
+            html_body=(
+                f"<p>Hi {escape(user.first_name() or user.public_name())},</p>"
+                f"<p>Your {escape(group)} details changed.</p>"
+                f"<p><strong>When:</strong> {escape(when)}</p>"
+                f"<p><a href=\"{escape(room)}\">Join the session</a></p>"
+                f"<p>— Bloom Anyway</p>"
+            ),
+        )
+    except Exception:
+        log.exception("Support-group update email failed for user %s", user.id)
+
+
 def _notify_seats(meeting: SupportGroupMeeting, *, kind: str,
                   actor_id: int | None = None,
                   seats: list[SupportGroupApplication] | None = None) -> None:
@@ -1260,14 +1332,19 @@ def _notify_seats(meeting: SupportGroupMeeting, *, kind: str,
     room = _meeting_room_url(meeting)
     group = _circle_name(meeting)
     browse = _circle_browse_url(meeting.circle_id)
+    meeting_kind = (meeting.kind or "peer").strip().lower()
 
     for row in seats:
         user = row.author
         if not user or user.deleted_at:
             continue
+        # Studio host is seated on facilitator/1:1 but isn't the booking member.
+        if (meeting_kind in ("facilitator", "one_on_one")
+                and meeting.scheduled_by_user_id
+                and user.id == meeting.scheduled_by_user_id):
+            continue
         when = _when_for(user, meeting.scheduled_at)
         join_url = room if kind in ("booked", "updated", "reminder") else browse
-        meeting_kind = (meeting.kind or "peer").strip().lower()
         if kind == "booked":
             if meeting_kind == "one_on_one":
                 note = f"Your {group} is booked — {when}."
@@ -1278,37 +1355,12 @@ def _notify_seats(meeting: SupportGroupMeeting, *, kind: str,
                     f"You're booked for {group} with "
                     f"{others} other{'s' if others != 1 else ''} — {when}."
                 )
-            subject = None
-            text = None
-            html = None
         elif kind == "updated":
             note = f"Your {group} was rescheduled — {when}."
-            subject = f"{group} time updated"
-            text = (
-                f"Hi {user.first_name() or user.public_name()},\n\n"
-                f"Your {group} details changed.\n\n"
-                f"When: {when}\n"
-                f"With: {others} other member{'s' if others != 1 else ''}\n"
-                f"Join in Bloom Anyway: {room}\n\n"
-                f"— Bloom Anyway\n"
-            )
-            html = (
-                f"<p>Hi {escape(user.first_name() or user.public_name())},</p>"
-                f"<p>Your {escape(group)} details changed.</p>"
-                f"<p><strong>When:</strong> {escape(when)}</p>"
-                f"<p><a href=\"{escape(room)}\">Join the session</a></p>"
-                f"<p>— Bloom Anyway</p>"
-            )
         elif kind == "cancelled":
             note = f"Your {group} meeting was cancelled."
-            subject = None
-            text = None
-            html = None
         elif kind == "cancelled_draft":
             note = f"The {group} session you were seated for was cancelled."
-            subject = None
-            text = None
-            html = None
         elif kind == "reminder":
             day_word, _timing = _reminder_day_and_timing(
                 user, meeting.scheduled_at)
@@ -1316,9 +1368,6 @@ def _notify_seats(meeting: SupportGroupMeeting, *, kind: str,
                 note = f"Reminder: {group} {day_word} — {when}."
             else:
                 note = f"Reminder: {group} — {when}."
-            subject = None
-            text = None
-            html = None
         else:
             continue
 
@@ -1327,16 +1376,15 @@ def _notify_seats(meeting: SupportGroupMeeting, *, kind: str,
         if kind == "booked":
             _send_booked_email(meeting, user)
             continue
+        if kind == "updated":
+            _send_updated_email(meeting, user)
+            continue
         if kind == "reminder":
             _send_reminder_email(meeting, user)
             continue
         if kind in ("cancelled", "cancelled_draft"):
             _send_host_cancelled_email(meeting, user)
             continue
-        try:
-            send_email(user.email, subject, text, html_body=html)
-        except Exception:
-            log.exception("Support-group email failed for user %s", user.id)
     db.session.commit()
 
 

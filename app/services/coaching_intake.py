@@ -6,6 +6,7 @@ from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import func
+from sqlalchemy.orm import joinedload
 
 from ..extensions import db
 from ..models import (
@@ -448,6 +449,10 @@ def intake_for_meeting(meeting_id: int) -> CoachingIntake | None:
 def studio_intakes(coach: str | None = None, limit: int = 40) -> list[CoachingIntake]:
     q = (
         CoachingIntake.query
+        .options(
+            joinedload(CoachingIntake.member),
+            joinedload(CoachingIntake.meeting),
+        )
         .filter(CoachingIntake.status.in_(("paid", "scheduled", "pending_payment")))
         .order_by(CoachingIntake.created_at.desc())
     )
