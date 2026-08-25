@@ -96,21 +96,38 @@
         </div>
       </div>
       <div class="field">
-        <label for="sg-avail-tz">Timezone</label>
-        <select id="sg-avail-tz" name="timezone" required>
-          {% for group in tz_groups %}
-          <optgroup label="{{ group.label }}">
-            {% for opt in group.options %}
-            <option value="{{ opt.value }}" {% if opt.selected %}selected{% endif %}>
-              {{ opt.label }}
-            </option>
+        <label for="sg-avail-tz-search">Timezone</label>
+        <div class="tz-picker" data-tz-picker>
+          <input type="hidden" name="timezone" id="sg-avail-tz" value="{{ owner_tz }}" required>
+          <input type="search" id="sg-avail-tz-search" class="tz-picker__search"
+                 placeholder="Search city or region…" autocomplete="off"
+                 aria-controls="sg-avail-tz-list" aria-expanded="false"
+                 aria-autocomplete="list" role="combobox">
+          <div id="sg-avail-tz-list" class="tz-picker__list" role="listbox" hidden>
+            {% for group in tz_groups %}
+            <div class="tz-picker__group" data-tz-group>
+              <div class="tz-picker__group-label">{{ group.label }}</div>
+              {% for opt in group.options %}
+              <button type="button" class="tz-picker__opt{% if opt.selected %} is-selected{% endif %}"
+                      role="option"
+                      data-value="{{ opt.value }}"
+                      data-label="{{ opt.label }}"
+                      data-search="{{ (opt.value ~ ' ' ~ opt.label)|lower }}"
+                      {% if opt.selected %}aria-selected="true"{% else %}aria-selected="false"{% endif %}>
+                {{ opt.label }}
+              </button>
+              {% endfor %}
+            </div>
             {% endfor %}
-          </optgroup>
-          {% endfor %}
-        </select>
+            <p class="tz-picker__empty" data-tz-empty hidden>No matching timezones</p>
+          </div>
+          <p class="tz-picker__chosen" data-tz-chosen>
+            Selected: <strong>{{ selected_tz_label }}</strong>
+          </p>
+        </div>
         <p class="field-help">
-          Full IANA list with live UTC offsets (updates with daylight saving).
-          Slots convert to each member’s timezone automatically.
+          Type to search the full IANA list. Offsets update with daylight saving;
+          slots convert to each member’s timezone automatically.
         </p>
       </div>
       <button class="btn btn--secondary btn--sm" type="submit">Add window</button>

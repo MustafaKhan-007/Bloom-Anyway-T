@@ -2010,6 +2010,15 @@ def support_groups():
     owner_tz = (current_user.timezone or "UTC").strip() or "UTC"
     from ..services.timefmt import timezone_groups, timezone_label
     tz_groups = timezone_groups(selected=owner_tz)
+    selected_tz_label = timezone_label(owner_tz)
+    for group in tz_groups:
+        for opt in group["options"]:
+            if opt.get("selected"):
+                selected_tz_label = opt["label"]
+                break
+        else:
+            continue
+        break
     saman_windows = intake_svc.list_availability("saman")
     saman_intakes = intake_svc.studio_intakes("saman", limit=30)
     intake_by_meeting = {
@@ -2048,6 +2057,7 @@ def support_groups():
         weekday_labels=intake_svc.WEEKDAY_LABELS,
         minutes_to_hhmm=intake_svc.minutes_to_hhmm,
         tz_groups=tz_groups,
+        selected_tz_label=selected_tz_label,
     )
 
 
