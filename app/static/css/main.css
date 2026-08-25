@@ -719,18 +719,45 @@ body.is-studio-readonly .admin-main input[type="submit"] {
 .admin-main { padding: 28px 24px 64px; max-width: 1140px; width: 100%; }
 .admin-main h1 { font-size: 30px; }
 @media (min-width: 900px) {
-  .admin-shell { grid-template-columns: 220px 1fr; align-items: start; }
-  .admin-sidebar {
-    position: sticky; top: 0; height: 100vh; height: 100dvh;
+  /* Independent panes: sidebar scroll stops at nav end; main scrolls alone */
+  .admin-body {
+    height: 100vh;
+    height: 100dvh;
     overflow: hidden;
   }
-  .admin-nav {
-    flex: 1 1 auto; min-height: 0; overflow-y: auto;
+  .admin-shell {
+    height: 100%;
+    min-height: 0;
+    grid-template-columns: 220px minmax(0, 1fr);
+    align-items: stretch;
+    overflow: hidden;
+  }
+  .admin-sidebar {
+    position: relative;
+    height: 100%;
+    max-height: 100%;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
     scrollbar-width: thin;
     scrollbar-color: rgba(250, 245, 238, 0.35) transparent;
   }
+  .admin-nav {
+    flex: 0 0 auto;
+    min-height: 0;
+    overflow: visible;
+  }
+  .admin-main {
+    height: 100%;
+    max-height: 100%;
+    max-width: none;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
 }
-
 .admin-cards { display: grid; gap: 16px; grid-template-columns: repeat(2, 1fr); margin-bottom: 28px; }
 @media (min-width: 900px) { .admin-cards { grid-template-columns: repeat(4, 1fr); } }
 .stat-card { background: #fff; border-radius: 12px; padding: 18px 20px; box-shadow: var(--shadow-card); }
