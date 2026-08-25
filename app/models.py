@@ -768,14 +768,14 @@ def sample_journal_prompts(n: int = 4) -> list:
     return random.sample(pool, n)
 
 
-# 5-point mood scale for the day's journal (notebook UI icons).
+# 5-point mood scale for the day's journal (bloom-themed, not yellow smileys).
 # key, emoji, short a11y / hover label
 MOODS = (
-    ("sad", "\U0001f327\ufe0f", "Heavy"),     # cloud with rain
-    ("low", "\U0001f331", "Tender"),           # seedling
-    ("neutral", "\U0001f343", "Steady"),       # leaf fluttering
-    ("soft", "\U0001f338", "Soft"),            # cherry blossom
-    ("bloom", "\u2600\ufe0f", "Radiant"),      # sun
+    ("sad", "\U0001f940", "Heavy"),       # wilted flower
+    ("low", "\U0001f342", "Tender"),      # fallen leaf
+    ("neutral", "\U0001f33f", "Steady"),  # herb
+    ("soft", "\U0001f338", "Soft"),       # cherry blossom
+    ("bloom", "\U0001f33b", "Radiant"),   # sunflower
 )
 MOOD_KEYS = frozenset(k for k, _, _ in MOODS)
 MOOD_BY_KEY = {k: (emoji, label) for k, emoji, label in MOODS}
