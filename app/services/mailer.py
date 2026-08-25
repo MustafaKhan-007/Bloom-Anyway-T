@@ -226,6 +226,95 @@ def send_email(to: str, subject: str, text_body: str, html_body: str | None = No
     return _send_via_smtp(to, msg)
 
 
+def _int_config(key: str, default: int = 0) -> int:
+    raw = current_app.config.get(key, default)
+    try:
+        return int(raw or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _styled_template_id(legacy_key: str | None = None) -> int | None:
+    """Prefer the shared general template (#10); else a legacy per-email id."""
+    general = _int_config("BREVO_TEMPLATE_GENERAL", 10)
+    if general:
+        return general
+    if legacy_key:
+        legacy = _int_config(legacy_key, 0)
+        if legacy:
+            return legacy
+    return None
+
+
+def _public_href(path: str = "/") -> str:
+    """Absolute URL for email CTAs."""
+    path = path if (path or "").startswith("/") else f"/{path or ''}"
+    try:
+        from flask import has_request_context, request
+        if has_request_context() and request.url_root:
+            return request.url_root.rstrip("/") + path
+    except Exception:
+        pass
+    try:
+        from flask import url_for, has_app_context
+        if has_app_context():
+            # Best-effort: only works when SERVER_NAME / request context exists.
+            if path == "/" or path == "":
+                return url_for("main.index", _external=True)
+    except Exception:
+        pass
+    base = (current_app.config.get("PUBLIC_BASE_URL") or "https://www.bloomanyway.online").rstrip("/")
+    return base + path
+
+
+def _body_html(plain: str) -> str:
+    """Turn blank-line paragraphs into simple HTML for the Brevo BODY field."""
+    chunks = [c.strip() for c in re.split(r"\n\s*\n", (plain or "").strip()) if c.strip()]
+    if not chunks:
+        return ""
+    return "".join(f"<p>{escape(c).replace(chr(10), '<br>')}</p>" for c in chunks)
+
+
+def send_styled_email(
+    to: str,
+    *,
+    subject: str,
+    preview: str,
+    header: str,
+    title: str,
+    body: str,
+    button_text: str,
+    button_url: str,
+    legacy_key: str | None = None,
+    extra_params: dict | None = None,
+) -> bool:
+    """Send via the shared Brevo layout (SUBJECT / PREVIEW / HEADER / TITLE / BODY / button)."""
+    text = (
+        f"{title}\n\n{body}\n\n"
+        f"{button_text}: {button_url}\n\n"
+        "— Bloom Anyway"
+    )
+    template_id = _styled_template_id(legacy_key)
+    if not template_id:
+        return send_email(to, subject, text)
+
+    params = {
+        "SUBJECT": subject,
+        "PREVIEW": preview,
+        "HEADER": header,
+        "TITLE": title,
+        "BODY": body,
+        "BODY_HTML": _body_html(body),
+        "BUTTON_TEXT": button_text,
+        "BUTTON_URL": button_url,
+    }
+    if extra_params:
+        params.update({k: v for k, v in extra_params.items() if v is not None})
+    return send_email(
+        to, subject, text, template_id=template_id, params=params,
+    )
+
+
 def send_verification_code(to: str, code: str, purpose: str) -> bool:
     minutes = current_app.config["CODE_MAX_AGE_MINUTES"]
     if purpose == "reset":
@@ -266,34 +355,24 @@ def send_verification_code(to: str, code: str, purpose: str) -> bool:
 
 
 def send_welcome_email(to: str, *, first_name: str | None = None) -> bool:
-    """Send the Brevo welcome template after the account is fully created/verified."""
-    raw_id = current_app.config.get("BREVO_TEMPLATE_WELCOME") or 0
-    try:
-        template_id = int(raw_id) or None
-    except (TypeError, ValueError):
-        template_id = None
-
+    """Send welcome email after the account is fully created/verified."""
     name = (first_name or "").strip()
-    text = (
-        "Welcome to Bloom Anyway.\n\n"
-        "Your account is ready — take a breath, look around, and bloom at your own pace.\n\n"
-        "— Bloom Anyway"
-    )
-    if not template_id:
-        return send_email(to, "Welcome to Bloom Anyway", text)
-
-    params = {
-        "FIRSTNAME": name,
-        "firstName": name,
-        "EMAIL": to,
-        "email": to,
-    }
-    return send_email(
+    hello = f"Hi {name}," if name else "Welcome,"
+    return send_styled_email(
         to,
-        "Welcome to Bloom Anyway",
-        text,
-        template_id=template_id,
-        params=params,
+        subject="Welcome to Bloom Anyway",
+        preview="Your account is ready — bloom at your own pace.",
+        header="WELCOME",
+        title="You're in",
+        body=(
+            f"{hello}\n\n"
+            "Your account is ready — take a breath, look around, and bloom at your own pace.\n\n"
+            "Courses, community, and support groups are waiting whenever you are."
+        ),
+        button_text="Open Bloom Anyway",
+        button_url=_public_href("/"),
+        legacy_key="BREVO_TEMPLATE_WELCOME",
+        extra_params={"FIRSTNAME": name, "EMAIL": to},
     )
 
 
@@ -305,40 +384,34 @@ def send_order_receipt(
     amount: str,
     order_date: str,
 ) -> bool:
-    """Send Brevo order-receipt template after a successful payment."""
-    raw_id = current_app.config.get("BREVO_TEMPLATE_RECEIPT") or 0
-    try:
-        template_id = int(raw_id) or None
-    except (TypeError, ValueError):
-        template_id = None
-
+    """Send order receipt after a successful payment."""
     oid = str(order_id or "").strip()
     product = (product_name or "").strip() or "Purchase"
     paid = (amount or "").strip() or "—"
     when = (order_date or "").strip() or "—"
-    text = (
-        "Thanks for your purchase on Bloom Anyway.\n\n"
-        f"Order #: {oid}\n"
-        f"Item: {product}\n"
-        f"Amount paid: {paid}\n"
-        f"Date: {when}\n\n"
-        "— Bloom Anyway"
-    )
-    if not template_id:
-        return send_email(to, "Your Bloom Anyway receipt", text)
-
-    params = {
-        "ORDER_ID": oid,
-        "PRODUCT_NAME": product,
-        "AMOUNT": paid,
-        "ORDER_DATE": when,
-    }
-    return send_email(
+    return send_styled_email(
         to,
-        "Your Bloom Anyway receipt",
-        text,
-        template_id=template_id,
-        params=params,
+        subject="Your Bloom Anyway receipt",
+        preview=f"{product} · {paid}",
+        header="THANK YOU",
+        title="Your receipt",
+        body=(
+            "Thanks for your purchase on Bloom Anyway.\n\n"
+            f"Order #: {oid}\n"
+            f"Item: {product}\n"
+            f"Amount paid: {paid}\n"
+            f"Date: {when}\n\n"
+            "You can open it anytime from My Space → Saved."
+        ),
+        button_text="Open My Space",
+        button_url=_public_href("/account?tab=saved"),
+        legacy_key="BREVO_TEMPLATE_RECEIPT",
+        extra_params={
+            "ORDER_ID": oid,
+            "PRODUCT_NAME": product,
+            "AMOUNT": paid,
+            "ORDER_DATE": when,
+        },
     )
 
 
@@ -349,12 +422,12 @@ def send_healing_welcome(
     plan_price: str,
     billing_interval: str,
 ) -> bool:
-    """Send Brevo template when someone newly joins Healing membership."""
+    """Send when someone newly joins Healing membership."""
     return _send_membership_welcome(
         to,
         tier="healing",
         subject="Welcome to Healing membership",
-        config_key="BREVO_TEMPLATE_HEALING",
+        legacy_key="BREVO_TEMPLATE_HEALING",
         trial_end_date=trial_end_date,
         plan_price=plan_price,
         billing_interval=billing_interval,
@@ -368,12 +441,12 @@ def send_creator_welcome(
     plan_price: str,
     billing_interval: str,
 ) -> bool:
-    """Send Brevo template when someone newly joins Creator membership."""
+    """Send when someone newly joins Creator membership."""
     return _send_membership_welcome(
         to,
         tier="creator",
         subject="Welcome to Creator membership",
-        config_key="BREVO_TEMPLATE_CREATOR",
+        legacy_key="BREVO_TEMPLATE_CREATOR",
         trial_end_date=trial_end_date,
         plan_price=plan_price,
         billing_interval=billing_interval,
@@ -385,37 +458,37 @@ def _send_membership_welcome(
     *,
     tier: str,
     subject: str,
-    config_key: str,
+    legacy_key: str,
     trial_end_date: str,
     plan_price: str,
     billing_interval: str,
 ) -> bool:
-    raw_id = current_app.config.get(config_key) or 0
-    try:
-        template_id = int(raw_id) or None
-    except (TypeError, ValueError):
-        template_id = None
-
     trial = (trial_end_date or "").strip() or "—"
     price = (plan_price or "").strip() or "—"
     interval = (billing_interval or "").strip() or "monthly"
     label = "Healing" if tier == "healing" else "Creator"
-    text = (
-        f"Welcome to {label} membership on Bloom Anyway.\n\n"
-        f"Your trial ends: {trial}\n"
-        f"Plan price: {price}\n"
-        f"Billing: {interval}\n\n"
-        "— Bloom Anyway"
+    return send_styled_email(
+        to,
+        subject=subject,
+        preview=f"Your {label} membership is active.",
+        header="YOU'RE IN",
+        title=f"Welcome to {label}",
+        body=(
+            f"Your {label} membership on Bloom Anyway is ready.\n\n"
+            f"Trial ends: {trial}\n"
+            f"Plan price: {price} ({interval})\n\n"
+            "Explore support groups, community, and everything included in your plan."
+        ),
+        button_text="Open membership",
+        button_url=_public_href("/membership"),
+        legacy_key=legacy_key,
+        extra_params={
+            "TRIAL_END_DATE": trial,
+            "PLAN_PRICE": price,
+            "BILLING_INTERVAL": interval,
+            "PLAN_NAME": f"{label} membership",
+        },
     )
-    if not template_id:
-        return send_email(to, subject, text)
-
-    params = {
-        "TRIAL_END_DATE": trial,
-        "PLAN_PRICE": price,
-        "BILLING_INTERVAL": interval,
-    }
-    return send_email(to, subject, text, template_id=template_id, params=params)
 
 
 def send_card_declined(
@@ -424,35 +497,26 @@ def send_card_declined(
     plan_name: str,
     grace_days: str | int,
 ) -> bool:
-    """Send Brevo template when a membership renewal card is declined."""
-    raw_id = current_app.config.get("BREVO_TEMPLATE_CARD_DECLINED") or 0
-    try:
-        template_id = int(raw_id) or None
-    except (TypeError, ValueError):
-        template_id = None
-
+    """Send when a membership renewal card is declined."""
     plan = (plan_name or "").strip() or "your membership"
     days = str(grace_days).strip() or "3"
-    text = (
-        "We couldn't charge the card on file for your Bloom Anyway membership.\n\n"
-        f"Plan: {plan}\n"
-        f"You still have {days} day(s) to update your payment method "
-        "before access may pause.\n\n"
-        "— Bloom Anyway"
-    )
-    if not template_id:
-        return send_email(to, "Update your payment method", text)
-
-    params = {
-        "PLAN_NAME": plan,
-        "GRACE_DAYS": days,
-    }
-    return send_email(
+    return send_styled_email(
         to,
-        "Update your payment method",
-        text,
-        template_id=template_id,
-        params=params,
+        subject="Update your payment method",
+        preview=f"We couldn't renew {plan}. You have {days} day(s) to update.",
+        header="ACTION NEEDED",
+        title="We couldn't charge your card",
+        body=(
+            "We couldn't charge the card on file for your Bloom Anyway membership.\n\n"
+            f"Plan: {plan}\n"
+            f"You still have {days} day(s) to update your payment method "
+            "before access may pause.\n\n"
+            "Update billing in Stripe from your receipt, or reply if you need help."
+        ),
+        button_text="Open My Space",
+        button_url=_public_href("/account"),
+        legacy_key="BREVO_TEMPLATE_CARD_DECLINED",
+        extra_params={"PLAN_NAME": plan, "GRACE_DAYS": days},
     )
 
 
@@ -462,59 +526,43 @@ def send_membership_cancelled(
     plan_name: str,
     access_end_date: str,
 ) -> bool:
-    """Send Brevo template when a member cancels their subscription."""
-    raw_id = current_app.config.get("BREVO_TEMPLATE_CANCEL") or 0
-    try:
-        template_id = int(raw_id) or None
-    except (TypeError, ValueError):
-        template_id = None
-
+    """Send when a member cancels their subscription."""
     plan = (plan_name or "").strip() or "your membership"
     ends = (access_end_date or "").strip() or "—"
-    text = (
-        "Your Bloom Anyway membership has been cancelled.\n\n"
-        f"Plan: {plan}\n"
-        f"Access ends: {ends}\n\n"
-        "— Bloom Anyway"
-    )
-    if not template_id:
-        return send_email(to, "Your membership is cancelled", text)
-
-    params = {
-        "PLAN_NAME": plan,
-        "ACCESS_END_DATE": ends,
-    }
-    return send_email(
+    return send_styled_email(
         to,
-        "Your membership is cancelled",
-        text,
-        template_id=template_id,
-        params=params,
+        subject="Your membership is cancelled",
+        preview="No further charges. Access details inside.",
+        header="YOU'RE ALL SET",
+        title="Your subscription has been cancelled",
+        body=(
+            f"This confirms your {plan} membership has been cancelled.\n\n"
+            "No further charges will be made.\n\n"
+            f"You'll keep access until {ends}.\n\n"
+            "Streaks restart. So do people. The door's open whenever you're ready to come back."
+        ),
+        button_text="Browse courses & guides",
+        button_url=_public_href("/courses"),
+        legacy_key="BREVO_TEMPLATE_CANCEL",
+        extra_params={"PLAN_NAME": plan, "ACCESS_END_DATE": ends},
     )
 
 
 def send_newsletter_welcome(to: str) -> bool:
-    """Send Brevo template when someone joins the Sunday letter list."""
-    raw_id = current_app.config.get("BREVO_TEMPLATE_NEWSLETTER") or 0
-    try:
-        template_id = int(raw_id) or None
-    except (TypeError, ValueError):
-        template_id = None
-
-    text = (
-        "You're in — welcome to the Bloom Anyway Sunday letter.\n\n"
-        "One small step, every Sunday.\n\n"
-        "— Bloom Anyway"
-    )
-    if not template_id:
-        return send_email(to, "You're on the Sunday letter", text)
-
-    return send_email(
+    """Send when someone joins the Sunday letter list."""
+    return send_styled_email(
         to,
-        "You're on the Sunday letter",
-        text,
-        template_id=template_id,
-        params=None,
+        subject="You're on the Sunday letter",
+        preview="One small step, every Sunday.",
+        header="YOU'RE ON THE LIST",
+        title="Welcome to the Sunday letter",
+        body=(
+            "You're in — welcome to the Bloom Anyway Sunday letter.\n\n"
+            "One small step, every Sunday. We'll see you in your inbox."
+        ),
+        button_text="Visit Bloom Anyway",
+        button_url=_public_href("/"),
+        legacy_key="BREVO_TEMPLATE_NEWSLETTER",
     )
 
 
