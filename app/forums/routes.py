@@ -9,7 +9,8 @@ import logging
 
 from flask import (abort, flash, redirect, render_template, request, url_for)
 from flask_login import current_user, login_required
-from sqlalchemy.orm import joinedload
+from sqlalchemy import func
+from sqlalchemy.orm import joinedload, selectinload
 
 from ..extensions import db, limiter
 from ..models import (LOOKING_FOR, LOOKING_FOR_SLUGS, ForumCategory, ForumComment,
@@ -137,6 +138,25 @@ def category(slug):
 
     can_participate = _can_participate()
     posts = query.limit(100).all()
+    post_ids = [p.id for p in posts]
+    comment_counts = {}
+    like_counts = {}
+    if post_ids:
+        comment_counts = dict(
+            db.session.query(ForumComment.post_id, func.count(ForumComment.id))
+            .filter(
+                ForumComment.post_id.in_(post_ids),
+                ForumComment.hidden.is_(False),
+            )
+            .group_by(ForumComment.post_id)
+            .all()
+        )
+        like_counts = dict(
+            db.session.query(ForumPostLike.post_id, func.count(ForumPostLike.id))
+            .filter(ForumPostLike.post_id.in_(post_ids))
+            .group_by(ForumPostLike.post_id)
+            .all()
+        )
 
     from ..services.forum_quotas import can_free_post
     can_post, post_quota_msg = (True, "")
@@ -161,6 +181,8 @@ def category(slug):
         can_participate=can_participate,
         can_post=can_post, post_quota_msg=post_quota_msg,
         filter_url=filter_url,
+        comment_counts=comment_counts,
+        like_counts=like_counts,
     )
 
 
@@ -237,8 +259,15 @@ def post(post_id):
         return blocked
     can_participate = _can_participate()
     # top-level comments, each with its (one-level) replies
-    top = (post.comments.filter_by(hidden=False, parent_id=None)
-           .order_by(ForumComment.created_at).all())
+    top = (
+        post.comments.filter_by(hidden=False, parent_id=None)
+        .options(
+            joinedload(ForumComment.author),
+            selectinload(ForumComment.replies).joinedload(ForumComment.author),
+        )
+        .order_by(ForumComment.created_at)
+        .all()
+    )
     all_ids = []
     threads = []
     for c in top:

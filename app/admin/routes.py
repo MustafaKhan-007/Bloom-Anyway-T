@@ -118,22 +118,34 @@ def _spotlight_candidates():
 @admin_required
 def dashboard():
     today = date.today()
-    # Every Studio open: pull recent Stripe payments so sales show up even if
-    # webhooks were missed.
+    # Throttled Stripe pull so opening Studio isn't a multi-second API round-trip
+    # every time. Manual sync remains at /admin/sync-purchases.
     from ..services import stripe_pay as pay
+    from ..services.settings import get_setting
     if pay.configured():
-        try:
-            sync_info = pay.sync_recent_payments(days=60, max_pages=2)
-            set_setting(
-                "stripe_last_sync_at", datetime.utcnow().isoformat(timespec="seconds"))
-            if sync_info.get("imported"):
-                flash(
-                    f"Synced {sync_info['imported']} purchase"
-                    f"{'' if sync_info['imported'] == 1 else 's'} from Stripe.",
-                    "success",
+        last_raw = (get_setting("stripe_last_sync_at") or "").strip()
+        should_sync = True
+        if last_raw:
+            try:
+                last_dt = datetime.fromisoformat(last_raw)
+                should_sync = (datetime.utcnow() - last_dt).total_seconds() >= 15 * 60
+            except ValueError:
+                should_sync = True
+        if should_sync:
+            try:
+                sync_info = pay.sync_recent_payments(days=60, max_pages=2)
+                set_setting(
+                    "stripe_last_sync_at",
+                    datetime.utcnow().isoformat(timespec="seconds"),
                 )
-        except Exception:
-            log.exception("dashboard: stripe purchase sync failed")
+                if sync_info.get("imported"):
+                    flash(
+                        f"Synced {sync_info['imported']} purchase"
+                        f"{'' if sync_info['imported'] == 1 else 's'} from Stripe.",
+                        "success",
+                    )
+            except Exception:
+                log.exception("dashboard: stripe purchase sync failed")
     return render_template(
         "admin/dashboard.html",
         today_quote=quotes_service.quote_for(today),
@@ -862,8 +874,8 @@ def page_edit(slug):
     return render_template("admin/page_form.html", page=page, slug=slug, label=labels[slug])
 
 
-# ============================= SUBSCRIBERS ===================================
-# Email list / full checkout analytics live in Stripe — Studio shows main totals only.
+# ============================= LEGACY REDIRECTS ==============================
+# Old Studio paths — keep as soft redirects so bookmarks don't 404.
 
 @bp.route("/subscribers")
 @bp.route("/subscribers/export.csv")
@@ -878,9 +890,6 @@ def subscribers():
 def subscriber_delete(sub_id):
     return redirect(url_for("admin.dashboard"))
 
-
-# ================================ ORDERS =====================================
-# Order history lives in Lemon Squeezy — Studio no longer mirrors the sales list.
 
 @bp.route("/orders")
 @bp.route("/orders/export.csv")

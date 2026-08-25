@@ -127,13 +127,6 @@ def cover_bytes(product_id: int) -> tuple[bytes, str] | None:
     return None
 
 
-# Kept for older call sites / smoke helpers
-def file_for(product_id: int) -> Path | None:
-    """Deprecated disk helper — prefer ``cover_bytes``."""
-    path = _legacy_cover_path(product_id)
-    return path if path is not None and path.is_file() else None
-
-
 def process_gallery_image(product_id: int, upload: FileStorage) -> str:
     """Validate and store a landscape teaser JPEG in Postgres. Returns public URL."""
     product = db.session.get(Product, int(product_id))
@@ -188,12 +181,6 @@ def gallery_bytes(product_id: int, filename: str) -> tuple[bytes, str] | None:
                         db.session.rollback()
             return data, OUTPUT_MIME
     return None
-
-
-def gallery_file(product_id: int, filename: str) -> Path | None:
-    """Deprecated disk helper — prefer ``gallery_bytes``."""
-    path = _legacy_gallery_path(product_id, filename)
-    return path if path is not None and path.is_file() else None
 
 
 def clear_gallery_image(product_id: int, filename: str) -> None:

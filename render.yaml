@@ -53,17 +53,11 @@ services:
       # Optional: shared secret for /cron/support-groups (24h reminders).
       - key: CRON_SECRET
         sync: false
-      # Zoom Server-to-Server OAuth (auto-create support-group meetings).
-      - key: ZOOM_ACCOUNT_ID
+      # Daily.co (embedded support-group rooms).
+      - key: DAILY_API_KEY
         sync: false
-      - key: ZOOM_CLIENT_ID
-        sync: false
-      - key: ZOOM_CLIENT_SECRET
-        sync: false
-      - key: ZOOM_HOST_EMAIL
-        sync: false
-      - key: ZOOM_MEETING_DURATION
-        value: "90"
+      - key: DAILY_MEETING_DURATION
+        value: "30"
 
 databases:
   - name: first-light-db

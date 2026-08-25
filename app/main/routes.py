@@ -776,12 +776,11 @@ def account():
     progress_by_purchase = reader_svc.progress_map_for(
         current_user.id, [p.id for p in shop_list])
     readable = {}
-    for p in shop_list:
-        prod = reader_svc.catalog_product_for_purchase(p)
-        readable[p.id] = bool(prod and prod.has_assets())
     purchase_catalog = {}
     for p in shop_list:
-        purchase_catalog[p.id] = reader_svc.catalog_product_for_purchase(p)
+        prod = reader_svc.catalog_product_for_purchase(p)
+        purchase_catalog[p.id] = prod
+        readable[p.id] = bool(prod and prod.has_assets())
     return render_template(
         "main/account.html", greeting=greeting, orders=orders,
         favorites=favorites,

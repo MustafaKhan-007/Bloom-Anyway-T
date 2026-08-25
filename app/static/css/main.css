@@ -2359,50 +2359,6 @@ html.is-page-loading { cursor: progress; }
 .tag-fold[open] .tag-fold__arrow { transform: rotate(180deg); }
 .tag-fold .tag-cloud { margin-top: 4px; max-height: none; }
 
-/* coaching fold + owner notice */
-.journey-card.coaching-card { margin-top: 16px; }
-.journey-card .coaching-fold__toggle {
-  display: flex; align-items: center; justify-content: space-between; gap: 12px;
-  width: 100%; max-width: 520px; margin: 4px 0 0; padding: 0;
-  border: 0; background: none; cursor: pointer; text-align: left;
-  font-family: var(--font-display); font-size: clamp(22px, 3vw, 26px);
-  font-weight: 600; color: #fff; line-height: 1.25;
-}
-.journey-card .coaching-fold__arrow {
-  flex: none; width: 36px; height: 36px; border-radius: 50%;
-  display: inline-flex; align-items: center; justify-content: center;
-  background: rgba(250, 245, 238, 0.2); font-size: 14px; color: #fff;
-  transition: transform .28s ease;
-}
-.journey-card .coaching-fold__toggle.is-open .coaching-fold__arrow { transform: rotate(180deg); }
-.journey-card .coaching-fold__panel {
-  overflow: hidden; max-height: 0; opacity: 0;
-  transition: max-height .35s ease, opacity .28s ease, margin .28s ease;
-}
-.journey-card .coaching-fold__panel.is-open { opacity: 1; margin-top: 12px; }
-.journey-card .coaching-fold__panel p { color: rgba(250, 245, 238, 0.9); }
-.journey-card .coaching-form label {
-  color: rgba(250, 245, 238, 0.95); font-weight: 600;
-}
-.journey-card .coaching-form .field-help { color: rgba(250, 245, 238, 0.75); }
-.journey-card .coaching-datetime {
-  font-family: var(--font-body);
-  font-size: 16px;
-  font-weight: 600;
-  letter-spacing: 0.01em;
-  color: var(--ink);
-  background: #fff;
-  border: 1.5px solid rgba(250, 245, 238, 0.55);
-  border-radius: 12px;
-  padding: 12px 14px;
-  color-scheme: light;
-}
-.journey-card .coaching-datetime::-webkit-calendar-picker-indicator {
-  opacity: 0.7; cursor: pointer;
-}
-.journey-card .spotlight-list li { color: rgba(250, 245, 238, 0.92);
-  border-bottom-color: rgba(250, 245, 238, 0.2); }
-.journey-card .spotlight-list .field-help { color: rgba(250, 245, 238, 0.72); }
 .owner-notice {
   background: #fff; border-radius: var(--radius-card); padding: 22px 24px;
   box-shadow: var(--shadow-card); border-left: 4px solid var(--horizon);
@@ -2412,17 +2368,6 @@ html.is-page-loading { cursor: progress; }
 .owner-notice__list { list-style: none; padding: 0; margin: 0; }
 .owner-notice__list li { padding: 12px 0; border-top: 1px solid var(--ivory-deep); }
 .owner-notice__list li:first-child { border-top: none; padding-top: 0; }
-
-.journey-card .sg-booked {
-  margin-top: 14px; padding: 14px 16px; border-radius: 12px;
-  background: rgba(250, 245, 238, 0.12);
-}
-.journey-card .sg-booked__label {
-  margin: 0 0 4px; font-size: 12px; font-weight: 700;
-  letter-spacing: 0.06em; text-transform: uppercase; color: var(--gold);
-}
-.journey-card .sg-booked__when { margin: 0 0 12px; color: #fff; font-weight: 600; }
-.journey-card .sg-pending { margin: 12px 0 0; color: rgba(250, 245, 238, 0.92); }
 
 /* Studio: support groups */
 .sg-studio__hero { margin-bottom: 22px; }
@@ -7361,11 +7306,6 @@ a.at-handle:hover { text-decoration: underline; }
   .reader__toc-drawer > .reader__toc {
     display: flex;
   }
-}
-
-.cg-lanes__grid--solo {
-  /* legacy class kept harmlessly; desktop always shows both tracks */
-  max-width: none;
 }
 
 /* ======================== Product detail page ============================= */

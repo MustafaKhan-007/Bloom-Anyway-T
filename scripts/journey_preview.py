@@ -8,7 +8,7 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-os.environ.setdefault("LEMONSQUEEZY_WEBHOOK_SECRET", "x")
+os.environ.setdefault("SECRET_KEY", "preview-only")
 
 from app import create_app
 from app.config import DevConfig

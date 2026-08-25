@@ -128,8 +128,6 @@ class Config:
     # Stripe (courses, guides, memberships). Secret key + webhook signing secret.
     STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY", "").strip()
     STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "").strip()
-    # Legacy Lemon env (ignored; kept so old Render vars don't crash imports).
-    LEMONSQUEEZY_WEBHOOK_SECRET = os.environ.get("LEMONSQUEEZY_WEBHOOK_SECRET", "")
     # Optional shared secret for /cron/* jobs (e.g. support-group reminders).
     CRON_SECRET = os.environ.get("CRON_SECRET", "").strip()
     # Optional self-hosted digital files for ShopPurchase.file_key
@@ -144,16 +142,6 @@ class Config:
     # Force stub rooms without calling Daily (tests); auto-on when TESTING
     # and DAILY_API_KEY is unset.
     DAILY_STUB = os.environ.get("DAILY_STUB", "").strip().lower() in (
-        "1", "true", "yes", "on",
-    )
-
-    # Legacy Zoom env (ignored for new sessions; kept so old Render vars don't crash).
-    ZOOM_ACCOUNT_ID = os.environ.get("ZOOM_ACCOUNT_ID", "").strip()
-    ZOOM_CLIENT_ID = os.environ.get("ZOOM_CLIENT_ID", "").strip()
-    ZOOM_CLIENT_SECRET = os.environ.get("ZOOM_CLIENT_SECRET", "").strip()
-    ZOOM_HOST_EMAIL = os.environ.get("ZOOM_HOST_EMAIL", "").strip()
-    ZOOM_MEETING_DURATION = int(os.environ.get("ZOOM_MEETING_DURATION", "90") or 90)
-    ZOOM_STUB = os.environ.get("ZOOM_STUB", "").strip().lower() in (
         "1", "true", "yes", "on",
     )
 
@@ -183,10 +171,6 @@ Config.TURNSTILE_SECRET = _strip_config_quotes(Config.TURNSTILE_SECRET)
 Config.TURNSTILE_SECRET_KEY = Config.TURNSTILE_SECRET
 Config.DAILY_API_KEY = _strip_config_quotes(Config.DAILY_API_KEY)
 Config.DAILY_DOMAIN = _strip_config_quotes(Config.DAILY_DOMAIN) or "bloomanyway"
-Config.ZOOM_ACCOUNT_ID = _strip_config_quotes(Config.ZOOM_ACCOUNT_ID)
-Config.ZOOM_CLIENT_ID = _strip_config_quotes(Config.ZOOM_CLIENT_ID)
-Config.ZOOM_CLIENT_SECRET = _strip_config_quotes(Config.ZOOM_CLIENT_SECRET)
-Config.ZOOM_HOST_EMAIL = _strip_config_quotes(Config.ZOOM_HOST_EMAIL)
 
 
 class DevConfig(Config):

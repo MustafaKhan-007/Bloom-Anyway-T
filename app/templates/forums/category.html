@@ -206,14 +206,15 @@
       <h2 class="fc-feed-label">Recent conversations</h2>
       <div class="post-list post-list--list">
         {% for post in posts %}
-        {% set comment_n = post.comments.filter_by(hidden=False).count() %}
+        {% set comment_n = comment_counts.get(post.id, 0) %}
+        {% set likes_n = like_counts.get(post.id, 0) %}
         <article class="post-row">
           <a class="post-row__hit" href="{{ url_for('forums.post', post_id=post.id) }}"
              aria-label="Open conversation: {{ post.title }}"></a>
           <a class="post-row__votes" href="{{ url_for('forums.post', post_id=post.id) }}"
-             aria-label="{{ post.like_count() }} likes" tabindex="-1">
+             aria-label="{{ likes_n }} likes" tabindex="-1">
             <span class="post-row__heart" aria-hidden="true">&#9825;</span>
-            <span>{{ post.like_count() }}</span>
+            <span>{{ likes_n }}</span>
           </a>
           <div class="post-row__main">
             <h3><a href="{{ url_for('forums.post', post_id=post.id) }}" tabindex="-1">{{ post.title }}</a></h3>

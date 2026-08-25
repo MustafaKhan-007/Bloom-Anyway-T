@@ -288,16 +288,6 @@ def circle_stats() -> list[dict]:
     return out
 
 
-def applications_for(user_id: int, limit: int = 12):
-    return (SupportGroupApplication.query
-            .options(joinedload(SupportGroupApplication.meeting),
-                     joinedload(SupportGroupApplication.circle))
-            .filter_by(user_id=user_id)
-            .order_by(SupportGroupApplication.created_at.desc())
-            .limit(limit)
-            .all())
-
-
 def upcoming_for_user(user: User, limit: int = 12) -> list[SupportGroupApplication]:
     """Selected seats on upcoming peer (or facilitator) sessions."""
     rows = (SupportGroupApplication.query
@@ -650,42 +640,6 @@ def withdraw(user: User, app_id: int) -> str | None:
     row.status = "cancelled"
     db.session.commit()
     return None
-
-
-def form_next_meeting(capacity: int, *, circle_id: int | None = None
-                      ) -> tuple[SupportGroupMeeting | None, str | None]:
-    """Admin-only: create a facilitator-led draft from any leftover waitlist."""
-    try:
-        capacity = int(capacity)
-    except (TypeError, ValueError):
-        return None, "Enter how many seats you want."
-    if capacity < 2 or capacity > PEER_MEETING_CAP:
-        return None, f"Seat count must be between 2 and {PEER_MEETING_CAP}."
-    circle = get_circle(circle_id) if circle_id else None
-    if circle_id and circle is None:
-        return None, "Unknown circle."
-    queue = pending_queue(circle_id=circle.id if circle else None, limit=capacity)
-    if not queue:
-        return None, (
-            "No waitlist applicants. Peer sessions are member-scheduled — "
-            "use Facilitator booking for guided sessions."
-        )
-    if circle is None and queue[0].circle_id:
-        circle = get_circle(queue[0].circle_id)
-    meeting = SupportGroupMeeting(
-        circle_id=circle.id if circle else None,
-        capacity=capacity, status="draft", kind="facilitator",
-        created_at=utcnow(),
-    )
-    db.session.add(meeting)
-    db.session.flush()
-    for row in queue:
-        row.status = "selected"
-        row.meeting_id = meeting.id
-        if circle and not row.circle_id:
-            row.circle_id = circle.id
-    db.session.commit()
-    return meeting, None
 
 
 def parse_owner_local(dt_local: str, tz_name: str | None) -> datetime | None:

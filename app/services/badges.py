@@ -398,17 +398,38 @@ def profile_badges(user) -> list:
     return badges[:4]
 
 
+_MISSING = object()
+
+
 def primary_badge(user) -> dict | None:
     """The single badge shown next to a member's name in the forums."""
     if user is None:
         return None
+    # Request-scoped cache: category feeds call this once per row / author.
+    try:
+        from flask import g, has_request_context
+        if has_request_context():
+            cache = g.setdefault("_primary_badge_cache", {})
+            cached = cache.get(user.id, _MISSING)
+            if cached is not _MISSING:
+                return cached
+        else:
+            cache = None
+    except RuntimeError:
+        cache = None
+
     if _is_owner(user):
-        return OWNER_BADGE
-    chosen = displayed_badges(user)
-    if chosen:
-        return chosen[0]
-    top = _top_earned(user, limit=1)
-    return top[0] if top else None
+        result = OWNER_BADGE
+    else:
+        chosen = displayed_badges(user)
+        if chosen:
+            result = chosen[0]
+        else:
+            top = _top_earned(user, limit=1)
+            result = top[0] if top else None
+    if cache is not None:
+        cache[user.id] = result
+    return result
 
 
 def _top_earned(user, limit: int = 3) -> list:
