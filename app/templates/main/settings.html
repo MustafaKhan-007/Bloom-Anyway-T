@@ -27,7 +27,7 @@
     {% if current_user.forum_banned %}
       <div class="flash flash--error">Forum posting is paused for your account. You can still read the community.</div>
     {% elif current_user.forum_warnings %}
-      <p class="field-help">Community reminder: {{ current_user.forum_warnings }} gentle warning{{ 's' if current_user.forum_warnings != 1 }} on file. Let's keep it kind.</p>
+      <p class="field-help">Community reminder: {{ current_user.forum_warnings }} flag{{ 's' if current_user.forum_warnings != 1 }} on file. Let's keep it kind.</p>
     {% endif %}
 
     <form method="post" action="{{ url_for('main.update_profile') }}" enctype="multipart/form-data">

@@ -23,7 +23,7 @@ from ..models import (Announcement, ContentReport, FaqItem, ForumComment,
                       MembershipPlan,
                       Page, Product, ProductAsset, Quote, QuoteFavorite, QuotePin,
                       ReelReview, ReelReviewApplication, SiteFeedback, Testimonial,
-                      User, Video, QUOTE_CATEGORIES)
+                      User, Video, QUOTE_CATEGORIES, utcnow)
 from ..services import badges as badges_service
 from ..services import quotes as quotes_service
 from ..services import reel_reviews as reel_svc
@@ -1534,15 +1534,91 @@ def inbox_report_dismiss(report_id):
 
 # =============================== COMMUNITY ===================================
 
+def _member_reports(member_id: int) -> list:
+    """Reports about this member (peer flags) or their posts/comments."""
+    post_ids = [
+        pid for (pid,) in
+        db.session.query(ForumPost.id).filter_by(user_id=member_id).all()
+    ]
+    comment_ids = [
+        cid for (cid,) in
+        db.session.query(ForumComment.id).filter_by(user_id=member_id).all()
+    ]
+    clauses = [
+        db.and_(
+            ContentReport.target_type == "user",
+            ContentReport.target_id == member_id,
+        )
+    ]
+    if post_ids:
+        clauses.append(db.and_(
+            ContentReport.target_type == "post",
+            ContentReport.target_id.in_(post_ids),
+        ))
+    if comment_ids:
+        clauses.append(db.and_(
+            ContentReport.target_type == "comment",
+            ContentReport.target_id.in_(comment_ids),
+        ))
+    return (
+        ContentReport.query.options(joinedload(ContentReport.reporter))
+        .filter(db.or_(*clauses))
+        .order_by(ContentReport.created_at.desc())
+        .limit(30)
+        .all()
+    )
+
+
+def _enrich_flagged_members(members: list) -> list:
+    rows = []
+    for member in members:
+        reports = _member_reports(member.id)
+        rows.append({
+            "member": member,
+            "reports": reports,
+            "open_reports": sum(1 for r in reports if r.status == "open"),
+        })
+    return rows
+
+
 @bp.route("/community")
 @admin_required
 def community():
     posts = (ForumPost.query.options(joinedload(ForumPost.category),
                                      joinedload(ForumPost.author))
              .order_by(ForumPost.created_at.desc()).limit(100).all())
-    flagged = (User.query.filter((User.forum_warnings > 0) | (User.forum_banned.is_(True)))
-               .order_by(User.forum_banned.desc(), User.forum_warnings.desc()).all())
-    return render_template("admin/community.html", posts=posts, flagged=flagged)
+    flagged_q = (
+        User.query.filter(
+            User.deleted_at.is_(None),
+            db.or_(User.forum_warnings > 0, User.forum_banned.is_(True)),
+        )
+        .order_by(User.forum_banned.desc(), User.forum_warnings.desc())
+    )
+    flagged_users = flagged_q.all()
+
+    # Include anyone with an open peer/user report even if the counter was cleared.
+    seen = {u.id for u in flagged_users}
+    open_flag_ids = [
+        tid for (tid,) in
+        db.session.query(ContentReport.target_id)
+        .filter_by(target_type="user", status="open")
+        .distinct()
+        .all()
+    ]
+    for uid in open_flag_ids:
+        if uid in seen:
+            continue
+        extra = db.session.get(User, uid)
+        if extra and extra.deleted_at is None and not extra.is_admin:
+            flagged_users.append(extra)
+            seen.add(uid)
+
+    return render_template(
+        "admin/community.html",
+        posts=posts,
+        flagged=_enrich_flagged_members(flagged_users),
+        warning_limit=2,
+    )
 
 
 @bp.route("/community/post/<int:post_id>/delete", methods=["POST"])
@@ -1565,14 +1641,148 @@ def community_delete_comment(comment_id):
     return redirect(url_for("admin.community"))
 
 
+def _community_member_or_404(user_id: int) -> User:
+    member = db.session.get(User, user_id) or abort(404)
+    if member.deleted_at is not None or member.is_admin:
+        abort(404)
+    return member
+
+
 @bp.route("/community/member/<int:user_id>/reset", methods=["POST"])
 @admin_required
 def community_reset_member(user_id):
-    member = db.session.get(User, user_id) or abort(404)
+    member = _community_member_or_404(user_id)
     member.forum_warnings = 0
     member.forum_banned = False
+    # Close open peer flags so they leave the "needs a look" list.
+    ContentReport.query.filter_by(
+        target_type="user", target_id=member.id, status="open",
+    ).update(
+        {
+            "status": "resolved",
+            "resolved_at": utcnow(),
+            "owner_note": "Cleared with fresh start",
+        },
+        synchronize_session=False,
+    )
     db.session.commit()
-    flash("Fresh start given \u2014 warnings cleared and posting restored.", "success")
+    flash("Fresh start given — flags cleared and posting restored.", "success")
+    return redirect(url_for("admin.community"))
+
+
+@bp.route("/community/member/<int:user_id>/warn", methods=["POST"])
+@admin_required
+def community_warn_member(user_id):
+    """Send a real in-app + email warning (peer flags alone do not notify)."""
+    from ..services.mailer import send_styled_email
+    from ..services.social_graph import notify
+
+    member = _community_member_or_404(user_id)
+    if member.forum_warnings < 1:
+        member.forum_warnings = 1
+
+    body = (
+        "A studio owner reviewed reports about your account and is sending "
+        "this gentle warning. Please keep community spaces and support "
+        "sessions kind and respectful.\n\n"
+        "If this feels like a mistake, reply to this email and we'll talk it through."
+    )
+    notify(
+        member.id,
+        kind="moderation",
+        body=("Studio sent you a community warning — please keep spaces kind. "
+              "Reach out if this seems wrong."),
+        url="/settings",
+    )
+    db.session.commit()
+    try:
+        send_styled_email(
+            member.email,
+            subject="A gentle reminder from Bloom Anyway",
+            preview="Please keep community and support spaces kind.",
+            header="A GENTLE REMINDER",
+            title="Community warning",
+            body=body,
+            button_text="Open settings",
+            button_url=url_for("main.settings", _external=True),
+        )
+    except Exception:
+        log.exception("Community warning email failed for user %s", member.id)
+
+    flash(f"Warning sent to {member.public_name()}.", "success")
+    return redirect(url_for("admin.community"))
+
+
+@bp.route("/community/member/<int:user_id>/pause", methods=["POST"])
+@admin_required
+def community_pause_member(user_id):
+    """Pause community posting (forums). Support booking still follows membership."""
+    from ..services.social_graph import notify
+
+    member = _community_member_or_404(user_id)
+    member.forum_banned = True
+    notify(
+        member.id,
+        kind="moderation",
+        body=("Community posting is paused on your account. "
+              "You can still read; reach out if you'd like to talk it through."),
+        url="/settings",
+    )
+    db.session.commit()
+    flash(f"Posting paused for {member.public_name()}.", "success")
+    return redirect(url_for("admin.community"))
+
+
+@bp.route("/community/member/<int:user_id>/revoke-access", methods=["POST"])
+@admin_required
+def community_revoke_access(user_id):
+    """Revoke membership (community + support groups) and pause forum posting."""
+    from ..services import stripe_pay as pay
+    from ..services.listings import enforce_listing_limits
+    from ..services.social_graph import notify
+
+    member = _community_member_or_404(user_id)
+    if pay.configured() and member.email:
+        try:
+            pay.cancel_membership_subscriptions(member.email)
+        except Exception:
+            log.exception("Stripe cancel failed while revoking user %s", member.id)
+
+    member.membership = "none"
+    member.forum_banned = True
+    enforce_listing_limits(member)
+    notify(
+        member.id,
+        kind="moderation",
+        body=("Your membership access (community and support groups) was revoked "
+              "by the studio. Reach out if you'd like to talk it through."),
+        url="/membership",
+    )
+    db.session.commit()
+    flash(
+        f"Community and support access revoked for {member.public_name()}.",
+        "success",
+    )
+    return redirect(url_for("admin.community"))
+
+
+@bp.route("/community/member/<int:user_id>/remove", methods=["POST"])
+@admin_required
+def community_remove_member(user_id):
+    """Soft-delete the account (same scrub as self-serve close account)."""
+    from ..services.privacy import close_account
+    from ..services import stripe_pay as pay
+
+    member = _community_member_or_404(user_id)
+    email = member.email
+    name = member.public_name()
+    if pay.configured() and email:
+        try:
+            pay.cancel_membership_subscriptions(email)
+        except Exception:
+            log.exception("Stripe cancel failed while removing user %s", user_id)
+    close_account(member)
+    flash(f"{name} was removed from Bloom Anyway.", "success")
     return redirect(url_for("admin.community"))
 
 

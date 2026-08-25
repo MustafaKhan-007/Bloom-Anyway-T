@@ -7,8 +7,10 @@
     <div>
       <p class="eyebrow">Forums</p>
       <h1>Community</h1>
-      <p class="field-help" style="margin: 6px 0 0; max-width: 62ch;">
-        Unkind language is blocked automatically and members are warned, then paused after {{ 2 }} warnings. You can step in here too.
+      <p class="field-help" style="margin: 6px 0 0; max-width: 68ch;">
+        Peer-session reports flag a member silently (no email). Unkind language in forums
+        blocks the post and counts toward a pause after {{ warning_limit }} strikes.
+        Use the actions below to send a real warning, pause posting, revoke membership access, or remove someone.
       </p>
     </div>
   </div>
@@ -16,27 +18,104 @@
   <section class="admin-panel studio-card">
     <h2>Members needing a look</h2>
     {% if flagged %}
-    <table class="admin-table">
-      <thead><tr><th>Member</th><th>Warnings</th><th>Status</th><th></th></tr></thead>
-      <tbody>
-        {% for member in flagged %}
-        <tr>
-          <td>{{ member.public_name() }} <span style="color: var(--ink-soft);">({{ member.email }})</span></td>
-          <td>{{ member.forum_warnings }}</td>
-          <td>{% if member.forum_banned %}<span class="status-pill status-pill--refunded">Paused</span>{% else %}<span class="status-pill status-pill--paid">Warned</span>{% endif %}</td>
-          <td>
-            <form method="post" action="{{ url_for('admin.community_reset_member', user_id=member.id) }}"
-                  data-confirm="Clear warnings and restore posting for this member?">
-              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-              <button class="btn btn--secondary btn--sm" type="submit">Give a fresh start</button>
-            </form>
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+    <div class="flagged-list">
+      {% for item in flagged %}
+      {% set member = item.member %}
+      <article class="flagged-member">
+        <header class="flagged-member__head">
+          <div>
+            <strong>{{ member.public_name() }}</strong>
+            <span class="field-help">({{ member.email }})</span>
+            <p class="flagged-member__meta">
+              Flags on file: {{ member.forum_warnings }}
+              · Plan: {{ member.membership_label() }}
+              {% if item.open_reports %} · {{ item.open_reports }} open report{{ 's' if item.open_reports != 1 }}{% endif %}
+            </p>
+          </div>
+          <div>
+            {% if member.forum_banned %}
+            <span class="status-pill status-pill--refunded">Paused</span>
+            {% else %}
+            <span class="status-pill status-pill--pending">Flagged</span>
+            {% endif %}
+          </div>
+        </header>
+
+        <div class="flagged-member__reports">
+          <h3 class="flagged-member__reports-title">Reports</h3>
+          {% if item.reports %}
+          <ul class="flagged-reports">
+            {% for r in item.reports %}
+            <li class="flagged-report">
+              <div class="flagged-report__meta">
+                <time datetime="{{ r.created_at.isoformat() }}">{{ r.created_at.strftime('%b %d, %Y · %H:%M') }}</time>
+                <span class="status-pill">{{ r.status }}</span>
+                {% if r.target_type == 'user' %}
+                <span class="inbox-report__tag">peer / member</span>
+                {% else %}
+                <span class="inbox-report__tag">{{ r.target_type }}</span>
+                {% endif %}
+              </div>
+              <p class="flagged-report__line">
+                {% if r.reason_label() %}<strong>{{ r.reason_label() }}</strong> · {% endif %}
+                Reported by {{ r.reporter.public_name() if r.reporter else 'someone' }}
+                {% if r.target_type == 'post' %}
+                  · <a href="{{ url_for('forums.post', post_id=r.target_id) }}" target="_blank" rel="noopener">View post</a>
+                {% elif r.target_type == 'comment' %}
+                  · comment #{{ r.target_id }}
+                {% endif %}
+              </p>
+              {% if r.note %}
+              <p class="flagged-report__note">{{ r.note }}</p>
+              {% endif %}
+              {% if r.auto_reason and r.target_type != 'user' %}
+              <p class="field-help">Auto: {{ r.auto_reason }}</p>
+              {% endif %}
+            </li>
+            {% endfor %}
+          </ul>
+          {% else %}
+          <p class="field-help">
+            No filed reports on this member or their posts — the flag count is likely from blocked forum language.
+          </p>
+          {% endif %}
+        </div>
+
+        <div class="flagged-member__actions">
+          <form method="post" action="{{ url_for('admin.community_warn_member', user_id=member.id) }}"
+                data-confirm="Send an in-app notification and email warning to this member?">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="btn btn--secondary btn--sm" type="submit">Send warning</button>
+          </form>
+          {% if not member.forum_banned %}
+          <form method="post" action="{{ url_for('admin.community_pause_member', user_id=member.id) }}"
+                data-confirm="Pause community posting for this member?">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="btn btn--secondary btn--sm" type="submit">Pause posting</button>
+          </form>
+          {% endif %}
+          <form method="post" action="{{ url_for('admin.community_revoke_access', user_id=member.id) }}"
+                data-confirm="Revoke membership (community + support groups) and pause posting? Stripe membership will be cancelled if present.">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="btn btn--secondary btn--sm" type="submit">Revoke community / support access</button>
+          </form>
+          <form method="post" action="{{ url_for('admin.community_reset_member', user_id=member.id) }}"
+                data-confirm="Clear flags and restore posting for this member?">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="btn btn--secondary btn--sm" type="submit">Give a fresh start</button>
+          </form>
+          <form method="post" action="{{ url_for('admin.community_remove_member', user_id=member.id) }}"
+                data-confirm="Permanently remove this member’s account? This cannot be undone."
+                data-confirm-ok="Remove">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="btn btn--danger btn--sm" type="submit">Remove member</button>
+          </form>
+        </div>
+      </article>
+      {% endfor %}
+    </div>
     {% else %}
-    <p>All calm here. No warnings on file.</p>
+    <p>All calm here. No flags on file.</p>
     {% endif %}
   </section>
 
