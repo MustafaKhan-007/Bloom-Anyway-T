@@ -5003,21 +5003,31 @@ a.at-handle:hover { text-decoration: underline; }
 .jn-page__body {
   display: block;
   width: 100%;
-  min-height: 220px;
+  min-height: calc(var(--jn-rule, 32px) * 7);
   margin: 0 0 18px;
-  padding: 4px 2px 12px;
+  padding: 6px 2px 12px;
   border: 0;
   resize: vertical;
-  background: transparent;
+  background-color: transparent;
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent calc(var(--jn-rule, 32px) - 1px),
+    rgba(184, 149, 110, 0.32) calc(var(--jn-rule, 32px) - 1px),
+    rgba(184, 149, 110, 0.32) var(--jn-rule, 32px)
+  );
+  background-position: 0 6px;
+  background-attachment: local;
   color: #3d1431;
   font-family: var(--font-body);
   font-size: 1.02rem;
-  line-height: 32px;
+  line-height: var(--jn-rule, 32px);
   outline: none;
 }
 .jn-page__body::placeholder {
   color: #b5a095;
   font-style: italic;
+  line-height: var(--jn-rule, 32px);
 }
 .jn-page__submit {
   display: inline-flex;
