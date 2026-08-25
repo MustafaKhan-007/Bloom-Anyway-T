@@ -247,37 +247,6 @@
           {% endif %}
         </div>
 
-        <div class="ms-card ms-exact__guide">
-          <div class="ms-card__head">
-            <p class="eyebrow">Your courses &amp; guides</p>
-            <a href="{{ url_for('main.courses') }}">Browse courses</a>
-          </div>
-          {% if shop_purchases %}
-          {% set guide = shop_purchases[0] %}
-          <div class="ms-exact__guide-card">
-            <div>
-              <h3>{{ guide.product_name }}</h3>
-              <p class="field-help">{{ guide.purchased_at|localtime('%b %d, %Y') }}</p>
-            </div>
-            {% if course_readable.get(guide.id) %}
-            <a class="btn btn--primary btn--sm" href="{{ url_for('main.course_reader', purchase_id=guide.id) }}">Open</a>
-            {% elif guide.download_url %}
-            <a class="btn btn--primary btn--sm" href="{{ guide.download_url }}" target="_blank" rel="noopener">Download</a>
-            {% elif guide.file_key %}
-            <a class="btn btn--primary btn--sm" href="{{ url_for('main.shop_download', purchase_id=guide.id) }}">Download</a>
-            {% else %}
-            <a class="btn btn--secondary btn--sm" href="{{ url_for('main.account', tab='saved') }}">Open library</a>
-            {% endif %}
-          </div>
-          {% else %}
-          <p class="field-help" style="margin:0;">
-            Purchases from
-            <a href="{{ url_for('main.courses') }}">Courses &amp; Guides</a>
-            show up here when linked to this email.
-          </p>
-          {% endif %}
-        </div>
-
         {% set my_badges = profile_badges(current_user) %}
         {% if my_badges %}
         <div class="badge-strip">
