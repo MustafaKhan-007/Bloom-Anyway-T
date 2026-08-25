@@ -25,6 +25,42 @@ def is_membership_variant(variant_id) -> bool:
             .first()) is not None
 
 
+def is_addon_checkout(
+    *,
+    variant_id=None,
+    product_id=None,
+    metadata: dict | None = None,
+) -> bool:
+    """True for facilitator / founder 1:1 add-ons (not catalogue courses)."""
+    meta = metadata if isinstance(metadata, dict) else {}
+    addon = str(meta.get("addon") or "").strip().lower()
+    if addon in ("facilitator", "ayesha", "saman"):
+        return True
+    slug = str(meta.get("slug") or "").strip().lower()
+    if slug.startswith("addon-"):
+        return True
+    kind = str(meta.get("kind") or "").strip().lower()
+    if kind == "addon":
+        return True
+
+    from .settings import get_setting
+
+    keys = []
+    for raw in (variant_id, product_id):
+        key = str(raw or "").strip()
+        if key and key not in keys:
+            keys.append(key)
+    if not keys:
+        return False
+    addon_prices = {
+        (get_setting("facilitator_stripe_price_id") or "").strip(),
+        (get_setting("ayesha_stripe_price_id") or "").strip(),
+        (get_setting("saman_stripe_price_id") or "").strip(),
+    }
+    addon_prices.discard("")
+    return any(k in addon_prices for k in keys)
+
+
 def upsert_shop_purchase(
     *,
     lemon_squeezy_order_id: str,
@@ -54,6 +90,13 @@ def upsert_shop_purchase(
     # Membership plans stay on the Order + membership path — never create a
     # ShopPurchase for them. Still allow refunds to mark an existing row.
     if is_membership_variant(variant_id) and row is None:
+        return None
+    # Facilitator / 1:1 add-ons are sessions, not library guides.
+    if (
+        is_addon_checkout(variant_id=variant_id, product_id=product_id)
+        and row is None
+        and not refunded
+    ):
         return None
 
     if refunded:

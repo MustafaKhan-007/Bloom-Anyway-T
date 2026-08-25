@@ -57,16 +57,33 @@
       <fieldset class="coaching-book__section">
         <legend>Date &amp; time</legend>
         <div class="field">
-          <label for="slot_utc">Pick an open slot <span class="req" aria-hidden="true">*</span></label>
-          <select id="slot_utc" name="slot_utc" required {% if not slots %}disabled{% endif %}>
-            <option value="">Select a time ({{ viewer_tz }})</option>
-            {% for s in slots %}
-            <option value="{{ s.utc }}">{{ s.label }}</option>
-            {% endfor %}
-          </select>
+          <label id="slot-cal-label">Pick an open day <span class="req" aria-hidden="true">*</span></label>
+          <input type="hidden" id="slot_utc" name="slot_utc" required value=""
+                 {% if not slots %}disabled{% endif %}>
+          {% if slots %}
+          <div class="slot-cal" data-slot-cal aria-labelledby="slot-cal-label">
+            <script type="application/json" data-slot-cal-json>{{ slots|tojson }}</script>
+            <div class="slot-cal__toolbar">
+              <button type="button" class="slot-cal__nav" data-slot-cal-prev aria-label="Previous month">‹</button>
+              <p class="slot-cal__month" data-slot-cal-month></p>
+              <button type="button" class="slot-cal__nav" data-slot-cal-next aria-label="Next month">›</button>
+            </div>
+            <div class="slot-cal__weekdays" aria-hidden="true">
+              <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
+            </div>
+            <div class="slot-cal__grid" data-slot-cal-grid role="grid" aria-label="Available days"></div>
+            <div class="slot-cal__times" data-slot-cal-times hidden>
+              <p class="slot-cal__times-label" data-slot-cal-day-label>Choose a time</p>
+              <div class="slot-cal__time-list" data-slot-cal-time-list role="listbox" aria-label="Available times"></div>
+            </div>
+            <p class="slot-cal__chosen" data-slot-cal-chosen hidden></p>
+          </div>
+          {% else %}
+          <p class="field-help">No open times right now.</p>
+          {% endif %}
           <p class="field-help">
-            Times shown in your timezone ({{ viewer_tz }}).
-            Coach availability is stored in their zone and converted here automatically (including daylight saving).
+            Highlighted days have open slots in your timezone ({{ viewer_tz }}).
+            Coach availability converts automatically (including daylight saving).
             Session length: {{ duration_min }} min.
           </p>
         </div>

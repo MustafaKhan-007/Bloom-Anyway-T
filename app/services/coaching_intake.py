@@ -18,7 +18,7 @@ from ..models import (
 )
 from . import daily as daily_svc
 from . import support_groups as sg_svc
-from .timefmt import format_local, normalize_timezone
+from .timefmt import format_local, normalize_timezone, to_local
 
 log = logging.getLogger(__name__)
 
@@ -360,11 +360,15 @@ def open_slots(
                 if utc_dt in taken or utc_dt in seen:
                     continue
                 seen.add(utc_dt)
+                local_view = to_local(utc_dt, view_tz) or utc_dt
                 out.append({
                     "utc": utc_dt.isoformat(timespec="seconds"),
                     "label": format_local(
                         utc_dt, "%a %b %d · %I:%M %p", tz_name=view_tz,
                     ) or utc_dt.isoformat(),
+                    "date_key": local_view.strftime("%Y-%m-%d"),
+                    "time_label": local_view.strftime("%I:%M %p").lstrip("0"),
+                    "day_label": local_view.strftime("%a %b %d"),
                     "tz": view_tz,
                 })
 
@@ -549,6 +553,14 @@ def fulfill_intake(intake_id: int, *, buyer_email: str | None = None) -> str | N
         log.error("coaching intake %s schedule failed: %s", intake.id, err)
         intake.status = "paid"
         db.session.commit()
+        # Payment succeeded — still confirm to the member even if Daily room
+        # creation lagged (Studio can finish the room from the paid intake).
+        try:
+            sg_svc.notify_paid_one_on_one_pending(meeting, member=member)
+        except Exception:
+            log.exception(
+                "coaching intake %s pending notify failed", intake.id,
+            )
         return err
 
     intake.status = "scheduled"

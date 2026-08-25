@@ -674,14 +674,16 @@ def upsert_order_from_payment(
     order.currency = (currency or "USD").upper()[:3]
     order.status = status
     if order.ls_variant_id and order.product_id is None:
-        product = _product_for_price_id(order.ls_variant_id)
-        if product:
-            order.product_id = product.id
-        else:
-            log.warning(
-                "stripe: no product with stripe_price_id=%s (payment %s)",
-                order.ls_variant_id, order.ls_order_id,
-            )
+        from .shop_purchases import is_addon_checkout
+        if not is_addon_checkout(variant_id=order.ls_variant_id):
+            product = _product_for_price_id(order.ls_variant_id)
+            if product:
+                order.product_id = product.id
+            else:
+                log.warning(
+                    "stripe: no product with stripe_price_id=%s (payment %s)",
+                    order.ls_variant_id, order.ls_order_id,
+                )
     from .memberships import apply_from_order
     apply_from_order(order)
     return order
@@ -754,7 +756,14 @@ def handle_payment_event(event_type: str, data: dict) -> Order | None:
         gift_to=gift_to,
     )
 
-    product = _resolve_product(data, product_id)
+    from .shop_purchases import is_addon_checkout, upsert_shop_purchase
+    addon_checkout = is_addon_checkout(
+        variant_id=product_id,
+        product_id=product_id,
+        metadata=meta,
+    )
+
+    product = None if addon_checkout else _resolve_product(data, product_id)
     if product and order.product_id is None:
         order.product_id = product.id
         if not order.ls_variant_id and (product.stripe_price_id or "").strip():
@@ -767,8 +776,7 @@ def handle_payment_event(event_type: str, data: dict) -> Order | None:
         or "Course purchase"
     )
 
-    from .shop_purchases import upsert_shop_purchase
-    if status == "paid":
+    if status == "paid" and not addon_checkout:
         upsert_shop_purchase(
             lemon_squeezy_order_id=str(payment_id),
             customer_email=email or order.buyer_email,
@@ -778,7 +786,7 @@ def handle_payment_event(event_type: str, data: dict) -> Order | None:
             download_url=None,
             refunded=False,
         )
-    elif status == "refunded":
+    elif status == "refunded" and not addon_checkout:
         upsert_shop_purchase(
             lemon_squeezy_order_id=str(payment_id),
             customer_email=email or order.buyer_email,
@@ -789,7 +797,7 @@ def handle_payment_event(event_type: str, data: dict) -> Order | None:
             refunded=True,
         )
 
-    if send_receipt and order.buyer_email and "@" in order.buyer_email:
+    if send_receipt and order.buyer_email and "@" in order.buyer_email and not addon_checkout:
         try:
             from .mailer import send_order_receipt
             when = order.created_at

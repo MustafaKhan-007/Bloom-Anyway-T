@@ -1700,6 +1700,21 @@ def contact():
 @bp.route("/support-groups")
 def support_groups_page():
     from ..services import support_groups as sg_svc
+
+    # After 1:1 / facilitator checkout return, fulfill the session if the webhook lagged.
+    session_id = (request.args.get("session_id") or "").strip()
+    if (request.args.get("purchased") or session_id) and pay.configured():
+        try:
+            if session_id:
+                pay.fulfill_checkout_session_id(session_id)
+            pay.sync_recent_payments(days=7, max_pages=1)
+            db.session.commit()
+            if current_user.is_authenticated:
+                flash("You’re booked — check My space → Activity for the confirmation.", "success")
+        except Exception:
+            log.exception("support groups: purchase sync after checkout failed")
+            db.session.rollback()
+
     stats = sg_svc.circle_stats()
     healing = [s for s in stats if s["circle"].track == "healing"]
     building = [s for s in stats if s["circle"].track == "building"]
@@ -1869,7 +1884,7 @@ def checkout_addon(kind):
     name = current_user.public_name() if current_user.is_authenticated else None
     metadata = {
         "slug": info["slug"],
-        "kind": "product",
+        "kind": "addon",
         "product_name": info["name"],
         "addon": kind_key,
     }
@@ -1880,8 +1895,8 @@ def checkout_addon(kind):
         url = pay.create_checkout_session(
             product_id=price_id,
             return_url=url_for(
-                "main.account", tab="saved", purchased=1, _external=True,
-            ),
+                "main.support_groups_page", purchased=1, _external=True,
+            ) + "#coaching",
             customer_email=email,
             customer_name=name,
             metadata=metadata,

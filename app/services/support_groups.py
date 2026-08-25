@@ -1267,11 +1267,17 @@ def _notify_seats(meeting: SupportGroupMeeting, *, kind: str,
             continue
         when = _when_for(user, meeting.scheduled_at)
         join_url = room if kind in ("booked", "updated", "reminder") else browse
+        meeting_kind = (meeting.kind or "peer").strip().lower()
         if kind == "booked":
-            note = (
-                f"You're booked for {group} with "
-                f"{others} other{'s' if others != 1 else ''} — {when}."
-            )
+            if meeting_kind == "one_on_one":
+                note = f"Your {group} is booked — {when}."
+            elif meeting_kind == "facilitator":
+                note = f"You're booked for {group} — {when}."
+            else:
+                note = (
+                    f"You're booked for {group} with "
+                    f"{others} other{'s' if others != 1 else ''} — {when}."
+                )
             subject = None
             text = None
             html = None
@@ -1332,6 +1338,45 @@ def _notify_seats(meeting: SupportGroupMeeting, *, kind: str,
         except Exception:
             log.exception("Support-group email failed for user %s", user.id)
     db.session.commit()
+
+
+def notify_paid_one_on_one_pending(
+    meeting: SupportGroupMeeting, *, member: User | None = None,
+) -> None:
+    """Confirm payment when Daily room creation failed (Studio finishes later)."""
+    if meeting is None:
+        return
+    seats = meeting_seats(meeting)
+    users: list[User] = []
+    if member is not None and not getattr(member, "deleted_at", None):
+        users.append(member)
+    for row in seats:
+        user = row.author
+        if not user or user.deleted_at:
+            continue
+        if meeting.scheduled_by_user_id and user.id == meeting.scheduled_by_user_id:
+            continue
+        if any(u.id == user.id for u in users):
+            continue
+        users.append(user)
+    group = _circle_name(meeting)
+    browse = _circle_browse_url(meeting.circle_id)
+    for user in users:
+        when = _when_for(user, meeting.scheduled_at)
+        note = (
+            f"Payment received for {group} — {when}. "
+            "We’ll confirm your room in Studio shortly."
+        )
+        notify(
+            user.id,
+            kind="support_group",
+            body=note[:300],
+            actor_id=meeting.scheduled_by_user_id,
+            url=browse,
+        )
+        _send_booked_email(meeting, user)
+    if users:
+        db.session.commit()
 
 
 def due_reminders(now: datetime | None = None):

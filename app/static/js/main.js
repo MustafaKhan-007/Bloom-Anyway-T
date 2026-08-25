@@ -1049,4 +1049,183 @@
       });
     });
   })();
+
+  /* ---- 1:1 booking slot calendar ---- */
+  (function () {
+    var root = document.querySelector("[data-slot-cal]");
+    if (!root) return;
+    var jsonEl = root.querySelector("[data-slot-cal-json]");
+    var hidden = document.getElementById("slot_utc");
+    var grid = root.querySelector("[data-slot-cal-grid]");
+    var monthEl = root.querySelector("[data-slot-cal-month]");
+    var prevBtn = root.querySelector("[data-slot-cal-prev]");
+    var nextBtn = root.querySelector("[data-slot-cal-next]");
+    var timesWrap = root.querySelector("[data-slot-cal-times]");
+    var timesList = root.querySelector("[data-slot-cal-time-list]");
+    var dayLabel = root.querySelector("[data-slot-cal-day-label]");
+    var chosenEl = root.querySelector("[data-slot-cal-chosen]");
+    if (!jsonEl || !hidden || !grid || !monthEl) return;
+
+    var slots = [];
+    try {
+      slots = JSON.parse(jsonEl.textContent || "[]") || [];
+    } catch (err) {
+      slots = [];
+    }
+    if (!slots.length) return;
+
+    var byDate = {};
+    slots.forEach(function (s) {
+      var key = s.date_key;
+      if (!key) return;
+      if (!byDate[key]) byDate[key] = [];
+      byDate[key].push(s);
+    });
+    var openKeys = Object.keys(byDate).sort();
+    if (!openKeys.length) return;
+
+    function parseKey(key) {
+      var parts = key.split("-");
+      return new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+    }
+    function fmtKey(d) {
+      var m = d.getMonth() + 1;
+      var day = d.getDate();
+      return (
+        d.getFullYear() +
+        "-" +
+        (m < 10 ? "0" : "") +
+        m +
+        "-" +
+        (day < 10 ? "0" : "") +
+        day
+      );
+    }
+
+    var firstOpen = parseKey(openKeys[0]);
+    var lastOpen = parseKey(openKeys[openKeys.length - 1]);
+    var view = new Date(firstOpen.getFullYear(), firstOpen.getMonth(), 1);
+    var selectedDate = null;
+    var todayKey = fmtKey(new Date());
+    var monthNames = [
+      "January", "February", "March", "April", "May", "June",
+      "July", "August", "September", "October", "November", "December",
+    ];
+
+    function clearSelection() {
+      hidden.value = "";
+      if (chosenEl) {
+        chosenEl.hidden = true;
+        chosenEl.textContent = "";
+      }
+    }
+
+    function showTimes(dateKey) {
+      selectedDate = dateKey;
+      var list = byDate[dateKey] || [];
+      if (!timesWrap || !timesList) return;
+      timesList.innerHTML = "";
+      if (!list.length) {
+        timesWrap.hidden = true;
+        return;
+      }
+      if (dayLabel) {
+        dayLabel.textContent =
+          "Times on " + (list[0].day_label || dateKey);
+      }
+      list.forEach(function (s) {
+        var btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "slot-cal__time";
+        btn.setAttribute("role", "option");
+        btn.textContent = s.time_label || s.label;
+        btn.dataset.utc = s.utc;
+        btn.addEventListener("click", function () {
+          hidden.value = s.utc || "";
+          timesList.querySelectorAll(".slot-cal__time").forEach(function (b) {
+            b.classList.toggle("is-selected", b === btn);
+          });
+          if (chosenEl) {
+            chosenEl.hidden = false;
+            chosenEl.innerHTML =
+              "Selected: <strong>" + (s.label || s.utc) + "</strong>";
+          }
+        });
+        timesList.appendChild(btn);
+      });
+      timesWrap.hidden = false;
+      clearSelection();
+    }
+
+    function render() {
+      monthEl.textContent =
+        monthNames[view.getMonth()] + " " + view.getFullYear();
+      if (prevBtn) {
+        prevBtn.disabled =
+          view.getFullYear() < firstOpen.getFullYear() ||
+          (view.getFullYear() === firstOpen.getFullYear() &&
+            view.getMonth() <= firstOpen.getMonth());
+      }
+      if (nextBtn) {
+        nextBtn.disabled =
+          view.getFullYear() > lastOpen.getFullYear() ||
+          (view.getFullYear() === lastOpen.getFullYear() &&
+            view.getMonth() >= lastOpen.getMonth());
+      }
+
+      grid.innerHTML = "";
+      var start = new Date(view.getFullYear(), view.getMonth(), 1);
+      var startPad = (start.getDay() + 6) % 7; // Mon=0
+      var cursor = new Date(view.getFullYear(), view.getMonth(), 1 - startPad);
+      for (var i = 0; i < 42; i++) {
+        var key = fmtKey(cursor);
+        var inMonth = cursor.getMonth() === view.getMonth();
+        var open = !!byDate[key];
+        var btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "slot-cal__day";
+        btn.textContent = String(cursor.getDate());
+        if (!inMonth) btn.classList.add("is-muted");
+        if (key === todayKey) btn.classList.add("is-today");
+        if (open) {
+          btn.classList.add("is-open");
+          btn.setAttribute("aria-label", "Available " + key);
+          if (selectedDate === key) btn.classList.add("is-selected");
+          btn.addEventListener(
+            "click",
+            (function (dk) {
+              return function () {
+                selectedDate = dk;
+                render();
+                showTimes(dk);
+              };
+            })(key)
+          );
+        } else {
+          btn.disabled = true;
+          btn.setAttribute("aria-disabled", "true");
+        }
+        grid.appendChild(btn);
+        cursor.setDate(cursor.getDate() + 1);
+      }
+    }
+
+    if (prevBtn) {
+      prevBtn.addEventListener("click", function () {
+        view = new Date(view.getFullYear(), view.getMonth() - 1, 1);
+        render();
+      });
+    }
+    if (nextBtn) {
+      nextBtn.addEventListener("click", function () {
+        view = new Date(view.getFullYear(), view.getMonth() + 1, 1);
+        render();
+      });
+    }
+
+    render();
+    // Auto-open the first available day for quicker booking.
+    showTimes(openKeys[0]);
+    render();
+  })();
 })();
