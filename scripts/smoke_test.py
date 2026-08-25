@@ -1556,13 +1556,15 @@ ok("Service listing stores its location",
    svc is not None and svc.location == "Remote")
 
 r = client.get("/courses?lane=healing")
-ok("Courses healing lane hides building products",
-   "lane-healing" in r.get_data(as_text=True)
-   and "lane-building" not in r.get_data(as_text=True))
+body = r.get_data(as_text=True)
+ok("Courses always includes both healing and building lanes in HTML",
+   "lane-healing" in body and "lane-building" in body)
+ok("Courses healing focus marks the grid for mobile",
+   "cg-lanes__grid--focus-healing" in body)
 r = client.get("/courses?lane=building")
-ok("Courses building lane hides healing products",
-   "lane-building" in r.get_data(as_text=True)
-   and "lane-healing" not in r.get_data(as_text=True))
+ok("Courses building focus marks the grid for mobile",
+   "cg-lanes__grid--focus-building" in r.get_data(as_text=True)
+   and "lane-healing" in r.get_data(as_text=True))
 
 r = admin.get("/admin/marketplace")
 ok("Studio marketplace moderation lists items",

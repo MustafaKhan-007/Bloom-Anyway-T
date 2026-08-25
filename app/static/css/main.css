@@ -6697,6 +6697,20 @@ a.at-handle:hover { text-decoration: underline; }
 }
 @media (max-width: 900px) {
   .cg-lanes__grid { grid-template-columns: 1fr; }
+  /* Phone/tablet: optional ?lane= focus keeps one track in view */
+  .cg-lanes__grid--focus-healing .cg-lane--building { display: none; }
+  .cg-lanes__grid--focus-building .cg-lane--healing { display: none; }
+}
+/* Laptop/desktop: always show healing + building side by side */
+@media (min-width: 901px) {
+  .cg-lanes__grid {
+    grid-template-columns: 1fr 1fr !important;
+    max-width: none;
+  }
+  .cg-lanes__grid .cg-lane--healing,
+  .cg-lanes__grid .cg-lane--building {
+    display: block !important;
+  }
 }
 
 .cg-founder {
@@ -7350,10 +7364,8 @@ a.at-handle:hover { text-decoration: underline; }
 }
 
 .cg-lanes__grid--solo {
-  grid-template-columns: 1fr !important;
-  max-width: 640px;
-  margin-left: auto;
-  margin-right: auto;
+  /* legacy class kept harmlessly; desktop always shows both tracks */
+  max-width: none;
 }
 
 /* ======================== Product detail page ============================= */

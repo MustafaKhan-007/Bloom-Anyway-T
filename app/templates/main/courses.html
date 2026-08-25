@@ -73,8 +73,7 @@
   </section>
 
   <section class="cg-lanes">
-    <div class="container cg-lanes__grid {{ 'cg-lanes__grid--solo' if lane }}">
-      {% if lane != 'building' %}
+    <div class="container cg-lanes__grid{% if lane %} cg-lanes__grid--focus-{{ lane }}{% endif %}">
       {# -------- Healing / Ayesha -------- #}
       <div class="cg-lane cg-lane--healing" id="lane-healing">
         <header class="cg-founder cg-founder--healing">
@@ -124,9 +123,7 @@
           <a class="btn cg-soon__btn" href="{{ url_for('main.contact') }}?topic=notify-healing">Notify me &rarr;</a>
         </div>
       </div>
-      {% endif %}
 
-      {% if lane != 'healing' %}
       {# -------- Building / Saman -------- #}
       <div class="cg-lane cg-lane--building" id="lane-building">
         <header class="cg-founder cg-founder--building">
@@ -176,7 +173,6 @@
           <a class="btn cg-soon__btn cg-soon__btn--gold" href="{{ url_for('main.contact') }}?topic=notify-building">Notify me &rarr;</a>
         </div>
       </div>
-      {% endif %}
     </div>
   </section>
 

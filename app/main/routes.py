@@ -180,13 +180,15 @@ def courses():
     if sort not in ("newest", "price_asc", "price_desc"):
         sort = "newest"
 
-    healing = _courses_lane("healing", h_filter, sort) if lane != "building" else []
-    building = _courses_lane("building", b_filter, sort) if lane != "healing" else []
+    # Always load both tracks so desktop can show them side-by-side.
+    # `lane` is only a mobile focus / scroll hint.
+    healing = _courses_lane("healing", h_filter, sort)
+    building = _courses_lane("building", b_filter, sort)
     bundles = {
         "healing": Product.query.filter_by(
-            status="published", track="healing", type="bundle").first() if lane != "building" else None,
+            status="published", track="healing", type="bundle").first(),
         "building": Product.query.filter_by(
-            status="published", track="building", type="bundle").first() if lane != "healing" else None,
+            status="published", track="building", type="bundle").first(),
     }
     owned_purchases = {}
     if current_user.is_authenticated:
