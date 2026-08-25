@@ -867,34 +867,113 @@
     setKind("feedback");
   })();
 
-  // Journal: sidebar prompt ideas replace today's prompt question
+  // Journal: prompt ideas insert into the notebook page + page-flip for past entries
   (function () {
     var list = document.getElementById("journal-prompt-ideas");
-    if (!list) return;
     var keyInput = document.getElementById("journal-prompt-key");
     var labelEl = document.getElementById("journal-prompt-label");
     var body = document.getElementById("journal-body");
-    list.addEventListener("click", function (e) {
-      var btn = e.target.closest(".ms-prompt-list__btn");
-      if (!btn || !list.contains(btn)) return;
-      var key = btn.getAttribute("data-prompt-key") || "";
-      var label = btn.getAttribute("data-prompt-label") || btn.textContent.trim();
-      if (keyInput) keyInput.value = key;
-      if (labelEl) {
-        labelEl.textContent = label;
-        labelEl.classList.add("is-swapped");
-        window.setTimeout(function () {
-          labelEl.classList.remove("is-swapped");
-        }, 450);
-      }
-      if (body) {
-        body.setAttribute("aria-label", label);
-        body.focus();
-      }
-      list.querySelectorAll(".ms-prompt-list__btn").forEach(function (b) {
-        b.classList.toggle("is-active", b === btn);
+
+    function insertAtCursor(el, text) {
+      if (!el) return;
+      var start = typeof el.selectionStart === "number" ? el.selectionStart : el.value.length;
+      var end = typeof el.selectionEnd === "number" ? el.selectionEnd : el.value.length;
+      var val = el.value || "";
+      var before = val.slice(0, start);
+      var after = val.slice(end);
+      var pad = "";
+      if (before && !/\s$/.test(before)) pad = "\n\n";
+      else if (before && !/\n$/.test(before)) pad = " ";
+      var insert = pad + text;
+      el.value = before + insert + after;
+      var pos = before.length + insert.length;
+      try {
+        el.setSelectionRange(pos, pos);
+      } catch (err) { /* ignore */ }
+      el.focus();
+    }
+
+    if (list) {
+      list.addEventListener("click", function (e) {
+        var btn = e.target.closest(".jn-prompt-list__btn, .ms-prompt-list__btn");
+        if (!btn || !list.contains(btn)) return;
+        var key = btn.getAttribute("data-prompt-key") || "";
+        var label = btn.getAttribute("data-prompt-label") || btn.textContent.trim();
+        if (keyInput) keyInput.value = key;
+        if (labelEl) {
+          labelEl.textContent = label;
+          labelEl.classList.add("is-swapped");
+          window.setTimeout(function () {
+            labelEl.classList.remove("is-swapped");
+          }, 450);
+        }
+        if (body) {
+          body.setAttribute("aria-label", label);
+          insertAtCursor(body, label);
+        }
+        list.querySelectorAll(".jn-prompt-list__btn, .ms-prompt-list__btn").forEach(function (b) {
+          b.classList.toggle("is-active", b === btn);
+        });
       });
-    });
+    }
+
+    var root = document.querySelector("[data-jn-flip]");
+    if (!root) return;
+    var sheets = Array.prototype.slice.call(root.querySelectorAll("[data-jn-sheet]"));
+    if (!sheets.length) return;
+    var prevBtn = root.querySelector("[data-jn-prev]");
+    var nextBtn = root.querySelector("[data-jn-next]");
+    var counter = root.querySelector("[data-jn-counter]");
+    var index = 0;
+    var animating = false;
+    var reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    function updateChrome() {
+      if (counter) counter.textContent = (index + 1) + " / " + sheets.length;
+      if (prevBtn) prevBtn.disabled = index >= sheets.length - 1;
+      if (nextBtn) nextBtn.disabled = index <= 0;
+    }
+
+    function show(nextIndex, dir) {
+      if (animating || nextIndex === index || nextIndex < 0 || nextIndex >= sheets.length) return;
+      var current = sheets[index];
+      var next = sheets[nextIndex];
+      if (reduceMotion) {
+        current.hidden = true;
+        current.classList.remove("is-current", "is-leaving", "is-entering");
+        next.hidden = false;
+        next.classList.add("is-current");
+        index = nextIndex;
+        updateChrome();
+        return;
+      }
+      animating = true;
+      current.classList.remove("is-entering");
+      current.classList.add("is-leaving");
+      next.hidden = false;
+      next.classList.add("is-entering", "is-current");
+      window.setTimeout(function () {
+        current.hidden = true;
+        current.classList.remove("is-current", "is-leaving");
+        next.classList.remove("is-entering");
+        index = nextIndex;
+        animating = false;
+        updateChrome();
+      }, 520);
+    }
+
+    if (prevBtn) {
+      prevBtn.addEventListener("click", function () {
+        // Older entries are further down the list (already day-desc sorted = newest first).
+        show(index + 1, "older");
+      });
+    }
+    if (nextBtn) {
+      nextBtn.addEventListener("click", function () {
+        show(index - 1, "newer");
+      });
+    }
+    updateChrome();
   })();
 
   /* ---- My space library filters ---- */
