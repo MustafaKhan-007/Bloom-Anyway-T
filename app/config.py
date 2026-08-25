@@ -40,8 +40,9 @@ class Config:
     # thumbnail and several 25 MB course files) and rejects absurd bodies fast.
     MAX_VIDEO_MB = int(os.environ.get("MAX_VIDEO_MB", "1024") or 1024)
     # Reel-review raw uploads stream to VIDEO_STORAGE_DIR (like Content Hub
-    # videos). Keep the cap modest so weekly draw files stay manageable.
-    REEL_RAW_MAX_MB = int(os.environ.get("REEL_RAW_MAX_MB", "100") or 100)
+    # videos). Cap under Cloudflare's free-plan 100 MB request body limit so
+    # members see our friendly message instead of a blank "413 Payload Too Large".
+    REEL_RAW_MAX_MB = int(os.environ.get("REEL_RAW_MAX_MB", "90") or 90)
     VIDEO_STORAGE_DIR = os.environ.get("VIDEO_STORAGE_DIR", "").strip()
     MAX_CONTENT_LENGTH = (MAX_VIDEO_MB + 32) * 1024 * 1024
 

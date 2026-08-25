@@ -23,8 +23,12 @@ services:
       - key: VIDEO_STORAGE_DIR
         value: /var/media/videos
       # Per-video upload cap in MB (checkout the disk size before raising).
+      # Cloudflare Free proxies reject bodies over ~100 MB — keep Studio
+      # uploads under that unless the upload host bypasses the proxy.
       - key: MAX_VIDEO_MB
-        value: "1024"
+        value: "95"
+      - key: REEL_RAW_MAX_MB
+        value: "90"
       - key: FLASK_APP
         value: "app:create_app"
       - key: DATABASE_URL

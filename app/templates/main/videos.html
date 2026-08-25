@@ -220,7 +220,9 @@
             </div>
             {% else %}
             <form class="stack-form" method="post" action="{{ url_for('main.reel_review_request') }}"
-                  enctype="multipart/form-data">
+                  enctype="multipart/form-data"
+                  data-max-upload-mb="{{ max_mb }}"
+                  data-max-upload-input="raw_video">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <h3>Submit your reel</h3>
               <p class="field-help">Paste your posted Instagram reel link and upload the raw video. One entry per week.</p>
@@ -231,7 +233,8 @@
               <label>Raw video file
                 <input type="file" name="raw_video" accept="video/mp4,video/quicktime,video/webm,.mp4,.mov,.webm" required>
               </label>
-              <p class="field-help">Max {{ max_mb }} MB. MP4, MOV or WEBM.</p>
+              <p class="field-help">Max {{ max_mb }} MB (MP4, MOV or WEBM). Larger files are blocked before they reach us — compress or trim first if needed.</p>
+              <p class="field-help flash flash--error" data-upload-error hidden role="alert"></p>
               <button class="btn btn--primary" type="submit">Enter this week’s draw</button>
             </form>
             {% endif %}

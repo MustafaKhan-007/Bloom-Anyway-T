@@ -994,4 +994,59 @@
       }
     }
   })();
+
+  /* ---- client-side upload size guard (beats Cloudflare's blank 413) ---- */
+  (function () {
+    document.querySelectorAll("form[data-max-upload-mb]").forEach(function (form) {
+      var maxMb = parseFloat(form.getAttribute("data-max-upload-mb") || "0");
+      if (!(maxMb > 0)) return;
+      var inputName = form.getAttribute("data-max-upload-input") || "";
+      var input = inputName
+        ? form.querySelector('input[type="file"][name="' + inputName + '"]')
+        : form.querySelector('input[type="file"]');
+      if (!input) return;
+      var errEl = form.querySelector("[data-upload-error]");
+      var maxBytes = Math.floor(maxMb * 1024 * 1024);
+
+      function showErr(msg) {
+        if (!errEl) {
+          window.alert(msg);
+          return;
+        }
+        errEl.hidden = !msg;
+        errEl.textContent = msg || "";
+      }
+
+      input.addEventListener("change", function () {
+        var file = input.files && input.files[0];
+        if (!file) {
+          showErr("");
+          return;
+        }
+        if (file.size > maxBytes) {
+          showErr(
+            "That file is about " +
+              (file.size / (1024 * 1024)).toFixed(0) +
+              " MB. Please use a video under " +
+              maxMb +
+              " MB (compress or trim it first)."
+          );
+          input.value = "";
+        } else {
+          showErr("");
+        }
+      });
+
+      form.addEventListener("submit", function (e) {
+        var file = input.files && input.files[0];
+        if (file && file.size > maxBytes) {
+          e.preventDefault();
+          showErr(
+            "That file is too large (max " + maxMb + " MB). Compress or trim it, then try again."
+          );
+          input.focus();
+        }
+      });
+    });
+  })();
 })();
