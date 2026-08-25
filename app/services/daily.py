@@ -35,7 +35,7 @@ def _use_stub() -> bool:
     return bool(current_app.config.get("TESTING")) and not is_configured()
 
 
-def _duration_minutes() -> int:
+def _default_duration_minutes() -> int:
     try:
         n = int(current_app.config.get("DAILY_MEETING_DURATION") or 30)
     except (TypeError, ValueError):
@@ -44,7 +44,28 @@ def _duration_minutes() -> int:
 
 
 def meeting_duration_minutes() -> int:
-    return _duration_minutes()
+    """Default peer-session length (minutes)."""
+    return _default_duration_minutes()
+
+
+def _clamp_duration(minutes: int | None) -> int:
+    if minutes is None:
+        return _default_duration_minutes()
+    try:
+        n = int(minutes)
+    except (TypeError, ValueError):
+        return _default_duration_minutes()
+    return max(15, min(n, 480))
+
+
+def _clamp_participants(n: int | None) -> int:
+    if n is None:
+        return 8
+    try:
+        val = int(n)
+    except (TypeError, ValueError):
+        return 8
+    return max(2, min(val, 50))
 
 
 def _headers() -> dict:
@@ -60,9 +81,10 @@ def _slug_name(topic: str, scheduled_at: datetime) -> str:
     return f"bloom-{base or 'sg'}-{stamp}"[:80]
 
 
-def _exp_unix(scheduled_at: datetime) -> int:
+def _exp_unix(scheduled_at: datetime, *, duration_minutes: int | None = None) -> int:
     """Room closes shortly after the session ends."""
-    end = scheduled_at + timedelta(minutes=_duration_minutes() + 10)
+    mins = _clamp_duration(duration_minutes)
+    end = scheduled_at + timedelta(minutes=mins + 10)
     return int(end.timestamp())
 
 
@@ -72,20 +94,36 @@ def _nbf_unix(scheduled_at: datetime) -> int:
     return int(open_at.replace(microsecond=0).timestamp())
 
 
-def _room_properties(scheduled_at: datetime) -> dict:
-    return {
-        "exp": _exp_unix(scheduled_at),
+def _room_properties(
+    scheduled_at: datetime,
+    *,
+    duration_minutes: int | None = None,
+    max_participants: int | None = None,
+    enable_cloud_recording: bool = False,
+) -> dict:
+    props = {
+        "exp": _exp_unix(scheduled_at, duration_minutes=duration_minutes),
         "nbf": _nbf_unix(scheduled_at),
-        "max_participants": 8,
+        "max_participants": _clamp_participants(max_participants),
         "enable_chat": True,
         "enable_screenshare": True,
         "start_video_off": True,
         "start_audio_off": True,
         "eject_at_room_exp": True,
     }
+    if enable_cloud_recording:
+        props["enable_recording"] = "cloud"
+    return props
 
 
-def create_room(*, topic: str, scheduled_at: datetime) -> DailyRoomInfo:
+def create_room(
+    *,
+    topic: str,
+    scheduled_at: datetime,
+    duration_minutes: int | None = None,
+    max_participants: int | None = None,
+    enable_cloud_recording: bool = False,
+) -> DailyRoomInfo:
     name = _slug_name(topic, scheduled_at)
     if _use_stub():
         domain = (current_app.config.get("DAILY_DOMAIN") or "bloomanyway").strip()
@@ -101,7 +139,12 @@ def create_room(*, topic: str, scheduled_at: datetime) -> DailyRoomInfo:
     payload = {
         "name": name,
         "privacy": "private",
-        "properties": _room_properties(scheduled_at),
+        "properties": _room_properties(
+            scheduled_at,
+            duration_minutes=duration_minutes,
+            max_participants=max_participants,
+            enable_cloud_recording=enable_cloud_recording,
+        ),
     }
     try:
         resp = requests.post(
@@ -123,7 +166,14 @@ def create_room(*, topic: str, scheduled_at: datetime) -> DailyRoomInfo:
     return DailyRoomInfo(room_name=room_name[:64], room_url=url[:500])
 
 
-def update_room(room_name: str, *, scheduled_at: datetime) -> DailyRoomInfo | None:
+def update_room(
+    room_name: str,
+    *,
+    scheduled_at: datetime,
+    duration_minutes: int | None = None,
+    max_participants: int | None = None,
+    enable_cloud_recording: bool = False,
+) -> DailyRoomInfo | None:
     if _use_stub():
         domain = (current_app.config.get("DAILY_DOMAIN") or "bloomanyway").strip()
         return DailyRoomInfo(
@@ -133,7 +183,14 @@ def update_room(room_name: str, *, scheduled_at: datetime) -> DailyRoomInfo | No
     if not is_configured() or not room_name:
         return None
 
-    payload = {"properties": _room_properties(scheduled_at)}
+    payload = {
+        "properties": _room_properties(
+            scheduled_at,
+            duration_minutes=duration_minutes,
+            max_participants=max_participants,
+            enable_cloud_recording=enable_cloud_recording,
+        ),
+    }
     try:
         resp = requests.post(
             f"{API_BASE}/rooms/{room_name}",
@@ -182,6 +239,9 @@ def create_meeting_token(
     user_name: str,
     is_owner: bool = False,
     scheduled_at: datetime | None = None,
+    duration_minutes: int | None = None,
+    enable_cloud_recording: bool = False,
+    start_cloud_recording: bool = False,
 ) -> str:
     """Short-lived token so the client can join a private room."""
     if _use_stub():
@@ -191,7 +251,10 @@ def create_meeting_token(
     if not room_name:
         raise DailyError("Missing Daily room name.")
 
-    exp = _exp_unix(scheduled_at or datetime.utcnow())
+    exp = _exp_unix(
+        scheduled_at or datetime.utcnow(),
+        duration_minutes=duration_minutes,
+    )
     props = {
         "room_name": room_name,
         "user_name": (user_name or "Member")[:80],
@@ -201,6 +264,10 @@ def create_meeting_token(
         "start_audio_off": True,
         "exp": exp,
     }
+    if enable_cloud_recording or start_cloud_recording:
+        props["enable_recording"] = "cloud"
+    if start_cloud_recording and is_owner:
+        props["start_cloud_recording"] = True
     try:
         resp = requests.post(
             f"{API_BASE}/meeting-tokens",

@@ -175,7 +175,7 @@
       </div>
       {% if current_user.is_member() and not current_user.is_admin %}
       <form method="post" action="{{ url_for('main.cancel_membership') }}"
-            data-confirm="Cancel your membership? Your marketplace listings will be hidden."
+            data-confirm="Cancel your membership? You’ll keep access until the end of your billing period, then it will be revoked. You won’t be charged again."
             data-confirm-title="Cancel membership?"
             data-confirm-ok="Yes, cancel it" style="margin-top: 12px;">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

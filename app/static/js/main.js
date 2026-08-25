@@ -151,29 +151,31 @@
     });
     okBtn.addEventListener("click", function () {
       var form = pendingForm;
-      closeDialog();
+      pendingForm = null;
+      if (typeof dialog.close === "function") dialog.close();
+      else dialog.removeAttribute("open");
       if (!form) return;
-      form.dataset.confirmAccepted = "1";
-      if (typeof form.requestSubmit === "function") form.requestSubmit();
-      else form.submit();
+      // Native submit skips the confirm interceptor (no submit event).
+      HTMLFormElement.prototype.submit.call(form);
     });
 
-    document.querySelectorAll("form[data-confirm]").forEach(function (form) {
-      form.addEventListener("submit", function (e) {
-        if (form.dataset.confirmAccepted === "1") {
-          delete form.dataset.confirmAccepted;
+    document.addEventListener("submit", function (e) {
+      var form = e.target;
+      if (!form || form.tagName !== "FORM") return;
+      if (!form.hasAttribute("data-confirm")) return;
+      if (form.dataset.confirmAccepted === "1") {
+        delete form.dataset.confirmAccepted;
+        return;
+      }
+      e.preventDefault();
+      if (form.hasAttribute("data-require-sure")) {
+        var sure = form.querySelector("[data-sure-check]");
+        if (!sure || !sure.checked) {
+          if (sure) sure.focus();
           return;
         }
-        e.preventDefault();
-        if (form.hasAttribute("data-require-sure")) {
-          var sure = form.querySelector("[data-sure-check]");
-          if (!sure || !sure.checked) {
-            sure && sure.focus();
-            return;
-          }
-        }
-        openDialog(form);
-      });
+      }
+      openDialog(form);
     });
 
     document.querySelectorAll("form[data-require-sure]").forEach(function (form) {

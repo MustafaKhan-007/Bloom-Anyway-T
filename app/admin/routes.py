@@ -899,6 +899,76 @@ def orders():
     return redirect(url_for("admin.dashboard"))
 
 
+# =============================== SPOTLIGHT ===================================
+
+_SPOTLIGHT_KEYS = (
+    "creator_name",
+    "creator_instagram",
+    "creator_image_url",
+    "creator_blurb",
+    "reel_url",
+    "reel_description",
+)
+
+
+@bp.route("/spotlight", methods=["GET", "POST"])
+@admin_required
+def spotlight():
+    """Home-page Creator of the Month + Reel of the Week."""
+    if request.method == "POST":
+        if request.form.get("clear_spotlight_creator"):
+            for key in ("creator_name", "creator_instagram", "creator_image_url",
+                        "creator_blurb"):
+                set_setting(key, "")
+            from ..services.site_images import clear as clear_site_image
+            clear_site_image("creator")
+            flash("Creator of the month cleared from the home page.", "success")
+            return redirect(url_for("admin.spotlight"))
+        if request.form.get("clear_spotlight_reel"):
+            set_setting("reel_url", "")
+            set_setting("reel_description", "")
+            flash("Reel of the week cleared from the home page.", "success")
+            return redirect(url_for("admin.spotlight"))
+
+        values = {key: (request.form.get(key) or "").strip()
+                  for key in _SPOTLIGHT_KEYS}
+        handle = instagram_handle(values.get("creator_instagram") or "")
+        values["creator_instagram"] = handle
+        from ..services.site_images import (SiteImageError, clear as clear_site_image,
+                                            process_and_save)
+        try:
+            if request.form.get("clear_creator"):
+                clear_site_image("creator")
+                values["creator_image_url"] = ""
+            creator = request.files.get("creator_file")
+            if creator and creator.filename:
+                values["creator_image_url"] = process_and_save("creator", creator)
+        except SiteImageError as exc:
+            flash(str(exc), "error")
+            return redirect(url_for("admin.spotlight"))
+        if handle and (not values.get("creator_image_url")
+                       or not values.get("creator_blurb")):
+            preview = fetch_instagram_preview(handle)
+            if preview.get("image") and not values.get("creator_image_url"):
+                values["creator_image_url"] = preview["image"]
+            if preview.get("blurb") and not values.get("creator_blurb"):
+                values["creator_blurb"] = preview["blurb"]
+        for key, val in values.items():
+            set_setting(key, val)
+        flash("Home spotlight saved.", "success")
+        return redirect(url_for("admin.spotlight"))
+
+    values = all_settings()
+    if values.get("creator_instagram"):
+        h = instagram_handle(values["creator_instagram"])
+        values["creator_instagram"] = f"@{h}" if h else values["creator_instagram"]
+    return render_template(
+        "admin/spotlight.html",
+        values=values,
+        spotlight=_spotlight_candidates(),
+    )
+
+
 # =============================== SETTINGS ====================================
 
 @bp.route("/settings/test-email", methods=["POST"])
@@ -932,19 +1002,6 @@ def settings():
             set_setting("announcement_expires", "")
             set_setting("announcement_url", "")
             flash("Announcement removed.", "success")
-            return redirect(url_for("admin.settings"))
-        if request.form.get("clear_spotlight_creator"):
-            for key in ("creator_name", "creator_instagram", "creator_image_url",
-                        "creator_blurb"):
-                set_setting(key, "")
-            from ..services.site_images import clear as clear_site_image
-            clear_site_image("creator")
-            flash("Creator of the month cleared from the home page.", "success")
-            return redirect(url_for("admin.settings"))
-        if request.form.get("clear_spotlight_reel"):
-            set_setting("reel_url", "")
-            set_setting("reel_description", "")
-            flash("Reel of the week cleared from the home page.", "success")
             return redirect(url_for("admin.settings"))
         if request.form.get("add_announcement"):
             body = (request.form.get("ann_body") or "").strip()[:300]
@@ -981,10 +1038,8 @@ def settings():
             flash("Announcement removed.", "success")
             return redirect(url_for("admin.settings"))
         values = {key: (request.form.get(key) or "").strip()
-                  for key in SETTING_DEFAULTS}
-        # store a clean Instagram handle (never a share-link with ?igsh=…)
-        handle = instagram_handle(values.get("creator_instagram") or "")
-        values["creator_instagram"] = handle
+                  for key in SETTING_DEFAULTS
+                  if key not in _SPOTLIGHT_KEYS}
         # Site images: upload preferred; clear flags; URL fields still work.
         from ..services.site_images import (SiteImageError, clear as clear_site_image,
                                             process_and_save)
@@ -1001,23 +1056,9 @@ def settings():
             hero = request.files.get("hero_file")
             if hero and hero.filename:
                 values["hero_image_url"] = process_and_save("hero", hero)
-            if request.form.get("clear_creator"):
-                clear_site_image("creator")
-                values["creator_image_url"] = ""
-            creator = request.files.get("creator_file")
-            if creator and creator.filename:
-                values["creator_image_url"] = process_and_save("creator", creator)
         except SiteImageError as exc:
             flash(str(exc), "error")
             return redirect(url_for("admin.settings"))
-        # if photo/bio were left blank, try a public Instagram preview
-        if handle and (not values.get("creator_image_url")
-                       or not values.get("creator_blurb")):
-            preview = fetch_instagram_preview(handle)
-            if preview.get("image") and not values.get("creator_image_url"):
-                values["creator_image_url"] = preview["image"]
-            if preview.get("blurb") and not values.get("creator_blurb"):
-                values["creator_blurb"] = preview["blurb"]
         # quick announcement: blank expiry defaults to one week
         if values.get("announcement_text") and not values.get("announcement_expires"):
             values["announcement_expires"] = (date.today() + timedelta(days=7)).isoformat()
@@ -1028,15 +1069,10 @@ def settings():
         flash("Settings saved.", "success")
         return redirect(url_for("admin.settings"))
     values = all_settings()
-    # show a friendly @handle in the form even if an old full URL is stored
-    if values.get("creator_instagram"):
-        h = instagram_handle(values["creator_instagram"])
-        values["creator_instagram"] = f"@{h}" if h else values["creator_instagram"]
     announcements = (Announcement.query
                      .order_by(Announcement.sort_order, Announcement.created_at.desc()).all())
     default_expires = (date.today() + timedelta(days=7)).isoformat()
     return render_template("admin/settings.html", values=values,
-                           spotlight=_spotlight_candidates(),
                            announcements=announcements, today=date.today(),
                            default_expires=default_expires)
 
@@ -1599,6 +1635,7 @@ def community():
     flagged_q = (
         User.query.filter(
             User.deleted_at.is_(None),
+            User.is_admin.is_(False),
             db.or_(User.forum_warnings > 0, User.forum_banned.is_(True)),
         )
         .order_by(User.forum_banned.desc(), User.forum_warnings.desc())
@@ -1650,30 +1687,50 @@ def community_delete_comment(comment_id):
     return redirect(url_for("admin.community"))
 
 
-def _community_member_or_404(user_id: int) -> User:
-    member = db.session.get(User, user_id) or abort(404)
-    if member.deleted_at is not None or member.is_admin:
-        abort(404)
+def _community_member_for_moderation(user_id: int):
+    """Return a moderatable member, or None after flashing why not.
+
+    Studio owner accounts and removed members used to abort(404), which dumped
+    owners onto the public "different path" page after Community actions.
+    """
+    member = db.session.get(User, user_id)
+    if member is None or member.deleted_at is not None:
+        flash("That member isn't available anymore.", "error")
+        return None
+    if member.is_admin:
+        flash("Studio owner accounts can't be moderated from Community.", "info")
+        return None
     return member
 
 
 @bp.route("/community/member/<int:user_id>/reset", methods=["POST"])
 @admin_required
 def community_reset_member(user_id):
-    member = _community_member_or_404(user_id)
+    member = _community_member_for_moderation(user_id)
+    if member is None:
+        return redirect(url_for("admin.community"))
     member.forum_warnings = 0
     member.forum_banned = False
     # Close open peer flags so they leave the "needs a look" list.
-    ContentReport.query.filter_by(
-        target_type="user", target_id=member.id, status="open",
-    ).update(
-        {
-            "status": "resolved",
-            "resolved_at": utcnow(),
-            "owner_note": "Cleared with fresh start",
-        },
-        synchronize_session=False,
-    )
+    try:
+        ContentReport.query.filter_by(
+            target_type="user", target_id=member.id, status="open",
+        ).update(
+            {
+                "status": "resolved",
+                "resolved_at": utcnow(),
+                "owner_note": "Cleared with fresh start",
+            },
+            synchronize_session=False,
+        )
+    except Exception:
+        log.exception("Fresh-start report close failed for user %s", member.id)
+        for report in ContentReport.query.filter_by(
+            target_type="user", target_id=member.id, status="open",
+        ).all():
+            report.status = "resolved"
+            report.resolved_at = utcnow()
+            report.owner_note = "Cleared with fresh start"
     db.session.commit()
     flash("Fresh start given — flags cleared and posting restored.", "success")
     return redirect(url_for("admin.community"))
@@ -1686,7 +1743,9 @@ def community_warn_member(user_id):
     from ..services.mailer import send_styled_email
     from ..services.social_graph import notify
 
-    member = _community_member_or_404(user_id)
+    member = _community_member_for_moderation(user_id)
+    if member is None:
+        return redirect(url_for("admin.community"))
     if member.forum_warnings < 1:
         member.forum_warnings = 1
 
@@ -1728,7 +1787,9 @@ def community_pause_member(user_id):
     """Pause community posting (forums). Support booking still follows membership."""
     from ..services.social_graph import notify
 
-    member = _community_member_or_404(user_id)
+    member = _community_member_for_moderation(user_id)
+    if member is None:
+        return redirect(url_for("admin.community"))
     member.forum_banned = True
     notify(
         member.id,
@@ -1750,10 +1811,14 @@ def community_revoke_access(user_id):
     from ..services.listings import enforce_listing_limits
     from ..services.social_graph import notify
 
-    member = _community_member_or_404(user_id)
+    member = _community_member_for_moderation(user_id)
+    if member is None:
+        return redirect(url_for("admin.community"))
     if pay.configured() and member.email:
         try:
-            pay.cancel_membership_subscriptions(member.email)
+            pay.cancel_membership_subscriptions(
+                member.email, at_period_end=False,
+            )
         except Exception:
             log.exception("Stripe cancel failed while revoking user %s", member.id)
 
@@ -1782,12 +1847,14 @@ def community_remove_member(user_id):
     from ..services.privacy import close_account
     from ..services import stripe_pay as pay
 
-    member = _community_member_or_404(user_id)
+    member = _community_member_for_moderation(user_id)
+    if member is None:
+        return redirect(url_for("admin.community"))
     email = member.email
     name = member.public_name()
     if pay.configured() and email:
         try:
-            pay.cancel_membership_subscriptions(email)
+            pay.cancel_membership_subscriptions(email, at_period_end=False)
         except Exception:
             log.exception("Stripe cancel failed while removing user %s", user_id)
     close_account(member)
@@ -1933,6 +2000,7 @@ def reel_reviews_unpublish(review_id):
 @bp.route("/support-groups")
 @admin_required
 def support_groups():
+    from ..services import coaching_intake as intake_svc
     from ..services import support_groups as sg_svc
     sg_svc.maybe_sweep_reminders(force=True)
     stats = sg_svc.circle_stats()
@@ -1940,6 +2008,21 @@ def support_groups():
     past = sg_svc.recent_meetings()
     seat_map = {m.id: sg_svc.meeting_seats(m) for m in open_rows + past}
     owner_tz = (current_user.timezone or "UTC").strip() or "UTC"
+    saman_windows = intake_svc.list_availability("saman")
+    saman_intakes = intake_svc.studio_intakes("saman", limit=30)
+    intake_by_meeting = {
+        i.meeting_id: i for i in saman_intakes if i.meeting_id
+    }
+    intake_rows = []
+    intake_answers = {}
+    for intake in saman_intakes:
+        answers = intake_svc.answer_rows(intake)
+        intake_rows.append({
+            "intake": intake,
+            "answers": answers,
+            "member": intake.member,
+        })
+        intake_answers[intake.id] = answers
     return render_template(
         "admin/support_groups.html",
         circle_stats=stats,
@@ -1948,17 +2031,71 @@ def support_groups():
         seat_map=seat_map,
         owner_tz=owner_tz,
         pending_total=sg_svc.pending_count(),
+        saman_windows=saman_windows,
+        intake_rows=intake_rows,
+        intake_by_meeting=intake_by_meeting,
+        intake_answers=intake_answers,
+        weekday_labels=intake_svc.WEEKDAY_LABELS,
+        minutes_to_hhmm=intake_svc.minutes_to_hhmm,
     )
+
+
+@bp.route("/support-groups/availability", methods=["POST"])
+@admin_required
+def support_groups_availability():
+    from ..services import coaching_intake as intake_svc
+
+    action = (request.form.get("action") or "add").strip().lower()
+    if action == "remove":
+        err = intake_svc.remove_availability(
+            request.form.get("window_id", type=int) or 0,
+            coach="saman",
+        )
+        flash(err or "Availability window removed.", "error" if err else "success")
+        return redirect(url_for("admin.support_groups"))
+
+    start = intake_svc.hhmm_to_minutes(request.form.get("start_time") or "")
+    end = intake_svc.hhmm_to_minutes(request.form.get("end_time") or "")
+    if start is None or end is None:
+        flash("Pick a start and end time.", "error")
+        return redirect(url_for("admin.support_groups"))
+    tz = (request.form.get("timezone") or current_user.timezone or "UTC").strip()
+    _, err = intake_svc.add_availability(
+        "saman",
+        weekday=request.form.get("weekday", type=int),
+        start_minute=start,
+        end_minute=end,
+        tz_name=tz,
+    )
+    flash(err or "Saman availability saved.", "error" if err else "success")
+    return redirect(url_for("admin.support_groups"))
 
 
 @bp.route("/support-groups/form", methods=["POST"])
 @admin_required
 def support_groups_form():
-    flash(
-        "Peer circles are member-scheduled on Support Groups. "
-        "Studio only cancels or completes open sessions.",
-        "info",
+    from ..services import support_groups as sg_svc
+
+    kind = (request.form.get("kind") or "").strip().lower()
+    tz = (request.form.get("timezone") or current_user.timezone or "UTC").strip()
+    meeting, err = sg_svc.schedule_studio_session(
+        current_user,
+        kind=kind,
+        date_s=request.form.get("meeting_date") or "",
+        time_s=request.form.get("meeting_time") or "",
+        tz_name=tz,
+        title=request.form.get("title") or "",
+        coach=request.form.get("coach") or "",
+        member_email=request.form.get("member_email") or "",
     )
+    if err:
+        flash(err, "error")
+    else:
+        label = sg_svc.meeting_display_title(meeting)
+        flash(
+            f"{label} scheduled — Daily room ready; seated members were emailed.",
+            "success",
+        )
     return redirect(url_for("admin.support_groups"))
 
 

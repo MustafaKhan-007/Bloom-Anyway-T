@@ -291,7 +291,7 @@ Everything else is optional or auto-managed:
   seller's site. Tier caps (`MARKETPLACE_LIMITS`): Healing 1 active, Creator 5;
   `enforce_listing_limits` hides overflow when a tier drops. Studio →
   Marketplace lets the owner hide/restore/delete any listing.
-- **Home spotlight** (Studio → Settings): *Creator of the Month* now shows the
+- **Home spotlight** (Studio → Home spotlight): *Creator of the Month* now shows the
   chosen creator's **photo, name, @handle and bio** (less dead space), and *Reel
   of the Week* — an Instagram reel URL is turned into an embedded iframe
   (`instagram_embed_url`) with a watch-on-Instagram link and an optional owner

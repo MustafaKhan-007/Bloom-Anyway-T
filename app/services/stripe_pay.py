@@ -489,6 +489,10 @@ def stripe_event_to_internal(event_type: str, obj: dict) -> tuple[str | None, di
         amount = obj.get("amount_paid")
         if amount is None:
             amount = obj.get("total") or 0
+        sub_id = _stripe_id(obj.get("subscription"))
+        meta_out = dict(meta or {})
+        if sub_id:
+            meta_out["subscription_id"] = sub_id
         return "payment.succeeded", {
             "payment_id": str(payment_id) if payment_id else "",
             "total_amount": amount or 0,
@@ -496,7 +500,7 @@ def stripe_event_to_internal(event_type: str, obj: dict) -> tuple[str | None, di
             "customer": {"email": email},
             "customer_email": email,
             "product_cart": [{"product_id": str(price_id), "quantity": 1}] if price_id else [],
-            "metadata": dict(meta or {}),
+            "metadata": meta_out,
         }
     if event_type == "invoice.payment_failed":
         meta = obj.get("metadata") if isinstance(obj.get("metadata"), dict) else {}
@@ -509,6 +513,10 @@ def stripe_event_to_internal(event_type: str, obj: dict) -> tuple[str | None, di
         cust = obj.get("customer_email")
         if cust:
             email = str(cust).strip().lower()
+        sub_id = _stripe_id(obj.get("subscription"))
+        meta_out = dict(meta or {})
+        if sub_id:
+            meta_out["subscription_id"] = sub_id
         return "payment.failed", {
             "payment_id": str(
                 _stripe_id(obj.get("payment_intent")) or _stripe_id(obj.get("id")) or ""
@@ -517,7 +525,7 @@ def stripe_event_to_internal(event_type: str, obj: dict) -> tuple[str | None, di
             "currency": (obj.get("currency") or "usd").upper(),
             "customer": {"email": email},
             "product_cart": [{"product_id": price_id, "quantity": 1}] if price_id else [],
-            "metadata": dict(meta or {}),
+            "metadata": meta_out,
         }
     if event_type in ("charge.refunded", "charge.refund.updated"):
         pi = _stripe_id(obj.get("payment_intent"))
@@ -530,20 +538,9 @@ def stripe_event_to_internal(event_type: str, obj: dict) -> tuple[str | None, di
             "metadata": obj.get("metadata") if isinstance(obj.get("metadata"), dict) else {},
         }
     if event_type == "customer.subscription.deleted":
-        meta = obj.get("metadata") if isinstance(obj.get("metadata"), dict) else {}
-        price_id = (meta or {}).get("price_id")
-        items = (obj.get("items") or {}).get("data") or []
-        if not price_id and items:
-            price = (items[0].get("price") or {})
-            price_id = price.get("id") if isinstance(price, dict) else None
-        return "payment.refunded", {
-            "payment_id": str(_stripe_id(obj.get("id")) or ""),
-            "total_amount": 0,
-            "currency": "USD",
-            "customer": {"email": ""},
-            "product_cart": [{"product_id": price_id, "quantity": 1}] if price_id else [],
-            "metadata": dict(meta or {}),
-        }
+        # Handled specially in the webhook route via handle_subscription_deleted
+        # (must end the original paid membership orders, not invent a sub_ order).
+        return None, {}
     return None, {}
 
 
@@ -843,10 +840,13 @@ def handle_payment_event(event_type: str, data: dict) -> Order | None:
 
     if send_decline and plan and plan.tier in ("healing", "creator", "full_bloom"):
         to = (email or order.buyer_email or "").strip()
+        try:
+            grace = int(current_app.config.get("MEMBERSHIP_GRACE_DAYS") or 5)
+        except (TypeError, ValueError):
+            grace = 5
         if to and "@" in to:
             try:
                 from .mailer import send_card_declined
-                grace = current_app.config.get("MEMBERSHIP_GRACE_DAYS") or 3
                 plan_name = plan.name or f"{plan.tier.replace('_', ' ').title()} membership"
                 send_card_declined(
                     to,
@@ -855,6 +855,41 @@ def handle_payment_event(event_type: str, data: dict) -> Order | None:
                 )
             except Exception:
                 log.exception("Card-declined email failed for %s", payment_id)
+        sub_id = (meta or {}).get("subscription_id") or ""
+        if not sub_id:
+            sub_id = _subscription_id_from_payment_ref(str(payment_id or "")) or ""
+        if sub_id and not current_app.config.get("TESTING"):
+            try:
+                _schedule_membership_grace_cancel(sub_id, grace)
+            except Exception:
+                log.exception(
+                    "stripe: grace cancel schedule failed for %s", sub_id,
+                )
+
+    if (status == "paid" and plan and plan.tier in ("healing", "creator", "full_bloom")
+            and not current_app.config.get("TESTING")):
+        sub_id = (meta or {}).get("subscription_id") or ""
+        if not sub_id:
+            sub_id = _subscription_id_from_payment_ref(str(payment_id or "")) or ""
+        if sub_id:
+            try:
+                _clear_membership_grace_cancel(sub_id)
+            except Exception:
+                log.exception(
+                    "stripe: clear grace cancel failed for %s", sub_id,
+                )
+
+    if status == "paid":
+        try:
+            from .coaching_intake import fulfill_from_payment_metadata
+            fulfill_from_payment_metadata(
+                meta or {},
+                buyer_email=email or getattr(order, "buyer_email", None),
+            )
+        except Exception:
+            log.exception(
+                "stripe: coaching intake fulfill failed for payment %s", payment_id,
+            )
 
     return order
 
@@ -898,7 +933,8 @@ def _subscription_id_from_payment_ref(payment_id: str) -> str | None:
     return None
 
 
-def _cancel_stripe_subscription(sub_id: str) -> bool:
+def _cancel_stripe_subscription_now(sub_id: str) -> bool:
+    """Immediately cancel a Stripe subscription (no remaining access period)."""
     sid = (sub_id or "").strip()
     if not sid.startswith("sub_"):
         return False
@@ -908,7 +944,7 @@ def _cancel_stripe_subscription(sub_id: str) -> bool:
             stripe.Subscription.cancel(sid)
         else:
             stripe.Subscription.delete(sid)
-        log.info("stripe: cancelled subscription %s", sid)
+        log.info("stripe: cancelled subscription %s immediately", sid)
         return True
     except Exception as exc:
         msg = str(exc).lower()
@@ -919,16 +955,127 @@ def _cancel_stripe_subscription(sub_id: str) -> bool:
         return False
 
 
-def cancel_membership_subscriptions(email: str) -> dict:
-    """Cancel Stripe membership subscriptions for this email and end local orders.
+def _schedule_subscription_cancel(sub_id: str) -> dict | None:
+    """Cancel at period end. Returns {id, period_end} or None on failure."""
+    sid = (sub_id or "").strip()
+    if not sid.startswith("sub_"):
+        return None
+    _configure_stripe()
+    try:
+        sub = stripe.Subscription.modify(sid, cancel_at_period_end=True)
+        sub_d = _as_dict(sub)
+        period_end = sub_d.get("current_period_end") or sub_d.get("cancel_at")
+        try:
+            period_end = int(period_end) if period_end is not None else None
+        except (TypeError, ValueError):
+            period_end = None
+        log.info(
+            "stripe: scheduled cancel_at_period_end for %s (period_end=%s)",
+            sid, period_end,
+        )
+        return {"id": sid, "period_end": period_end}
+    except Exception as exc:
+        msg = str(exc).lower()
+        if "already been canceled" in msg or "no such subscription" in msg:
+            log.info("stripe: subscription %s already gone (%s)", sid, exc)
+            return {"id": sid, "period_end": None}
+        log.exception("stripe: failed to schedule cancel for %s", sid)
+        return None
 
-    Finds active/trialing/past_due subscriptions on Stripe customers with this
-    email whose price matches a MembershipPlan, cancels them immediately, and
-    marks matching paid Orders as refunded so access does not come back.
+
+def _schedule_membership_grace_cancel(sub_id: str, grace_days: int) -> int | None:
+    """After a failed renewal, cancel the sub at now+grace_days (access until then).
+
+    Does not shorten an earlier voluntary cancel (cancel_at_period_end) or an
+    already-scheduled cancel_at. Returns the unix cancel timestamp, or None.
+    """
+    sid = (sub_id or "").strip()
+    if not sid.startswith("sub_") or not configured():
+        return None
+    try:
+        days = max(1, int(grace_days))
+    except (TypeError, ValueError):
+        days = 5
+    _configure_stripe()
+    try:
+        sub_d = _as_dict(stripe.Subscription.retrieve(sid))
+        if sub_d.get("cancel_at_period_end"):
+            existing = sub_d.get("cancel_at") or sub_d.get("current_period_end")
+            try:
+                return int(existing) if existing is not None else None
+            except (TypeError, ValueError):
+                return None
+        target = int(time.time()) + days * 86400
+        existing = sub_d.get("cancel_at")
+        try:
+            existing_i = int(existing) if existing is not None else None
+        except (TypeError, ValueError):
+            existing_i = None
+        if existing_i and existing_i <= target:
+            log.info(
+                "stripe: grace cancel already set for %s at %s", sid, existing_i,
+            )
+            return existing_i
+        stripe.Subscription.modify(sid, cancel_at=target)
+        log.info(
+            "stripe: grace cancel_at=%s (%s days) for %s",
+            target, days, sid,
+        )
+        return target
+    except Exception as exc:
+        msg = str(exc).lower()
+        if "already been canceled" in msg or "no such subscription" in msg:
+            log.info("stripe: subscription %s already gone (%s)", sid, exc)
+            return None
+        log.exception("stripe: failed to schedule grace cancel for %s", sid)
+        return None
+
+
+def _clear_membership_grace_cancel(sub_id: str) -> bool:
+    """Clear a grace ``cancel_at`` after a successful renewal (not voluntary cancel)."""
+    sid = (sub_id or "").strip()
+    if not sid.startswith("sub_") or not configured():
+        return False
+    _configure_stripe()
+    try:
+        sub_d = _as_dict(stripe.Subscription.retrieve(sid))
+        if sub_d.get("cancel_at_period_end"):
+            return False
+        if not sub_d.get("cancel_at"):
+            return False
+        stripe.Subscription.modify(sid, cancel_at="")
+        log.info("stripe: cleared grace cancel_at for %s after successful payment", sid)
+        return True
+    except Exception as exc:
+        msg = str(exc).lower()
+        if "already been canceled" in msg or "no such subscription" in msg:
+            return False
+        log.exception("stripe: failed to clear grace cancel for %s", sid)
+        return False
+
+
+def cancel_membership_subscriptions(
+    email: str,
+    *,
+    at_period_end: bool = True,
+) -> dict:
+    """Cancel Stripe membership subscriptions for this email.
+
+    Member self-cancel (``at_period_end=True``): schedules cancel at the end of
+    the paid period, keeps local paid Orders so access continues until Stripe
+    fires ``customer.subscription.deleted``.
+
+    Studio revoke (``at_period_end=False``): cancels immediately and marks
+    matching paid Orders refunded so access drops now.
     """
     email_norm = (email or "").strip().lower()
     result: dict[str, Any] = {
-        "ok": True, "cancelled": [], "errors": [], "orders_ended": 0,
+        "ok": True,
+        "cancelled": [],
+        "errors": [],
+        "orders_ended": 0,
+        "period_end": None,
+        "at_period_end": bool(at_period_end),
     }
     if not email_norm:
         result["ok"] = False
@@ -963,7 +1110,6 @@ def cancel_membership_subscriptions(email: str) -> dict:
             _configure_stripe()
             customers_data = []
             try:
-                # Prefer Search API (email filter). Fall back if unavailable.
                 safe = email_norm.replace("\\", "\\\\").replace("'", "\\'")
                 found = stripe.Customer.search(
                     query=f"email:'{safe}'", limit=20,
@@ -1001,25 +1147,153 @@ def cancel_membership_subscriptions(email: str) -> dict:
             log.exception("stripe: list subscriptions failed for %s", email_norm)
             result["errors"].append(str(exc))
 
+    period_ends: list[int] = []
     for sid in sorted(sub_ids):
         if current_app.config.get("TESTING") or not configured():
             result["cancelled"].append(sid)
             continue
-        if _cancel_stripe_subscription(sid):
-            result["cancelled"].append(sid)
+        if at_period_end:
+            info = _schedule_subscription_cancel(sid)
+            if info:
+                result["cancelled"].append(sid)
+                pe = info.get("period_end")
+                if isinstance(pe, int) and pe > 0:
+                    period_ends.append(pe)
+            else:
+                result["ok"] = False
+                result["errors"].append(f"cancel_failed:{sid}")
         else:
-            result["ok"] = False
-            result["errors"].append(f"cancel_failed:{sid}")
+            if _cancel_stripe_subscription_now(sid):
+                result["cancelled"].append(sid)
+            else:
+                result["ok"] = False
+                result["errors"].append(f"cancel_failed:{sid}")
 
+    if period_ends:
+        result["period_end"] = max(period_ends)
+
+    # Immediate revoke only — period-end keeps Orders paid until subscription.deleted.
+    if not at_period_end:
+        ended = _end_paid_membership_orders(email_norm, price_ids)
+        result["orders_ended"] = ended
+        if ended:
+            log.info(
+                "stripe: ended %s membership order(s) for %s after immediate cancel",
+                ended, email_norm,
+            )
+    return result
+
+
+def _end_paid_membership_orders(email_norm: str, price_ids: set[str] | None = None) -> int:
+    """Mark paid membership Orders refunded and reconcile the member's tier."""
+    from sqlalchemy import func
+
+    from .memberships import reconcile_email
+
+    prices = price_ids or _membership_price_ids()
+    if not email_norm or not prices:
+        return 0
+    paid = (
+        Order.query
+        .filter(
+            func.lower(Order.buyer_email) == email_norm,
+            Order.status == "paid",
+            Order.ls_variant_id.in_(list(prices)),
+        )
+        .all()
+    )
     ended = 0
     for order in paid:
-        if order.status == "paid":
-            order.status = "refunded"
-            ended += 1
-    result["orders_ended"] = ended
+        order.status = "refunded"
+        ended += 1
     if ended:
+        reconcile_email(email_norm, downgrade=True)
+    return ended
+
+
+def _email_from_subscription(sub: dict) -> str:
+    """Best-effort buyer email from a subscription object."""
+    email = (sub.get("customer_email") or "").strip().lower()
+    if email and "@" in email:
+        return email
+    cust = sub.get("customer")
+    if isinstance(cust, str) and cust.startswith("cus_") and configured():
+        try:
+            _configure_stripe()
+            c = stripe.Customer.retrieve(cust)
+            email = (getattr(c, "email", None) or "").strip().lower()
+            if email and "@" in email:
+                return email
+        except Exception:
+            log.exception("stripe: could not load customer %s for subscription end", cust)
+    elif isinstance(cust, dict):
+        email = (cust.get("email") or "").strip().lower()
+        if email and "@" in email:
+            return email
+    return ""
+
+
+def handle_subscription_deleted(sub: dict) -> dict:
+    """When a membership subscription actually ends, revoke local access."""
+    sub = sub if isinstance(sub, dict) else _as_dict(sub)
+    email = _email_from_subscription(sub)
+    membership_prices = _membership_price_ids()
+    item_prices: set[str] = set()
+    items = (sub.get("items") or {}).get("data") or []
+    for item in items:
+        item_d = _as_dict(item)
+        pid = _stripe_id(item_d.get("price"))
+        if pid:
+            item_prices.add(pid)
+    matched = item_prices & membership_prices if item_prices else set()
+
+    result = {"ok": True, "email": email, "orders_ended": 0, "membership": False}
+    if item_prices and not matched:
+        # Non-membership subscription ended — leave membership Orders alone.
         log.info(
-            "stripe: ended %s membership order(s) for %s after cancel",
-            ended, email_norm,
+            "stripe: subscription.deleted %s ignored (not a membership price)",
+            _stripe_id(sub.get("id")),
         )
+        return result
+    if not matched and not email:
+        log.info(
+            "stripe: subscription.deleted %s ignored (no email/membership price)",
+            _stripe_id(sub.get("id")),
+        )
+        return result
+
+    # Prefer matched prices; if Stripe omitted items, fall back to all
+    # membership prices for this email (period-end cancel path).
+    prices = matched or (membership_prices if email else set())
+    if not email:
+        log.warning(
+            "stripe: subscription.deleted %s has membership prices but no email",
+            _stripe_id(sub.get("id")),
+        )
+        result["ok"] = False
+        return result
+
+    if not prices:
+        return result
+
+    result["membership"] = True
+    ended = _end_paid_membership_orders(email, prices)
+    result["orders_ended"] = ended
+    log.info(
+        "stripe: subscription.deleted ended %s order(s) for %s",
+        ended, email,
+    )
     return result
+
+
+def format_access_end_date(period_end: int | None) -> str:
+    """Unix timestamp → human date for cancel emails / flashes."""
+    from datetime import datetime, timezone
+
+    if not period_end:
+        return ""
+    try:
+        dt = datetime.fromtimestamp(int(period_end), tz=timezone.utc)
+        return dt.strftime("%b %d, %Y")
+    except (TypeError, ValueError, OSError):
+        return ""

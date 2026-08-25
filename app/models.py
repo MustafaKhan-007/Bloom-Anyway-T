@@ -1439,7 +1439,7 @@ class ContentReport(db.Model):
 
 SUPPORT_APP_STATUSES = ("pending", "selected", "cancelled", "attended")
 SUPPORT_MEETING_STATUSES = ("draft", "scheduled", "completed", "cancelled")
-SUPPORT_MEETING_KINDS = ("peer", "facilitator")
+SUPPORT_MEETING_KINDS = ("peer", "facilitator", "one_on_one")
 SUPPORT_CIRCLE_TRACKS = ("healing", "building")
 
 # Seed catalogue for peer circles shown on /support-groups and in Studio.
@@ -1587,3 +1587,57 @@ class SupportGroupTopicAlert(db.Model):
 
     author = db.relationship("User")
     circle = db.relationship("SupportGroupCircle", back_populates="topic_alerts")
+
+
+COACH_SLUGS = ("saman", "ayesha")
+COACHING_INTAKE_STATUSES = (
+    "pending_payment", "paid", "scheduled", "cancelled", "expired",
+)
+
+
+class CoachAvailability(db.Model):
+    """Weekly availability window for a founder 1:1 coach (local to timezone)."""
+    __tablename__ = "coach_availability"
+
+    id = db.Column(db.Integer, primary_key=True)
+    coach = db.Column(db.String(20), nullable=False, index=True)  # saman / ayesha
+    weekday = db.Column(db.Integer, nullable=False)  # 0=Monday … 6=Sunday
+    start_minute = db.Column(db.Integer, nullable=False)  # minutes from local midnight
+    end_minute = db.Column(db.Integer, nullable=False)
+    timezone = db.Column(db.String(64), nullable=False, default="UTC")
+    active = db.Column(db.Boolean, nullable=False, default=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
+
+
+class CoachingIntake(db.Model):
+    """Pre-checkout questionnaire + chosen slot for a founder 1:1."""
+    __tablename__ = "coaching_intakes"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    coach = db.Column(db.String(20), nullable=False, index=True)
+    answers_json = db.Column(db.Text, nullable=False, default="{}")
+    scheduled_at = db.Column(db.DateTime, nullable=False)  # UTC naive
+    status = db.Column(
+        db.String(20), nullable=False, default="pending_payment", index=True,
+    )
+    meeting_id = db.Column(
+        db.Integer, db.ForeignKey("support_group_meetings.id"), index=True,
+    )
+    stripe_session_id = db.Column(db.String(120))
+    created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
+
+    member = db.relationship("User", foreign_keys=[user_id])
+    meeting = db.relationship("SupportGroupMeeting")
+
+    def answers(self) -> dict:
+        import json
+        try:
+            data = json.loads(self.answers_json or "{}")
+        except (TypeError, ValueError):
+            return {}
+        return data if isinstance(data, dict) else {}
+
+    def set_answers(self, data: dict) -> None:
+        import json
+        self.answers_json = json.dumps(data or {}, ensure_ascii=False)

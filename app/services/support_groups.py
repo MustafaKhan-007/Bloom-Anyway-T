@@ -7,13 +7,24 @@ from datetime import datetime, timedelta, timezone
 from html import escape
 
 from flask import url_for
+from sqlalchemy import func
 from sqlalchemy.orm import joinedload
 
 from ..extensions import db
 from ..models import (SUPPORT_CIRCLE_SEED, SupportGroupApplication,
                       SupportGroupCircle, SupportGroupMeeting,
                       SupportGroupTopicAlert, User, utcnow)
-from .mailer import send_email
+from .mailer import (
+    send_email,
+    send_facilitator_booked,
+    send_facilitator_cancelled,
+    send_one_on_one_booked,
+    send_one_on_one_cancelled,
+    send_support_group_booked,
+    send_support_group_host_cancelled,
+    send_support_group_left,
+    send_support_group_reminder,
+)
 from .social_graph import notify
 from .timefmt import format_local, normalize_timezone, to_local
 from . import daily as daily_svc
@@ -24,12 +35,40 @@ _last_sweep_mono = 0.0
 _SWEEP_GAP_SEC = 60
 
 PEER_MEETING_CAP = 8
+FACILITATOR_MEETING_CAP = 8
+ONE_ON_ONE_CAP = 2
 MAX_OPEN_SESSIONS_PER_CIRCLE = 4
 PEER_SCHEDULE_COOLDOWN_DAYS = 14
+FACILITATOR_DURATION_MINUTES = 60
+ONE_ON_ONE_DURATION_MINUTES = 60
 
 
 def peer_meeting_minutes() -> int:
     return daily_svc.meeting_duration_minutes()
+
+
+def meeting_duration_minutes(meeting: SupportGroupMeeting | None = None) -> int:
+    """Live-window length for a meeting (peer default, 60m for facilitator/1:1)."""
+    kind = ((meeting.kind if meeting else None) or "peer").strip().lower()
+    if kind == "facilitator":
+        return FACILITATOR_DURATION_MINUTES
+    if kind == "one_on_one":
+        return ONE_ON_ONE_DURATION_MINUTES
+    return peer_meeting_minutes()
+
+
+def meeting_max_participants(meeting: SupportGroupMeeting | None = None) -> int:
+    if meeting is not None and meeting.capacity:
+        try:
+            return max(2, min(int(meeting.capacity), 50))
+        except (TypeError, ValueError):
+            pass
+    kind = ((meeting.kind if meeting else None) or "peer").strip().lower()
+    if kind == "one_on_one":
+        return ONE_ON_ONE_CAP
+    if kind == "facilitator":
+        return FACILITATOR_MEETING_CAP
+    return PEER_MEETING_CAP
 
 
 def meeting_phase(meeting: SupportGroupMeeting, *, now: datetime | None = None
@@ -39,12 +78,54 @@ def meeting_phase(meeting: SupportGroupMeeting, *, now: datetime | None = None
         return "unavailable"
     now = now or utcnow()
     start = meeting.scheduled_at
-    end = start + timedelta(minutes=peer_meeting_minutes())
+    end = start + timedelta(minutes=meeting_duration_minutes(meeting))
     if now < start:
         return "waiting"
     if now >= end:
         return "ended"
     return "live"
+
+
+def expire_past_meetings(now: datetime | None = None) -> int:
+    """Mark scheduled sessions complete once their live window has ended.
+
+    Studio "Open meetings" previously kept every past peer session forever
+    because nothing flipped ``scheduled`` → ``completed`` after the room closed.
+    """
+    now = now or utcnow()
+    # Pull anything that has already started; filter by per-meeting duration.
+    rows = (
+        SupportGroupMeeting.query
+        .filter(
+            SupportGroupMeeting.status == "scheduled",
+            SupportGroupMeeting.scheduled_at.isnot(None),
+            SupportGroupMeeting.scheduled_at <= now,
+        )
+        .all()
+    )
+    if not rows:
+        return 0
+    closed = 0
+    for meeting in rows:
+        end = meeting.scheduled_at + timedelta(
+            minutes=meeting_duration_minutes(meeting),
+        )
+        if end >= now:
+            continue
+        room_name = (meeting.zoom_meeting_id or "").strip()
+        meeting.status = "completed"
+        for seat in meeting_seats(meeting):
+            seat.status = "attended"
+        closed += 1
+        if room_name:
+            try:
+                daily_svc.delete_room(room_name)
+            except Exception:
+                log.exception("Failed to delete Daily room %s after expire", room_name)
+    if closed:
+        db.session.commit()
+        log.info("support groups: auto-completed %s past meeting(s)", closed)
+    return closed
 
 
 def ensure_circles() -> list[SupportGroupCircle]:
@@ -85,7 +166,19 @@ def custom_topic_key(raw: str | None) -> str:
 
 
 def meeting_display_title(meeting: SupportGroupMeeting) -> str:
-    """Circle title, or Custom: {topic} when the host named one."""
+    """Circle title, custom topic, facilitator label, or 1:1 coach name."""
+    kind = (meeting.kind or "peer").strip().lower()
+    if kind == "one_on_one":
+        coach = normalize_custom_topic(meeting.notes) or "a founder"
+        return f"1:1 with {coach}"
+    if kind == "facilitator":
+        topic = normalize_custom_topic(meeting.notes)
+        if topic:
+            return topic
+        circle = meeting.circle
+        if circle:
+            return circle.title
+        return "Facilitator session"
     circle = meeting.circle
     base = circle.title if circle else "support group"
     if is_custom_circle(circle):
@@ -188,6 +281,46 @@ def open_peer_sessions(circle_id: int) -> list[SupportGroupMeeting]:
             )
             .order_by(SupportGroupMeeting.scheduled_at.asc())
             .all())
+
+
+def open_facilitator_sessions(limit: int = 20) -> list[SupportGroupMeeting]:
+    """Upcoming Studio-scheduled facilitator sessions (Daily rooms)."""
+    now = utcnow()
+    return (SupportGroupMeeting.query
+            .options(joinedload(SupportGroupMeeting.circle),
+                     joinedload(SupportGroupMeeting.host))
+            .filter(
+                SupportGroupMeeting.kind == "facilitator",
+                SupportGroupMeeting.status == "scheduled",
+                SupportGroupMeeting.scheduled_at.isnot(None),
+                SupportGroupMeeting.scheduled_at > now,
+            )
+            .order_by(SupportGroupMeeting.scheduled_at.asc())
+            .limit(limit)
+            .all())
+
+
+def open_one_on_one_sessions(*, coach: str | None = None, limit: int = 20
+                            ) -> list[SupportGroupMeeting]:
+    """Upcoming 1:1 sessions (optionally filtered by coach note)."""
+    now = utcnow()
+    q = (SupportGroupMeeting.query
+         .options(joinedload(SupportGroupMeeting.host))
+         .filter(
+             SupportGroupMeeting.kind == "one_on_one",
+             SupportGroupMeeting.status == "scheduled",
+             SupportGroupMeeting.scheduled_at.isnot(None),
+             SupportGroupMeeting.scheduled_at > now,
+         )
+         .order_by(SupportGroupMeeting.scheduled_at.asc()))
+    rows = q.limit(limit * 3).all() if coach else q.limit(limit).all()
+    if coach:
+        key = normalize_custom_topic(coach).casefold()
+        rows = [
+            m for m in rows
+            if normalize_custom_topic(m.notes).casefold() == key
+        ][:limit]
+    return rows
 
 
 def open_peer_session_count(circle_id: int) -> int:
@@ -314,6 +447,7 @@ def upcoming_for_user(user: User, limit: int = 12) -> list[SupportGroupApplicati
 
 
 def open_meetings():
+    expire_past_meetings()
     return (SupportGroupMeeting.query
             .options(joinedload(SupportGroupMeeting.circle),
                      joinedload(SupportGroupMeeting.host))
@@ -497,30 +631,122 @@ def schedule_peer_session(
     return meeting, None
 
 
+def schedule_studio_session(
+    owner: User,
+    *,
+    kind: str,
+    date_s: str,
+    time_s: str,
+    tz_name: str | None = None,
+    title: str | None = None,
+    coach: str | None = None,
+    member_email: str | None = None,
+) -> tuple[SupportGroupMeeting | None, str | None]:
+    """Studio creates a facilitator or 1:1 session with a Daily.co room."""
+    kind = (kind or "").strip().lower()
+    if kind not in ("facilitator", "one_on_one"):
+        return None, "Choose facilitator or 1:1."
+
+    when = parse_owner_parts(date_s, time_s, tz_name or getattr(owner, "timezone", None))
+    if when is None:
+        return None, "Pick a date and time for the session."
+    if when <= utcnow():
+        return None, "Choose a time in the future."
+
+    if kind == "facilitator":
+        topic = normalize_custom_topic(title) or "Facilitator session"
+        capacity = FACILITATOR_MEETING_CAP
+        notes = topic
+        guest = None
+    else:
+        coach_name = normalize_custom_topic(coach) or ""
+        if coach_name.casefold() not in ("ayesha", "saman"):
+            return None, "Choose Ayesha or Saman for the 1:1."
+        coach_name = "Ayesha" if coach_name.casefold() == "ayesha" else "Saman"
+        capacity = ONE_ON_ONE_CAP
+        notes = coach_name
+        email = (member_email or "").strip().lower()
+        if not email or "@" not in email:
+            return None, "Enter the member’s email so we can seat them."
+        guest = (User.query
+                 .filter(func.lower(User.email) == email,
+                         User.deleted_at.is_(None))
+                 .first())
+        if guest is None:
+            return None, f"No account found for {email}."
+
+    meeting = SupportGroupMeeting(
+        circle_id=None,
+        capacity=capacity,
+        kind=kind,
+        scheduled_by_user_id=owner.id,
+        status="draft",
+        notes=notes,
+        created_at=utcnow(),
+    )
+    db.session.add(meeting)
+    db.session.flush()
+
+    # Seat the Studio host (facilitator / coach) and optional 1:1 guest.
+    db.session.add(SupportGroupApplication(
+        user_id=owner.id,
+        circle_id=None,
+        meeting_id=meeting.id,
+        message="",
+        status="selected",
+        created_at=utcnow(),
+    ))
+    if guest is not None and guest.id != owner.id:
+        db.session.add(SupportGroupApplication(
+            user_id=guest.id,
+            circle_id=None,
+            meeting_id=meeting.id,
+            message="",
+            status="selected",
+            created_at=utcnow(),
+        ))
+    db.session.commit()
+
+    err = schedule_meeting(meeting, scheduled_at=when, owner=owner)
+    if err:
+        cancel_meeting(meeting, owner=owner, return_to_queue=False)
+        return None, err
+    return meeting, None
+
+
 def join_peer_session(user: User, meeting_id: int
                      ) -> tuple[SupportGroupApplication | None, str | None]:
     meeting = db.session.get(SupportGroupMeeting, meeting_id)
-    if meeting is None or meeting.kind != "peer" or meeting.status != "scheduled":
+    if meeting is None or meeting.status != "scheduled":
         return None, "That session isn’t open to join."
-    if not meeting.circle or not meeting.circle.active:
-        return None, "That topic isn’t available."
-    if not user_can_access_circle(user, meeting.circle):
-        return None, "That session isn’t included in your plan."
+    kind = (meeting.kind or "peer").strip().lower()
+    if kind not in ("peer", "facilitator"):
+        return None, "That session isn’t open to join."
+    if kind == "peer":
+        if not meeting.circle or not meeting.circle.active:
+            return None, "That topic isn’t available."
+        if not user_can_access_circle(user, meeting.circle):
+            return None, "That session isn’t included in your plan."
+    elif kind == "facilitator":
+        if not user.is_admin and not user.is_healing():
+            return None, "Facilitator sessions are for Healing & Full Bloom members."
     if not meeting.scheduled_at or meeting.scheduled_at <= utcnow():
         return None, "That session has already started or ended."
     if meeting_spots_left(meeting) <= 0:
-        return None, "That session is full (8 women max)."
+        cap = meeting.capacity or meeting_max_participants(meeting)
+        return None, f"That session is full ({cap} seats max)."
 
     existing = user_selected_on_meeting(user.id, meeting.id)
     if existing:
         return existing, None
 
-    other = user_open_seat_in_circle(user.id, meeting.circle_id)
-    if other and other.meeting_id != meeting.id:
-        return None, (
-            f"You're already booked for another {meeting.circle.title} session. "
-            "Leave that one first if you want to switch."
-        )
+    if kind == "peer" and meeting.circle_id:
+        other = user_open_seat_in_circle(user.id, meeting.circle_id)
+        if other and other.meeting_id != meeting.id:
+            return None, (
+                f"You're already booked for another {meeting.circle.title} session. "
+                "Leave that one first if you want to switch."
+            )
 
     row = SupportGroupApplication(
         user_id=user.id,
@@ -549,8 +775,18 @@ def leave_peer_session(user: User, meeting_id: int) -> str | None:
         cancel_meeting(meeting, owner=user, return_to_queue=False)
         return None
 
+    topic = _circle_name(meeting)
+    day, _time = _session_date_and_time(user, meeting.scheduled_at)
     row.status = "cancelled"
     db.session.commit()
+    try:
+        send_support_group_left(
+            user.email,
+            group_topic=topic,
+            session_date=day,
+        )
+    except Exception:
+        log.exception("Support-group leave email failed for user %s", user.id)
     return None
 
 
@@ -558,32 +794,10 @@ def _notify_joiner(meeting: SupportGroupMeeting, user: User) -> None:
     room = _meeting_room_url(meeting)
     group = _circle_name(meeting)
     when = _when_for(user, meeting.scheduled_at)
-    seats = max(0, meeting_seat_count(meeting) - 1)
     note = f"You're in for {group} — {when}."
     notify(user.id, kind="support_group", body=note[:300],
            actor_id=meeting.scheduled_by_user_id, url=room)
-    text = (
-        f"Hi {user.first_name() or user.public_name()},\n\n"
-        f"You've joined {group}.\n\n"
-        f"When: {when}\n"
-        f"With: up to {PEER_MEETING_CAP - 1} other members "
-        f"({seats} already seated)\n"
-        f"Join in Bloom Anyway: {room}\n\n"
-        f"We'll remind you again 24 hours before.\n\n"
-        f"— Bloom Anyway\n"
-    )
-    html = (
-        f"<p>Hi {escape(user.first_name() or user.public_name())},</p>"
-        f"<p>You've joined <strong>{escape(group)}</strong>.</p>"
-        f"<p><strong>When:</strong> {escape(when)}</p>"
-        f"<p><a href=\"{escape(room)}\">Join the session</a></p>"
-        f"<p>We'll remind you again 24 hours before.</p>"
-        f"<p>— Bloom Anyway</p>"
-    )
-    try:
-        send_email(user.email, f"You're in for {group}", text, html_body=html)
-    except Exception:
-        log.exception("Support-group join email failed for user %s", user.id)
+    _send_booked_email(meeting, user)
     db.session.commit()
 
 
@@ -697,13 +911,26 @@ def schedule_meeting(meeting: SupportGroupMeeting, *, scheduled_at: datetime,
 
     title = meeting_display_title(meeting)
     topic = f"Bloom Anyway — {title}"
+    duration = meeting_duration_minutes(meeting)
+    max_part = meeting_max_participants(meeting)
+    cloud_rec = (meeting.kind or "").strip().lower() == "one_on_one"
     try:
         if meeting.zoom_meeting_id:
             updated = daily_svc.update_room(
-                meeting.zoom_meeting_id, scheduled_at=scheduled_at,
+                meeting.zoom_meeting_id,
+                scheduled_at=scheduled_at,
+                duration_minutes=duration,
+                max_participants=max_part,
+                enable_cloud_recording=cloud_rec,
             )
             if updated is None:
-                info = daily_svc.create_room(topic=topic, scheduled_at=scheduled_at)
+                info = daily_svc.create_room(
+                    topic=topic,
+                    scheduled_at=scheduled_at,
+                    duration_minutes=duration,
+                    max_participants=max_part,
+                    enable_cloud_recording=cloud_rec,
+                )
                 meeting.zoom_meeting_id = info.room_name
                 meeting.zoom_url = info.room_url
             else:
@@ -711,7 +938,13 @@ def schedule_meeting(meeting: SupportGroupMeeting, *, scheduled_at: datetime,
                     meeting.zoom_url = updated.room_url
                 meeting.zoom_meeting_id = updated.room_name or meeting.zoom_meeting_id
         else:
-            info = daily_svc.create_room(topic=topic, scheduled_at=scheduled_at)
+            info = daily_svc.create_room(
+                topic=topic,
+                scheduled_at=scheduled_at,
+                duration_minutes=duration,
+                max_participants=max_part,
+                enable_cloud_recording=cloud_rec,
+            )
             meeting.zoom_meeting_id = info.room_name
             meeting.zoom_url = info.room_url
     except daily_svc.DailyError as exc:
@@ -855,8 +1088,168 @@ def _reminder_day_and_timing(
     return None, f"in about {hours} hour{'s' if hours != 1 else ''}"
 
 
+def _host_display_name(meeting: SupportGroupMeeting) -> str:
+    host = meeting.host
+    if host is None and meeting.scheduled_by_user_id:
+        host = db.session.get(User, meeting.scheduled_by_user_id)
+    if not host or host.deleted_at:
+        return "a member"
+    return (host.public_name() or host.first_name() or "a member").strip() or "a member"
+
+
+def _session_date_and_time(user: User, scheduled_at: datetime | None
+                           ) -> tuple[str, str]:
+    """Date + time strings in the member's timezone for booking emails."""
+    if scheduled_at is None:
+        return "—", "—"
+    tz = normalize_timezone(getattr(user, "timezone", None)) or "UTC"
+    day = format_local(scheduled_at, "%A, %b %d, %Y", tz_name=tz) or "—"
+    time_s = format_local(scheduled_at, "%I:%M %p", tz_name=tz) or "—"
+    if time_s and time_s != "—":
+        time_s = f"{time_s} ({tz})"
+    return day, time_s
+
+
 def _circle_name(meeting: SupportGroupMeeting) -> str:
     return meeting_display_title(meeting)
+
+
+def _facilitator_amount_for(email: str) -> str:
+    """Best-effort paid amount from a recent facilitator Stripe order."""
+    return _addon_amount_for(
+        email,
+        setting_key="facilitator_stripe_price_id",
+        fallback="",
+    )
+
+
+def _one_on_one_amount_for(email: str, coach: str) -> str:
+    """Paid amount from Ayesha/Saman Stripe orders when available."""
+    coach_key = (coach or "").strip().casefold()
+    if coach_key == "saman":
+        setting = "saman_stripe_price_id"
+    else:
+        setting = "ayesha_stripe_price_id"
+    return _addon_amount_for(email, setting_key=setting, fallback="")
+
+
+def _addon_amount_for(email: str, *, setting_key: str, fallback: str) -> str:
+    from ..models import Order
+    from .settings import get_setting
+
+    price_id = (get_setting(setting_key) or "").strip()
+    email_norm = (email or "").strip().lower()
+    if email_norm and price_id:
+        order = (
+            Order.query
+            .filter(
+                func.lower(Order.buyer_email) == email_norm,
+                Order.status == "paid",
+                Order.ls_variant_id == price_id,
+            )
+            .order_by(Order.created_at.desc())
+            .first()
+        )
+        if order is not None:
+            try:
+                shown = order.total_display()
+                if shown:
+                    return shown
+            except Exception:
+                pass
+    return fallback
+
+
+def _send_booked_email(meeting: SupportGroupMeeting, user: User) -> None:
+    kind = (meeting.kind or "peer").strip().lower()
+    # Studio host is seated but didn't book as a member.
+    if (kind in ("facilitator", "one_on_one")
+            and meeting.scheduled_by_user_id
+            and user.id == meeting.scheduled_by_user_id):
+        return
+    day, time_s = _session_date_and_time(user, meeting.scheduled_at)
+    try:
+        if kind == "facilitator":
+            send_facilitator_booked(
+                user.email,
+                session_date=day,
+                session_time=time_s,
+                amount=_facilitator_amount_for(user.email),
+            )
+            return
+        if kind == "one_on_one":
+            coach = normalize_custom_topic(meeting.notes) or "a founder"
+            send_one_on_one_booked(
+                user.email,
+                coach_name=coach,
+                session_date=day,
+                session_time=time_s,
+                amount=_one_on_one_amount_for(user.email, coach),
+            )
+            return
+        room = _meeting_room_url(meeting)
+        send_support_group_booked(
+            user.email,
+            group_topic=_circle_name(meeting),
+            host_name=_host_display_name(meeting),
+            session_date=day,
+            session_time=time_s,
+            button_url=room,
+        )
+    except Exception:
+        log.exception("Support-group booking email failed for user %s", user.id)
+
+
+def _send_reminder_email(meeting: SupportGroupMeeting, user: User) -> None:
+    room = _meeting_room_url(meeting)
+    day, time_s = _session_date_and_time(user, meeting.scheduled_at)
+    try:
+        send_support_group_reminder(
+            user.email,
+            group_topic=_circle_name(meeting),
+            host_name=_host_display_name(meeting),
+            session_date=day,
+            session_time=time_s,
+            button_url=room,
+        )
+    except Exception:
+        log.exception("Support-group reminder email failed for user %s", user.id)
+
+
+def _send_host_cancelled_email(meeting: SupportGroupMeeting, user: User) -> None:
+    kind = (meeting.kind or "peer").strip().lower()
+    if (kind in ("facilitator", "one_on_one")
+            and meeting.scheduled_by_user_id
+            and user.id == meeting.scheduled_by_user_id):
+        return
+    day, _time = _session_date_and_time(user, meeting.scheduled_at)
+    try:
+        if kind == "facilitator":
+            send_facilitator_cancelled(
+                user.email,
+                session_date=day,
+                amount=_facilitator_amount_for(user.email),
+            )
+            return
+        if kind == "one_on_one":
+            coach = normalize_custom_topic(meeting.notes) or "a founder"
+            send_one_on_one_cancelled(
+                user.email,
+                coach_name=coach,
+                session_date=day,
+                amount=_one_on_one_amount_for(user.email, coach),
+            )
+            return
+        send_support_group_host_cancelled(
+            user.email,
+            group_topic=_circle_name(meeting),
+            session_date=day,
+            button_url=_circle_browse_url(meeting.circle_id),
+        )
+    except Exception:
+        log.exception(
+            "Support-group host-cancel email failed for user %s", user.id,
+        )
 
 
 def _notify_seats(meeting: SupportGroupMeeting, *, kind: str,
@@ -879,26 +1272,9 @@ def _notify_seats(meeting: SupportGroupMeeting, *, kind: str,
                 f"You're booked for {group} with "
                 f"{others} other{'s' if others != 1 else ''} — {when}."
             )
-            subject = f"You're booked for {group}"
-            text = (
-                f"Hi {user.first_name() or user.public_name()},\n\n"
-                f"You're in for {group}.\n\n"
-                f"When: {when}\n"
-                f"With: {others} other member{'s' if others != 1 else ''}\n"
-                f"Join in Bloom Anyway: {room}\n\n"
-                f"We'll remind you again 24 hours before.\n\n"
-                f"See you there,\n— Bloom Anyway\n"
-            )
-            html = (
-                f"<p>Hi {escape(user.first_name() or user.public_name())},</p>"
-                f"<p>You're in for <strong>{escape(group)}</strong>.</p>"
-                f"<p><strong>When:</strong> {escape(when)}<br>"
-                f"<strong>With:</strong> {others} other "
-                f"member{'s' if others != 1 else ''}</p>"
-                f"<p><a href=\"{escape(room)}\">Join the session</a></p>"
-                f"<p>We'll remind you again 24 hours before.</p>"
-                f"<p>— Bloom Anyway</p>"
-            )
+            subject = None
+            text = None
+            html = None
         elif kind == "updated":
             note = f"Your {group} was rescheduled — {when}."
             subject = f"{group} time updated"
@@ -919,56 +1295,38 @@ def _notify_seats(meeting: SupportGroupMeeting, *, kind: str,
             )
         elif kind == "cancelled":
             note = f"Your {group} meeting was cancelled."
-            subject = f"{group} cancelled"
-            text = (
-                f"Hi {user.first_name() or user.public_name()},\n\n"
-                f"The {group} you were booked for has been cancelled.\n"
-                f"You can join or schedule another session on Support Groups.\n\n"
-                f"— Bloom Anyway\n"
-            )
+            subject = None
+            text = None
             html = None
         elif kind == "cancelled_draft":
             note = f"The {group} session you were seated for was cancelled."
-            subject = f"{group} cancelled"
-            text = (
-                f"Hi {user.first_name() or user.public_name()},\n\n"
-                f"The {group} session was cancelled before it went live.\n"
-                f"You can join or schedule another on Support Groups.\n\n"
-                f"— Bloom Anyway\n"
-            )
+            subject = None
+            text = None
             html = None
         elif kind == "reminder":
-            day_word, timing = _reminder_day_and_timing(
+            day_word, _timing = _reminder_day_and_timing(
                 user, meeting.scheduled_at)
             if day_word:
                 note = f"Reminder: {group} {day_word} — {when}."
-                subject = f"Reminder: {group} {day_word}"
             else:
                 note = f"Reminder: {group} — {when}."
-                subject = f"Reminder: {group}"
-            text = (
-                f"Hi {user.first_name() or user.public_name()},\n\n"
-                f"Friendly reminder — your {group} is {timing}.\n\n"
-                f"When: {when}\n"
-                f"With: {others} other member{'s' if others != 1 else ''}\n"
-                f"Join in Bloom Anyway: {room}\n\n"
-                f"See you there,\n— Bloom Anyway\n"
-            )
-            html = (
-                f"<p>Hi {escape(user.first_name() or user.public_name())},</p>"
-                f"<p>Friendly reminder — your {escape(group)} is "
-                f"{escape(timing)}.</p>"
-                f"<p><strong>When:</strong> {escape(when)}<br>"
-                f"<strong>With:</strong> {others} other "
-                f"member{'s' if others != 1 else ''}</p>"
-                f"<p><a href=\"{escape(room)}\">Join the session</a></p>"
-                f"<p>See you there,<br>— Bloom Anyway</p>"
-            )
+            subject = None
+            text = None
+            html = None
         else:
             continue
 
         notify(user.id, kind="support_group", body=note[:300],
                actor_id=actor_id, url=join_url)
+        if kind == "booked":
+            _send_booked_email(meeting, user)
+            continue
+        if kind == "reminder":
+            _send_reminder_email(meeting, user)
+            continue
+        if kind in ("cancelled", "cancelled_draft"):
+            _send_host_cancelled_email(meeting, user)
+            continue
         try:
             send_email(user.email, subject, text, html_body=html)
         except Exception:
@@ -1008,6 +1366,7 @@ def maybe_sweep_reminders(force: bool = False) -> int:
         return 0
     _last_sweep_mono = now_mono
     try:
+        expire_past_meetings()
         return dispatch_due_reminders()
     except Exception:
         log.exception("Support-group reminder sweep failed")

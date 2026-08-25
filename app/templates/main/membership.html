@@ -15,7 +15,7 @@
 {% block content %}
 {% set facilitator_checkout = url_for('main.checkout_addon', kind='facilitator') if site.facilitator_stripe_price_id else none %}
 {% set ayesha_checkout = url_for('main.checkout_addon', kind='ayesha') if site.ayesha_stripe_price_id else none %}
-{% set saman_checkout = url_for('main.checkout_addon', kind='saman') if site.saman_stripe_price_id else none %}
+{% set saman_checkout = url_for('main.coaching_book', coach='saman') if site.saman_stripe_price_id else none %}
 {% set facilitator_url = facilitator_checkout or site.facilitator_booking_url or url_for('main.contact') %}
 {% set ayesha_url = ayesha_checkout or site.ayesha_booking_url or url_for('main.contact') %}
 {% set saman_url = saman_checkout or site.saman_booking_url or url_for('main.contact') %}
@@ -151,7 +151,7 @@
           {% if current == 'healing' %}
           {% if current_user.is_authenticated and not current_user.is_admin %}
           <form method="post" action="{{ url_for('main.cancel_membership') }}" class="mem-card__cancel"
-                data-confirm="Cancel Healing membership? Access ends today. Marketplace listings may be hidden."
+                data-confirm="Cancel Healing membership? You’ll keep access until the end of your billing period, then it will be revoked. You won’t be charged again."
                 data-confirm-title="Cancel membership?"
                 data-confirm-ok="Yes, cancel">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -236,7 +236,7 @@
           {% if current == 'creator' %}
           {% if current_user.is_authenticated and not current_user.is_admin %}
           <form method="post" action="{{ url_for('main.cancel_membership') }}" class="mem-card__cancel"
-                data-confirm="Cancel Creator membership? Access ends today. Marketplace listings may be hidden."
+                data-confirm="Cancel Creator membership? You’ll keep access until the end of your billing period, then it will be revoked. You won’t be charged again."
                 data-confirm-title="Cancel membership?"
                 data-confirm-ok="Yes, cancel">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -324,7 +324,7 @@
           {% if current == 'full_bloom' %}
           {% if current_user.is_authenticated and not current_user.is_admin %}
           <form method="post" action="{{ url_for('main.cancel_membership') }}" class="mem-card__cancel"
-                data-confirm="Cancel Full Bloom membership? Access ends today. Marketplace listings may be hidden."
+                data-confirm="Cancel Full Bloom membership? You’ll keep access until the end of your billing period, then it will be revoked. You won’t be charged again."
                 data-confirm-title="Cancel membership?"
                 data-confirm-ok="Yes, cancel">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -363,8 +363,7 @@
         <article class="mem-addon">
           <p class="mem-addon__icon" aria-hidden="true">&#9787;</p>
           <h3>Facilitator-led session</h3>
-          <p class="mem-addon__price">$25 <span>per session</span></p>
-          <p>Guided small-group support with a trained facilitator. Healing track only.</p>
+          <p>Guided small-group support with a trained facilitator. Healing track only. Price shown at checkout.</p>
           <span class="mem-addon__tag">Available to all members &bull; Limited slots</span>
           <a class="btn btn--gold" href="{{ facilitator_url }}"
              {% if facilitator_external %}target="_blank" rel="noopener"{% endif %}>Book facilitator &rarr;</a>
@@ -372,8 +371,7 @@
         <article class="mem-addon">
           <p class="mem-addon__icon" aria-hidden="true">&#10084;</p>
           <h3>1:1 with Ayesha</h3>
-          <p class="mem-addon__price">$97 <span>per session</span></p>
-          <p>Private healing coaching &mdash; divorce, custody, heartbreak, and rebuilding.</p>
+          <p>Private healing coaching &mdash; divorce, custody, heartbreak, and rebuilding. Price shown at checkout.</p>
           <span class="mem-addon__tag">Healing &amp; Full Bloom &bull; Limited slots</span>
           <a class="btn btn--secondary" href="{{ ayesha_url }}"
              {% if ayesha_external %}target="_blank" rel="noopener"{% endif %}>Book with Ayesha &rarr;</a>
@@ -381,8 +379,7 @@
         <article class="mem-addon">
           <p class="mem-addon__icon" aria-hidden="true">&#10022;</p>
           <h3>1:1 with Saman</h3>
-          <p class="mem-addon__price">$97 <span>per session</span></p>
-          <p>Business, content, and digital product strategy for builders.</p>
+          <p>Business, content, and digital product strategy for builders. Price shown at checkout.</p>
           <span class="mem-addon__tag">Creator &amp; Full Bloom &bull; Limited slots</span>
           <a class="btn btn--secondary" href="{{ saman_url }}"
              {% if saman_external %}target="_blank" rel="noopener"{% endif %}>Book with Saman &rarr;</a>

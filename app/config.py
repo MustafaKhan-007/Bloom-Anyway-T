@@ -98,14 +98,39 @@ class Config:
     BREVO_TEMPLATE_NEWSLETTER = int(
         os.environ.get("BREVO_TEMPLATE_NEWSLETTER", "9") or 0
     )
+    BREVO_TEMPLATE_SUPPORT_BOOKED = int(
+        os.environ.get("BREVO_TEMPLATE_SUPPORT_BOOKED", "11") or 0
+    )
+    BREVO_TEMPLATE_SUPPORT_LEFT = int(
+        os.environ.get("BREVO_TEMPLATE_SUPPORT_LEFT", "12") or 0
+    )
+    BREVO_TEMPLATE_SUPPORT_REMINDER = int(
+        os.environ.get("BREVO_TEMPLATE_SUPPORT_REMINDER", "13") or 0
+    )
+    BREVO_TEMPLATE_SUPPORT_HOST_CANCEL = int(
+        os.environ.get("BREVO_TEMPLATE_SUPPORT_HOST_CANCEL", "14") or 0
+    )
+    BREVO_TEMPLATE_FACILITATOR_BOOKED = int(
+        os.environ.get("BREVO_TEMPLATE_FACILITATOR_BOOKED", "15") or 0
+    )
+    BREVO_TEMPLATE_ONE_ON_ONE_BOOKED = int(
+        os.environ.get("BREVO_TEMPLATE_ONE_ON_ONE_BOOKED", "16") or 0
+    )
+    BREVO_TEMPLATE_FACILITATOR_CANCELLED = int(
+        os.environ.get("BREVO_TEMPLATE_FACILITATOR_CANCELLED", "17") or 0
+    )
+    BREVO_TEMPLATE_ONE_ON_ONE_CANCELLED = int(
+        os.environ.get("BREVO_TEMPLATE_ONE_ON_ONE_CANCELLED", "18") or 0
+    )
     # Optional absolute site origin for email CTAs when no request context.
     PUBLIC_BASE_URL = (
         os.environ.get("PUBLIC_BASE_URL", "").strip()
         or "https://www.bloomanyway.online"
     )
     # Days of access kept after a failed membership renewal charge.
+    # After this window Stripe cancels the sub and membership access is revoked.
     MEMBERSHIP_GRACE_DAYS = int(
-        os.environ.get("MEMBERSHIP_GRACE_DAYS", "3") or 3
+        os.environ.get("MEMBERSHIP_GRACE_DAYS", "5") or 5
     )
     SMTP_HOST = os.environ.get("SMTP_HOST", "").strip()
     SMTP_PORT = int(os.environ.get("SMTP_PORT", "587") or 587)

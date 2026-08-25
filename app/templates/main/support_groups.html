@@ -125,7 +125,7 @@
 {% set membership_url = url_for('main.membership', next=request.path) %}
 {% set facilitator_checkout = url_for('main.checkout_addon', kind='facilitator') if site.facilitator_stripe_price_id else none %}
 {% set ayesha_checkout = url_for('main.checkout_addon', kind='ayesha') if site.ayesha_stripe_price_id else none %}
-{% set saman_checkout = url_for('main.checkout_addon', kind='saman') if site.saman_stripe_price_id else none %}
+{% set saman_checkout = url_for('main.coaching_book', coach='saman') if site.saman_stripe_price_id else none %}
 {% set facilitator_url = facilitator_checkout or site.facilitator_booking_url or membership_url %}
 {% set ayesha_url = ayesha_checkout or site.ayesha_booking_url or url_for('main.contact') %}
 {% set saman_url = saman_checkout or site.saman_booking_url or url_for('main.contact') %}
@@ -140,7 +140,8 @@
       <h1>Support Groups</h1>
       <p class="sg-page__intro">
         Peer-led circles you schedule yourselves — join an upcoming session or host one
-        (once every 2 weeks). Sessions open in Bloom Anyway. Facilitator-led and 1:1 stay separately booked.
+        (once every 2 weeks). Facilitator-led sessions are Studio-scheduled.
+        Book a 1:1 with Saman through the intake form (pick a time, then checkout).
       </p>
       <nav class="sg-page__tabs" aria-label="Support group sections">
         <a href="#healing">Healing Groups</a>
@@ -240,25 +241,56 @@
           <span class="sg-pill">8 WOMEN MAX</span>
         </div>
         <h2>Facilitator-Led Sessions</h2>
-        <p>Professionally guided. Booked separately — Studio manages these, not peer scheduling.</p>
+        <p>Professionally guided — {{ facilitator_minutes }} minutes, {{ facilitator_cap }} seats, in-site video. Studio schedules these; Healing &amp; Full Bloom members can save a seat. Payment (if required) stays on the Book link.</p>
       </div>
+      {% if facilitator_sessions %}
+      <ul class="sg-upcoming__list" style="margin: 0 0 28px; max-width: 720px;">
+        {% for m in facilitator_sessions %}
+        {% set spots = facilitator_spots.get(m.id, 0) %}
+        {% set seated = facilitator_seats.get(m.id, 0) %}
+        <li class="sg-upcoming__item">
+          <div>
+            <strong>{{ m.notes or 'Facilitator session' }}</strong>
+            <p class="field-help" style="margin:2px 0 0;">
+              {{ m.scheduled_at|localtime('%a %b %d · %I:%M %p') }}
+              · {{ seated }}/{{ m.capacity or facilitator_cap }} seated
+            </p>
+          </div>
+          <div class="sg-upcoming__actions">
+            {% if current_user.is_authenticated and m.id in my_meeting_ids %}
+            <a class="btn btn--primary btn--sm" href="{{ url_for('main.support_session_room', meeting_id=m.id) }}">Join session</a>
+            {% elif current_user.is_authenticated and (current_user.is_healing() or current_user.is_admin) and spots > 0 %}
+            <form method="post" action="{{ url_for('main.join_support_session', meeting_id=m.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button class="btn btn--secondary btn--sm" type="submit">Save a seat</button>
+            </form>
+            {% elif spots <= 0 %}
+            <span class="field-help">Full</span>
+            {% else %}
+            <a class="btn btn--secondary btn--sm" href="{{ membership_url }}">Join with Healing</a>
+            {% endif %}
+          </div>
+        </li>
+        {% endfor %}
+      </ul>
+      {% endif %}
       <div class="sg-page__premium">
         <div class="sg-page__premium-copy">
           <p class="sg-page__eyebrow sg-page__eyebrow--light">PREMIUM &bull; HEALING TRACK ONLY</p>
           <h2>Go deeper with a guided session</h2>
           <p>A trained facilitator holds the room so you can speak freely, listen deeply, and leave with clarity.</p>
           <ul class="sg-page__bullets">
-            <li>60-minute guided session</li>
-            <li>Small group — 8 women max</li>
-            <li>Professionally facilitated</li>
+            <li>{{ facilitator_minutes }}-minute guided session</li>
+            <li>Small group — {{ facilitator_cap }} women max</li>
+            <li>Professionally facilitated · in-site video</li>
           </ul>
         </div>
         <div class="sg-page__premium-cta">
-          <p class="sg-page__price">$25 <span>per session</span></p>
           <a class="btn btn--gold" href="{{ facilitator_url }}"
              {% if facilitator_external %}target="_blank" rel="noopener"{% endif %}>
             Book your spot &rarr;
           </a>
+          <p class="field-help" style="margin: 10px 0 0;">Price shown at checkout</p>
         </div>
       </div>
     </div>
@@ -272,8 +304,26 @@
           <span class="sg-pill">BOOK DIRECTLY WITH THE FOUNDERS</span>
         </div>
         <h2>One on One with the Founders</h2>
-        <p>Not a generic coach. The women who built this, who lived it, who are still in it.</p>
+        <p>Not a generic coach. The women who built this, who lived it, who are still in it. Book with Saman after a short intake — pick a time from her availability, then checkout.</p>
       </div>
+      {% if my_one_on_ones %}
+      <ul class="sg-upcoming__list" style="margin: 0 0 28px; max-width: 720px;">
+        {% for m in my_one_on_ones %}
+        <li class="sg-upcoming__item">
+          <div>
+            <strong>1:1 with {{ m.notes or 'a founder' }}</strong>
+            <p class="field-help" style="margin:2px 0 0;">
+              {{ m.scheduled_at|localtime('%a %b %d · %I:%M %p') }}
+              · {{ one_on_one_minutes }} min · in-site video
+            </p>
+          </div>
+          <div class="sg-upcoming__actions">
+            <a class="btn btn--primary btn--sm" href="{{ url_for('main.support_session_room', meeting_id=m.id) }}">Join session</a>
+          </div>
+        </li>
+        {% endfor %}
+      </ul>
+      {% endif %}
       <div class="sg-page__coach-grid">
         <article class="sg-coach sg-coach--heal">
           <div class="sg-coach__who">
@@ -286,11 +336,11 @@
           <h4>Healing 1:1 — find your way through it</h4>
           <p>Navigate divorce, custody, heartbreak, and rebuilding with someone who has walked it and holds space without judgment.</p>
           <ul class="sg-page__bullets sg-page__bullets--gold">
-            <li>60-minute private session</li>
+            <li>{{ one_on_one_minutes }}-minute private session</li>
             <li>Focused on your situation</li>
-            <li>Honest, grounded guidance</li>
+            <li>In-site video once Studio books you</li>
           </ul>
-          <p class="sg-page__price sg-page__price--inline">$97 <span>per session + limited availability</span></p>
+          <p class="field-help" style="margin: 0 0 12px;">Limited availability · price shown at checkout</p>
           <a class="btn btn--primary" href="{{ ayesha_url }}"
              {% if ayesha_external %}target="_blank" rel="noopener"{% endif %}>
             Book with Ayesha &rarr;
@@ -307,11 +357,11 @@
           <h4>Creator 1:1 — build it with someone who did</h4>
           <p>Strategy for content, digital products, and business growth — practical, encouraging, and built for real life.</p>
           <ul class="sg-page__bullets sg-page__bullets--gold">
-            <li>60-minute private session</li>
+            <li>{{ one_on_one_minutes }}-minute private session</li>
             <li>Content &amp; growth strategy</li>
-            <li>Actionable next steps</li>
+            <li>In-site video once Studio books you</li>
           </ul>
-          <p class="sg-page__price sg-page__price--inline">$97 <span>per session + limited availability</span></p>
+          <p class="field-help" style="margin: 0 0 12px;">Limited availability · price shown at checkout</p>
           <a class="btn btn--gold" href="{{ saman_url }}"
              {% if saman_external %}target="_blank" rel="noopener"{% endif %}>
             Book with Saman &rarr;

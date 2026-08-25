@@ -1106,13 +1106,14 @@ def cancel_membership():
         or current_user.membership_label()
         or "Membership"
     )
-    # Cancel takes effect immediately in-app; access ends today.
-    access_end = date.today().strftime("%b %d, %Y")
 
-    stripe_result = {"ok": True, "cancelled": [], "errors": []}
+    stripe_result = {"ok": True, "cancelled": [], "errors": [], "period_end": None}
     if pay.configured():
         try:
-            stripe_result = pay.cancel_membership_subscriptions(current_user.email)
+            # Keep plan access until the paid period ends; Stripe stops renewals.
+            stripe_result = pay.cancel_membership_subscriptions(
+                current_user.email, at_period_end=True,
+            )
         except Exception:
             log.exception(
                 "Stripe membership cancel failed for user %s", current_user.id,
@@ -1121,12 +1122,12 @@ def cancel_membership():
                 "ok": False,
                 "cancelled": [],
                 "errors": ["exception"],
+                "period_end": None,
             }
 
-    current_user.membership = "none"
-    from ..services.listings import enforce_listing_limits
-    enforce_listing_limits(current_user)
-    db.session.commit()
+    access_end = pay.format_access_end_date(stripe_result.get("period_end"))
+    if not access_end:
+        access_end = "the end of your billing period"
 
     try:
         send_membership_cancelled(
@@ -1138,21 +1139,26 @@ def cancel_membership():
         log.exception("Cancel email failed for user %s", current_user.id)
 
     if stripe_result.get("cancelled"):
-        flash("Your membership is cancelled. Billing has been stopped in Stripe.",
-              "success")
+        flash(
+            f"Your membership is cancelled. You keep {plan_name} access until "
+            f"{access_end}, then it will be revoked. You will not be charged again.",
+            "success",
+        )
     elif not pay.configured():
-        flash("Your membership is cancelled on Bloom Anyway.", "success")
+        flash(
+            f"Your membership is cancelled. Access continues until {access_end}.",
+            "success",
+        )
     elif stripe_result.get("ok"):
         flash(
-            "Your membership is cancelled. No active Stripe subscription was "
-            "found for this email (you will not be charged again from Bloom).",
+            "Cancellation noted. No active Stripe subscription was found for "
+            "this email — you will not be charged again from Bloom.",
             "success",
         )
     else:
         flash(
-            "Your membership is cancelled here, but we could not reach Stripe "
-            "to stop billing automatically. Check Stripe or your receipt email "
-            "so you are not charged again.",
+            "We could not reach Stripe to stop renewals automatically. Check "
+            "Stripe or your receipt email so you are not charged again.",
             "error",
         )
     return redirect(dest)
@@ -1702,6 +1708,14 @@ def support_groups_page():
     can_schedule = False
     schedule_err = None
     member_tz = "UTC"
+    facilitator_sessions = sg_svc.open_facilitator_sessions()
+    facilitator_spots = {
+        m.id: sg_svc.meeting_spots_left(m) for m in facilitator_sessions
+    }
+    facilitator_seats = {
+        m.id: sg_svc.meeting_seat_count(m) for m in facilitator_sessions
+    }
+    my_one_on_ones = []
     if current_user.is_authenticated:
         member_tz = (current_user.timezone or "UTC").strip() or "UTC"
         if current_user.is_member():
@@ -1710,6 +1724,8 @@ def support_groups_page():
             for app in sg_svc.upcoming_for_user(current_user, limit=40):
                 if app.meeting_id:
                     my_meeting_ids.add(app.meeting_id)
+                if app.meeting and (app.meeting.kind or "") == "one_on_one":
+                    my_one_on_ones.append(app.meeting)
     return render_template(
         "main/support_groups.html",
         healing_circles=healing,
@@ -1722,6 +1738,74 @@ def support_groups_page():
         peer_cap=sg_svc.PEER_MEETING_CAP,
         peer_minutes=sg_svc.peer_meeting_minutes(),
         max_sessions=sg_svc.MAX_OPEN_SESSIONS_PER_CIRCLE,
+        facilitator_sessions=facilitator_sessions,
+        facilitator_spots=facilitator_spots,
+        facilitator_seats=facilitator_seats,
+        facilitator_minutes=sg_svc.FACILITATOR_DURATION_MINUTES,
+        facilitator_cap=sg_svc.FACILITATOR_MEETING_CAP,
+        my_one_on_ones=my_one_on_ones,
+        one_on_one_minutes=sg_svc.ONE_ON_ONE_DURATION_MINUTES,
+    )
+
+
+@bp.route("/coaching/<coach>/book", methods=["GET", "POST"])
+@login_required
+@limiter.limit("20 per minute")
+def coaching_book(coach):
+    """Questionnaire + availability slot, then Stripe Checkout for a founder 1:1."""
+    from ..services import coaching_intake as intake_svc
+    from ..services import settings as settings_service
+    from ..services.timefmt import viewer_timezone
+
+    key = intake_svc.normalize_coach(coach)
+    if key != "saman":
+        abort(404)
+    questions = intake_svc.questions_for(key)
+    if not questions:
+        abort(404)
+
+    price_id = (settings_service.get_setting(f"{key}_stripe_price_id") or "").strip()
+    if not price_id:
+        flash("Checkout for this 1:1 isn’t live yet — check back soon.", "info")
+        return redirect(url_for("main.support_groups_page") + "#coaching")
+
+    viewer_tz = viewer_timezone()
+    slots = intake_svc.open_slots(key, viewer_tz=viewer_tz)
+
+    if request.method == "POST":
+        answers, err = intake_svc.parse_answers(request.form, key)
+        if err:
+            flash(err, "error")
+            return redirect(url_for("main.coaching_book", coach=key))
+        when = intake_svc.parse_slot_utc(request.form.get("slot_utc") or "")
+        if when is None:
+            flash("Pick an available date and time for your call.", "error")
+            return redirect(url_for("main.coaching_book", coach=key))
+        intake, err = intake_svc.create_pending_intake(
+            current_user, coach=key, answers=answers, slot_utc=when,
+        )
+        if err:
+            flash(err, "error")
+            return redirect(url_for("main.coaching_book", coach=key))
+        return redirect(url_for(
+            "main.checkout_addon", kind=key, intake=intake.id,
+        ))
+
+    # Group questions by section for the template.
+    sections: list[tuple[str, list]] = []
+    for q in questions:
+        if not sections or sections[-1][0] != q["section"]:
+            sections.append((q["section"], []))
+        sections[-1][1].append(q)
+
+    return render_template(
+        "main/coaching_book.html",
+        coach=key,
+        coach_label=intake_svc.coach_label(key),
+        sections=sections,
+        slots=slots,
+        viewer_tz=viewer_tz,
+        duration_min=60,
     )
 
 
@@ -1729,6 +1813,7 @@ def support_groups_page():
 @limiter.limit("20 per minute")
 def checkout_addon(kind):
     """Stripe Checkout for facilitator / 1:1 add-ons (price ids from Studio settings)."""
+    from ..models import CoachingIntake
     from ..services import settings as settings_service
 
     catalog = {
@@ -1748,9 +1833,16 @@ def checkout_addon(kind):
             "slug": "addon-saman",
         },
     }
-    info = catalog.get((kind or "").strip().lower())
+    kind_key = (kind or "").strip().lower()
+    info = catalog.get(kind_key)
     if not info:
         abort(404)
+
+    # Saman 1:1 must go through the questionnaire + slot picker first.
+    intake_id = request.args.get("intake", type=int) or request.form.get("intake", type=int)
+    if kind_key == "saman" and not intake_id:
+        return redirect(url_for("main.coaching_book", coach="saman"))
+
     price_id = (settings_service.get_setting(info["setting"]) or "").strip()
     if not price_id:
         flash("Checkout for this add-on isn’t live yet — check back soon.", "info")
@@ -1758,8 +1850,32 @@ def checkout_addon(kind):
     if not pay.configured():
         flash("Payments aren’t configured yet. Please try again later.", "error")
         return redirect(url_for("main.support_groups_page"))
+
+    intake = None
+    if intake_id:
+        intake = db.session.get(CoachingIntake, intake_id)
+        if (
+            intake is None
+            or intake.status != "pending_payment"
+            or not current_user.is_authenticated
+            or intake.user_id != current_user.id
+        ):
+            flash("That booking form expired — please fill it in again.", "error")
+            if kind_key == "saman":
+                return redirect(url_for("main.coaching_book", coach="saman"))
+            return redirect(url_for("main.support_groups_page"))
+
     email = current_user.email if current_user.is_authenticated else None
     name = current_user.public_name() if current_user.is_authenticated else None
+    metadata = {
+        "slug": info["slug"],
+        "kind": "product",
+        "product_name": info["name"],
+        "addon": kind_key,
+    }
+    if intake is not None:
+        metadata["coaching_intake_id"] = str(intake.id)
+        metadata["coach"] = intake.coach
     try:
         url = pay.create_checkout_session(
             product_id=price_id,
@@ -1768,12 +1884,7 @@ def checkout_addon(kind):
             ),
             customer_email=email,
             customer_name=name,
-            metadata={
-                "slug": info["slug"],
-                "kind": "product",
-                "product_name": info["name"],
-                "addon": kind,
-            },
+            metadata=metadata,
         )
     except pay.StripeError as exc:
         flash(str(exc), "error")
@@ -1866,13 +1977,23 @@ def support_session_room(meeting_id):
     from ..services import daily as daily_svc
 
     meeting = db.session.get(SupportGroupMeeting, meeting_id) or abort(404)
-    if meeting.status != "scheduled" or not meeting.room_url or not meeting.room_name:
-        flash("That session isn’t open yet.", "error")
-        return redirect(url_for("main.support_groups_page"))
-
     seat = sg_svc.user_selected_on_meeting(current_user.id, meeting.id)
     if seat is None and not current_user.is_admin:
         flash("Save a seat on that session before joining the room.", "error")
+        return redirect(url_for("main.support_groups_page"))
+
+    # Past live window → wrap (and close the meeting so Studio stops listing it).
+    if meeting.status == "scheduled" and meeting.scheduled_at:
+        if sg_svc.meeting_phase(meeting) == "ended":
+            try:
+                sg_svc.complete_meeting(meeting)
+            except Exception:
+                log.exception("Could not auto-complete meeting %s", meeting.id)
+            return redirect(url_for("main.support_session_wrap", meeting_id=meeting.id))
+    if meeting.status == "completed":
+        return redirect(url_for("main.support_session_wrap", meeting_id=meeting.id))
+    if meeting.status != "scheduled" or not meeting.room_url or not meeting.room_name:
+        flash("That session isn’t open yet.", "error")
         return redirect(url_for("main.support_groups_page"))
 
     phase = sg_svc.meeting_phase(meeting)
@@ -1886,7 +2007,11 @@ def support_session_room(meeting_id):
     if meeting.scheduled_at and meeting.room_name:
         try:
             info = daily_svc.update_room(
-                meeting.room_name, scheduled_at=meeting.scheduled_at,
+                meeting.room_name,
+                scheduled_at=meeting.scheduled_at,
+                duration_minutes=sg_svc.meeting_duration_minutes(meeting),
+                max_participants=sg_svc.meeting_max_participants(meeting),
+                enable_cloud_recording=(meeting.kind or "") == "one_on_one",
             )
             if info and info.room_url:
                 meeting.zoom_url = info.room_url
@@ -1895,12 +2020,16 @@ def support_session_room(meeting_id):
             log.warning(
                 "daily: could not refresh room %s before join", meeting.room_name,
             )
+    is_one_on_one = (meeting.kind or "") == "one_on_one"
     try:
         token = daily_svc.create_meeting_token(
             room_name=meeting.room_name,
             user_name=current_user.public_name() or current_user.email,
             is_owner=is_host or current_user.is_admin,
             scheduled_at=meeting.scheduled_at,
+            duration_minutes=sg_svc.meeting_duration_minutes(meeting),
+            enable_cloud_recording=is_one_on_one,
+            start_cloud_recording=is_one_on_one and (is_host or current_user.is_admin),
         )
     except daily_svc.DailyError as exc:
         flash(str(exc), "error")

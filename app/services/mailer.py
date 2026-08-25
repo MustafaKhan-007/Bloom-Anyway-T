@@ -493,12 +493,13 @@ def send_card_declined(
     """Send Brevo template (#7) when a membership renewal card is declined."""
     template_id = _int_config("BREVO_TEMPLATE_CARD_DECLINED", 7) or None
     plan = (plan_name or "").strip() or "your membership"
-    days = str(grace_days).strip() or "3"
+    days = str(grace_days).strip() or "5"
     text = (
         "We couldn't charge the card on file for your Bloom Anyway membership.\n\n"
         f"Plan: {plan}\n"
-        f"You still have {days} day(s) to update your payment method "
-        "before access may pause.\n\n"
+        f"Your access is still active for now. Update your payment method within "
+        f"{days} day(s). After that, your access will be revoked and your "
+        f"membership will be cancelled.\n\n"
         "— Bloom Anyway"
     )
     if not template_id:
@@ -530,7 +531,9 @@ def send_membership_cancelled(
     text = (
         "Your Bloom Anyway membership has been cancelled.\n\n"
         f"Plan: {plan}\n"
-        f"Access ends: {ends}\n\n"
+        f"You keep access until {ends}. On that date your membership access "
+        f"will be revoked and paid features will end.\n\n"
+        "You will not be charged again.\n\n"
         "— Bloom Anyway"
     )
     if not template_id:
@@ -566,6 +569,330 @@ def send_newsletter_welcome(to: str) -> bool:
         text,
         template_id=template_id,
         params=None,
+    )
+
+
+def send_support_group_booked(
+    to: str,
+    *,
+    group_topic: str,
+    host_name: str,
+    session_date: str,
+    session_time: str,
+    button_url: str,
+) -> bool:
+    """Send Brevo template (#11) when a support-group seat is saved."""
+    template_id = _int_config("BREVO_TEMPLATE_SUPPORT_BOOKED", 11) or None
+    topic = (group_topic or "").strip() or "your support session"
+    host = (host_name or "").strip() or "a member"
+    day = (session_date or "").strip() or "—"
+    time_s = (session_time or "").strip() or "—"
+    url = (button_url or "").strip() or _public_href("/support-groups")
+    if url.startswith("/"):
+        url = _public_href(url)
+    subject = "Your seat is saved"
+    text = (
+        "Your seat is saved.\n\n"
+        f"You're booked into {topic} — hosted by {host}.\n"
+        f"• {day} at {time_s}\n"
+        "• 30 minutes, up to 8 women, in-site video\n\n"
+        "We'll send a reminder 24 hours before, with the link to join.\n\n"
+        f"Open session: {url}\n\n"
+        "— Bloom Anyway"
+    )
+    if not template_id:
+        return send_email(to, subject, text)
+
+    params = {
+        "GROUP_TOPIC": topic,
+        "HOST_NAME": host,
+        "SESSION_DATE": day,
+        "SESSION_TIME": time_s,
+        "BUTTON_URL": url,
+    }
+    return send_email(
+        to,
+        subject,
+        text,
+        template_id=template_id,
+        params=params,
+    )
+
+
+def send_support_group_left(
+    to: str,
+    *,
+    group_topic: str,
+    session_date: str,
+) -> bool:
+    """Send Brevo template (#12) when a member leaves an upcoming session."""
+    template_id = _int_config("BREVO_TEMPLATE_SUPPORT_LEFT", 12) or None
+    topic = (group_topic or "").strip() or "your support session"
+    day = (session_date or "").strip() or "—"
+    subject = "Your seat has been released"
+    text = (
+        "Your seat has been released.\n\n"
+        f"This confirms you're no longer booked into {topic} on {day}. "
+        "Your seat has opened up for someone else who needs it. "
+        "No explanation needed — come back whenever it's the right time.\n\n"
+        "— Bloom Anyway"
+    )
+    if not template_id:
+        return send_email(to, subject, text)
+
+    params = {
+        "GROUP_TOPIC": topic,
+        "SESSION_DATE": day,
+    }
+    return send_email(
+        to,
+        subject,
+        text,
+        template_id=template_id,
+        params=params,
+    )
+
+
+def send_support_group_reminder(
+    to: str,
+    *,
+    group_topic: str,
+    host_name: str,
+    session_date: str,
+    session_time: str,
+    button_url: str,
+) -> bool:
+    """Send Brevo template (#13) ~24 hours before a support session."""
+    template_id = _int_config("BREVO_TEMPLATE_SUPPORT_REMINDER", 13) or None
+    topic = (group_topic or "").strip() or "your support session"
+    host = (host_name or "").strip() or "a member"
+    day = (session_date or "").strip() or "—"
+    time_s = (session_time or "").strip() or "—"
+    url = (button_url or "").strip() or _public_href("/support-groups")
+    if url.startswith("/"):
+        url = _public_href(url)
+    subject = "Your session is tomorrow"
+    text = (
+        "Your session is tomorrow.\n\n"
+        f"{topic} with {host} is tomorrow, {day} at {time_s}.\n\n"
+        "No need to prepare anything. Just show up as you are — "
+        "that's the whole point.\n\n"
+        f"Join: {url}\n\n"
+        "— Bloom Anyway"
+    )
+    if not template_id:
+        return send_email(to, subject, text)
+
+    params = {
+        "GROUP_TOPIC": topic,
+        "HOST_NAME": host,
+        "SESSION_DATE": day,
+        "SESSION_TIME": time_s,
+        "BUTTON_URL": url,
+    }
+    return send_email(
+        to,
+        subject,
+        text,
+        template_id=template_id,
+        params=params,
+    )
+
+
+def send_support_group_host_cancelled(
+    to: str,
+    *,
+    group_topic: str,
+    session_date: str,
+    button_url: str,
+) -> bool:
+    """Send Brevo template (#14) when a host cancels a support session."""
+    template_id = _int_config("BREVO_TEMPLATE_SUPPORT_HOST_CANCEL", 14) or None
+    topic = (group_topic or "").strip() or "your support session"
+    day = (session_date or "").strip() or "—"
+    url = (button_url or "").strip() or _public_href("/support-groups")
+    if url.startswith("/"):
+        url = _public_href(url)
+    subject = "This session won't be happening"
+    text = (
+        "This session won't be happening.\n\n"
+        f"{topic} on {day} has been cancelled by the host.\n\n"
+        "Nothing you need to do — no charge, no lost seat. Whenever you're "
+        "ready, there are other sessions open to join, or you can host your own.\n\n"
+        f"Find another session: {url}\n\n"
+        "— Bloom Anyway"
+    )
+    if not template_id:
+        return send_email(to, subject, text)
+
+    params = {
+        "GROUP_TOPIC": topic,
+        "SESSION_DATE": day,
+        "BUTTON_URL": url,
+    }
+    return send_email(
+        to,
+        subject,
+        text,
+        template_id=template_id,
+        params=params,
+    )
+
+
+def send_facilitator_booked(
+    to: str,
+    *,
+    session_date: str,
+    session_time: str,
+    amount: str,
+) -> bool:
+    """Send Brevo template (#15) when a facilitator-led session is booked."""
+    template_id = _int_config("BREVO_TEMPLATE_FACILITATOR_BOOKED", 15) or None
+    day = (session_date or "").strip() or "—"
+    time_s = (session_time or "").strip() or "—"
+    paid = (amount or "").strip() or "—"
+    subject = "Your guided session is booked"
+    text = (
+        "Your guided session is booked.\n\n"
+        "You're booked into a facilitator-led session — 60 minutes, "
+        "professionally guided, 8 women max.\n\n"
+        "We'll send a reminder 24 hours before, with the link to join.\n\n"
+        f"Date: {day}\n"
+        f"Time: {time_s}\n"
+        f"Amount paid: {paid}\n\n"
+        "— Bloom Anyway"
+    )
+    if not template_id:
+        return send_email(to, subject, text)
+
+    params = {
+        "SESSION_DATE": day,
+        "SESSION_TIME": time_s,
+        "AMOUNT": paid,
+    }
+    return send_email(
+        to,
+        subject,
+        text,
+        template_id=template_id,
+        params=params,
+    )
+
+
+def send_one_on_one_booked(
+    to: str,
+    *,
+    coach_name: str,
+    session_date: str,
+    session_time: str,
+    amount: str,
+) -> bool:
+    """Send Brevo template (#16) when a 1:1 with a founder is booked."""
+    template_id = _int_config("BREVO_TEMPLATE_ONE_ON_ONE_BOOKED", 16) or None
+    coach = (coach_name or "").strip() or "a founder"
+    day = (session_date or "").strip() or "—"
+    time_s = (session_time or "").strip() or "—"
+    paid = (amount or "").strip() or "—"
+    subject = f"Your 1:1 with {coach} is booked"
+    text = (
+        f"Your 1:1 with {coach} is booked.\n\n"
+        f"Your private 60-minute session is set for {day} at {time_s}.\n\n"
+        f"Date: {day}\n"
+        f"Time: {time_s}\n"
+        f"With: {coach}\n"
+        f"Amount paid: {paid}\n\n"
+        "— Bloom Anyway"
+    )
+    if not template_id:
+        return send_email(to, subject, text)
+
+    params = {
+        "COACH_NAME": coach,
+        "SESSION_DATE": day,
+        "SESSION_TIME": time_s,
+        "AMOUNT": paid,
+    }
+    return send_email(
+        to,
+        subject,
+        text,
+        template_id=template_id,
+        params=params,
+    )
+
+
+def send_facilitator_cancelled(
+    to: str,
+    *,
+    session_date: str,
+    amount: str,
+) -> bool:
+    """Send Brevo template (#17) when a facilitator-led session is cancelled."""
+    template_id = _int_config("BREVO_TEMPLATE_FACILITATOR_CANCELLED", 17) or None
+    day = (session_date or "").strip() or "—"
+    paid = (amount or "").strip() or "—"
+    subject = "Your guided session has been cancelled"
+    text = (
+        "Your guided session has been cancelled.\n\n"
+        f"We're sorry — your facilitator-led session on {day} has had to be "
+        f"cancelled.\n\n"
+        f"{paid} will be refunded to your original payment method within "
+        "5-10 business days. No action needed on your end.\n\n"
+        "We'd love to have you at the next one when you're ready.\n\n"
+        "— Bloom Anyway"
+    )
+    if not template_id:
+        return send_email(to, subject, text)
+
+    params = {
+        "SESSION_DATE": day,
+        "AMOUNT": paid,
+    }
+    return send_email(
+        to,
+        subject,
+        text,
+        template_id=template_id,
+        params=params,
+    )
+
+
+def send_one_on_one_cancelled(
+    to: str,
+    *,
+    coach_name: str,
+    session_date: str,
+    amount: str,
+) -> bool:
+    """Send Brevo template (#18) when a founder cancels a 1:1 session."""
+    template_id = _int_config("BREVO_TEMPLATE_ONE_ON_ONE_CANCELLED", 18) or None
+    coach = (coach_name or "").strip() or "a founder"
+    day = (session_date or "").strip() or "—"
+    paid = (amount or "").strip() or "—"
+    subject = f"Your 1:1 with {coach} has been cancelled"
+    text = (
+        f"Your 1:1 with {coach} has been cancelled.\n\n"
+        f"We're sorry — {coach} has had to cancel your session on {day}.\n\n"
+        f"{paid} will be refunded to your original payment method within "
+        "5-10 business days. No action needed on your end.\n\n"
+        "Reach out whenever you're ready to find a new time — your spot "
+        "matters, and this wasn't your fault.\n\n"
+        "— Bloom Anyway"
+    )
+    if not template_id:
+        return send_email(to, subject, text)
+
+    params = {
+        "COACH_NAME": coach,
+        "SESSION_DATE": day,
+        "AMOUNT": paid,
+    }
+    return send_email(
+        to,
+        subject,
+        text,
+        template_id=template_id,
+        params=params,
     )
 
 

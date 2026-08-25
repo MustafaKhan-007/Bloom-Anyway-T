@@ -53,6 +53,21 @@ def stripe_webhook():
     if not isinstance(obj, dict):
         return {"error": "invalid payload"}, 400
 
+    # Period-end cancel: revoke local membership when Stripe actually deletes the sub.
+    if event_type == "customer.subscription.deleted":
+        try:
+            result = pay.handle_subscription_deleted(obj)
+            db.session.commit()
+            log.info(
+                "stripe webhook: subscription.deleted email=%s orders_ended=%s",
+                result.get("email"), result.get("orders_ended"),
+            )
+            return {"status": "ok", "event": event_type}, 200
+        except Exception:
+            db.session.rollback()
+            log.exception("stripe webhook: failed to process %s", event_type)
+            return {"error": "processing failed"}, 500
+
     internal, data = pay.stripe_event_to_internal(event_type, obj)
     if not internal:
         log.info(

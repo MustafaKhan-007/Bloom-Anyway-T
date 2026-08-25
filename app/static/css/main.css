@@ -2523,6 +2523,117 @@ html.is-page-loading { cursor: progress; }
   outline: 2px solid rgba(122, 46, 98, 0.18);
   outline-offset: 1px;
 }
+
+.sg-avail-list {
+  list-style: none; margin: 0; padding: 0;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.sg-avail-list li {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+  gap: 10px; padding: 10px 12px; border-radius: 12px; background: var(--ivory-deep);
+}
+.sg-intakes { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; }
+.sg-intake {
+  border: 1px solid rgba(122, 46, 98, 0.14);
+  border-radius: 14px;
+  background: #fff;
+  overflow: hidden;
+}
+.sg-intake__summary {
+  cursor: pointer;
+  list-style: none;
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 12px;
+  padding: 12px 14px;
+  font-size: 14px;
+}
+.sg-intake__summary::-webkit-details-marker { display: none; }
+.sg-intake__summary::before {
+  content: "+";
+  font-weight: 700;
+  color: var(--plum);
+  margin-right: 4px;
+}
+.sg-intake[open] > .sg-intake__summary::before { content: "–"; }
+.sg-intake__body {
+  padding: 0 14px 14px;
+  border-top: 1px solid rgba(122, 46, 98, 0.08);
+}
+.sg-intake__section {
+  margin: 14px 0 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.sg-intake__qa { margin: 0 0 10px; }
+.sg-intake__q {
+  margin: 0 0 2px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.sg-intake__a {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--ink-soft);
+  white-space: pre-wrap;
+}
+.sg-intake--inline { margin-top: 12px; }
+
+.coaching-book__disclaimer {
+  margin-top: 22px;
+  padding: 16px 18px;
+  border-radius: 16px;
+  background: rgba(122, 46, 98, 0.06);
+  border: 1px solid rgba(122, 46, 98, 0.12);
+}
+.coaching-book__disclaimer h2 {
+  margin: 0 0 8px;
+  font-size: 16px;
+}
+.coaching-book__disclaimer ul {
+  margin: 0;
+  padding-left: 1.15em;
+}
+.coaching-book__disclaimer li {
+  margin: 0 0 6px;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--ink-soft);
+}
+.coaching-book__section {
+  margin: 0 0 28px;
+  padding: 0;
+  border: 0;
+}
+.coaching-book__section legend {
+  padding: 0;
+  margin: 0 0 12px;
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--plum);
+}
+.coaching-book .req { color: var(--plum); }
+.coaching-book__acks {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.coaching-book__check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--ink-soft);
+}
+.coaching-book__check input {
+  margin-top: 3px;
+  flex-shrink: 0;
+}
 .sg-schedule input[type="date"]::-webkit-calendar-picker-indicator,
 .sg-schedule input[type="time"]::-webkit-calendar-picker-indicator {
   cursor: pointer; opacity: 0.75;

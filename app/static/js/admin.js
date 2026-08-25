@@ -54,22 +54,31 @@
     });
     okBtn.addEventListener("click", function () {
       var form = pendingForm;
-      closeDialog();
+      pendingForm = null;
+      if (typeof dialog.close === "function") dialog.close();
+      else dialog.removeAttribute("open");
       if (!form) return;
-      form.dataset.confirmAccepted = "1";
-      if (typeof form.requestSubmit === "function") form.requestSubmit();
-      else form.submit();
+      // Native submit skips the confirm interceptor (no submit event).
+      // Show the page loader manually since submit listeners will not run.
+      var loader = document.getElementById("page-loader");
+      if (loader) {
+        loader.hidden = false;
+        loader.setAttribute("aria-hidden", "false");
+        document.documentElement.classList.add("is-page-loading");
+      }
+      HTMLFormElement.prototype.submit.call(form);
     });
 
-    document.querySelectorAll("form[data-confirm]").forEach(function (form) {
-      form.addEventListener("submit", function (e) {
-        if (form.dataset.confirmAccepted === "1") {
-          delete form.dataset.confirmAccepted;
-          return;
-        }
-        e.preventDefault();
-        openDialog(form);
-      });
+    document.addEventListener("submit", function (e) {
+      var form = e.target;
+      if (!form || form.tagName !== "FORM") return;
+      if (!form.hasAttribute("data-confirm")) return;
+      if (form.dataset.confirmAccepted === "1") {
+        delete form.dataset.confirmAccepted;
+        return;
+      }
+      e.preventDefault();
+      openDialog(form);
     });
   })();
 

@@ -7,13 +7,166 @@
     <p class="eyebrow">Coaching circles</p>
     <h1>Support groups</h1>
     <p class="field-help" style="margin: 8px 0 0; max-width: 58ch;">
-      Peer circles are member-scheduled on the public Support Groups page
-      (8 seats, up to 4 upcoming sessions per topic). Studio is for oversight —
-      cancel or complete sessions if needed. Facilitator-led and 1:1 stay on their booking links.
+      Peer circles are member-scheduled on Support Groups. Schedule facilitator-led
+      and 1:1 sessions here — they open in Bloom Anyway on Daily.co, same as peer rooms.
     </p>
   </header>
 
   <section class="admin-panel sg-panel">
+    <div class="sg-panel__head">
+      <h2 style="margin:0;">Schedule a session</h2>
+    </div>
+    <p class="field-help" style="margin-top: 6px;">
+      Creates an in-site Daily room. Facilitator: Healing members can save a seat.
+      1:1: seat the member by email when you book them.
+    </p>
+    <form method="post" action="{{ url_for('admin.support_groups_form') }}" class="stack-form sg-schedule"
+          style="margin-top: 12px; max-width: 520px;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="timezone" value="{{ owner_tz }}">
+      <div class="field">
+        <label for="sg-kind">Session type</label>
+        <select id="sg-kind" name="kind" required>
+          <option value="facilitator">Facilitator-led (8 seats, 60 min)</option>
+          <option value="one_on_one">1:1 with a founder (2 seats, 60 min)</option>
+        </select>
+      </div>
+      <div class="field" data-sg-for="facilitator">
+        <label for="sg-title">Topic / title</label>
+        <input type="text" id="sg-title" name="title" maxlength="120"
+               placeholder="e.g. Divorce recovery — guided circle">
+      </div>
+      <div class="field" data-sg-for="one_on_one" hidden>
+        <label for="sg-coach">Founder</label>
+        <select id="sg-coach" name="coach">
+          <option value="Ayesha">Ayesha</option>
+          <option value="Saman">Saman</option>
+        </select>
+      </div>
+      <div class="field" data-sg-for="one_on_one" hidden>
+        <label for="sg-member-email">Member email</label>
+        <input type="email" id="sg-member-email" name="member_email"
+               placeholder="member@email.com">
+        <p class="field-help">They must already have a Bloom Anyway account.</p>
+      </div>
+      <div class="sg-schedule__when-row">
+        <div class="sg-schedule__part">
+          <span class="sg-schedule__part-label">Date</span>
+          <input type="date" name="meeting_date" required>
+        </div>
+        <div class="sg-schedule__part">
+          <span class="sg-schedule__part-label">Time ({{ owner_tz }})</span>
+          <input type="time" name="meeting_time" required>
+        </div>
+      </div>
+      <button class="btn btn--primary" type="submit" style="margin-top:12px;">
+        Schedule with Daily room
+      </button>
+    </form>
+  </section>
+
+  <section class="admin-panel sg-panel" style="margin-top: 24px;">
+    <div class="sg-panel__head">
+      <h2 style="margin:0;">Saman availability</h2>
+    </div>
+    <p class="field-help" style="margin-top: 6px;">
+      Weekly windows members can book for Saman 1:1s (60‑minute slots). Times use the timezone you set per window.
+    </p>
+    <form method="post" action="{{ url_for('admin.support_groups_availability') }}"
+          class="stack-form sg-schedule" style="margin-top: 12px; max-width: 560px;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="add">
+      <div class="form-row">
+        <div class="field">
+          <label for="sg-weekday">Day</label>
+          <select id="sg-weekday" name="weekday" required>
+            {% for label in weekday_labels %}
+            <option value="{{ loop.index0 }}">{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label for="sg-start">Start</label>
+          <input type="time" id="sg-start" name="start_time" required value="10:00">
+        </div>
+        <div class="field">
+          <label for="sg-end">End</label>
+          <input type="time" id="sg-end" name="end_time" required value="14:00">
+        </div>
+      </div>
+      <div class="field">
+        <label for="sg-avail-tz">Timezone</label>
+        <input type="text" id="sg-avail-tz" name="timezone" value="{{ owner_tz }}" required>
+      </div>
+      <button class="btn btn--secondary btn--sm" type="submit">Add window</button>
+    </form>
+    {% if saman_windows %}
+    <ul class="sg-avail-list" style="margin-top: 16px;">
+      {% for w in saman_windows %}
+      <li>
+        <span>{{ weekday_labels[w.weekday] }}
+          {{ minutes_to_hhmm(w.start_minute) }}–{{ minutes_to_hhmm(w.end_minute) }}
+          <span class="field-help">({{ w.timezone }})</span>
+        </span>
+        <form method="post" action="{{ url_for('admin.support_groups_availability') }}" style="display:inline;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="action" value="remove">
+          <input type="hidden" name="window_id" value="{{ w.id }}">
+          <button class="btn btn--secondary btn--sm" type="submit">Remove</button>
+        </form>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="field-help" style="margin-top: 12px;">No windows yet — members won’t see bookable times until you add some.</p>
+    {% endif %}
+  </section>
+
+  <section class="admin-panel sg-panel" style="margin-top: 24px;">
+    <div class="sg-panel__head">
+      <h2 style="margin:0;">Saman intakes</h2>
+      <span class="sg-count">{{ intake_rows|length }}</span>
+    </div>
+    <p class="field-help" style="margin-top: 6px;">
+      Questionnaire answers from Book with Saman — expand a row to read the full intake.
+    </p>
+    {% if intake_rows %}
+    <div class="sg-intakes">
+      {% for row in intake_rows %}
+      {% set intake = row.intake %}
+      <details class="sg-intake">
+        <summary class="sg-intake__summary">
+          <span class="sg-pill">{{ intake.status }}</span>
+          <strong>{{ row.member.public_name() if row.member else 'Member' }}</strong>
+          <span class="field-help">{{ row.member.email if row.member else '' }}</span>
+          {% if intake.scheduled_at %}
+          <span class="field-help">· {{ intake.scheduled_at|localtime('%a %b %d · %I:%M %p') }}</span>
+          {% endif %}
+        </summary>
+        <div class="sg-intake__body">
+          {% set ns = namespace(prev='') %}
+          {% for a in row.answers %}
+            {% if a.section != ns.prev %}
+            <p class="sg-intake__section">{{ a.section }}</p>
+            {% set ns.prev = a.section %}
+            {% endif %}
+            <div class="sg-intake__qa">
+              <p class="sg-intake__q">{{ a.label }}</p>
+              <p class="sg-intake__a">{{ a.value }}</p>
+            </div>
+          {% else %}
+          <p class="field-help">No answers stored.</p>
+          {% endfor %}
+        </div>
+      </details>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="sg-empty">No Saman intakes yet.</p>
+    {% endif %}
+  </section>
+
+  <section class="admin-panel sg-panel" style="margin-top: 24px;">
     <div class="sg-panel__head">
       <h2 style="margin:0;">Topics</h2>
       <span class="sg-count">{{ circle_stats|length }}</span>
@@ -54,7 +207,7 @@
         <span class="sg-count">{{ open_meetings|length }}</span>
       </div>
       <p class="field-help" style="margin-top: 6px;">
-        Times use your timezone (<strong>{{ owner_tz }}</strong>). Cancel if a peer session needs cleanup.
+        Times use your timezone (<strong>{{ owner_tz }}</strong>). Cancel if a session needs cleanup.
       </p>
 
       {% if open_meetings %}
@@ -68,6 +221,8 @@
               <span class="sg-pill">{{ m.kind or 'peer' }}</span>
               {% if m.circle %}
               <p class="field-help" style="margin: 6px 0 0;">{{ m.circle.title }}</p>
+              {% elif m.notes %}
+              <p class="field-help" style="margin: 6px 0 0;">{{ m.notes }}</p>
               {% endif %}
               <h3 style="margin: 8px 0 4px;">
                 {{ seats|length }} of {{ m.capacity }} seated
@@ -99,6 +254,28 @@
             {% endfor %}
           </ul>
 
+          {% set meeting_intake = intake_by_meeting.get(m.id) if intake_by_meeting is defined else none %}
+          {% if meeting_intake %}
+          <details class="sg-intake sg-intake--inline">
+            <summary class="sg-intake__summary">Intake answers</summary>
+            <div class="sg-intake__body">
+              {% set ns = namespace(prev='') %}
+              {% for a in intake_answers.get(meeting_intake.id, []) %}
+                {% if a.section != ns.prev %}
+                <p class="sg-intake__section">{{ a.section }}</p>
+                {% set ns.prev = a.section %}
+                {% endif %}
+                <div class="sg-intake__qa">
+                  <p class="sg-intake__q">{{ a.label }}</p>
+                  <p class="sg-intake__a">{{ a.value }}</p>
+                </div>
+              {% else %}
+              <p class="field-help">No answers stored.</p>
+              {% endfor %}
+            </div>
+          </details>
+          {% endif %}
+
           {% if m.status == 'scheduled' and m.room_url %}
           <div class="sg-zoom-link">
             <span class="sg-zoom-link__label">In-site room</span>
@@ -111,7 +288,7 @@
           </form>
           {% endif %}
 
-          {% if m.kind == 'facilitator' and m.status in ('draft', 'scheduled') %}
+          {% if m.kind in ('facilitator', 'one_on_one') and m.status in ('draft', 'scheduled') %}
           <form method="post" action="{{ url_for('admin.support_groups_schedule', meeting_id=m.id) }}"
                 class="stack-form sg-schedule" style="margin-top: 14px;">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -129,7 +306,7 @@
               </div>
             </div>
             <button class="btn btn--primary" type="submit" style="margin-top:10px;">
-              {% if m.status == 'scheduled' %}Update facilitator session{% else %}Schedule facilitator session{% endif %}
+              {% if m.status == 'scheduled' %}Update session time{% else %}Schedule session{% endif %}
             </button>
           </form>
           {% endif %}
@@ -137,7 +314,7 @@
         {% endfor %}
       </div>
       {% else %}
-      <p class="sg-empty">No open sessions yet. Members schedule peer circles from Support Groups.</p>
+      <p class="sg-empty">No open sessions yet. Schedule a facilitator or 1:1 above, or wait for peer hosts.</p>
       {% endif %}
     </section>
   </div>
@@ -147,12 +324,16 @@
     <h2 style="margin-top:0;">Recent</h2>
     <table class="admin-table">
       <thead>
-        <tr><th>Circle</th><th>Kind</th><th>When</th><th>Seats</th><th>Status</th></tr>
+        <tr><th>Session</th><th>Kind</th><th>When</th><th>Seats</th><th>Status</th></tr>
       </thead>
       <tbody>
         {% for m in past_meetings %}
         <tr>
-          <td>{% if m.circle %}{{ m.circle.title }}{% else %}—{% endif %}</td>
+          <td>
+            {% if m.circle %}{{ m.circle.title }}
+            {% elif m.notes %}{{ m.notes }}
+            {% else %}—{% endif %}
+          </td>
           <td>{{ m.kind or 'peer' }}</td>
           <td>
             {% if m.scheduled_at %}
@@ -170,4 +351,24 @@
   </section>
   {% endif %}
 </div>
+<script>
+(function () {
+  var sel = document.getElementById("sg-kind");
+  if (!sel) return;
+  function sync() {
+    var kind = sel.value;
+    document.querySelectorAll("[data-sg-for]").forEach(function (el) {
+      var show = el.getAttribute("data-sg-for") === kind;
+      el.hidden = !show;
+      el.querySelectorAll("input, select").forEach(function (input) {
+        if (input.name === "coach" || input.name === "member_email") {
+          input.required = show;
+        }
+      });
+    });
+  }
+  sel.addEventListener("change", sync);
+  sync();
+})();
+</script>
 {% endblock %}

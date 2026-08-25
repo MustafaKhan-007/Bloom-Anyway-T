@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}Book 1:1 with {{ coach_label }} — {{ site.site_title }}{% endblock %}
+{% block meta_description %}Answer a short intake, pick a time, then check out for your 1:1 with {{ coach_label }}.{% endblock %}
+
+{% block content %}
+<section class="section coaching-book">
+  <div class="container" style="max-width: 720px;">
+    <p class="eyebrow">1:1 coaching · {{ duration_min }} minutes</p>
+    <h1>Book with {{ coach_label }}</h1>
+    <p class="field-help" style="margin-top: 8px;">
+      Every question is required. After you submit, you’ll choose checkout —
+      your answers go straight to {{ coach_label }} in Studio.
+    </p>
+
+    <aside class="coaching-book__disclaimer" aria-label="Session guidelines">
+      <h2>Before you book</h2>
+      <ul>
+        <li>{{ coach_label }} may end the session early if someone is
+          impersonating another person or misrepresenting who they are.</li>
+        <li>Rude, harassing, or disruptive behaviour can end the call early —
+          no refund for time cut short for conduct reasons.</li>
+        <li>This is coaching, not therapy or legal advice.</li>
+        <li>Sessions may be cloud-recorded for quality and safety. Recordings stay
+          private to the studio.</li>
+        <li>Times are limited to {{ coach_label }}’s availability. Arrive on time;
+          late joins may shorten your session.</li>
+      </ul>
+    </aside>
+
+    {% if not slots %}
+    <div class="flash flash--info" role="status" style="margin-top: 20px;">
+      No open times right now — check back soon, or message us if you need help.
+    </div>
+    {% endif %}
+
+    <form method="post" class="coaching-book__form" style="margin-top: 28px;" novalidate>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      {% for section_title, qs in sections %}
+      <fieldset class="coaching-book__section">
+        <legend>{{ section_title }}</legend>
+        {% for q in qs %}
+        <div class="field">
+          <label for="q-{{ q.key }}">{{ q.label }} <span class="req" aria-hidden="true">*</span></label>
+          {% if q.input == 'textarea' %}
+          <textarea id="q-{{ q.key }}" name="{{ q.key }}" rows="3" maxlength="2000"
+                    required placeholder="{{ q.placeholder or '' }}"></textarea>
+          {% else %}
+          <input type="text" id="q-{{ q.key }}" name="{{ q.key }}" maxlength="500"
+                 required placeholder="{{ q.placeholder or '' }}">
+          {% endif %}
+        </div>
+        {% endfor %}
+      </fieldset>
+      {% endfor %}
+
+      <fieldset class="coaching-book__section">
+        <legend>Date &amp; time</legend>
+        <div class="field">
+          <label for="slot_utc">Pick an open slot <span class="req" aria-hidden="true">*</span></label>
+          <select id="slot_utc" name="slot_utc" required {% if not slots %}disabled{% endif %}>
+            <option value="">Select a time ({{ viewer_tz }})</option>
+            {% for s in slots %}
+            <option value="{{ s.utc }}">{{ s.label }}</option>
+            {% endfor %}
+          </select>
+          <p class="field-help">Times shown in your timezone ({{ viewer_tz }}). Session length: {{ duration_min }} min.</p>
+        </div>
+      </fieldset>
+
+      <fieldset class="coaching-book__section coaching-book__acks">
+        <legend>Confirm</legend>
+        <label class="coaching-book__check">
+          <input type="checkbox" name="disclaimer_identity" value="1" required>
+          <span>I understand {{ coach_label }} may end the session early if I impersonate someone else or misrepresent who I am.</span>
+        </label>
+        <label class="coaching-book__check">
+          <input type="checkbox" name="disclaimer_conduct" value="1" required>
+          <span>I understand rude or disruptive behaviour can end the call early without a refund for unused time.</span>
+        </label>
+        <label class="coaching-book__check">
+          <input type="checkbox" name="disclaimer_recording" value="1" required>
+          <span>I agree this 1:1 may be cloud-recorded for quality and safety.</span>
+        </label>
+      </fieldset>
+
+      <button class="btn btn--primary" type="submit" {% if not slots %}disabled{% endif %}>
+        Continue to checkout →
+      </button>
+      <p class="field-help" style="margin-top: 12px;">
+        <a href="{{ url_for('main.support_groups_page') }}#coaching">← Back to Support Groups</a>
+      </p>
+    </form>
+  </div>
+</section>
+{% endblock %}

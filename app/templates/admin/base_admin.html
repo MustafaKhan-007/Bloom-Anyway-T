@@ -38,6 +38,7 @@
         <a href="{{ url_for('admin.products') }}" class="{{ 'active' if here.startswith('/admin/products') }}">Courses &amp; Guides</a>
 
         <p class="admin-nav__label">Content</p>
+        <a href="{{ url_for('admin.spotlight') }}" class="{{ 'active' if here.startswith('/admin/spotlight') }}">Home spotlight</a>
         <a href="{{ url_for('admin.videos') }}" class="{{ 'active' if here.startswith('/admin/videos') }}">Content Hub</a>
         <a href="{{ url_for('admin.reel_reviews') }}" class="{{ 'active' if here.startswith('/admin/reel-reviews') }}">Reel reviews</a>
         <a href="{{ url_for('admin.support_groups') }}" class="{{ 'active' if here.startswith('/admin/support-groups') }}">Support groups</a>

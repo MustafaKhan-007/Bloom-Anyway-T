@@ -115,99 +115,6 @@
     </section>
 
     <section class="admin-panel studio-card">
-      <h2 style="margin-top: 0;">Home spotlight</h2>
-      <p class="field-help" style="margin-top: 0;">These show on the home page. Use Clear to hide a card completely, or leave the name / reel blank when saving.</p>
-      <fieldset class="spotlight-fieldset">
-        <legend>Creator of the month</legend>
-        <div class="form-row">
-          <div class="field">
-            <label for="creator_name">Display name</label>
-            <input type="text" id="creator_name" name="creator_name" value="{{ values.creator_name }}"
-                   placeholder="How they show up on the card">
-          </div>
-          <div class="field">
-            <label for="creator_instagram">Instagram handle</label>
-            <input type="text" id="creator_instagram" name="creator_instagram"
-                   value="{{ values.creator_instagram }}" placeholder="@theirhandle">
-            <p class="field-help">Just the handle &mdash; we strip share-link junk automatically. Paste a full URL if you like.</p>
-          </div>
-        </div>
-        <div class="field">
-          <label for="creator_file">Profile photo (optional)</label>
-          {% if values.creator_image_url %}
-          <p class="field-help" style="margin-top: 0;">
-            Current:
-            <a href="{{ values.creator_image_url }}" target="_blank" rel="noopener">view</a>
-          </p>
-          <img src="{{ values.creator_image_url }}" alt="" style="max-width: 120px; border-radius: 50%; margin-bottom: 8px;">
-          {% endif %}
-          <input type="file" id="creator_file" name="creator_file" accept="image/*">
-          <label class="checkline checkline--sm" style="margin-top: 8px;">
-            <input type="checkbox" name="clear_creator" value="1"> Remove current photo
-          </label>
-          <p class="field-help">Upload a photo (up to 8&nbsp;MB). Leave blank to try their Instagram photo on save, or paste a URL below.</p>
-          <input type="url" id="creator_image_url" name="creator_image_url" value="{{ values.creator_image_url }}"
-                 placeholder="Or paste an image URL">
-        </div>
-        <div class="field">
-          <label for="creator_blurb">Their bio</label>
-          <textarea id="creator_blurb" name="creator_blurb" rows="4"
-                    placeholder="Paste their Instagram bio (or write a short intro). This fills the card.">{{ values.creator_blurb }}</textarea>
-          <p class="field-help">Instagram rarely shares bios publicly &mdash; pasting it here is the reliable way to fill the card.</p>
-        </div>
-        <div class="spotlight-clear">
-          <button class="btn btn--secondary btn--sm" type="submit" name="clear_spotlight_creator" value="1"
-                  {% if not (values.creator_name or values.creator_instagram or values.creator_image_url or values.creator_blurb) %}disabled{% endif %}
-                  onclick="return confirm('Clear Creator of the month from the home page?');">
-            Clear Creator of the month
-          </button>
-          <span class="field-help">Removes name, handle, photo, and bio.</span>
-        </div>
-      </fieldset>
-      <fieldset class="spotlight-fieldset">
-        <legend>Reel of the week</legend>
-        <div class="field">
-          <label for="reel_url">Instagram reel URL</label>
-          <input type="url" id="reel_url" name="reel_url" value="{{ values.reel_url }}" placeholder="https://instagram.com/reel/...">
-          <p class="field-help">We embed it automatically and add a "Watch on Instagram" button.</p>
-        </div>
-        <div class="field">
-          <label for="reel_description">Why you love it (optional)</label>
-          <input type="text" id="reel_description" name="reel_description" value="{{ values.reel_description }}">
-        </div>
-        <div class="spotlight-clear">
-          <button class="btn btn--secondary btn--sm" type="submit" name="clear_spotlight_reel" value="1"
-                  {% if not (values.reel_url or values.reel_description) %}disabled{% endif %}
-                  onclick="return confirm('Clear Reel of the week from the home page?');">
-            Clear Reel of the week
-          </button>
-          <span class="field-help">Removes the reel URL and description.</span>
-        </div>
-      </fieldset>
-
-      {% if spotlight %}
-      <div class="spotlight-candidates">
-        <h3>Creator members to feature</h3>
-        <p class="field-help" style="margin-top: 0;">
-          Current Creator-tier members (and owners). Instagram comes from each member’s
-          <strong>My space → Settings → Instagram for Creator of the Month</strong> field — copy one into the fields above.
-        </p>
-        <ul>
-          {% for c in spotlight %}
-          <li>
-            <strong>{{ c.name }}</strong>
-            {% if c.instagram %}&mdash;
-              {% if c.profile_url %}<a href="{{ c.profile_url }}" target="_blank" rel="noopener">{{ c.instagram }}</a>
-              {% else %}{{ c.instagram }}{% endif %}
-            {% else %}<span class="field-help">(no Instagram link yet)</span>{% endif %}
-          </li>
-          {% endfor %}
-        </ul>
-      </div>
-      {% endif %}
-    </section>
-
-    <section class="admin-panel studio-card">
       <h2 style="margin-top: 0;">1:1 coaching &amp; facilitator booking</h2>
       <p class="field-help" style="margin-top: 0;">
         Prefer Stripe Price ids so Book buttons open Checkout on Bloom Anyway.
@@ -255,20 +162,28 @@
                  placeholder="https://cal.com/…">
         </div>
       </div>
-      <div class="form-row">
-        <div class="field">
-          <label for="founder_price_ends">Founder pricing ends (optional)</label>
-          <input type="date" id="founder_price_ends" name="founder_price_ends"
-                 value="{{ values.founder_price_ends }}">
-          <p class="field-help">
-            Turns on the launch banner + locked-in founder rates on /membership while
-            today is on or before this date (blank = off). Current launch window ends
-            <strong>30 Sep 2026</strong>. Healing &amp; Creator:
-            <strong>MEMBERFOUNDER</strong> (25% off forever while subscribed); Full Bloom:
-            <strong>FULLBLOOMFOUNDER</strong> (20% off forever). Create matching
-            promotion codes in Stripe so the discount continues on renewals.
-          </p>
-        </div>
+      <p class="field-help" style="margin: 0;">
+        Session prices come from these Stripe Price ids at checkout — nothing is hard-coded on the site.
+      </p>
+    </section>
+
+    <section class="admin-panel studio-card">
+      <h2 style="margin-top: 0;">Membership founder pricing</h2>
+      <p class="field-help" style="margin-top: 0;">
+        Launch discounts for Healing / Creator / Full Bloom subscriptions only
+        (not facilitator or 1:1 add-ons).
+      </p>
+      <div class="field">
+        <label for="founder_price_ends">Founder pricing ends (optional)</label>
+        <input type="date" id="founder_price_ends" name="founder_price_ends"
+               value="{{ values.founder_price_ends }}">
+        <p class="field-help">
+          Turns on the launch banner + locked-in founder rates on /membership while
+          today is on or before this date (blank = off). Healing &amp; Creator:
+          <strong>MEMBERFOUNDER</strong> (25% off forever while subscribed); Full Bloom:
+          <strong>FULLBLOOMFOUNDER</strong> (20% off forever). Create matching
+          promotion codes in Stripe so the discount continues on renewals.
+        </p>
       </div>
     </section>
 
