@@ -1,13 +1,56 @@
-"""Format stored UTC datetimes in the viewer's timezone."""
+"""Format stored UTC datetimes in the viewer's timezone.
+
+Timezone names come from the IANA database via ``zoneinfo`` (+ the ``tzdata``
+package on platforms that don't ship zoneinfo). Offsets are computed at
+request time so DST stays correct year-round.
+"""
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+from datetime import datetime, timedelta, timezone
+from functools import lru_cache
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError, available_timezones
 
 from flask import request
 from flask_login import current_user
 
 DEFAULT_TZ = "UTC"
+
+# Prefer these near the top of Studio pickers (still in the full list too).
+_COMMON_TZ = (
+    "UTC",
+    "America/New_York",
+    "America/Chicago",
+    "America/Denver",
+    "America/Los_Angeles",
+    "America/Phoenix",
+    "America/Toronto",
+    "America/Vancouver",
+    "America/Mexico_City",
+    "America/Sao_Paulo",
+    "Europe/London",
+    "Europe/Dublin",
+    "Europe/Paris",
+    "Europe/Berlin",
+    "Europe/Amsterdam",
+    "Europe/Madrid",
+    "Europe/Rome",
+    "Europe/Zurich",
+    "Europe/Stockholm",
+    "Africa/Cairo",
+    "Africa/Johannesburg",
+    "Asia/Dubai",
+    "Asia/Karachi",
+    "Asia/Kolkata",
+    "Asia/Bangkok",
+    "Asia/Singapore",
+    "Asia/Hong_Kong",
+    "Asia/Shanghai",
+    "Asia/Tokyo",
+    "Asia/Seoul",
+    "Australia/Sydney",
+    "Australia/Melbourne",
+    "Pacific/Auckland",
+)
 
 
 def normalize_timezone(name: str | None) -> str | None:
@@ -45,3 +88,85 @@ def format_local(dt: datetime | None, fmt: str = "%b %d, %Y · %I:%M %p",
     if local is None:
         return ""
     return local.strftime(fmt)
+
+
+def _offset_label(tz_name: str, at: datetime | None = None) -> str:
+    """Current UTC offset for a zone, e.g. ``UTC-04:00`` / ``UTC+05:30``."""
+    try:
+        zi = ZoneInfo(tz_name)
+    except (ZoneInfoNotFoundError, ValueError, KeyError):
+        return "UTC"
+    moment = at or datetime.now(timezone.utc)
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=timezone.utc)
+    local = moment.astimezone(zi)
+    offset = local.utcoffset() or timedelta(0)
+    total = int(offset.total_seconds())
+    sign = "+" if total >= 0 else "-"
+    total = abs(total)
+    hours, rem = divmod(total, 3600)
+    minutes = rem // 60
+    if minutes:
+        return f"UTC{sign}{hours:02d}:{minutes:02d}"
+    return f"UTC{sign}{hours:02d}:00"
+
+
+@lru_cache(maxsize=1)
+def _iana_names() -> tuple[str, ...]:
+    """All IANA zone names (skips awkward Etc/* except UTC)."""
+    names = set()
+    for name in available_timezones():
+        if name in ("UTC", "GMT"):
+            names.add("UTC")
+            continue
+        if name.startswith("Etc/"):
+            continue
+        names.add(name)
+    return tuple(sorted(names))
+
+
+def timezone_groups(*, selected: str | None = None) -> list[dict]:
+    """Grouped timezone options for Studio selects, with live UTC offsets.
+
+    Offsets are computed for *now* so DST is reflected automatically; the
+    underlying IANA IDs never change and stay correct across seasons.
+    """
+    now = datetime.now(timezone.utc)
+    selected_n = normalize_timezone(selected) or DEFAULT_TZ
+    all_names = list(_iana_names())
+    if "UTC" not in all_names:
+        all_names.insert(0, "UTC")
+
+    def option(name: str) -> dict:
+        city = name.split("/")[-1].replace("_", " ")
+        region = name.split("/")[0] if "/" in name else "Other"
+        return {
+            "value": name,
+            "label": f"{city} — {name} ({_offset_label(name, now)})",
+            "region": region if name != "UTC" else "UTC",
+            "selected": name == selected_n,
+        }
+
+    common_set = {n for n in _COMMON_TZ if n in all_names or n == "UTC"}
+    common_opts = [option(n) for n in _COMMON_TZ if n in common_set or n == "UTC"]
+    # Ensure selected appears in Common if it's not already.
+    if selected_n not in {o["value"] for o in common_opts}:
+        common_opts.insert(1, option(selected_n))
+
+    by_region: dict[str, list[dict]] = {}
+    for name in all_names:
+        opt = option(name)
+        by_region.setdefault(opt["region"], []).append(opt)
+
+    groups = [{"label": "Common", "options": common_opts}]
+    for region in sorted(by_region.keys(), key=lambda r: (r != "UTC", r)):
+        opts = by_region[region]
+        opts.sort(key=lambda o: o["label"].casefold())
+        groups.append({"label": region, "options": opts})
+    return groups
+
+
+def timezone_label(name: str | None) -> str:
+    """Short display like ``America/New_York (UTC-04:00)``."""
+    tz = normalize_timezone(name) or DEFAULT_TZ
+    return f"{tz} ({_offset_label(tz)})"

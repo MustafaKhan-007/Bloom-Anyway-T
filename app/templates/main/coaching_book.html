@@ -64,7 +64,11 @@
             <option value="{{ s.utc }}">{{ s.label }}</option>
             {% endfor %}
           </select>
-          <p class="field-help">Times shown in your timezone ({{ viewer_tz }}). Session length: {{ duration_min }} min.</p>
+          <p class="field-help">
+            Times shown in your timezone ({{ viewer_tz }}).
+            Coach availability is stored in their zone and converted here automatically (including daylight saving).
+            Session length: {{ duration_min }} min.
+          </p>
         </div>
       </fieldset>
 

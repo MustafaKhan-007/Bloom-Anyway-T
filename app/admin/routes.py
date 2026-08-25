@@ -2008,6 +2008,8 @@ def support_groups():
     past = sg_svc.recent_meetings()
     seat_map = {m.id: sg_svc.meeting_seats(m) for m in open_rows + past}
     owner_tz = (current_user.timezone or "UTC").strip() or "UTC"
+    from ..services.timefmt import timezone_groups, timezone_label
+    tz_groups = timezone_groups(selected=owner_tz)
     saman_windows = intake_svc.list_availability("saman")
     saman_intakes = intake_svc.studio_intakes("saman", limit=30)
     intake_by_meeting = {
@@ -2023,6 +2025,13 @@ def support_groups():
             "member": intake.member,
         })
         intake_answers[intake.id] = answers
+    window_rows = [
+        {
+            "window": w,
+            "tz_label": timezone_label(w.timezone),
+        }
+        for w in saman_windows
+    ]
     return render_template(
         "admin/support_groups.html",
         circle_stats=stats,
@@ -2032,11 +2041,13 @@ def support_groups():
         owner_tz=owner_tz,
         pending_total=sg_svc.pending_count(),
         saman_windows=saman_windows,
+        window_rows=window_rows,
         intake_rows=intake_rows,
         intake_by_meeting=intake_by_meeting,
         intake_answers=intake_answers,
         weekday_labels=intake_svc.WEEKDAY_LABELS,
         minutes_to_hhmm=intake_svc.minutes_to_hhmm,
+        tz_groups=tz_groups,
     )
 
 

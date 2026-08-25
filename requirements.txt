@@ -13,3 +13,4 @@ stripe>=11.0,<14
 python-dotenv>=1.0,<2
 Pillow>=10.4,<12
 fpdf2>=2.7,<3
+tzdata>=2024.1

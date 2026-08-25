@@ -226,7 +226,9 @@ def add_availability(
         return None, "Pick a valid time range."
     if end_minute - start_minute < SLOT_STEP_MINUTES:
         return None, f"Windows need to be at least {SLOT_STEP_MINUTES} minutes."
-    tz = normalize_timezone(tz_name) or "UTC"
+    tz = normalize_timezone(tz_name)
+    if not tz:
+        return None, "Pick a valid timezone from the list."
     row = CoachAvailability(
         coach=key,
         weekday=weekday,
