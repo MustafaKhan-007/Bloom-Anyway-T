@@ -48,20 +48,88 @@ def meeting_phase(meeting: SupportGroupMeeting, *, now: datetime | None = None
 
 
 def ensure_circles() -> list[SupportGroupCircle]:
-    """Seed the catalogue if the table is empty (dev / smoke / fresh DB)."""
-    rows = (SupportGroupCircle.query
-            .order_by(SupportGroupCircle.sort_order.asc()).all())
-    if rows:
-        return rows
+    """Seed / backfill the catalogue from SUPPORT_CIRCLE_SEED."""
+    existing = {
+        c.slug: c for c in SupportGroupCircle.query.all()
+    }
+    changed = False
     for i, (slug, track, title, blurb, cap, meets, icon) in enumerate(SUPPORT_CIRCLE_SEED):
+        if slug in existing:
+            continue
         db.session.add(SupportGroupCircle(
             slug=slug, track=track, title=title, blurb=blurb,
             capacity=cap, meets_label=meets, icon=icon,
             sort_order=(i + 1) * 10, active=True,
         ))
-    db.session.commit()
+        changed = True
+    if changed:
+        db.session.commit()
     return (SupportGroupCircle.query
             .order_by(SupportGroupCircle.sort_order.asc()).all())
+
+
+def is_custom_circle(circle: SupportGroupCircle | None) -> bool:
+    if circle is None:
+        return False
+    return (circle.slug or "").startswith("custom-")
+
+
+def normalize_custom_topic(raw: str | None) -> str:
+    """Collapse whitespace for display + overlap matching."""
+    text = " ".join((raw or "").strip().split())
+    return text[:80]
+
+
+def custom_topic_key(raw: str | None) -> str:
+    return normalize_custom_topic(raw).casefold()
+
+
+def meeting_display_title(meeting: SupportGroupMeeting) -> str:
+    """Circle title, or Custom: {topic} when the host named one."""
+    circle = meeting.circle
+    base = circle.title if circle else "support group"
+    if is_custom_circle(circle):
+        topic = normalize_custom_topic(meeting.notes)
+        if topic:
+            return f"Custom: {topic}"
+    return base
+
+
+def peer_session_time_conflict(
+    circle_id: int,
+    when: datetime,
+    *,
+    topic_key: str | None = None,
+    exclude_meeting_id: int | None = None,
+) -> SupportGroupMeeting | None:
+    """Return an overlapping scheduled peer meeting for this topic, if any.
+
+    Fixed topics: any overlapping session on the same circle.
+    Custom circles: only when the normalized custom topic name also matches.
+    """
+    duration = timedelta(minutes=peer_meeting_minutes())
+    end = when + duration
+    q = (SupportGroupMeeting.query
+         .filter(
+             SupportGroupMeeting.circle_id == circle_id,
+             SupportGroupMeeting.status == "scheduled",
+             SupportGroupMeeting.scheduled_at.isnot(None),
+             SupportGroupMeeting.kind == "peer",
+         ))
+    if exclude_meeting_id:
+        q = q.filter(SupportGroupMeeting.id != exclude_meeting_id)
+    for other in q.all():
+        start = other.scheduled_at
+        if start is None:
+            continue
+        other_end = start + duration
+        if when >= other_end or end <= start:
+            continue
+        if topic_key is None:
+            return other
+        if custom_topic_key(other.notes) == topic_key:
+            return other
+    return None
 
 
 def circles_by_track(track: str | None = None) -> list[SupportGroupCircle]:
@@ -362,6 +430,7 @@ def schedule_peer_session(
     date_s: str,
     time_s: str,
     tz_name: str | None = None,
+    topic_title: str | None = None,
 ) -> tuple[SupportGroupMeeting | None, str | None]:
     """Member schedules a peer support session for a topic."""
     ok, err = can_schedule_peer(user)
@@ -391,12 +460,29 @@ def schedule_peer_session(
     if when <= utcnow():
         return None, "Choose a time in the future."
 
+    custom = is_custom_circle(circle)
+    topic = normalize_custom_topic(topic_title) if custom else ""
+    if custom and not topic:
+        return None, "Name your custom topic (what this session is about)."
+    topic_key = custom_topic_key(topic) if custom else None
+
+    conflict = peer_session_time_conflict(
+        circle.id, when, topic_key=topic_key,
+    )
+    if conflict is not None:
+        label = meeting_display_title(conflict) if custom else circle.title
+        return None, (
+            f"There’s already a {label} session at that time. "
+            "Pick a different time, or join the existing one."
+        )
+
     meeting = SupportGroupMeeting(
         circle_id=circle.id,
         capacity=PEER_MEETING_CAP,
         kind="peer",
         scheduled_by_user_id=user.id,
         status="draft",
+        notes=topic if custom else None,
         created_at=utcnow(),
     )
     db.session.add(meeting)
@@ -637,7 +723,25 @@ def schedule_meeting(meeting: SupportGroupMeeting, *, scheduled_at: datetime,
     if scheduled_at <= utcnow():
         return "Choose a time in the future."
 
-    title = meeting.circle.title if meeting.circle else "support group"
+    # Also block overlapping times when rescheduling an existing peer meeting.
+    if (meeting.kind or "peer") == "peer" and meeting.circle_id:
+        topic_key = (
+            custom_topic_key(meeting.notes)
+            if is_custom_circle(meeting.circle) else None
+        )
+        conflict = peer_session_time_conflict(
+            meeting.circle_id,
+            scheduled_at,
+            topic_key=topic_key,
+            exclude_meeting_id=meeting.id,
+        )
+        if conflict is not None:
+            return (
+                "There’s already a session for this topic at that time. "
+                "Pick a different time."
+            )
+
+    title = meeting_display_title(meeting)
     topic = f"Bloom Anyway — {title}"
     try:
         if meeting.zoom_meeting_id:
@@ -798,9 +902,7 @@ def _reminder_day_and_timing(
 
 
 def _circle_name(meeting: SupportGroupMeeting) -> str:
-    if meeting.circle:
-        return meeting.circle.title
-    return "support group"
+    return meeting_display_title(meeting)
 
 
 def _notify_seats(meeting: SupportGroupMeeting, *, kind: str,

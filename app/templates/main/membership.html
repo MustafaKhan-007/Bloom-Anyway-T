@@ -13,9 +13,15 @@
 {% endmacro %}
 
 {% block content %}
-{% set facilitator_url = site.facilitator_booking_url or url_for('main.contact') %}
-{% set ayesha_url = site.ayesha_booking_url or url_for('main.contact') %}
-{% set saman_url = site.saman_booking_url or url_for('main.contact') %}
+{% set facilitator_checkout = url_for('main.checkout_addon', kind='facilitator') if site.facilitator_stripe_price_id else none %}
+{% set ayesha_checkout = url_for('main.checkout_addon', kind='ayesha') if site.ayesha_stripe_price_id else none %}
+{% set saman_checkout = url_for('main.checkout_addon', kind='saman') if site.saman_stripe_price_id else none %}
+{% set facilitator_url = facilitator_checkout or site.facilitator_booking_url or url_for('main.contact') %}
+{% set ayesha_url = ayesha_checkout or site.ayesha_booking_url or url_for('main.contact') %}
+{% set saman_url = saman_checkout or site.saman_booking_url or url_for('main.contact') %}
+{% set facilitator_external = not facilitator_checkout and site.facilitator_booking_url %}
+{% set ayesha_external = not ayesha_checkout and site.ayesha_booking_url %}
+{% set saman_external = not saman_checkout and site.saman_booking_url %}
 {% set healing = plans.get('healing') %}
 {% set creator = plans.get('creator') %}
 {% set healing_checkout_m = checkout.monthly.get('healing') %}
@@ -80,7 +86,6 @@
             <li>Buy any course or guide</li>
             <li>Browse Showcase &amp; Content Hub</li>
             <li>Free Content Hub picks</li>
-            <li>Monthly free guide drops</li>
             <li>Support groups (view only)</li>
             <li>Always free &mdash; no card needed</li>
           </ul>
@@ -362,7 +367,7 @@
           <p>Guided small-group support with a trained facilitator. Healing track only.</p>
           <span class="mem-addon__tag">Available to all members &bull; Limited slots</span>
           <a class="btn btn--gold" href="{{ facilitator_url }}"
-             {% if site.facilitator_booking_url %}target="_blank" rel="noopener"{% endif %}>Book facilitator &rarr;</a>
+             {% if facilitator_external %}target="_blank" rel="noopener"{% endif %}>Book facilitator &rarr;</a>
         </article>
         <article class="mem-addon">
           <p class="mem-addon__icon" aria-hidden="true">&#10084;</p>
@@ -371,7 +376,7 @@
           <p>Private healing coaching &mdash; divorce, custody, heartbreak, and rebuilding.</p>
           <span class="mem-addon__tag">Healing &amp; Full Bloom &bull; Limited slots</span>
           <a class="btn btn--secondary" href="{{ ayesha_url }}"
-             {% if site.ayesha_booking_url %}target="_blank" rel="noopener"{% endif %}>Book with Ayesha &rarr;</a>
+             {% if ayesha_external %}target="_blank" rel="noopener"{% endif %}>Book with Ayesha &rarr;</a>
         </article>
         <article class="mem-addon">
           <p class="mem-addon__icon" aria-hidden="true">&#10022;</p>
@@ -380,7 +385,7 @@
           <p>Business, content, and digital product strategy for builders.</p>
           <span class="mem-addon__tag">Creator &amp; Full Bloom &bull; Limited slots</span>
           <a class="btn btn--secondary" href="{{ saman_url }}"
-             {% if site.saman_booking_url %}target="_blank" rel="noopener"{% endif %}>Book with Saman &rarr;</a>
+             {% if saman_external %}target="_blank" rel="noopener"{% endif %}>Book with Saman &rarr;</a>
         </article>
       </div>
     </div>

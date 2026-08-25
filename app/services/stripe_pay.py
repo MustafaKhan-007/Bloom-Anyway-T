@@ -765,8 +765,8 @@ def handle_payment_event(event_type: str, data: dict) -> Order | None:
 
     name = (
         (product.title if product else None)
-        or (plan.name if plan else None)
         or (meta or {}).get("product_name")
+        or (plan.name if plan else None)
         or "Course purchase"
     )
 

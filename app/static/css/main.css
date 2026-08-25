@@ -5478,6 +5478,16 @@ a.at-handle:hover { text-decoration: underline; }
   min-height: 38px; padding: 6px 10px; border-radius: 10px;
   border: 1px solid rgba(61,20,49,0.16); background: #fff;
 }
+.sg-schedule__topic {
+  display: grid; gap: 4px; margin: 0 0 10px;
+  font-size: 12px; font-weight: 700; color: var(--ink-soft);
+}
+.sg-schedule__topic input {
+  min-height: 38px; padding: 6px 10px; border-radius: 10px;
+  border: 1px solid rgba(61,20,49,0.16); background: #fff; width: 100%;
+  font-weight: 600; color: var(--plum-deep, #3d1431);
+}
+.sg-upcoming__topic { font-weight: 700; color: var(--plum-deep, #3d1431); }
 
 /* Embedded Daily support-session room */
 .sg-room {

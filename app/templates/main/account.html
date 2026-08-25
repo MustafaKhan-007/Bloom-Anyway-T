@@ -249,7 +249,7 @@
 
         <div class="ms-card ms-exact__guide">
           <div class="ms-card__head">
-            <p class="eyebrow">Your Free Guide This Month</p>
+            <p class="eyebrow">Your courses &amp; guides</p>
             <a href="{{ url_for('main.courses') }}">Browse courses</a>
           </div>
           {% if shop_purchases %}
@@ -266,12 +266,12 @@
             {% elif guide.file_key %}
             <a class="btn btn--primary btn--sm" href="{{ url_for('main.shop_download', purchase_id=guide.id) }}">Download</a>
             {% else %}
-            <a class="btn btn--secondary btn--sm" href="{{ url_for('main.courses') }}">Browse courses</a>
+            <a class="btn btn--secondary btn--sm" href="{{ url_for('main.account', tab='saved') }}">Open library</a>
             {% endif %}
           </div>
           {% else %}
           <p class="field-help" style="margin:0;">
-            Courses and guides from
+            Purchases from
             <a href="{{ url_for('main.courses') }}">Courses &amp; Guides</a>
             show up here when linked to this email.
           </p>

@@ -28,6 +28,10 @@ DEFAULTS = {
     "ayesha_booking_url": "",
     "saman_booking_url": "",
     "facilitator_booking_url": "",
+    # Stripe Price ids for paid add-ons (preferred over external booking URLs)
+    "facilitator_stripe_price_id": "",
+    "ayesha_stripe_price_id": "",
+    "saman_stripe_price_id": "",
     # ISO date — banner + founder prices on /membership while today <= this date
     "founder_price_ends": "2026-09-30",
 }

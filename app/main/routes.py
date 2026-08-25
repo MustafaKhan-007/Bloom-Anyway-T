@@ -1724,6 +1724,62 @@ def support_groups_page():
     )
 
 
+@bp.route("/checkout/addon/<kind>", methods=["GET", "POST"])
+@limiter.limit("20 per minute")
+def checkout_addon(kind):
+    """Stripe Checkout for facilitator / 1:1 add-ons (price ids from Studio settings)."""
+    from ..services import settings as settings_service
+
+    catalog = {
+        "facilitator": {
+            "setting": "facilitator_stripe_price_id",
+            "name": "Facilitator-led session",
+            "slug": "addon-facilitator",
+        },
+        "ayesha": {
+            "setting": "ayesha_stripe_price_id",
+            "name": "1:1 with Ayesha",
+            "slug": "addon-ayesha",
+        },
+        "saman": {
+            "setting": "saman_stripe_price_id",
+            "name": "1:1 with Saman",
+            "slug": "addon-saman",
+        },
+    }
+    info = catalog.get((kind or "").strip().lower())
+    if not info:
+        abort(404)
+    price_id = (settings_service.get_setting(info["setting"]) or "").strip()
+    if not price_id:
+        flash("Checkout for this add-on isn’t live yet — check back soon.", "info")
+        return redirect(url_for("main.support_groups_page"))
+    if not pay.configured():
+        flash("Payments aren’t configured yet. Please try again later.", "error")
+        return redirect(url_for("main.support_groups_page"))
+    email = current_user.email if current_user.is_authenticated else None
+    name = current_user.public_name() if current_user.is_authenticated else None
+    try:
+        url = pay.create_checkout_session(
+            product_id=price_id,
+            return_url=url_for(
+                "main.account", tab="saved", purchased=1, _external=True,
+            ),
+            customer_email=email,
+            customer_name=name,
+            metadata={
+                "slug": info["slug"],
+                "kind": "product",
+                "product_name": info["name"],
+                "addon": kind,
+            },
+        )
+    except pay.StripeError as exc:
+        flash(str(exc), "error")
+        return redirect(url_for("main.support_groups_page"))
+    return redirect(url)
+
+
 @bp.route("/support-groups/schedule", methods=["POST"])
 @login_required
 def schedule_support_session():
@@ -1739,12 +1795,17 @@ def schedule_support_session():
         date_s=request.form.get("meeting_date") or "",
         time_s=request.form.get("meeting_time") or "",
         tz_name=tz,
+        topic_title=request.form.get("topic_title") or "",
     )
     if err:
         flash(err, "error")
     else:
+        label = (
+            sg_svc.meeting_display_title(meeting)
+            if meeting else "your circle"
+        )
         flash(
-            f"Session scheduled for {meeting.circle.title if meeting and meeting.circle else 'your circle'}. "
+            f"Session scheduled for {label}. "
             "Others can join from upcoming sessions.",
             "success",
         )

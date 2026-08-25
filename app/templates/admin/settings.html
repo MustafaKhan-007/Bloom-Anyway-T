@@ -210,30 +210,52 @@
     <section class="admin-panel studio-card">
       <h2 style="margin-top: 0;">1:1 coaching &amp; facilitator booking</h2>
       <p class="field-help" style="margin-top: 0;">
-        External calendar links shown on Support Groups and Membership add-ons.
-        Leave blank to hide the book button until you're ready.
+        Prefer Stripe Price ids so Book buttons open Checkout on Bloom Anyway.
+        Optional calendar URLs are a fallback when a price id is blank.
       </p>
       <div class="form-row">
         <div class="field">
-          <label for="ayesha_booking_url">Ayesha (Healing) booking URL</label>
+          <label for="facilitator_stripe_price_id">Facilitator Stripe price id</label>
+          <input type="text" id="facilitator_stripe_price_id" name="facilitator_stripe_price_id"
+                 value="{{ values.facilitator_stripe_price_id }}"
+                 placeholder="price_…">
+        </div>
+        <div class="field">
+          <label for="facilitator_booking_url">Facilitator booking URL (fallback)</label>
+          <input type="url" id="facilitator_booking_url" name="facilitator_booking_url"
+                 value="{{ values.facilitator_booking_url }}"
+                 placeholder="https://…">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="field">
+          <label for="ayesha_stripe_price_id">Ayesha 1:1 Stripe price id</label>
+          <input type="text" id="ayesha_stripe_price_id" name="ayesha_stripe_price_id"
+                 value="{{ values.ayesha_stripe_price_id }}"
+                 placeholder="price_…">
+        </div>
+        <div class="field">
+          <label for="ayesha_booking_url">Ayesha booking URL (fallback)</label>
           <input type="url" id="ayesha_booking_url" name="ayesha_booking_url"
                  value="{{ values.ayesha_booking_url }}"
                  placeholder="https://cal.com/…">
         </div>
+      </div>
+      <div class="form-row">
         <div class="field">
-          <label for="saman_booking_url">Saman (Building) booking URL</label>
+          <label for="saman_stripe_price_id">Saman 1:1 Stripe price id</label>
+          <input type="text" id="saman_stripe_price_id" name="saman_stripe_price_id"
+                 value="{{ values.saman_stripe_price_id }}"
+                 placeholder="price_…">
+        </div>
+        <div class="field">
+          <label for="saman_booking_url">Saman booking URL (fallback)</label>
           <input type="url" id="saman_booking_url" name="saman_booking_url"
                  value="{{ values.saman_booking_url }}"
                  placeholder="https://cal.com/…">
         </div>
       </div>
       <div class="form-row">
-        <div class="field">
-          <label for="facilitator_booking_url">Facilitator session booking URL</label>
-          <input type="url" id="facilitator_booking_url" name="facilitator_booking_url"
-                 value="{{ values.facilitator_booking_url }}"
-                 placeholder="https://…">
-        </div>
         <div class="field">
           <label for="founder_price_ends">Founder pricing ends (optional)</label>
           <input type="date" id="founder_price_ends" name="founder_price_ends"

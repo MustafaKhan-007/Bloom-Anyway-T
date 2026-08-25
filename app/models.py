@@ -1465,6 +1465,12 @@ SUPPORT_CIRCLE_SEED = (
     ("money-investing", "building", "Money & Investing",
      "Normalize talking numbers, pricing, and building wealth on your terms.",
      8, "Peer-scheduled", "wallet"),
+    ("custom-healing", "healing", "Custom",
+     "Name your own Healing peer topic when you schedule — whatever you need to talk through.",
+     8, "Peer-scheduled", "spark"),
+    ("custom-building", "building", "Custom",
+     "Name your own Creator accountability topic when you schedule — your call.",
+     8, "Peer-scheduled", "spark"),
 )
 
 
