@@ -201,16 +201,11 @@
           <button class="btn btn--secondary btn--sm" type="submit" form="clear-cover">Remove cover</button>
         </div>
         {% endif %}
-        <div class="form-row" style="align-items:end;">
-          <div class="field" style="flex:2;">
-            <label for="cover_file">{% if product.cover_url %}Replace cover{% else %}Upload cover{% endif %}</label>
-            <input type="file" id="cover_file" name="cover" form="upload-cover"
-                   accept="image/png,image/jpeg,image/webp">
-            <p class="field-help">Full image is kept — nothing is cropped.</p>
-          </div>
-          <div class="field">
-            <button class="btn btn--secondary" type="submit" form="upload-cover">Save cover</button>
-          </div>
+        <div class="field">
+          <label for="cover_file">Cover image</label>
+          <input type="file" id="cover_file" name="cover"
+                 accept="image/png,image/jpeg,image/webp">
+          <p class="field-help">Full image is kept — nothing is cropped. Saved with Save changes.</p>
         </div>
       </div>
       {% if product.gallery() %}
@@ -303,10 +298,6 @@
         data-confirm="{% if product.orders.count() %}Delete “{{ product.title }}”? Past purchases stay in your records, but this product is removed from Courses for good.{% else %}Delete “{{ product.title }}”? This can't be undone.{% endif %}"
         data-confirm-title="Delete product?"
         data-confirm-ok="Delete">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-  </form>
-  <form id="upload-cover" method="post" action="{{ url_for('admin.product_cover_upload', product_id=product.id) }}"
-        enctype="multipart/form-data" hidden>
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   </form>
   <form id="clear-cover" method="post" action="{{ url_for('admin.product_cover_upload', product_id=product.id) }}" hidden>

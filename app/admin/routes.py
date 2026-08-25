@@ -425,8 +425,19 @@ def product_edit(product_id):
         return redirect(url_for("admin.products"))
 
     if request.method == "POST":
+        from ..services.product_covers import CoverError, process_and_save as save_cover
+
         prev_status = product.status
         _apply_product_fields(product, request.form)
+        cover = request.files.get("cover")
+        if cover and getattr(cover, "filename", None):
+            try:
+                product.cover_url = save_cover(product.id, cover)
+            except CoverError as exc:
+                flash(str(exc), "error")
+            except Exception:
+                log.exception("edit product cover upload failed")
+                flash("Product saved, but the cover didn’t upload.", "error")
         blockers = product.publish_blockers() if product.status == "published" else []
         if blockers:
             product.status = "draft"
