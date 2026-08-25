@@ -65,38 +65,38 @@ class Config:
     # 2. SMTP_*: classic SMTP relay (optional fallback)
     BREVO_API_KEY = os.environ.get("BREVO_API_KEY", "").strip()
     # Transactional template IDs (Brevo → Transactional → Templates, number after #).
-    # General (#10): shared layout — SUBJECT, PREVIEW, HEADER, TITLE, BODY,
-    # BUTTON_TEXT, BUTTON_URL. Used for welcome/receipt/membership/cancel/etc.
-    # Confirm (#3) stays separate (needs the CODE field).
+    # Dedicated templates (#2–#9) for known scenarios. General (#10) only for
+    # emails that do not yet have their own Brevo template (SUBJECT / PREVIEW /
+    # HEADER / TITLE / BODY / BUTTON_TEXT / BUTTON_URL).
     BREVO_TEMPLATE_GENERAL = int(
         os.environ.get("BREVO_TEMPLATE_GENERAL", "10") or 0
     )
     # Welcome: sent once after email is verified. Confirm: 6-digit signup code email.
     BREVO_TEMPLATE_WELCOME = int(
         os.environ.get("BREVO_TEMPLATE_WELCOME")
-        or os.environ.get("BREVO_TEMPLATE_CONFIRM_LEGACY", "0")
+        or os.environ.get("BREVO_TEMPLATE_CONFIRM_LEGACY", "2")
         or 0
     )
     BREVO_TEMPLATE_CONFIRM = int(
         os.environ.get("BREVO_TEMPLATE_CONFIRM", "3") or 0
     )
     BREVO_TEMPLATE_RECEIPT = int(
-        os.environ.get("BREVO_TEMPLATE_RECEIPT", "0") or 0
+        os.environ.get("BREVO_TEMPLATE_RECEIPT", "4") or 0
     )
     BREVO_TEMPLATE_HEALING = int(
-        os.environ.get("BREVO_TEMPLATE_HEALING", "0") or 0
+        os.environ.get("BREVO_TEMPLATE_HEALING", "5") or 0
     )
     BREVO_TEMPLATE_CREATOR = int(
-        os.environ.get("BREVO_TEMPLATE_CREATOR", "0") or 0
+        os.environ.get("BREVO_TEMPLATE_CREATOR", "6") or 0
     )
     BREVO_TEMPLATE_CARD_DECLINED = int(
-        os.environ.get("BREVO_TEMPLATE_CARD_DECLINED", "0") or 0
+        os.environ.get("BREVO_TEMPLATE_CARD_DECLINED", "7") or 0
     )
     BREVO_TEMPLATE_CANCEL = int(
-        os.environ.get("BREVO_TEMPLATE_CANCEL", "0") or 0
+        os.environ.get("BREVO_TEMPLATE_CANCEL", "8") or 0
     )
     BREVO_TEMPLATE_NEWSLETTER = int(
-        os.environ.get("BREVO_TEMPLATE_NEWSLETTER", "0") or 0
+        os.environ.get("BREVO_TEMPLATE_NEWSLETTER", "9") or 0
     )
     # Optional absolute site origin for email CTAs when no request context.
     PUBLIC_BASE_URL = (
