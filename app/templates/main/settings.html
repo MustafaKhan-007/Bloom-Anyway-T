@@ -136,7 +136,7 @@
       <fieldset class="badge-picker" id="badges">
         <legend>Your badges</legend>
         <p class="field-help">Earned badges evolve as you go. Pick up to <strong>three</strong> to show on your
-          profile and by your name in the community. {% if current_user.is_admin %}Your Founder badge always shows.{% endif %}</p>
+          profile and by your name in the community. {% if current_user.is_owner() %}Your Founder badge always shows.{% endif %}</p>
         <div class="badge-collection" data-badge-max="3">
           {% for row in badge_progress %}
           <div class="badge-collection__row{{ ' is-locked' if not row.badge }}">

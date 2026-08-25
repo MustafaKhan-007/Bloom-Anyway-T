@@ -147,10 +147,14 @@ class User(UserMixin, db.Model):
     def has_animated_avatar(self) -> bool:
         return self.avatar_anim_data is not None
 
+    def is_owner(self) -> bool:
+        """True for any Studio owner (full or view-only co-owner)."""
+        return bool(self.is_admin)
+
     # --- membership tiers ---------------------------------------------------
     def effective_membership(self) -> str:
         """The tier used for gating. Owner always ranks as Full Bloom."""
-        if self.is_admin:
+        if self.is_owner():
             return "full_bloom"
         return self.membership or "none"
 

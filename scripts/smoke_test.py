@@ -1225,6 +1225,10 @@ with app.app_context():
     partner_u = User.query.filter_by(email="partner-owner@example.com").first()
     ok("Invited partner is an owner",
        partner_u is not None and partner_u.is_admin is True)
+    from app.services.badges import primary_badge as _pb
+    partner_badge = _pb(partner_u) if partner_u else None
+    ok("Invited partner carries the Founder badge",
+       bool(partner_badge) and partner_badge.get("cat") == "owner")
     ok("Invite is consumed after promotion",
        "partner-owner@example.com" not in owners_svc.invite_list())
 with app.app_context():
@@ -1241,12 +1245,18 @@ with app.app_context():
     co_u = User.query.filter_by(email="coexist@example.com").first()
     ok("Existing member was promoted to owner", co_u.is_admin is True)
     ok("Promoted owner is full access by default", co_u.admin_readonly is False)
+    from app.services.badges import primary_badge as _pb2
+    ok("Promoted co-owner carries the Founder badge",
+       (_pb2(co_u) or {}).get("cat") == "owner")
 r = admin.post("/admin/owners/remove",
                data={"email": "coexist@example.com"}, follow_redirects=True)
 ok("Owner can remove a co-owner",
    "removed" in r.get_data(as_text=True).lower())
 with app.app_context():
     co_u = User.query.filter_by(email="coexist@example.com").first()
+    from app.services.badges import primary_badge as _pb3
+    ok("Removed co-owner loses the Founder badge",
+       (_pb3(co_u) or {}).get("cat") != "owner")
     ok("Removed co-owner no longer has admin", co_u.is_admin is False)
     ok("Removed co-owner keeps prior Healing tier (not stuck on Creator)",
        co_u.membership == "healing")
@@ -1267,6 +1277,9 @@ with app.app_context():
     viewer = User.query.filter_by(email="viewer-owner@example.com").first()
     ok("View-only owner has admin + readonly flags",
        viewer is not None and viewer.is_admin is True and viewer.admin_readonly is True)
+    from app.services.badges import primary_badge as _pb_view
+    ok("View-only owner carries the Founder badge",
+       (_pb_view(viewer) or {}).get("cat") == "owner")
 viewer_client = app.test_client()
 viewer_client.post("/login", data={"email": "viewer-owner@example.com", "password": USER_PW})
 r = viewer_client.get("/admin/")

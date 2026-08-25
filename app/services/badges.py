@@ -185,9 +185,21 @@ OWNER_BADGE = {
     "level": 5,          # rendered fully ornate — the grandest badge on the site
     "max_level": 5,
     "title": "The Founder",
-    "phrase": "she built this place",
-    "tooltip": "Founder \u2014 she built this place",
+    "phrase": "studio owner",
+    "tooltip": "Founder \u2014 studio owner",
 }
+
+
+def _is_owner(user) -> bool:
+    """Any account with Studio owner permissions (full or view-only)."""
+    if user is None:
+        return False
+    if hasattr(user, "is_owner"):
+        try:
+            return bool(user.is_owner())
+        except TypeError:
+            pass
+    return bool(getattr(user, "is_admin", False))
 
 
 # --- thresholds (owner-editable) ---------------------------------------------
@@ -377,7 +389,7 @@ def displayed_badges(user) -> list:
 def profile_badges(user) -> list:
     """What shows on a profile: the owner badge (if any) + chosen/earned badges."""
     badges = []
-    if user.is_admin:
+    if _is_owner(user):
         badges.append(OWNER_BADGE)
     chosen = displayed_badges(user)
     if not chosen:
@@ -390,7 +402,7 @@ def primary_badge(user) -> dict | None:
     """The single badge shown next to a member's name in the forums."""
     if user is None:
         return None
-    if user.is_admin:
+    if _is_owner(user):
         return OWNER_BADGE
     chosen = displayed_badges(user)
     if chosen:
