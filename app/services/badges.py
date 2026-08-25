@@ -7,16 +7,19 @@ the higher the tier — so "25 posts" and "50 posts" look related but the latter
 is clearly more evolved.
 
 A member's badges are derived from their live stats (streak, posts, likes
-received), so they can never fall out of sync. Milestone *thresholds* are
-editable by the owner in the studio (stored in `Setting["_badge_thresholds"]`);
-everything else (emblem, titles, count of tiers) is fixed here.
+received, support attendance, etc.), so they can never fall out of sync.
+Milestone *thresholds* are editable by the owner in the studio (stored in
+`Setting["_badge_thresholds"]`); everything else (emblem, titles, count of
+tiers) is fixed here.
 """
 import json
 
 from sqlalchemy import func
 
 from ..extensions import db
-from ..models import (ForumComment, ForumCommentLike, ForumPost, Setting)
+from ..models import (Follow, ForumComment, ForumCommentLike, ForumPost,
+                      QuoteFavorite, Setting, SupportGroupApplication,
+                      SupportGroupMeeting)
 
 _OVERRIDE_KEY = "_badge_thresholds"
 
@@ -31,6 +34,26 @@ def _posts(n):
 
 def _likes(n):
     return f"{n} like on your comments" if n == 1 else f"{n} likes on your comments"
+
+
+def _sessions(n):
+    return f"{n} support session" if n == 1 else f"{n} support sessions"
+
+
+def _hosted(n):
+    return f"{n} circle hosted" if n == 1 else f"{n} circles hosted"
+
+
+def _comments(n):
+    return f"{n} comment" if n == 1 else f"{n} comments"
+
+
+def _followers(n):
+    return f"{n} follower" if n == 1 else f"{n} followers"
+
+
+def _favorites(n):
+    return f"{n} saved quote" if n == 1 else f"{n} saved quotes"
 
 
 # --- category definitions ----------------------------------------------------
@@ -80,6 +103,76 @@ CATEGORIES = {
             (25,  "Helper"),
             (50,  "Pillar"),
             (100, "Beloved"),
+        ],
+    },
+    "circles": {
+        "name": "In the Circle",
+        "emblem": "circle",
+        "metal": "sage",
+        "blurb": "Support sessions attended \u2014 showing up for each other.",
+        "metric_label": "support sessions attended",
+        "phrase": _sessions,
+        "tiers": [
+            (1,  "First Seat"),
+            (3,  "Regular"),
+            (8,  "Trusted"),
+            (20, "Circle Elder"),
+        ],
+    },
+    "holding_space": {
+        "name": "Holding Space",
+        "emblem": "lantern",
+        "metal": "teal",
+        "blurb": "Peer circles you hosted that ran to completion.",
+        "metric_label": "circles hosted",
+        "phrase": _hosted,
+        "tiers": [
+            (1,  "Opened the Door"),
+            (3,  "Host"),
+            (8,  "Gatherer"),
+            (15, "Keeper of the Room"),
+        ],
+    },
+    "listener": {
+        "name": "Soft Voice",
+        "emblem": "echo",
+        "metal": "sky",
+        "blurb": "Comments left for others \u2014 presence in the thread.",
+        "metric_label": "comments written",
+        "phrase": _comments,
+        "tiers": [
+            (5,   "First Reply"),
+            (25,  "Present"),
+            (75,  "Soft Voice"),
+            (150, "Always There"),
+        ],
+    },
+    "roots": {
+        "name": "Deep Roots",
+        "emblem": "sprout",
+        "metal": "moss",
+        "blurb": "People who chose to follow your journey.",
+        "metric_label": "followers",
+        "phrase": _followers,
+        "tiers": [
+            (1,  "First Root"),
+            (5,  "Growing"),
+            (20, "Branching"),
+            (50, "Deep Roots"),
+        ],
+    },
+    "keeper": {
+        "name": "Quote Keeper",
+        "emblem": "bookmark",
+        "metal": "dusk",
+        "blurb": "Quotes saved to return to on harder days.",
+        "metric_label": "quotes saved",
+        "phrase": _favorites,
+        "tiers": [
+            (3,  "Collected"),
+            (10, "Keeper"),
+            (25, "Archive"),
+            (50, "Well of Words"),
         ],
     },
 }
@@ -157,6 +250,29 @@ def _metric(cat_key: str, user) -> int:
         return db.session.query(func.count(ForumCommentLike.id)).join(
             ForumComment, ForumCommentLike.comment_id == ForumComment.id).filter(
             ForumComment.user_id == user.id).scalar() or 0
+    if cat_key == "circles":
+        return db.session.query(func.count(SupportGroupApplication.id)).filter(
+            SupportGroupApplication.user_id == user.id,
+            SupportGroupApplication.status == "attended",
+        ).scalar() or 0
+    if cat_key == "holding_space":
+        return db.session.query(func.count(SupportGroupMeeting.id)).filter(
+            SupportGroupMeeting.scheduled_by_user_id == user.id,
+            SupportGroupMeeting.status == "completed",
+        ).scalar() or 0
+    if cat_key == "listener":
+        return db.session.query(func.count(ForumComment.id)).filter(
+            ForumComment.user_id == user.id,
+            ForumComment.hidden.is_(False),
+        ).scalar() or 0
+    if cat_key == "roots":
+        return db.session.query(func.count(Follow.id)).filter(
+            Follow.following_id == user.id,
+        ).scalar() or 0
+    if cat_key == "keeper":
+        return db.session.query(func.count(QuoteFavorite.id)).filter(
+            QuoteFavorite.user_id == user.id,
+        ).scalar() or 0
     return 0
 
 
