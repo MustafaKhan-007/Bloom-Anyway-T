@@ -829,22 +829,22 @@ body.is-studio-readonly .admin-main input[type="submit"] {
 .show-all-btn { margin: -12px 0 24px; }
 
 /* collapsible FAQ rows in the studio */
-details.faq-item { padding: 0; margin-bottom: 12px; }
-details.faq-item > summary {
+.admin-body details.faq-item { padding: 0; margin-bottom: 12px; }
+.admin-body details.faq-item > summary {
   list-style: none; cursor: pointer; padding: 16px 20px;
   display: flex; align-items: center; justify-content: space-between; gap: 16px;
   font-weight: 700;
 }
-details.faq-item > summary::-webkit-details-marker { display: none; }
-.faq-item__q { min-width: 0; }
-.faq-item__hint {
+.admin-body details.faq-item > summary::-webkit-details-marker { display: none; }
+.admin-body .faq-item__q { min-width: 0; }
+.admin-body .faq-item__hint {
   flex: none; font-size: 13px; font-weight: 700; color: var(--plum);
   text-transform: uppercase; letter-spacing: 0.05em;
 }
-details.faq-item[open] > summary { border-bottom: 1px solid var(--ivory-deep); }
-details.faq-item[open] > summary .faq-item__hint::after { content: " \2212"; }
-details.faq-item:not([open]) > summary .faq-item__hint::after { content: " +"; }
-details.faq-item > form { padding: 0 20px 20px; }
+.admin-body details.faq-item[open] > summary { border-bottom: 1px solid var(--ivory-deep); }
+.admin-body details.faq-item[open] > summary .faq-item__hint::after { content: " \2212"; }
+.admin-body details.faq-item:not([open]) > summary .faq-item__hint::after { content: " +"; }
+.admin-body details.faq-item > form { padding: 0 20px 20px; }
 .form-row { display: grid; gap: 16px; align-items: start; }
 @media (min-width: 640px) { .form-row { grid-template-columns: 1fr 1fr; } }
 .form-row--announce { align-items: start; }
