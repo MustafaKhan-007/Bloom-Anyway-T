@@ -627,47 +627,86 @@
 {% endif %}
 
 {% if active_tab == 'journal' %}
+{% set past_entries = (journal_entries|rejectattr('id', 'equalto', today_entry.id)|list) if today_entry else journal_entries %}
+{% set past_oldest_first = past_entries|reverse|list %}
 <section class="section section--tight jn-section">
   <div class="container ms-journal">
     <div class="ms-journal__main">
-      <article class="jn-page" aria-label="Today’s journal page">
-        <div class="jn-page__spiral" aria-hidden="true">
-          <span></span><span></span><span></span><span></span><span></span><span></span>
-        </div>
-        <div class="jn-page__inner">
-          <header class="jn-page__head">
-            <h2 class="jn-page__title">Your journal <span class="jn-page__pin" aria-hidden="true">📌</span></h2>
-            <p class="jn-page__lede">Private notes from the days you showed up. Only you can see these.</p>
-          </header>
-
-          <form method="post" action="{{ url_for('main.checkin') }}" class="jn-page__form" id="journal-today-form">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <input type="hidden" name="next" value="{{ url_for('main.account', tab='journal') }}">
-            <input type="hidden" name="prompt" id="journal-prompt-key" value="{{ today_prompt[0] }}">
-            <p class="jn-page__prompt" id="journal-prompt-label">{{ today_prompt[1] }}</p>
-            <div class="ms-mood jn-mood" role="radiogroup" aria-label="How do you feel today?">
-              {% for key, emoji, label in moods %}
-              <label class="ms-mood__opt jn-mood__opt jn-mood__opt--{{ loop.index }} {{ 'is-selected' if today_entry and today_entry.mood == key }}"
-                     title="{{ label }}" data-mood-label="{{ label }}">
-                <input type="radio" name="mood" value="{{ key }}"
-                       {{ 'checked' if today_entry and today_entry.mood == key }}>
-                <span class="ms-mood__emoji" aria-hidden="true">{{ emoji }}</span>
-                <span class="ms-mood__tip" aria-hidden="true">{{ label }}</span>
-                <span class="visually-hidden">{{ label }}</span>
-              </label>
-              {% endfor %}
+      <div class="jn-book" data-jn-book>
+        <div class="jn-book__stage" data-jn-stage>
+          {% for entry in past_oldest_first %}
+          <article class="jn-page jn-page--past" data-jn-sheet data-writable="0" hidden
+                   aria-label="Journal entry {{ entry.day.strftime('%b %d, %Y') }}">
+            <div class="jn-page__spiral" aria-hidden="true">
+              <span></span><span></span><span></span><span></span><span></span><span></span>
             </div>
-            <textarea name="journal" id="journal-body" class="jn-page__body" rows="8" maxlength="4000"
-                      placeholder="Write as much or as little as you like."
-                      aria-label="{{ today_prompt[1] }}">{% if today_entry and today_entry.body %}{{ today_entry.body }}{% endif %}</textarea>
-            {% if current_user.checked_in_today() %}
-            <button class="jn-page__submit" type="submit">Save journal &#10003;</button>
-            {% else %}
-            <button class="jn-page__submit" type="submit">I showed up today &#10003;</button>
-            {% endif %}
-          </form>
+            <div class="jn-page__inner">
+              <header class="jn-page__head">
+                <h2 class="jn-page__title">Your journal <span class="jn-page__pin" aria-hidden="true">📌</span></h2>
+                <p class="jn-page__lede">{{ entry.day.strftime('%A, %B %d, %Y') }} · read only</p>
+              </header>
+              <p class="jn-page__prompt">{{ entry.prompt_label or 'Note' }}</p>
+              {% if entry.mood %}
+              <p class="jn-page__past-mood" title="{{ entry.mood_label() }}">
+                <span aria-hidden="true">{{ entry.mood_emoji() }}</span> {{ entry.mood_label() }}
+              </p>
+              {% endif %}
+              <div class="jn-page__read">
+                {% if entry.body %}{{ entry.body|nl2br }}{% else %}<em>Mood only — no written note that day.</em>{% endif %}
+              </div>
+            </div>
+          </article>
+          {% endfor %}
+
+          <article class="jn-page jn-page--today is-current" data-jn-sheet data-writable="1"
+                   aria-label="Today’s journal page">
+            <div class="jn-page__spiral" aria-hidden="true">
+              <span></span><span></span><span></span><span></span><span></span><span></span>
+            </div>
+            <div class="jn-page__inner">
+              <header class="jn-page__head">
+                <h2 class="jn-page__title">Your journal <span class="jn-page__pin" aria-hidden="true">📌</span></h2>
+                <p class="jn-page__lede">Private notes from the days you showed up. Only you can see these.</p>
+              </header>
+
+              <form method="post" action="{{ url_for('main.checkin') }}" class="jn-page__form" id="journal-today-form">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="next" value="{{ url_for('main.account', tab='journal') }}">
+                <input type="hidden" name="prompt" id="journal-prompt-key" value="{{ today_prompt[0] }}">
+                <p class="jn-page__prompt" id="journal-prompt-label">{{ today_prompt[1] }}</p>
+                <div class="ms-mood jn-mood" role="radiogroup" aria-label="How do you feel today?">
+                  {% for key, emoji, label in moods %}
+                  <label class="ms-mood__opt jn-mood__opt jn-mood__opt--{{ loop.index }} {{ 'is-selected' if today_entry and today_entry.mood == key }}"
+                         title="{{ label }}" data-mood-label="{{ label }}">
+                    <input type="radio" name="mood" value="{{ key }}"
+                           {{ 'checked' if today_entry and today_entry.mood == key }}>
+                    <span class="ms-mood__emoji" aria-hidden="true">{{ emoji }}</span>
+                    <span class="ms-mood__tip" aria-hidden="true">{{ label }}</span>
+                    <span class="visually-hidden">{{ label }}</span>
+                  </label>
+                  {% endfor %}
+                </div>
+                <textarea name="journal" id="journal-body" class="jn-page__body" rows="8" maxlength="4000"
+                          placeholder="Write as much or as little as you like."
+                          aria-label="{{ today_prompt[1] }}">{% if today_entry and today_entry.body %}{{ today_entry.body }}{% endif %}</textarea>
+                {% if current_user.checked_in_today() %}
+                <button class="jn-page__submit" type="submit">Save journal &#10003;</button>
+                {% else %}
+                <button class="jn-page__submit" type="submit">I showed up today &#10003;</button>
+                {% endif %}
+              </form>
+            </div>
+          </article>
         </div>
-      </article>
+
+        <div class="jn-book__chrome">
+          <button type="button" class="jn-book__nav jn-book__nav--back" data-jn-back
+                  aria-label="Flip to older page">‹ Older</button>
+          <p class="jn-book__counter" data-jn-counter></p>
+          <button type="button" class="jn-book__nav jn-book__nav--fwd" data-jn-fwd
+                  aria-label="Flip to newer page">Newer ›</button>
+        </div>
+      </div>
     </div>
 
     <aside class="ms-journal__side">
@@ -694,51 +733,6 @@
         </ul>
       </div>
     </aside>
-
-    <div class="ms-journal__prev">
-      {% set past_entries = (journal_entries|rejectattr('id', 'equalto', today_entry.id)|list) if today_entry else journal_entries %}
-      <div class="jn-flip" data-jn-flip>
-        <div class="jn-flip__head">
-          <h3 class="jn-flip__title">Earlier pages</h3>
-          <p class="jn-flip__lede">Flip back through the days you wrote — read only.</p>
-        </div>
-        {% if past_entries %}
-        <div class="jn-flip__stage">
-          <button type="button" class="jn-flip__nav jn-flip__nav--prev" data-jn-prev aria-label="Older entry">‹</button>
-          <div class="jn-flip__viewport">
-            <div class="jn-flip__stack" data-jn-stack>
-              {% for entry in past_entries %}
-              <article class="jn-flip__sheet{% if loop.first %} is-current{% endif %}"
-                       data-jn-sheet
-                       data-index="{{ loop.index0 }}"
-                       {% if not loop.first %}hidden{% endif %}>
-                <div class="jn-flip__spiral" aria-hidden="true">
-                  <span></span><span></span><span></span><span></span><span></span>
-                </div>
-                <div class="jn-flip__sheet-inner">
-                  <p class="jn-flip__date">
-                    {{ entry.day.strftime('%A, %b %d, %Y') }}
-                    {% if entry.mood %}
-                    <span class="jn-flip__mood" title="{{ entry.mood_label() }}">{{ entry.mood_emoji() }} {{ entry.mood_label() }}</span>
-                    {% endif %}
-                  </p>
-                  <h4 class="jn-flip__prompt">{{ entry.prompt_label or 'Note' }}</h4>
-                  <div class="jn-flip__body">
-                    {% if entry.body %}{{ entry.body|nl2br }}{% else %}<em>Mood only — no written note that day.</em>{% endif %}
-                  </div>
-                </div>
-              </article>
-              {% endfor %}
-            </div>
-          </div>
-          <button type="button" class="jn-flip__nav jn-flip__nav--next" data-jn-next aria-label="Newer entry">›</button>
-        </div>
-        <p class="jn-flip__counter" data-jn-counter>1 / {{ past_entries|length }}</p>
-        {% else %}
-        <p class="jn-flip__empty">No earlier pages yet — today’s note will wait for you here tomorrow.</p>
-        {% endif %}
-      </div>
-    </div>
   </div>
 </section>
 {% endif %}

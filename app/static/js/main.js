@@ -867,12 +867,13 @@
     setKind("feedback");
   })();
 
-  // Journal: prompt ideas insert into the notebook page + page-flip for past entries
+  // Journal: prompt insert + flip the notebook itself (oldest → today)
   (function () {
     var list = document.getElementById("journal-prompt-ideas");
     var keyInput = document.getElementById("journal-prompt-key");
     var labelEl = document.getElementById("journal-prompt-label");
     var body = document.getElementById("journal-body");
+    var book = document.querySelector("[data-jn-book]");
 
     function insertAtCursor(el, text) {
       if (!el) return;
@@ -897,6 +898,7 @@
       list.addEventListener("click", function (e) {
         var btn = e.target.closest(".jn-prompt-list__btn, .ms-prompt-list__btn");
         if (!btn || !list.contains(btn)) return;
+        if (book && book.classList.contains("is-on-past")) return;
         var key = btn.getAttribute("data-prompt-key") || "";
         var label = btn.getAttribute("data-prompt-label") || btn.textContent.trim();
         if (keyInput) keyInput.value = key;
@@ -917,62 +919,95 @@
       });
     }
 
-    var root = document.querySelector("[data-jn-flip]");
-    if (!root) return;
-    var sheets = Array.prototype.slice.call(root.querySelectorAll("[data-jn-sheet]"));
+    if (!book) return;
+    var sheets = Array.prototype.slice.call(book.querySelectorAll("[data-jn-sheet]"));
     if (!sheets.length) return;
-    var prevBtn = root.querySelector("[data-jn-prev]");
-    var nextBtn = root.querySelector("[data-jn-next]");
-    var counter = root.querySelector("[data-jn-counter]");
-    var index = 0;
+    var backBtn = book.querySelector("[data-jn-back]");
+    var fwdBtn = book.querySelector("[data-jn-fwd]");
+    var counter = book.querySelector("[data-jn-counter]");
+    // Pages are oldest → newest/today; start on the newest (last) page.
+    var index = sheets.length - 1;
     var animating = false;
     var reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
+    if (sheets.length < 2) {
+      book.classList.add("jn-book--solo");
+    }
+
     function updateChrome() {
-      if (counter) counter.textContent = (index + 1) + " / " + sheets.length;
-      if (prevBtn) prevBtn.disabled = index >= sheets.length - 1;
-      if (nextBtn) nextBtn.disabled = index <= 0;
+      var total = sheets.length;
+      if (counter) {
+        counter.textContent =
+          total <= 1 ? "Today" : "Page " + (index + 1) + " of " + total;
+      }
+      if (backBtn) backBtn.disabled = index <= 0 || animating;
+      if (fwdBtn) fwdBtn.disabled = index >= total - 1 || animating;
+      var onPast = sheets[index] && sheets[index].getAttribute("data-writable") !== "1";
+      book.classList.toggle("is-on-past", !!onPast);
     }
 
     function show(nextIndex, dir) {
-      if (animating || nextIndex === index || nextIndex < 0 || nextIndex >= sheets.length) return;
+      if (animating || nextIndex === index || nextIndex < 0 || nextIndex >= sheets.length) {
+        return;
+      }
       var current = sheets[index];
       var next = sheets[nextIndex];
+      var leaveClass = dir === "back" ? "is-leave-back" : "is-leave-fwd";
+      var enterClass = dir === "back" ? "is-enter-back" : "is-enter-fwd";
+
       if (reduceMotion) {
         current.hidden = true;
-        current.classList.remove("is-current", "is-leaving", "is-entering");
+        current.classList.remove(
+          "is-current", "is-leave-back", "is-leave-fwd", "is-enter-back", "is-enter-fwd"
+        );
         next.hidden = false;
         next.classList.add("is-current");
         index = nextIndex;
         updateChrome();
         return;
       }
+
       animating = true;
-      current.classList.remove("is-entering");
-      current.classList.add("is-leaving");
+      updateChrome();
+      var stage = book.querySelector("[data-jn-stage]") || book;
+      var h = Math.max(current.offsetHeight || 0, next.offsetHeight || 0, 520);
+      stage.style.minHeight = h + "px";
+      current.classList.remove("is-enter-back", "is-enter-fwd");
+      current.classList.add(leaveClass);
       next.hidden = false;
-      next.classList.add("is-entering", "is-current");
+      next.classList.add(enterClass, "is-current");
+
       window.setTimeout(function () {
         current.hidden = true;
-        current.classList.remove("is-current", "is-leaving");
-        next.classList.remove("is-entering");
+        current.classList.remove("is-current", leaveClass);
+        next.classList.remove(enterClass);
         index = nextIndex;
         animating = false;
+        stage.style.minHeight = "";
         updateChrome();
-      }, 520);
+      }, 560);
     }
 
-    if (prevBtn) {
-      prevBtn.addEventListener("click", function () {
-        // Older entries are further down the list (already day-desc sorted = newest first).
-        show(index + 1, "older");
+    if (backBtn) {
+      backBtn.addEventListener("click", function () {
+        show(index - 1, "back");
       });
     }
-    if (nextBtn) {
-      nextBtn.addEventListener("click", function () {
-        show(index - 1, "newer");
+    if (fwdBtn) {
+      fwdBtn.addEventListener("click", function () {
+        show(index + 1, "fwd");
       });
     }
+
+    // Ensure only the start page is visible.
+    sheets.forEach(function (sheet, i) {
+      var on = i === index;
+      sheet.hidden = !on;
+      sheet.classList.toggle("is-current", on);
+      sheet.classList.remove(
+        "is-leave-back", "is-leave-fwd", "is-enter-back", "is-enter-fwd"
+      );
+    });
     updateChrome();
   })();
 
