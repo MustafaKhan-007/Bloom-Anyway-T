@@ -1306,6 +1306,13 @@ html.is-page-loading { cursor: progress; }
 
 .like-form { display: inline-block; }
 .heart-btn span { font-weight: 600; }
+.delete-own-form { display: inline-block; margin: 0; }
+.delete-own-btn {
+  appearance: none; background: none; border: 0; padding: 4px 2px;
+  font: inherit; font-size: 13px; font-weight: 600; color: var(--ink-soft);
+  cursor: pointer; text-decoration: underline; text-underline-offset: 2px;
+}
+.delete-own-btn:hover { color: var(--error); }
 
 /* topic tags + filters */
 .forum-lead { color: var(--ink-soft); margin: 0 0 28px; max-width: 56ch; }
@@ -4561,7 +4568,7 @@ a.at-handle:hover { text-decoration: underline; }
 .admin-body { background: #f3ebe3; }
 .admin-sidebar {
   background: #3d1431 !important;
-  display: flex; flex-direction: column; min-height: 100%;
+  display: flex; flex-direction: column;
 }
 .admin-sidebar .brand--studio {
   flex-direction: column; align-items: flex-start; gap: 2px; margin-bottom: 20px;

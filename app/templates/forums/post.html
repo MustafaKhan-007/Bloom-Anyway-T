@@ -16,6 +16,14 @@
   {% endif %}
 {% endmacro %}
 
+{% macro delete_own(action_url, label, confirm_msg) %}
+<form method="post" action="{{ action_url }}" class="delete-own-form"
+      onsubmit="return confirm({{ confirm_msg|tojson }});">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <button class="delete-own-btn" type="submit">{{ label }}</button>
+</form>
+{% endmacro %}
+
 {% macro reply_quota_box() %}
 <div class="quota-locked quota-locked--inline" role="status">
   <p class="quota-locked__title">This week's free replies are used</p>
@@ -36,7 +44,13 @@
   <div class="forum-body">{{ c.body|mentions }}</div>
   <div class="forum-actions">
     {{ like_button(url_for('forums.like_comment', comment_id=c.id), c.like_count(), c.id in liked_comments) }}
-    {% if current_user.is_authenticated and current_user.id != c.user_id %}
+    {% if current_user.is_authenticated and current_user.id == c.user_id %}
+    {{ delete_own(
+         url_for('forums.delete_own_comment', comment_id=c.id),
+         'Delete',
+         'Delete this comment? This cannot be undone.'
+       ) }}
+    {% elif current_user.is_authenticated and current_user.id != c.user_id %}
     {{ report_toggle(
          url_for('forums.report_comment', comment_id=c.id),
          'report-note-c' ~ c.id,
@@ -94,7 +108,13 @@
       <div class="forum-body">{{ post.body|mentions }}</div>
       <div class="forum-actions">
         {{ like_button(url_for('forums.like_post', post_id=post.id), post.like_count(), post.id in liked_posts) }}
-        {% if current_user.is_authenticated and current_user.id != post.user_id %}
+        {% if current_user.is_authenticated and current_user.id == post.user_id %}
+        {{ delete_own(
+             url_for('forums.delete_own_post', post_id=post.id),
+             'Delete post',
+             'Delete this post and all its comments? This cannot be undone.'
+           ) }}
+        {% elif current_user.is_authenticated and current_user.id != post.user_id %}
         {{ report_toggle(
              url_for('forums.report_post', post_id=post.id),
              'report-note-post',
