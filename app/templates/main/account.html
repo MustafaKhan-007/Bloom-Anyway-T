@@ -65,29 +65,6 @@
   </div>
 </section>
 
-{% if current_user.is_admin and owner_support_pending and active_tab == 'profile' %}
-<section class="section section--tight" id="support-inbox">
-  <div class="container">
-    <div class="owner-notice">
-      <div class="owner-notice__head">
-        <span class="owner-notice__icon" aria-hidden="true">&#128101;</span>
-        <div>
-          <p class="eyebrow">Support group queue</p>
-          <h2 style="margin: 0; font-size: 22px;">
-            {{ owner_support_pending }} waiting
-            applicant{{ '' if owner_support_pending == 1 else 's' }}
-          </h2>
-        </div>
-      </div>
-      <p class="field-help" style="margin: 0 0 10px;">
-        Peer sessions are member-scheduled. Open Studio to cancel or complete rooms if needed.
-      </p>
-      <a class="btn btn--primary btn--sm" href="{{ url_for('admin.support_groups') }}">Open in Studio &rarr;</a>
-    </div>
-  </div>
-</section>
-{% endif %}
-
 {% if active_tab == 'profile' %}
 {% set streak_n = current_user.streak_display() %}
 {% set streak_pct = ([streak_n * 10, 100]|min) if streak_n else 0 %}
