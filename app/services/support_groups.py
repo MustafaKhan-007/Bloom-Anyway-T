@@ -18,9 +18,9 @@ from .mailer import (
     send_email,
     send_facilitator_booked,
     send_facilitator_cancelled,
-    send_general,
     send_one_on_one_booked,
     send_one_on_one_cancelled,
+    send_styled_email,
     send_support_group_booked,
     send_support_group_host_cancelled,
     send_support_group_left,
@@ -1284,7 +1284,7 @@ def _send_updated_email(meeting: SupportGroupMeeting, user: User) -> None:
     button_url = room if room else browse
     try:
         if kind == "one_on_one":
-            send_general(
+            send_styled_email(
                 user.email,
                 subject=f"{group} time updated",
                 preview=f"Your session was moved to {when}.",
