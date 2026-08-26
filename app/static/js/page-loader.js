@@ -82,4 +82,96 @@
   }, true);
 
   document.addEventListener("site-confirm-dismiss", hide);
+
+  /* ---- remember scroll across reload / form redirects / same-page updates ---- */
+  (function () {
+    var PREFIX = "ba:scroll:";
+    var saveTimer = null;
+
+    function storageKey(pathname, search) {
+      return PREFIX + (pathname || "") + (search || "");
+    }
+
+    function currentKey() {
+      return storageKey(window.location.pathname, window.location.search);
+    }
+
+    function save() {
+      try {
+        var y = window.scrollY || window.pageYOffset || 0;
+        sessionStorage.setItem(currentKey(), String(Math.max(0, Math.round(y))));
+      } catch (err) { /* private mode / quota */ }
+    }
+
+    function scheduleSave() {
+      if (saveTimer) clearTimeout(saveTimer);
+      saveTimer = setTimeout(save, 120);
+    }
+
+    function restore() {
+      if (window.location.hash) return;
+      var raw;
+      try {
+        raw = sessionStorage.getItem(currentKey());
+      } catch (err) {
+        return;
+      }
+      if (raw == null || raw === "") return;
+      var y = parseInt(raw, 10);
+      if (!isFinite(y) || y < 1) return;
+
+      var apply = function () {
+        window.scrollTo(0, y);
+      };
+      apply();
+      requestAnimationFrame(function () {
+        apply();
+        setTimeout(apply, 60);
+        setTimeout(apply, 250);
+      });
+    }
+
+    if ("scrollRestoration" in history) {
+      try {
+        history.scrollRestoration = "manual";
+      } catch (err) { /* ignore */ }
+    }
+
+    window.addEventListener("scroll", scheduleSave, { passive: true });
+    window.addEventListener("pagehide", save);
+    document.addEventListener("visibilitychange", function () {
+      if (document.visibilityState === "hidden") save();
+    });
+
+    // Keep scroll for reloads / same-page form redirects; open other pages at the top.
+    document.addEventListener("click", function (e) {
+      if (e.defaultPrevented || e.button !== 0) return;
+      if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      var a = e.target && e.target.closest ? e.target.closest("a[href]") : null;
+      if (!a || (a.target && a.target !== "_self") || a.hasAttribute("download")) return;
+      var href = a.getAttribute("href") || "";
+      if (!href || href.charAt(0) === "#" || href.indexOf("javascript:") === 0) return;
+      if (!sameOrigin(href)) return;
+      try {
+        var next = new URL(href, window.location.href);
+        if (next.pathname !== window.location.pathname
+            || next.search !== window.location.search) {
+          sessionStorage.removeItem(storageKey(next.pathname, next.search));
+        }
+      } catch (err) { /* ignore */ }
+      save();
+    }, true);
+
+    document.addEventListener("submit", function () {
+      save();
+    }, true);
+
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", restore);
+    } else {
+      restore();
+    }
+    window.addEventListener("load", restore);
+    window.addEventListener("pageshow", restore);
+  })();
 })();
