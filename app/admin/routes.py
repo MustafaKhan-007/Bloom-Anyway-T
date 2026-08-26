@@ -4,13 +4,14 @@ Freshness is a *sliding* idle timeout: each admin action pushes the clock
 forward, so day-to-day use never nags. Re-authentication is only required after
 ``ADMIN_IDLE_DAYS`` of no admin activity.
 """
+import csv
 import io
 import logging
 import os
 from datetime import date, datetime, timedelta
 from functools import wraps
 
-from flask import (abort, current_app, flash, redirect,
+from flask import (Response, abort, current_app, flash, redirect,
                    render_template, request, send_file, send_from_directory,
                    session, url_for)
 from flask_login import current_user
@@ -1243,6 +1244,24 @@ def video_delete(video_id):
 
 # =============================== MEMBERS =====================================
 
+def _csv_response(filename: str, header: list[str], rows: list[list]) -> Response:
+    """UTF-8 CSV (with BOM) for Excel + Brevo / Mailchimp / Klaviyo imports."""
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(header)
+    writer.writerows(rows)
+    # BOM helps Excel open UTF-8 correctly; ESPs ignore it fine.
+    payload = "\ufeff" + buf.getvalue()
+    return Response(
+        payload,
+        mimetype="text/csv; charset=utf-8",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Cache-Control": "no-store",
+        },
+    )
+
+
 @bp.route("/members")
 @admin_required
 def members():
@@ -1259,6 +1278,42 @@ def members():
                            memberships=MEMBERSHIPS,
                            membership_labels=MEMBERSHIP_LABELS, q=q,
                            spotlight=_spotlight_candidates())
+
+
+@bp.route("/members/export.csv")
+@admin_required
+def members_export_csv():
+    """Email list for marketing tools (Email, First Name, Last Name, …)."""
+    q = (request.args.get("q") or "").strip()
+    membership = (request.args.get("membership") or "").strip().lower()
+    query = User.query.filter(User.deleted_at.is_(None))
+    if q:
+        like = f"%{q}%"
+        query = query.filter(db.or_(User.email.ilike(like),
+                                    User.display_name.ilike(like)))
+    if membership in MEMBERSHIPS:
+        query = query.filter(User.membership == membership)
+    people = query.order_by(User.created_at.desc()).all()
+
+    rows = []
+    for m in people:
+        email = (m.email or "").strip().lower()
+        if not email or email.endswith("@invalid.local") or "@" not in email:
+            continue
+        name = (m.display_name or "").strip()
+        parts = name.split(None, 1) if name else []
+        first = parts[0] if parts else ""
+        last = parts[1] if len(parts) > 1 else ""
+        tier = MEMBERSHIP_LABELS.get(m.membership, m.membership or "Free")
+        joined = m.created_at.strftime("%Y-%m-%d") if m.created_at else ""
+        rows.append([email, first, last, name, tier, joined])
+
+    stamp = utcnow().strftime("%Y%m%d")
+    return _csv_response(
+        f"bloom-anyway-members-{stamp}.csv",
+        ["Email", "First Name", "Last Name", "Full Name", "Membership", "Joined"],
+        rows,
+    )
 
 
 @bp.route("/members/<int:user_id>/membership", methods=["POST"])
@@ -1313,6 +1368,32 @@ def challenge_waitlist():
         rows=rows,
         q=q,
         insights=insights,
+    )
+
+
+@bp.route("/challenge-waitlist/export.csv")
+@admin_required
+def challenge_waitlist_export_csv():
+    """Waitlist emails for marketing imports (Email + signup date)."""
+    q = (request.args.get("q") or "").strip()
+    query = ChallengeWaitlist.query
+    if q:
+        query = query.filter(ChallengeWaitlist.email.ilike(f"%{q}%"))
+    entries = query.order_by(ChallengeWaitlist.created_at.desc()).all()
+
+    rows = []
+    for row in entries:
+        email = (row.email or "").strip().lower()
+        if not email or "@" not in email:
+            continue
+        joined = row.created_at.strftime("%Y-%m-%d") if row.created_at else ""
+        rows.append([email, joined, "2-Month Creator Challenge"])
+
+    stamp = utcnow().strftime("%Y%m%d")
+    return _csv_response(
+        f"bloom-anyway-challenge-waitlist-{stamp}.csv",
+        ["Email", "Joined", "List"],
+        rows,
     )
 
 

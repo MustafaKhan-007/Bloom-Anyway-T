@@ -13,6 +13,8 @@
         <a href="{{ url_for('main.challenge') }}" target="_blank" rel="noopener">Open landing page</a>
       </p>
     </div>
+    <a class="btn btn--secondary btn--sm"
+       href="{{ url_for('admin.challenge_waitlist_export_csv', q=q or none) }}">Export emails (CSV)</a>
   </div>
 
   <div class="stat-row" style="margin-bottom: 20px;">

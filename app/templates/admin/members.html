@@ -11,6 +11,8 @@
         <a href="{{ url_for('admin.membership_plans') }}">membership plans</a> page &mdash; buyers are
         upgraded automatically on payment (a refund removes it). Manual changes here always win.</p>
     </div>
+    <a class="btn btn--secondary btn--sm"
+       href="{{ url_for('admin.members_export_csv', q=q or none) }}">Export emails (CSV)</a>
   </div>
 
   <div class="stat-row" style="margin-bottom: 20px;">
