@@ -627,8 +627,7 @@
 {% endif %}
 
 {% if active_tab == 'journal' %}
-{% set past_entries = (journal_entries|rejectattr('id', 'equalto', today_entry.id)|list) if today_entry else journal_entries %}
-{% set past_oldest_first = past_entries|reverse|list %}
+{% set past_oldest_first = journal_entries|reverse|list %}
 <section class="section section--tight jn-section">
   <div class="container ms-journal">
     <div class="ms-journal__main">
@@ -676,10 +675,9 @@
                 <p class="jn-page__prompt" id="journal-prompt-label">{{ today_prompt[1] }}</p>
                 <div class="ms-mood jn-mood" role="radiogroup" aria-label="How do you feel today?">
                   {% for key, emoji, label in moods %}
-                  <label class="ms-mood__opt jn-mood__opt jn-mood__opt--{{ loop.index }} {{ 'is-selected' if today_entry and today_entry.mood == key }}"
+                  <label class="ms-mood__opt jn-mood__opt jn-mood__opt--{{ loop.index }}"
                          title="{{ label }}" data-mood-label="{{ label }}">
-                    <input type="radio" name="mood" value="{{ key }}"
-                           {{ 'checked' if today_entry and today_entry.mood == key }}>
+                    <input type="radio" name="mood" value="{{ key }}">
                     <span class="ms-mood__emoji" aria-hidden="true">{{ emoji }}</span>
                     <span class="ms-mood__tip" aria-hidden="true">{{ label }}</span>
                     <span class="visually-hidden">{{ label }}</span>
@@ -688,12 +686,10 @@
                 </div>
                 <textarea name="journal" id="journal-body" class="jn-page__body" rows="8" maxlength="4000"
                           placeholder="Write as much or as little as you like."
-                          aria-label="{{ today_prompt[1] }}">{% if today_entry and today_entry.body %}{{ today_entry.body }}{% endif %}</textarea>
-                {% if current_user.checked_in_today() %}
-                <button class="jn-page__submit" type="submit">Save journal &#10003;</button>
-                {% else %}
-                <button class="jn-page__submit" type="submit">I showed up today &#10003;</button>
-                {% endif %}
+                          aria-label="{{ today_prompt[1] }}"></textarea>
+                <button class="jn-page__submit" type="submit">
+                  {% if current_user.checked_in_today() %}Save entry &#10003;{% else %}I showed up today &#10003;{% endif %}
+                </button>
               </form>
             </div>
           </article>

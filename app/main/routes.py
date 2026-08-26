@@ -742,7 +742,9 @@ def account():
                  .filter(QuoteFavorite.user_id == current_user.id)
                  .order_by(QuoteFavorite.created_at.desc()).all())
     journal = (JournalEntry.query.filter_by(user_id=current_user.id)
-               .order_by(JournalEntry.day.desc()).limit(60).all())
+               .order_by(JournalEntry.day.desc(), JournalEntry.created_at.desc(),
+                         JournalEntry.id.desc())
+               .limit(80).all())
     notes = (Notification.query.filter_by(user_id=current_user.id)
              .order_by(Notification.created_at.desc()).limit(40).all())
     # Mark visible activity as read
@@ -1178,28 +1180,44 @@ def checkin():
     if prompt_key not in prompt_map:
         prompt_key, _ = random_journal_prompt()
     today = date.today()
-    entry = JournalEntry.query.filter_by(
-        user_id=current_user.id, day=today).first()
-    if journal_body or mood:
+    saved_page = False
+    if journal_body:
+        # Each save becomes its own notebook page (never overwrite prior pages).
+        entry = JournalEntry(
+            user_id=current_user.id,
+            day=today,
+            prompt_key=prompt_key,
+            prompt_label=prompt_map[prompt_key],
+            body=journal_body,
+            mood=mood,
+        )
+        db.session.add(entry)
+        saved_page = True
+    elif mood:
+        entry = (
+            JournalEntry.query
+            .filter_by(user_id=current_user.id, day=today)
+            .order_by(JournalEntry.created_at.desc(), JournalEntry.id.desc())
+            .first()
+        )
         if entry is None:
             entry = JournalEntry(
-                user_id=current_user.id, day=today,
-                prompt_key=prompt_key, prompt_label=prompt_map[prompt_key],
+                user_id=current_user.id,
+                day=today,
+                prompt_key=prompt_key,
+                prompt_label=prompt_map[prompt_key],
+                mood=mood,
             )
             db.session.add(entry)
-        elif journal_body or not entry.prompt_label:
-            entry.prompt_key = prompt_key
-            entry.prompt_label = prompt_map[prompt_key]
-        if journal_body:
-            entry.body = journal_body
-        if mood:
+        else:
             entry.mood = mood
     db.session.commit()
-    if freshly:
+    if saved_page:
+        flash("Entry saved — here’s a fresh page.", "success")
+    elif freshly:
         flash("You showed up today. That's the whole thing.", "success")
-    elif journal_body or mood:
-        flash("Journal note saved." if journal_body else "Mood saved for today.",
-              "success")
+    elif mood:
+        flash("Mood saved for today.", "success")
     else:
         flash("Already checked in today \u2014 see you tomorrow.", "info")
     next_url = request.form.get("next") or url_for("main.account", tab="journal")

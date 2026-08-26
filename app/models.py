@@ -806,9 +806,11 @@ def mood_label(key: str | None) -> str:
 
 
 class JournalEntry(db.Model):
-    """Optional short journal note attached to a check-in day."""
+    """A private journal page (multiple pages allowed per day)."""
     __tablename__ = "journal_entries"
-    __table_args__ = (db.UniqueConstraint("user_id", "day", name="uq_journal_user_day"),)
+    __table_args__ = (
+        db.Index("ix_journal_entries_user_day", "user_id", "day"),
+    )
 
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
