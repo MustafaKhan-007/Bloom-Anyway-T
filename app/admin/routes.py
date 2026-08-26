@@ -1488,52 +1488,6 @@ def badges():
                            owner_badge=badges_service.OWNER_BADGE)
 
 
-# ======================= PRELAUNCH ACCESS (remove at launch) =================
-
-@bp.route("/prelaunch")
-@admin_required
-def prelaunch():
-    from ..services import prelaunch as prelaunch_svc
-    return render_template(
-        "admin/prelaunch.html",
-        emails=prelaunch_svc.allowlist(),
-        owner_emails=sorted(prelaunch_svc.OWNER_EMAILS),
-        lock_on=bool(current_app.config.get("PRELAUNCH_LOCK")),
-        public_browse=prelaunch_svc.public_browse_enabled(),
-    )
-
-
-@bp.route("/prelaunch/public-browse", methods=["POST"])
-@admin_required
-def prelaunch_public_browse():
-    from ..services import prelaunch as prelaunch_svc
-    on = request.form.get("public_browse") == "1"
-    prelaunch_svc.set_public_browse(on)
-    if on:
-        flash("Invite-list restrictions are off — anyone can view the site.", "success")
-    else:
-        flash("Invite-list restrictions are on — only invited emails can browse.", "success")
-    return redirect(url_for("admin.prelaunch"))
-
-
-@bp.route("/prelaunch/add", methods=["POST"])
-@admin_required
-def prelaunch_add():
-    from ..services import prelaunch as prelaunch_svc
-    ok, msg = prelaunch_svc.add_email(request.form.get("email") or "")
-    flash(msg, "success" if ok else "error")
-    return redirect(url_for("admin.prelaunch"))
-
-
-@bp.route("/prelaunch/remove", methods=["POST"])
-@admin_required
-def prelaunch_remove():
-    from ..services import prelaunch as prelaunch_svc
-    ok, msg = prelaunch_svc.remove_email(request.form.get("email") or "")
-    flash(msg, "success" if ok else "error")
-    return redirect(url_for("admin.prelaunch"))
-
-
 # ============================ FEEDBACK INBOX =================================
 
 @bp.route("/inbox")

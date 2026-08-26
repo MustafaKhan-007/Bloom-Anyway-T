@@ -147,7 +147,7 @@ def heal_stale_owner_creator_tiers() -> int:
 def promote(user: User, *, readonly: bool = False) -> bool:
     """Make ``user`` a Studio owner. Returns True if anything changed.
 
-    ``readonly`` → can open Studio but cannot save changes (prelaunch observers).
+    ``readonly`` → can open Studio but cannot save changes (view-only observers).
 
     Does not rewrite ``membership`` — owners already get Creator perks via
     ``User.effective_membership()``. Writing the column used to leave demoted

@@ -154,22 +154,6 @@ def create_app(config_class=None):
     app.register_blueprint(forums_bp, url_prefix="/forums")
     csrf.exempt(webhooks_bp)  # webhook signature check replaces CSRF here
 
-    # --- PRELAUNCH LOCK (remove this block + app/services/prelaunch.py at launch)
-    @app.before_request
-    def _prelaunch_gate():
-        if not app.config.get("PRELAUNCH_LOCK"):
-            return None
-        from .services import prelaunch as prelaunch_svc
-        # Soft open from Studio: browse without invite list (env lock stays on).
-        if prelaunch_svc.public_browse_enabled():
-            return None
-        if prelaunch_svc.is_public_path(request.path):
-            return None
-        if (getattr(current_user, "is_authenticated", False)
-                and prelaunch_svc.user_allowed(current_user)):
-            return None
-        return render_template("errors/under_construction.html"), 503
-
     # Opportunistic support-group 24h reminders (also hit /cron/support-groups).
     @app.before_request
     def _support_group_reminders():

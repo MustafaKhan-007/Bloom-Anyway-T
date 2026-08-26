@@ -113,7 +113,6 @@ class TestConfig(DevConfig):
     WTF_CSRF_ENABLED = False
     RATELIMIT_ENABLED = False
     TESTING = True
-    PRELAUNCH_LOCK = False  # suite exercises the full site; lock tested separately
 
 
 PASS = 0
@@ -1288,7 +1287,7 @@ with app.app_context():
     ok("Removed co-owner keeps prior Healing tier (not stuck on Creator)",
        co_u.membership == "healing")
 
-# View-only Studio owner (prelaunch observer)
+# View-only Studio owner (observer)
 with app.app_context():
     viewer = User(email="viewer-owner@example.com", username="viewer_owner",
                   membership="none", email_verified_at=utcnow())
@@ -2625,84 +2624,6 @@ ok("PageView has no IP field",
 
 r = client.get("/this-page-does-not-exist-xyz")
 ok("404 offers problem report", r.status_code == 404 and b"Report this problem" in r.data)
-
-# --- 10. prelaunch lock (shallow gate; easy to remove at launch) ------------
-from app.services import prelaunch as prelaunch_svc
-
-app.config["PRELAUNCH_LOCK"] = True
-with app.app_context():
-    prelaunch_svc.set_public_browse(False)
-anon = app.test_client()
-r = anon.get("/")
-ok("Prelaunch blocks home for strangers",
-   r.status_code == 503 and b"Under construction" in r.data)
-r = anon.get("/quotes")
-ok("Prelaunch blocks deep URLs",
-   r.status_code == 503 and b"Under construction" in r.data)
-r = anon.get("/login")
-ok("Prelaunch still allows login page", r.status_code == 200)
-r = anon.get("/register")
-ok("Prelaunch still allows signup page", r.status_code == 200)
-
-# non-allowlisted signed-in member is blocked
-locked_member = app.test_client()
-with app.app_context():
-    lm = User(email="locked-out@example.com", display_name="Locked",
-              membership="healing", email_verified_at=utcnow())
-    lm.set_password(USER_PW)
-    db.session.add(lm)
-    db.session.commit()
-locked_member.post("/login", data={"email": "locked-out@example.com", "password": USER_PW})
-r = locked_member.get("/account")
-ok("Prelaunch blocks signed-in users not on the list",
-   r.status_code == 503 and b"Under construction" in r.data)
-
-# grant access via allowlist
-with app.app_context():
-    ok_add, _ = prelaunch_svc.add_email("locked-out@example.com")
-    ok("Prelaunch allowlist accepts email", ok_add)
-r = locked_member.get("/account")
-ok("Allowlisted member can browse", r.status_code == 200)
-
-# Studio toggle: allow viewing without invite list
-with app.app_context():
-    prelaunch_svc.set_public_browse(True)
-    ok("Public browse setting turns on", prelaunch_svc.public_browse_enabled())
-stranger = app.test_client()
-r = stranger.get("/")
-ok("Public browse lets strangers view home", r.status_code == 200)
-r = stranger.get("/quotes")
-ok("Public browse lets strangers view deep URLs", r.status_code == 200)
-with app.app_context():
-    prelaunch_svc.set_public_browse(False)
-r = stranger.get("/")
-ok("Turning public browse off restores the lock",
-   r.status_code == 503 and b"Under construction" in r.data)
-
-# owner admin still gets through (is_admin)
-admin.post("/login", data={"email": "owner@example.com", "password": ADMIN_PW})
-r = admin.get("/admin/prelaunch")
-ok("Studio prelaunch page loads",
-   r.status_code == 200 and b"Invite list" in r.data
-   and b"Allow viewing without invite list" in r.data)
-r = admin.post("/admin/prelaunch/public-browse",
-               data={"public_browse": "1"}, follow_redirects=True)
-ok("Studio can toggle public browse on",
-   r.status_code == 200 and b"invite list is ignored" in r.data.lower())
-r = stranger.get("/")
-ok("Studio toggle opens the site for strangers", r.status_code == 200)
-r = admin.post("/admin/prelaunch/public-browse", data={}, follow_redirects=True)
-ok("Studio can toggle public browse off",
-   r.status_code == 200 and b"invite list required" in r.data.lower())
-r = admin.get("/")
-ok("Admin owner can browse the site while locked", r.status_code == 200)
-
-# hard-coded owner email always allowed
-with app.app_context():
-    ok("Hard-coded owner email is allowlisted",
-       "mustafakhanabdullah07@gmail.com" in prelaunch_svc.OWNER_EMAILS)
-
-app.config["PRELAUNCH_LOCK"] = False
 
 print(f"\nAll {PASS} checks passed.")
 

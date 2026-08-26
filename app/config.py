@@ -175,12 +175,6 @@ class Config:
     # deploy/restart (noted in README).
     RATELIMIT_STORAGE_URI = "memory://"
 
-    # PRELAUNCH: set PRELAUNCH_LOCK=0 on the host to open the site at launch.
-    # Default off here; ProdConfig turns it on. See app/services/prelaunch.py.
-    PRELAUNCH_LOCK = os.environ.get("PRELAUNCH_LOCK", "").strip().lower() in (
-        "1", "true", "yes", "on",
-    )
-
 
 def _strip_config_quotes(value: str) -> str:
     v = (value or "").strip()
@@ -203,10 +197,6 @@ class DevConfig(Config):
     DEBUG = True
     SESSION_COOKIE_SECURE = False
     REMEMBER_COOKIE_SECURE = False
-    # Local/smoke: lock off unless you explicitly set PRELAUNCH_LOCK=1.
-    PRELAUNCH_LOCK = os.environ.get("PRELAUNCH_LOCK", "0").strip().lower() in (
-        "1", "true", "yes", "on",
-    )
     # Zero-config local dev: a fixed dev key unless one is provided.
     SECRET_KEY = os.environ.get("SECRET_KEY", "").strip() or "dev-only-not-secret"
     # Cloudflare always-pass test keys when no real secret is set (Turnstile docs).
@@ -226,10 +216,6 @@ class ProdConfig(Config):
     PREFERRED_URL_SCHEME = "https"
     SESSION_COOKIE_SECURE = True
     REMEMBER_COOKIE_SECURE = True
-    # Prelaunch default ON — set PRELAUNCH_LOCK=0 (or false) to open at launch.
-    PRELAUNCH_LOCK = os.environ.get("PRELAUNCH_LOCK", "1").strip().lower() not in (
-        "0", "false", "no", "off", "",
-    )
 
     #: the only env vars that must be present in prod (everything else is
     #: optional or auto-managed)
