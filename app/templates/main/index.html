@@ -254,7 +254,6 @@
   </div>
 </section>
 
-{% if creator_of_month or reel_of_week %}
 <section class="home-section home-spotlight" aria-labelledby="spotlight-heading">
   <div class="container">
     <header class="home-section__head">
@@ -264,10 +263,10 @@
         Exclusive to Creator Members — apply through your membership dashboard
       </p>
     </header>
-    <div class="spotlight-grid{% if not (creator_of_month and reel_of_week) %} spotlight-grid--solo{% endif %}">
-      {% if creator_of_month %}
-      <article class="spotlight-card spotlight-card--creator reveal">
+    <div class="spotlight-grid">
+      <article class="spotlight-card spotlight-card--creator{% if not creator_of_month %} spotlight-card--empty{% endif %} reveal">
         <span class="spotlight-tag">Creator of the month</span>
+        {% if creator_of_month %}
         <div class="spotlight-creator">
           <span class="spotlight-creator__photo spotlight-creator__photo--ph" aria-hidden="true">&#127803;</span>
           <h3>{{ creator_of_month.name }}</h3>
@@ -283,12 +282,21 @@
           {% endif %}
           <p class="spotlight-card__foot">★ Creator Member</p>
         </div>
+        {% else %}
+        <div class="spotlight-creator spotlight-creator--empty">
+          <span class="spotlight-creator__photo spotlight-creator__photo--ph" aria-hidden="true">&#127803;</span>
+          <h3>Coming soon</h3>
+          <p class="spotlight-creator__bio">Our next Creator of the Month will land here. Creator members are eligible to be featured.</p>
+          <a class="btn btn--primary btn--sm spotlight-creator__cta"
+             href="{{ url_for('main.membership', next=url_for('main.index') + '#spotlight-heading') }}">See Creator membership &rarr;</a>
+          <p class="spotlight-card__foot">★ Creator Member perk</p>
+        </div>
+        {% endif %}
       </article>
-      {% endif %}
 
-      {% if reel_of_week %}
-      <article class="spotlight-card spotlight-card--reel reveal">
+      <article class="spotlight-card spotlight-card--reel{% if not reel_of_week %} spotlight-card--empty{% endif %} reveal">
         <span class="spotlight-tag spotlight-tag--gold">Reel of the week</span>
+        {% if reel_of_week %}
         {% if reel_of_week.embed %}
         <div class="reel-embed">
           <iframe src="{{ reel_of_week.embed }}" title="Reel of the week" allowfullscreen loading="lazy"
@@ -298,12 +306,17 @@
         {% if reel_of_week.description %}<p>{{ reel_of_week.description }}</p>{% endif %}
         <a class="btn btn--secondary btn--sm" href="{{ reel_of_week.url }}" target="_blank" rel="noopener">Watch on Instagram &rarr;</a>
         <p class="spotlight-card__foot">★ Creator Member</p>
+        {% else %}
+        <div class="spotlight-reel-empty">
+          <p>This week’s featured reel will show up here. Creator members can submit for Reel of the Week.</p>
+          <a class="btn btn--secondary btn--sm" href="{{ url_for('main.videos') }}">Open Content Hub &rarr;</a>
+          <p class="spotlight-card__foot">★ Creator Member perk</p>
+        </div>
+        {% endif %}
       </article>
-      {% endif %}
     </div>
   </div>
 </section>
-{% endif %}
 
 <section class="home-section home-cta-wrap">
   <div class="container">
