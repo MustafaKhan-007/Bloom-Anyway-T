@@ -2320,17 +2320,27 @@ def refunds():
 
 def _legal_page(slug, title):
     from ..services import legal_copy
+    from ..services.settings import get_setting
+
     page = Page.query.filter_by(slug=slug).first()
-    # Prefer stored Studio copy; fall back to canonical text if missing / still TODO.
-    if page is None or not (page.body_md or "").strip() \
-            or "*TODO: legal review.*" in (page.body_md or ""):
-        body = {"privacy": legal_copy.PRIVACY, "terms": legal_copy.TERMS,
-                "refunds": legal_copy.REFUNDS}.get(slug)
-        if body:
+    canonical = {
+        "privacy": legal_copy.PRIVACY,
+        "terms": legal_copy.TERMS,
+        "refunds": legal_copy.REFUNDS,
+    }.get(slug)
+    version_stale = (
+        get_setting("legal_copy_version", "") != legal_copy.LEGAL_COPY_VERSION
+    )
+    # Prefer stored Studio copy; fall back to canonical if missing, still a TODO,
+    # or when LEGAL_COPY_VERSION was bumped (seed will sync the Page row too).
+    if (page is None or not (page.body_md or "").strip()
+            or "*TODO: legal review.*" in (page.body_md or "")
+            or (version_stale and canonical)):
+        if canonical:
             class _Tmp:
                 pass
             tmp = _Tmp()
             tmp.title = title
-            tmp.body_md = body
+            tmp.body_md = canonical
             page = tmp
     return render_template("main/page.html", page=page, fallback_title=title)

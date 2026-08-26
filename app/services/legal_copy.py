@@ -1,7 +1,7 @@
 """Canonical legal page bodies (seeded / refreshed when version changes)."""
 
 #: Bump to push Terms / Refunds / Privacy to live Page rows on next seed.
-LEGAL_COPY_VERSION = "2026-08-21b"
+LEGAL_COPY_VERSION = "2026-08-26"
 
 PRIVACY = """# Privacy Policy
 
@@ -51,50 +51,67 @@ Use the [Contact](/contact) page for privacy questions.
 
 TERMS = """# Terms of Service
 
-**Last updated:** August 21, 2026
+**Last updated:** August 26, 2026
 
 Welcome to Bloom Anyway. By creating an account, buying a membership or digital product, joining a support session, or using the community, you agree to these terms.
 
 ## The service
-Bloom Anyway offers daily quotes, community forums (Healing and Building), member Showcase listings, a Content Hub, peer support groups, optional paid memberships, and courses/guides sold on this site through Stripe. Content is for personal growth, peer support, and education. **It is not therapy, medical advice, legal advice, financial advice, or crisis care.** If you are in crisis, contact a local emergency service or helpline first.
+Bloom Anyway offers [daily quotes](/), [community forums](/forums/) (Healing and Building), member [Showcase](/showcase) listings, a [Content Hub](/watch), [peer support groups](/support-groups), optional paid [memberships](/membership), and [courses/guides](/courses) sold on this site through [Stripe](https://stripe.com). Content is for personal growth, peer support, and education only.
+
+## Not a healthcare provider
+Bloom Anyway is **not** a healthcare provider. Neither Bloom Anyway nor its owners, staff, moderators, or peer session hosts are licensed therapists, counselors, psychologists, psychiatrists, physicians, attorneys, or financial advisors, and nothing on this site — including quotes, forum posts, courses, guides, Content Hub material, or peer support sessions — constitutes therapy, medical advice, mental health treatment, legal advice, or financial advice. It is not a substitute for care from a qualified, licensed professional. Do not delay or forgo seeking professional help because of something you read or heard here.
+
+If you are in crisis, having thoughts of harming yourself or others, or need emergency care, contact a local emergency service or [crisis helpline](https://www.iasp.info/suicidalthoughts/) immediately — **not** this site.
+
+## No guarantees on outcomes
+Personal growth, healing, business, and income results depend on your own circumstances, effort, and factors outside our control. We do not promise or guarantee any specific result — emotional, financial, business, or otherwise — from using the community, courses, guides, Content Hub, or peer support sessions. Testimonials, examples, and case studies (including our own) reflect individual experiences and are not a guarantee that you will achieve similar results.
 
 ## Accounts
 - You must provide a real email you control and keep your password private.
 - One person per account. Do not share login credentials.
 - You are responsible for activity under your account.
 - We may suspend or close accounts that break these terms, abuse others, or create security risk.
-- You may close your account in Settings. Closing does not automatically refund purchases (see [Refunds](/refunds)).
+- You may close your account in [Settings](/account/settings). Closing does not automatically refund purchases (see [Refunds](/refunds)).
 
 ## Memberships
 - **Free** accounts can browse courses and quotes, use limited community participation, and access free Content Hub picks where marked.
 - Paid plans — **Healing**, **Creator**, and **Full Bloom** — unlock the perks described on the [Membership](/membership) page at the time of purchase. Full Bloom combines Healing and Creator access.
 - There is **no free trial** on memberships unless we clearly advertise one later. Checkout charges according to the plan and billing interval you choose (monthly or annual).
 - **Founder / launch pricing:** When a founder window is live on the Membership page, a discounted membership rate may be available if you subscribe before the stated end date and enter the published Stripe promotion code at checkout (`MEMBERFOUNDER` for Healing and Creator; `FULLBLOOMFOUNDER` for Full Bloom). That founder rate is **locked in for as long as your subscription continues** — it does not step up to the regular list price after the first charge. If you cancel and later resubscribe after the founder window has closed, the then-current list price applies. Promo availability, codes, and amounts can change for new sign-ups; the Membership page and Stripe checkout are the source of truth at purchase time.
-- Memberships are billed through Stripe. Prices, currency, billing interval, taxes, and any promo you apply are confirmed at checkout.
+- Memberships are billed through Stripe. Prices, currency, billing interval, taxes, and any promo you apply are confirmed at checkout. See also Stripe's [consumer terms](https://stripe.com/legal/consumer).
 - Benefits apply while a membership is active. Cancelling stops future renewals per Stripe's terms. Refunds or chargebacks may remove the related tier.
 - Site owners retain Full Bloom–level access for operating the studio.
 - Membership is a licence to use features — not ownership of the platform, brand, or other members' content.
 
 ## Support groups & peer sessions
-- Eligible members may schedule or join peer support sessions for topics included in their plan.
-- Sessions are peer-led community spaces, not clinical groups. Be respectful; follow community rules.
-- Seats are limited. Cancelling or missing a session does not create a cash refund unless we say otherwise for a specific paid add-on.
-- Facilitator-led or 1:1 add-ons (when offered) are booked and paid separately under the terms shown at booking.
+- Eligible members may schedule or join [peer support sessions](/support-groups) for topics included in their plan.
+- Sessions are peer-led community spaces, **not** clinical or therapeutic groups, and are not facilitated by licensed mental health professionals unless a specific session is explicitly advertised as such.
+- Be respectful; follow community rules. Seats are limited. Cancelling or missing a session does not create a cash refund unless we say otherwise for a specific paid add-on (see [Refunds](/refunds)).
+- Facilitator-led or 1:1 add-ons (when offered) are booked and paid separately under the terms shown at booking, and any professional credentials of a facilitator will be stated on that offer — absent that statement, assume the facilitator is a peer, not a licensed professional.
 
 ## Community rules
 Be kind. No harassment, hate, threats, sexual exploitation, illegal content, spam, or impersonation. We may hide or remove content, issue warnings, or pause posting access. Reporting tools exist on posts, comments, and after peer sessions; automated checks may remove clearly violating content, and the studio reviews other reports.
 
+Content posted by members — including in the [Healing and Building forums](/forums/) and peer sessions — reflects the views and experiences of that member only, not medical, legal, or professional guidance, and not the views of Bloom Anyway.
+
 ## Your content
-You keep ownership of what you post. You grant Bloom Anyway a non-exclusive licence to host, display, and moderate that content so the community can function. Do not post material you do not have rights to share.
+You keep ownership of what you post. You grant Bloom Anyway a non-exclusive licence to host, display, and moderate that content so the community can function. Do not post material you do not have rights to share. See also our [Privacy Policy](/privacy).
 
 ## Digital products & shop
-Courses and guides sold on the Courses & Guides page are licensed for **personal use** unless a product page says otherwise. Redistribution or resale is not allowed. Delivery, taxes, and payment disputes for those purchases are handled with Stripe as merchant of record.
+Courses and guides sold on the [Courses & Guides](/courses) page are licensed for **personal use** unless a product page says otherwise. Redistribution or resale is not allowed. Delivery, taxes, and payment disputes for those purchases are handled with [Stripe](https://stripe.com) as merchant of record.
 
 ## Acceptable use
 Do not attempt to break, scrape abusively, overload, or reverse-engineer the service; do not bypass membership gates, rate limits, or security checks (including signup verification); do not disrupt support sessions or share private session links publicly.
 
-## Disclaimers
-The service is provided "as is." We work hard to keep it reliable, but we do not guarantee uninterrupted access, perfect content, or specific outcomes from community support or courses. To the fullest extent allowed by law, we are not liable for indirect or consequential losses arising from use of the site. Nothing here limits rights you cannot waive under applicable consumer law.
+## Disclaimers and limitation of liability
+The service is provided "as is" and "as available," without warranties of any kind, express or implied, including implied warranties of merchantability, fitness for a particular purpose, and non-infringement. We work hard to keep it reliable, but we do not guarantee uninterrupted access, error-free content, or specific outcomes from community support, peer sessions, or courses.
+
+To the fullest extent permitted by law, Bloom Anyway and its owners, employees, contractors, and moderators are not liable for any indirect, incidental, special, consequential, or punitive damages, or any loss of profits, revenue, data, or goodwill, arising from or related to your use of the service, community content, peer sessions, or any decision you make based on material found here — even if we have been advised of the possibility of such damages. To the extent any liability cannot be excluded under applicable law, our total liability to you for any claim arising from the service is limited to the amount you paid us in the twelve (12) months before the claim arose.
+
+You agree to use your own judgment and, where appropriate, consult a qualified licensed professional before making decisions about your health, finances, or legal matters based on anything encountered through Bloom Anyway. Nothing in this section limits rights you cannot waive under applicable consumer law.
+
+## Indemnity
+You agree to indemnify and hold harmless Bloom Anyway and its owners, employees, and contractors from claims, losses, and expenses (including reasonable legal fees) arising from your content, your breach of these terms, or your misuse of the service.
 
 ## Changes
 We may update these terms. Material changes will update the date above. Continued use after changes means you accept them.
