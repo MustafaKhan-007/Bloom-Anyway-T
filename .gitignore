@@ -6,3 +6,7 @@ venv/
 *.db
 instance/
 .DS_Store
+
+exports/
+app/static/faviconpng.png
+
