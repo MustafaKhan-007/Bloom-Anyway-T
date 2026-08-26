@@ -23,7 +23,7 @@ QUOTE_CATEGORIES = ("comfort", "determination", "renewal")
 
 #: membership tiers. "none" = free (quotes, shop, Content Hub free picks);
 #: "healing" = healing community, 1 showcase listing, healing support / Ayesha;
-#: "creator" = building community, 15 listings, tips, spotlight, reels, Saman;
+#: "creator" = building community, 5 listings, tips, spotlight, reels, Saman;
 #: "full_bloom" = everything in Healing and Creator.
 MEMBERSHIPS = ("none", "healing", "creator", "full_bloom")
 MEMBERSHIP_LABELS = {
@@ -982,6 +982,15 @@ class Subscriber(db.Model):
     created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
 
 
+class ChallengeWaitlist(db.Model):
+    """Emails waiting for the 2-month Creator Challenge enrollment."""
+    __tablename__ = "challenge_waitlist"
+
+    id = db.Column(db.Integer, primary_key=True)
+    email = db.Column(db.String(255), unique=True, nullable=False, index=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
+
+
 class Testimonial(db.Model):
     __tablename__ = "testimonials"
 
@@ -1214,8 +1223,8 @@ MARKETPLACE_KIND_LABELS = {
 MARKETPLACE_LIMITS = {
     "none": 0,
     "healing": 1,
-    "creator": 15,
-    "full_bloom": 15,
+    "creator": 5,
+    "full_bloom": 5,
 }
 #: how many tags a single listing may carry
 MARKETPLACE_TAG_MAX = 24

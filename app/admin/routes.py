@@ -18,7 +18,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import joinedload
 
 from ..extensions import db
-from ..models import (Announcement, ContentReport, FaqItem, ForumComment,
+from ..models import (Announcement, ChallengeWaitlist, ContentReport, FaqItem, ForumComment,
                       ForumPost, MEMBERSHIPS, MEMBERSHIP_LABELS, MarketplaceListing,
                       MembershipPlan,
                       Page, Product, ProductAsset, Quote, QuoteFavorite, QuotePin,
@@ -163,6 +163,7 @@ def dashboard():
         recent_feedback=stats.recent_feedback(),
         support_occupancy=stats.support_occupancy(),
         founder_days=stats.founder_days_remaining(),
+        challenge_waitlist=stats.challenge_waitlist_insights(),
         stripe_configured=pay.configured(),
     )
 
@@ -1275,6 +1276,62 @@ def set_membership(user_id):
         db.session.commit()
         flash(f"{member.public_name()} \u2192 {member.membership_label()}.", "success")
     return redirect(request.form.get("next") or url_for("admin.members"))
+
+
+@bp.route("/members/<int:user_id>/remove", methods=["POST"])
+@admin_required
+def remove_member(user_id):
+    """Soft-delete a member/user account from the Members page."""
+    from ..services.privacy import close_account
+    from ..services import stripe_pay as pay
+
+    member = db.session.get(User, user_id) or abort(404)
+    if member.deleted_at is not None:
+        flash("That account is already removed.", "info")
+        return redirect(url_for("admin.members"))
+    if member.is_admin:
+        flash("Studio owners can't be removed from Members.", "error")
+        return redirect(url_for("admin.members"))
+    email = member.email
+    name = member.public_name()
+    if pay.configured() and email:
+        try:
+            pay.cancel_membership_subscriptions(email, at_period_end=False)
+        except Exception:
+            log.exception("Stripe cancel failed while removing user %s", user_id)
+    close_account(member)
+    flash(f"{name} was removed from Bloom Anyway.", "success")
+    return redirect(url_for("admin.members", q=request.form.get("q") or ""))
+
+
+# ======================== CHALLENGE WAITLIST =================================
+
+@bp.route("/challenge-waitlist")
+@admin_required
+def challenge_waitlist():
+    q = (request.args.get("q") or "").strip()
+    query = ChallengeWaitlist.query
+    if q:
+        query = query.filter(ChallengeWaitlist.email.ilike(f"%{q}%"))
+    rows = query.order_by(ChallengeWaitlist.created_at.desc()).limit(500).all()
+    insights = stats.challenge_waitlist_insights()
+    return render_template(
+        "admin/challenge_waitlist.html",
+        rows=rows,
+        q=q,
+        insights=insights,
+    )
+
+
+@bp.route("/challenge-waitlist/<int:entry_id>/delete", methods=["POST"])
+@admin_required
+def challenge_waitlist_delete(entry_id):
+    row = db.session.get(ChallengeWaitlist, entry_id) or abort(404)
+    email = row.email
+    db.session.delete(row)
+    db.session.commit()
+    flash(f"Removed {email} from the challenge waitlist.", "success")
+    return redirect(url_for("admin.challenge_waitlist", q=request.form.get("q") or ""))
 
 
 # =============================== OWNERS ======================================

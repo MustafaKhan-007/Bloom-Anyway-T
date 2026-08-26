@@ -450,6 +450,35 @@ def send_creator_welcome(
     )
 
 
+def send_full_bloom_welcome(
+    to: str,
+    *,
+    trial_end_date: str,
+    plan_price: str,
+    billing_interval: str,
+) -> bool:
+    """Welcome email for Full Bloom (general template — no dedicated Brevo id yet)."""
+    interval = (billing_interval or "").strip() or "monthly"
+    price = (plan_price or "").strip() or "—"
+    trial = (trial_end_date or "").strip() or "—"
+    return send_styled_email(
+        to,
+        subject="Welcome to Full Bloom membership",
+        preview="You're in — Healing and Creator, together.",
+        header="Bloom Anyway",
+        title="Welcome to Full Bloom",
+        body=(
+            "You're all in — Full Bloom includes everything in Healing and Creator.\n\n"
+            f"Your trial ends: {trial}\n"
+            f"Plan price: {price}\n"
+            f"Billing: {interval}\n\n"
+            "Cancel any time from My space."
+        ),
+        button_text="Open My space",
+        button_url=_public_href("/account"),
+    )
+
+
 def _send_membership_welcome(
     to: str,
     *,
@@ -568,7 +597,28 @@ def send_newsletter_welcome(to: str) -> bool:
         "You're on the Sunday letter",
         text,
         template_id=template_id,
-        params=None,
+        params={},
+    )
+
+
+def send_challenge_waitlist_confirm(to: str) -> bool:
+    """Confirm waitlist signup for the 2-month Creator Challenge (general template)."""
+    return send_styled_email(
+        to,
+        subject="You're on the 2-Month Creator Challenge waitlist",
+        preview="Early access when Round 2 opens — no charge yet.",
+        header="Bloom Anyway",
+        title="You're on the waitlist",
+        body=(
+            "Thanks for joining the waitlist for the 2-Month Creator Challenge "
+            "(Round 2).\n\n"
+            "You'll be first to know when enrollment opens — plus early access "
+            "before it goes public. No payment is needed to stay on this list.\n\n"
+            "In the meantime, you can still explore Bloom Anyway memberships "
+            "and community anytime."
+        ),
+        button_text="See the challenge",
+        button_url=_public_href("/challenge"),
     )
 
 

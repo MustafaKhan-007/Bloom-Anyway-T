@@ -102,6 +102,23 @@
       {% endif %}
       <a class="btn btn--secondary btn--sm" href="{{ url_for('admin.settings') }}">Edit in Settings</a>
     </div>
+    <div class="admin-panel studio-card studio-dash-exact__challenge">
+      <h2>2-Month Challenge</h2>
+      <p class="studio-card__metric">{{ challenge_waitlist.total }} on waitlist</p>
+      <p class="field-help" style="margin:0 0 8px;">Creator Challenge Round 2 — free Creator membership while they’re in it</p>
+      <p class="studio-dash-exact__founder-days">
+        <strong>{{ challenge_waitlist.week }}</strong> joined this week
+      </p>
+      {% if challenge_waitlist.latest %}
+      <ul class="field-help" style="margin: 0 0 12px; padding-left: 18px;">
+        {% for row in challenge_waitlist.latest[:3] %}
+        <li>{{ row.email }} <em style="opacity:.75;">{{ row.when }}</em></li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+      <a class="btn btn--secondary btn--sm" href="{{ url_for('admin.challenge_waitlist') }}">View waitlist</a>
+      <a class="btn btn--quiet btn--sm" href="{{ url_for('main.challenge') }}" target="_blank" rel="noopener">Open landing</a>
+    </div>
   </div>
 
   <div class="admin-panel studio-card studio-dash-exact__activity">

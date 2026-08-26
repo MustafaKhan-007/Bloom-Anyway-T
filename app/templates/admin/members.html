@@ -27,7 +27,7 @@
 
     <table class="admin-table" style="margin-top: 16px;">
       <thead>
-        <tr><th>Member</th><th>Email</th><th>Joined</th><th>Membership</th></tr>
+        <tr><th>Member</th><th>Email</th><th>Joined</th><th>Membership</th><th></th></tr>
       </thead>
       <tbody>
         {% for m in people %}
@@ -47,9 +47,20 @@
               <noscript><button class="btn btn--secondary btn--sm" type="submit">Set</button></noscript>
             </form>
           </td>
+          <td>
+            {% if not m.is_admin %}
+            <form method="post" action="{{ url_for('admin.remove_member', user_id=m.id) }}"
+                  data-confirm="Permanently remove {{ m.public_name() }}’s account? This cannot be undone."
+                  data-confirm-ok="Remove">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="q" value="{{ q }}">
+              <button class="btn btn--danger btn--sm" type="submit">Remove</button>
+            </form>
+            {% endif %}
+          </td>
         </tr>
         {% else %}
-        <tr><td colspan="4">No members found.</td></tr>
+        <tr><td colspan="5">No members found.</td></tr>
         {% endfor %}
       </tbody>
     </table>

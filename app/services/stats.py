@@ -7,7 +7,7 @@ from sqlalchemy.orm import joinedload
 from ..extensions import db
 from ..models import (ForumPost, MarketplaceListing, MembershipPlan, Order,
                       PageView, Product, ShopPurchase, SiteFeedback, User, Video,
-                      VisitEvent)
+                      VisitEvent, utcnow)
 from . import support_groups as sg_svc
 
 
@@ -499,3 +499,29 @@ def founder_days_remaining() -> int | None:
     except ValueError:
         return None
     return max(0, (end - date.today()).days)
+
+
+def challenge_waitlist_insights() -> dict:
+    """Studio tile: waitlist totals and recent signups for the Creator Challenge."""
+    from ..models import ChallengeWaitlist
+
+    total = ChallengeWaitlist.query.count()
+    week_ago = utcnow() - timedelta(days=7)
+    week = (ChallengeWaitlist.query
+            .filter(ChallengeWaitlist.created_at >= week_ago)
+            .count())
+    latest = (ChallengeWaitlist.query
+              .order_by(ChallengeWaitlist.created_at.desc())
+              .limit(5)
+              .all())
+    return {
+        "total": total,
+        "week": week,
+        "latest": [
+            {
+                "email": row.email,
+                "when": row.created_at.strftime("%b %d") if row.created_at else "",
+            }
+            for row in latest
+        ],
+    }

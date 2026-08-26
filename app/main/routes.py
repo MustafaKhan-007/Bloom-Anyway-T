@@ -12,7 +12,7 @@ from sqlalchemy import func
 
 from ..models import (JOURNAL_PROMPTS, MARKETPLACE_KINDS, MARKETPLACE_KIND_LABELS,
                       MARKETPLACE_TAG_MAX, MARKETPLACE_TAGS, MOOD_KEYS, MOODS,
-                      ContactMessage, FaqItem, JournalEntry,
+                      ChallengeWaitlist, ContactMessage, FaqItem, JournalEntry,
                       ListingImage, MarketplaceListing, MembershipPlan,
                       Notification, Order, Page, Product, ProductAsset,
                       Quote, QuoteFavorite, ReelReview, ReelReviewApplication,
@@ -321,7 +321,7 @@ MEMBERSHIP_MATRIX = [
     ("Watch Content Hub tips", "Free picks", "Healing tips", True, True),
     ("Request a weekly reel review", False, False, True, True),
     ("Home-page spotlight eligibility", False, False, True, True),
-    ("Showcase listings", False, "1 active", "15 active", "15 active"),
+    ("Showcase listings", False, "1 active", "5 active", "5 active"),
     ("Healing support groups / Ayesha 1:1", False, True, False, True),
     ("Creator support groups / Saman 1:1", False, False, True, True),
     ("Profile links", False, True, True, True),
@@ -391,6 +391,36 @@ def membership():
                            checkout=checkout,
                            founder=founder,
                            back_url=back_url, back_label=back_label)
+
+
+@bp.route("/challenge")
+def challenge():
+    """2-month Creator Challenge landing (Round 2 waitlist)."""
+    return render_template("main/challenge.html")
+
+
+@bp.route("/challenge/waitlist", methods=["POST"])
+@limiter.limit("8 per hour")
+def challenge_waitlist():
+    email = (request.form.get("email") or "").strip().lower()
+    if request.form.get("website"):  # honeypot
+        return redirect(url_for("main.challenge") + "#waitlist")
+    if not EMAIL_RE.match(email) or len(email) > 255:
+        flash("That doesn't look like an email address — mind checking it?", "error")
+        return redirect(url_for("main.challenge") + "#waitlist")
+    existing = ChallengeWaitlist.query.filter_by(email=email).first()
+    if existing:
+        flash("You're already on the waitlist — we'll email you when enrollment opens.", "success")
+        return redirect(url_for("main.challenge") + "#waitlist")
+    db.session.add(ChallengeWaitlist(email=email))
+    db.session.commit()
+    try:
+        from ..services.mailer import send_challenge_waitlist_confirm
+        send_challenge_waitlist_confirm(email)
+    except Exception:
+        log.exception("Challenge waitlist email failed for %s", email)
+    flash("You're on the list. Watch your inbox for early access.", "success")
+    return redirect(url_for("main.challenge") + "#waitlist")
 
 
 # --- marketplace (member adverts; we redirect out, we don't sell) ----------
@@ -587,7 +617,7 @@ def listing_form(listing_id=None):
             lim = listing_limit(current_user)
             errors.append(
                 f"Your plan allows {lim} active listing{'s' if lim != 1 else ''}. "
-                "Upgrade to Creator or Full Bloom for up to 15 listings, or remove one first.")
+                "Upgrade to Creator or Full Bloom for up to 5 listings, or remove one first.")
 
         new_images = []
         if not errors:

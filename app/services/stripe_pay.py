@@ -797,7 +797,9 @@ def handle_payment_event(event_type: str, data: dict) -> Order | None:
             refunded=True,
         )
 
-    if send_receipt and order.buyer_email and "@" in order.buyer_email and not addon_checkout:
+    # Product checkouts only — memberships get their tier welcome email, not the receipt.
+    if (send_receipt and order.buyer_email and "@" in order.buyer_email
+            and not addon_checkout and plan is None):
         try:
             from .mailer import send_order_receipt
             when = order.created_at
@@ -819,9 +821,13 @@ def handle_payment_event(event_type: str, data: dict) -> Order | None:
             or (plan.tier == "creator" and prev_tier in ("creator", "full_bloom"))
             or (plan.tier == "full_bloom" and prev_tier == "full_bloom")
         )
-        if not already and plan.tier in ("healing", "creator"):
+        if not already and plan.tier in ("healing", "creator", "full_bloom"):
             try:
-                from .mailer import send_creator_welcome, send_healing_welcome
+                from .mailer import (
+                    send_creator_welcome,
+                    send_full_bloom_welcome,
+                    send_healing_welcome,
+                )
                 key = str(product_id or "").strip()
                 annual_id = (plan.stripe_price_id_annual or "").strip()
                 is_annual = bool(annual_id and key == annual_id)
@@ -831,9 +837,16 @@ def handle_payment_event(event_type: str, data: dict) -> Order | None:
                 else:
                     billing_interval = "monthly"
                     plan_price = plan.price_display() or order.total_display()
-                trial_days = 14 if plan.tier == "healing" else 7
+                if plan.tier == "healing":
+                    trial_days = 14
+                    sender = send_healing_welcome
+                elif plan.tier == "creator":
+                    trial_days = 7
+                    sender = send_creator_welcome
+                else:
+                    trial_days = 7
+                    sender = send_full_bloom_welcome
                 trial_end = (utcnow() + timedelta(days=trial_days)).strftime("%b %d, %Y")
-                sender = send_healing_welcome if plan.tier == "healing" else send_creator_welcome
                 sender(
                     order.buyer_email,
                     trial_end_date=trial_end,

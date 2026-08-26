@@ -1578,7 +1578,7 @@ with app.app_context():
     cu = User.query.filter_by(email="newperson@example.com").first()
     ccount = MarketplaceListing.query.filter_by(user_id=cu.id, active=True).count()
     svc = MarketplaceListing.query.filter_by(title="Coaching").first()
-ok("Creator member can run multiple Showcase listings (cap 15)", ccount >= 2, f"got {ccount}")
+ok("Creator member can run multiple Showcase listings (cap 5)", ccount >= 2, f"got {ccount}")
 ok("Service listing stores its location",
    svc is not None and svc.location == "Remote")
 
