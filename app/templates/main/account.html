@@ -645,7 +645,7 @@
                 <h2 class="jn-page__title">Your journal <span class="jn-page__pin" aria-hidden="true">📌</span></h2>
                 <p class="jn-page__lede">{{ entry.day.strftime('%A, %B %d, %Y') }} · read only</p>
               </header>
-              <p class="jn-page__prompt">{{ entry.prompt_label or 'Note' }}</p>
+              <p class="jn-page__prompt"{% if not entry.prompt_label %} hidden{% endif %}>{{ entry.prompt_label or 'Free write' }}</p>
               {% if entry.mood %}
               <p class="jn-page__past-mood" title="{{ entry.mood_label() }}">
                 <span aria-hidden="true">{{ entry.mood_emoji() }}</span> {{ entry.mood_label() }}
@@ -722,6 +722,12 @@
         <span class="jn-note__tape" aria-hidden="true"></span>
         <p class="jn-note__eyebrow">Need a prompt?</p>
         <ul class="jn-prompt-list" id="journal-prompt-ideas">
+          <li>
+            <button type="button" class="jn-prompt-list__btn jn-prompt-list__btn--free"
+                    data-prompt-key="free" data-prompt-label="">
+              No prompt — write freely
+            </button>
+          </li>
           {% for key, label in prompt_ideas %}
           <li>
             <button type="button" class="jn-prompt-list__btn"

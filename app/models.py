@@ -751,6 +751,16 @@ JOURNAL_PROMPTS = (
     ("kind", "Where did kindness find you today?"),
 )
 
+# Free-write option (not in the random prompt pool).
+JOURNAL_FREEWRITE = ("free", "")
+
+
+def journal_prompt_map() -> dict:
+    """All valid prompt keys → labels, including free-write."""
+    mapping = dict(JOURNAL_PROMPTS)
+    mapping[JOURNAL_FREEWRITE[0]] = JOURNAL_FREEWRITE[1]
+    return mapping
+
 
 def random_journal_prompt():
     """Pick one prompt at random for the streak / journal UI."""

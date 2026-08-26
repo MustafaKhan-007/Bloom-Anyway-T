@@ -5171,11 +5171,19 @@ a.at-handle:hover { text-decoration: underline; }
   color: #c79a41;
   font-style: normal;
 }
+.jn-prompt-list__btn--free {
+  font-style: normal;
+  font-weight: 700;
+  color: #4a2040;
+}
 .jn-prompt-list__btn:hover,
 .jn-prompt-list__btn:focus-visible,
 .jn-prompt-list__btn.is-active {
   background: rgba(255, 255, 255, 0.35);
   outline: none;
+}
+.jn-page__prompt[hidden] {
+  display: none !important;
 }
 
 @media (max-width: 640px) {

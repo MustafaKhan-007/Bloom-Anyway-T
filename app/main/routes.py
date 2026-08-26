@@ -17,7 +17,8 @@ from ..models import (JOURNAL_PROMPTS, MARKETPLACE_KINDS, MARKETPLACE_KIND_LABEL
                       Notification, Order, Page, Product, ProductAsset,
                       Quote, QuoteFavorite, ReelReview, ReelReviewApplication,
                       ShopPurchase, Subscriber, User, Video, utcnow,
-                      random_journal_prompt, sample_journal_prompts)
+                      journal_prompt_map, random_journal_prompt,
+                      sample_journal_prompts)
 from ..services import quotes as quotes_service
 from ..services import reel_reviews as reel_svc
 from ..services import settings as settings_service
@@ -1173,7 +1174,7 @@ def checkin():
     if mood not in MOOD_KEYS:
         mood = None
     prompt_key = (request.form.get("prompt") or "").strip()
-    prompt_map = dict(JOURNAL_PROMPTS)
+    prompt_map = journal_prompt_map()
     if prompt_key not in prompt_map:
         prompt_key, _ = random_journal_prompt()
     today = date.today()

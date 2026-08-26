@@ -884,14 +884,20 @@
         var label = btn.getAttribute("data-prompt-label") || btn.textContent.trim();
         if (keyInput) keyInput.value = key;
         if (labelEl) {
+          var free = key === "free" || !label;
+          labelEl.hidden = free;
           labelEl.textContent = label;
-          labelEl.classList.add("is-swapped");
-          window.setTimeout(function () {
+          if (!free) {
+            labelEl.classList.add("is-swapped");
+            window.setTimeout(function () {
+              labelEl.classList.remove("is-swapped");
+            }, 450);
+          } else {
             labelEl.classList.remove("is-swapped");
-          }, 450);
+          }
         }
         if (body) {
-          body.setAttribute("aria-label", label);
+          body.setAttribute("aria-label", label || "Journal note");
           body.focus();
         }
         list.querySelectorAll(".jn-prompt-list__btn, .ms-prompt-list__btn").forEach(function (b) {
