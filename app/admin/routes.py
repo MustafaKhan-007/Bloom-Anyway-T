@@ -1283,7 +1283,6 @@ def set_membership(user_id):
 def remove_member(user_id):
     """Soft-delete a member/user account from the Members page."""
     from ..services.privacy import close_account
-    from ..services import stripe_pay as pay
 
     member = db.session.get(User, user_id) or abort(404)
     if member.deleted_at is not None:
@@ -1292,13 +1291,7 @@ def remove_member(user_id):
     if member.is_admin:
         flash("Studio owners can't be removed from Members.", "error")
         return redirect(url_for("admin.members"))
-    email = member.email
     name = member.public_name()
-    if pay.configured() and email:
-        try:
-            pay.cancel_membership_subscriptions(email, at_period_end=False)
-        except Exception:
-            log.exception("Stripe cancel failed while removing user %s", user_id)
     close_account(member)
     flash(f"{name} was removed from Bloom Anyway.", "success")
     return redirect(url_for("admin.members", q=request.form.get("q") or ""))
@@ -1913,18 +1906,11 @@ def community_revoke_access(user_id):
 def community_remove_member(user_id):
     """Soft-delete the account (same scrub as self-serve close account)."""
     from ..services.privacy import close_account
-    from ..services import stripe_pay as pay
 
     member = _community_member_for_moderation(user_id)
     if member is None:
         return redirect(url_for("admin.community"))
-    email = member.email
     name = member.public_name()
-    if pay.configured() and email:
-        try:
-            pay.cancel_membership_subscriptions(email, at_period_end=False)
-        except Exception:
-            log.exception("Stripe cancel failed while removing user %s", user_id)
     close_account(member)
     flash(f"{name} was removed from Bloom Anyway.", "success")
     return redirect(url_for("admin.community"))
