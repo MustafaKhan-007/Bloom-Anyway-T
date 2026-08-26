@@ -268,7 +268,12 @@
         <span class="spotlight-tag">Creator of the month</span>
         {% if creator_of_month %}
         <div class="spotlight-creator">
+          {% if creator_of_month.image %}
+          <img class="spotlight-creator__photo" src="{{ creator_of_month.image }}"
+               alt="{{ creator_of_month.name }}" width="104" height="104" loading="lazy">
+          {% else %}
           <span class="spotlight-creator__photo spotlight-creator__photo--ph" aria-hidden="true">&#127803;</span>
+          {% endif %}
           <h3>{{ creator_of_month.name }}</h3>
           {% if creator_of_month.handle %}
           <p class="spotlight-creator__handle">@{{ creator_of_month.handle }}</p>

@@ -2269,6 +2269,12 @@ html.is-page-loading { cursor: progress; }
   display: flex; flex-direction: column; align-items: center;
   width: 100%; max-width: 340px;
 }
+.spotlight-creator__photo {
+  width: 104px; height: 104px; border-radius: 50%;
+  object-fit: cover; display: block;
+  margin: 0 0 14px; flex-shrink: 0;
+  box-shadow: 0 8px 22px rgba(194, 152, 69, 0.35);
+}
 .spotlight-creator__photo--ph {
   width: 104px; height: 104px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;

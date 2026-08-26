@@ -78,17 +78,28 @@ def _valid_badge_choices(keys):
 
 def _spotlight_context():
     """Creator of the Month + Reel of the Week, straight from site settings."""
+    from ..services.site_images import get as get_site_image, public_path
+
     site = settings_service.all_settings()
     creator = None
     if (site.get("creator_name") or "").strip():
         raw_ig = (site.get("creator_instagram") or "").strip()
         handle = instagram_handle(raw_ig)
         profile = instagram_profile_url(handle) if handle else ""
+        image = (site.get("creator_image_url") or "").strip()
+        stored = get_site_image("creator")
+        if stored is not None:
+            # Prefer the uploaded Studio photo; bust browser cache on replace.
+            stamp = ""
+            if stored.updated_at:
+                stamp = f"?v={int(stored.updated_at.timestamp())}"
+            image = public_path("creator") + stamp
         creator = {
             "name": site["creator_name"].strip(),
             "instagram": profile or raw_ig,
             "handle": handle,
             "blurb": (site.get("creator_blurb") or "").strip(),
+            "image": image,
         }
     reel = None
     reel_url = (site.get("reel_url") or "").strip()
