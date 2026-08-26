@@ -867,32 +867,13 @@
     setKind("feedback");
   })();
 
-  // Journal: prompt insert + flip the notebook itself (oldest → today)
+  // Journal: prompt picks the question heading + flip the notebook (oldest → today)
   (function () {
     var list = document.getElementById("journal-prompt-ideas");
     var keyInput = document.getElementById("journal-prompt-key");
     var labelEl = document.getElementById("journal-prompt-label");
     var body = document.getElementById("journal-body");
     var book = document.querySelector("[data-jn-book]");
-
-    function insertAtCursor(el, text) {
-      if (!el) return;
-      var start = typeof el.selectionStart === "number" ? el.selectionStart : el.value.length;
-      var end = typeof el.selectionEnd === "number" ? el.selectionEnd : el.value.length;
-      var val = el.value || "";
-      var before = val.slice(0, start);
-      var after = val.slice(end);
-      var pad = "";
-      if (before && !/\s$/.test(before)) pad = "\n\n";
-      else if (before && !/\n$/.test(before)) pad = " ";
-      var insert = pad + text;
-      el.value = before + insert + after;
-      var pos = before.length + insert.length;
-      try {
-        el.setSelectionRange(pos, pos);
-      } catch (err) { /* ignore */ }
-      el.focus();
-    }
 
     if (list) {
       list.addEventListener("click", function (e) {
@@ -911,7 +892,7 @@
         }
         if (body) {
           body.setAttribute("aria-label", label);
-          insertAtCursor(body, label);
+          body.focus();
         }
         list.querySelectorAll(".jn-prompt-list__btn, .ms-prompt-list__btn").forEach(function (b) {
           b.classList.toggle("is-active", b === btn);
