@@ -305,6 +305,42 @@ def checkout_membership(tier):
     if not pay.configured():
         flash("Payments aren’t configured yet. Please try again later.", "error")
         return redirect(url_for("main.membership"))
+
+    # Switching plans: cancel the current membership immediately, then send
+    # them to Stripe Checkout for the new plan.
+    if (current_user.is_authenticated
+            and not current_user.is_admin
+            and current_user.effective_membership() in ("healing", "creator", "full_bloom")
+            and current_user.effective_membership() != tier):
+        try:
+            result = pay.cancel_membership_subscriptions(
+                current_user.email, at_period_end=False,
+            )
+        except Exception:
+            log.exception(
+                "membership switch: cancel failed for user %s", current_user.id,
+            )
+            flash(
+                "We couldn’t cancel your current membership. Please try again "
+                "or cancel it from Settings first.",
+                "error",
+            )
+            return redirect(url_for("main.membership"))
+        current_user.membership_cancel_at = None
+        from ..services.memberships import reconcile_user
+        reconcile_user(current_user, downgrade=True)
+        db.session.commit()
+        if not result.get("ok"):
+            log.warning(
+                "membership switch: cancel reported errors for %s: %s",
+                current_user.email, result.get("errors"),
+            )
+        flash(
+            "Your previous membership was cancelled. Complete checkout to start "
+            "the new plan.",
+            "info",
+        )
+
     email = current_user.email if current_user.is_authenticated else None
     name = current_user.public_name() if current_user.is_authenticated else None
     try:
