@@ -74,7 +74,11 @@
       <p class="mem-page__back"><a href="{{ back_url }}">&larr; Back to {{ back_label }}</a></p>
       <h1>Find your people. Grow out loud.</h1>
       <p class="mem-page__subline">Start free. Or step in fully and get everything Bloom Anyway has to offer.
-        Cancel any time &mdash; no drama.</p>
+        Cancel any time &mdash; no drama.
+        {% if current and current != 'none' %}
+        Switching plans cancels your current membership immediately and moves you to the new one.
+        {% endif %}
+      </p>
 
       <div class="mem-toggle" data-billing-toggle>
         <button type="button" class="mem-toggle__btn is-active" data-billing="monthly" aria-pressed="true">Monthly</button>
@@ -186,14 +190,14 @@
           {% else %}
           <span class="mem-cta mem-cta--month">
             {% if healing_checkout_m %}
-            <a class="btn btn--primary btn--block" href="{{ healing_checkout_m }}">Join Healing &rarr;</a>
+            <a class="btn btn--primary btn--block" href="{{ healing_checkout_m }}">{{ 'Switch to Healing' if current and current != 'none' else 'Join Healing' }} &rarr;</a>
             {% else %}
             <span class="btn btn--secondary btn--block is-disabled">Coming soon</span>
             {% endif %}
           </span>
           <span class="mem-cta mem-cta--year">
             {% if healing_checkout_y %}
-            <a class="btn btn--primary btn--block" href="{{ healing_checkout_y }}">Get Healing annually &rarr;</a>
+            <a class="btn btn--primary btn--block" href="{{ healing_checkout_y }}">{{ 'Switch to Healing annually' if current and current != 'none' else 'Get Healing annually' }} &rarr;</a>
             {% else %}
             <span class="btn btn--secondary btn--block is-disabled">Annual coming soon</span>
             {% endif %}
@@ -282,14 +286,14 @@
           {% else %}
           <span class="mem-cta mem-cta--month">
             {% if creator_checkout_m %}
-            <a class="btn btn--gold btn--block" href="{{ creator_checkout_m }}">Become a Creator &rarr;</a>
+            <a class="btn btn--gold btn--block" href="{{ creator_checkout_m }}">{{ 'Switch to Creator' if current and current != 'none' else 'Become a Creator' }} &rarr;</a>
             {% else %}
             <span class="btn btn--secondary btn--block is-disabled">Coming soon</span>
             {% endif %}
           </span>
           <span class="mem-cta mem-cta--year">
             {% if creator_checkout_y %}
-            <a class="btn btn--gold btn--block" href="{{ creator_checkout_y }}">Get Creator annually &rarr;</a>
+            <a class="btn btn--gold btn--block" href="{{ creator_checkout_y }}">{{ 'Switch to Creator annually' if current and current != 'none' else 'Get Creator annually' }} &rarr;</a>
             {% else %}
             <span class="btn btn--secondary btn--block is-disabled">Annual coming soon</span>
             {% endif %}
@@ -381,14 +385,14 @@
           {% else %}
           <span class="mem-cta mem-cta--month">
             {% if full_checkout_m %}
-            <a class="btn btn--bloom btn--block" href="{{ full_checkout_m }}">Go Full Bloom &rarr;</a>
+            <a class="btn btn--bloom btn--block" href="{{ full_checkout_m }}">{{ 'Switch to Full Bloom' if current and current != 'none' else 'Go Full Bloom' }} &rarr;</a>
             {% else %}
             <span class="btn btn--secondary btn--block is-disabled">Coming soon</span>
             {% endif %}
           </span>
           <span class="mem-cta mem-cta--year">
             {% if full_checkout_y %}
-            <a class="btn btn--bloom btn--block" href="{{ full_checkout_y }}">Get Full Bloom annually &rarr;</a>
+            <a class="btn btn--bloom btn--block" href="{{ full_checkout_y }}">{{ 'Switch to Full Bloom annually' if current and current != 'none' else 'Get Full Bloom annually' }} &rarr;</a>
             {% else %}
             <span class="btn btn--secondary btn--block is-disabled">Annual coming soon</span>
             {% endif %}

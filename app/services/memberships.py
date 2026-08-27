@@ -2,9 +2,9 @@
 
 Memberships are sold as ``MembershipPlan`` rows. Each plan carries a Stripe
 product id; an order for that product grants the plan's tier. A member's tier
-is kept on ``users.membership``. Purchases drive that column; a refund
-recomputes the tier from remaining paid membership orders. Owning both Healing
-and Creator *purchases* upgrades to Full Bloom. The owner (``is_admin``) is
+is kept on ``users.membership``. Buying a new membership replaces any prior
+one (Stripe cancels the old subscription immediately). A refund recomputes
+the tier from remaining paid membership orders. The owner (``is_admin``) is
 always Full Bloom and is untouched.
 """
 import logging

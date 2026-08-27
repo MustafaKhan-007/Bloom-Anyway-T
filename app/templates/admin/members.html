@@ -9,7 +9,8 @@
       <h1>Members</h1>
       <p class="field-help" style="margin: 6px 0 0; max-width: 62ch;">Set a tier by hand below, or sell them on the
         <a href="{{ url_for('admin.membership_plans') }}">membership plans</a> page &mdash; buyers are
-        upgraded automatically on payment (a refund removes it). Manual changes here always win.</p>
+        upgraded automatically on payment. Buying a different plan cancels the previous subscription
+        immediately. A refund removes access. Manual changes here always win.</p>
     </div>
     <a class="btn btn--secondary btn--sm"
        href="{{ url_for('admin.members_export_csv', q=q or none) }}">Export emails (CSV)</a>

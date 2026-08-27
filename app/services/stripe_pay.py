@@ -426,6 +426,10 @@ def _session_to_payment_data(session) -> dict:
         or _stripe_id(session.get("subscription"))
         or _stripe_id(session.get("id"))
     )
+    meta_out = dict(meta or {})
+    sub_id = _stripe_id(session.get("subscription"))
+    if sub_id:
+        meta_out["subscription_id"] = sub_id
     return {
         "payment_id": str(payment_id) if payment_id else "",
         "total_amount": session.get("amount_total") or 0,
@@ -434,7 +438,7 @@ def _session_to_payment_data(session) -> dict:
         "customer_email": email,
         "customer_details": session.get("customer_details") or {},
         "product_cart": [{"product_id": str(price_id), "quantity": 1}] if price_id else [],
-        "metadata": dict(meta or {}),
+        "metadata": meta_out,
         "payment_status": session.get("payment_status"),
         "mode": session.get("mode"),
         "id": _stripe_id(session.get("id")) or session.get("id"),
@@ -756,6 +760,25 @@ def handle_payment_event(event_type: str, data: dict) -> Order | None:
         gift_to=gift_to,
     )
 
+    # New membership purchase replaces any prior membership immediately
+    # (cancel old Stripe sub + revoke local access, keep only this order).
+    if (status == "paid" and plan and plan.tier in ("healing", "creator", "full_bloom")
+            and order.buyer_email and "@" in order.buyer_email):
+        keep_sub = (meta or {}).get("subscription_id") or ""
+        if not keep_sub:
+            keep_sub = _subscription_id_from_payment_ref(str(payment_id or "")) or ""
+        try:
+            replace_other_memberships(
+                order.buyer_email,
+                keep_order_id=str(order.ls_order_id or payment_id),
+                keep_subscription_id=keep_sub or None,
+            )
+        except Exception:
+            log.exception(
+                "stripe: failed replacing prior memberships for %s",
+                order.buyer_email,
+            )
+
     from .shop_purchases import is_addon_checkout, upsert_shop_purchase
     addon_checkout = is_addon_checkout(
         variant_id=product_id,
@@ -1073,6 +1096,94 @@ def _clear_membership_grace_cancel(sub_id: str) -> bool:
             return False
         log.exception("stripe: failed to clear grace cancel for %s", sid)
         return False
+
+
+def replace_other_memberships(
+    email: str,
+    *,
+    keep_order_id: str,
+    keep_subscription_id: str | None = None,
+) -> dict:
+    """On a new membership payment: end every other membership immediately.
+
+    Cancels other Stripe membership subscriptions now, marks their paid Orders
+    refunded (access revoked), keeps ``keep_order_id`` / ``keep_subscription_id``,
+    clears cancel-at flags, and reconciles the member to the new plan only.
+    """
+    from sqlalchemy import func
+
+    from .memberships import reconcile_email
+
+    email_norm = (email or "").strip().lower()
+    keep_oid = str(keep_order_id or "").strip()
+    result: dict[str, Any] = {
+        "ok": True,
+        "cancelled": [],
+        "errors": [],
+        "orders_ended": 0,
+    }
+    if not email_norm or not keep_oid:
+        result["ok"] = False
+        result["errors"].append("missing_email_or_order")
+        return result
+
+    price_ids = _membership_price_ids()
+    if not price_ids:
+        return result
+
+    keep_sub = (keep_subscription_id or "").strip()
+    if not keep_sub:
+        keep_sub = _subscription_id_from_payment_ref(keep_oid) or ""
+
+    paid = (
+        Order.query
+        .filter(
+            func.lower(Order.buyer_email) == email_norm,
+            Order.status == "paid",
+            Order.ls_variant_id.in_(list(price_ids)),
+        )
+        .all()
+    )
+
+    cancel_subs: set[str] = set()
+    ended = 0
+    for order in paid:
+        oid = str(order.ls_order_id or "").strip()
+        if oid and oid == keep_oid:
+            continue
+        sid = _subscription_id_from_payment_ref(oid) if oid else None
+        if sid and sid != keep_sub:
+            cancel_subs.add(sid)
+        order.status = "refunded"
+        ended += 1
+
+    # Also cancel any live Stripe membership sub that isn't the new one
+    # (covers orphans not linked to a local Order id).
+    if configured() and not current_app.config.get("TESTING"):
+        for sid in _membership_subscription_ids_for_email(email_norm, price_ids):
+            if sid and sid != keep_sub:
+                cancel_subs.add(sid)
+
+    for sid in sorted(cancel_subs):
+        if current_app.config.get("TESTING") or not configured():
+            result["cancelled"].append(sid)
+            continue
+        if _cancel_stripe_subscription_now(sid):
+            result["cancelled"].append(sid)
+        else:
+            result["ok"] = False
+            result["errors"].append(f"cancel_failed:{sid}")
+
+    result["orders_ended"] = ended
+    if ended or result["cancelled"]:
+        clear_cancel_at_for_email(email_norm)
+        reconcile_email(email_norm, downgrade=True)
+        log.info(
+            "stripe: membership switch for %s ended %s prior order(s), "
+            "cancelled %s sub(s); kept order=%s sub=%s",
+            email_norm, ended, len(result["cancelled"]), keep_oid, keep_sub or "-",
+        )
+    return result
 
 
 def cancel_membership_subscriptions(
@@ -1404,8 +1515,20 @@ def clear_cancel_at_for_email(email: str) -> None:
         user.membership_cancel_at = None
 
 
-def _end_paid_membership_orders(email_norm: str, price_ids: set[str] | None = None) -> int:
-    """Mark paid membership Orders refunded and reconcile the member's tier."""
+def _end_paid_membership_orders(
+    email_norm: str,
+    price_ids: set[str] | None = None,
+    *,
+    only_subscription_id: str | None = None,
+    except_order_id: str | None = None,
+) -> int:
+    """Mark paid membership Orders refunded and reconcile the member's tier.
+
+    ``only_subscription_id``: only end orders that resolve to that Stripe sub
+    (used when a subscription is deleted so a plan-switch cannot revoke the
+    new membership that shares the same price).
+    ``except_order_id``: leave this order paid (plan-switch keep).
+    """
     from sqlalchemy import func
 
     from .memberships import reconcile_email
@@ -1413,6 +1536,8 @@ def _end_paid_membership_orders(email_norm: str, price_ids: set[str] | None = No
     prices = price_ids or _membership_price_ids()
     if not email_norm or not prices:
         return 0
+    keep = str(except_order_id or "").strip()
+    only_sub = str(only_subscription_id or "").strip()
     paid = (
         Order.query
         .filter(
@@ -1424,6 +1549,13 @@ def _end_paid_membership_orders(email_norm: str, price_ids: set[str] | None = No
     )
     ended = 0
     for order in paid:
+        oid = str(order.ls_order_id or "").strip()
+        if keep and oid == keep:
+            continue
+        if only_sub:
+            sid = _subscription_id_from_payment_ref(oid) if oid else None
+            if sid != only_sub:
+                continue
         order.status = "refunded"
         ended += 1
     if ended:
@@ -1457,6 +1589,7 @@ def handle_subscription_deleted(sub: dict) -> dict:
     """When a membership subscription actually ends, revoke local access."""
     sub = sub if isinstance(sub, dict) else _as_dict(sub)
     email = _email_from_subscription(sub)
+    sub_id = _stripe_id(sub.get("id")) or ""
     membership_prices = _membership_price_ids()
     item_prices: set[str] = set()
     items = (sub.get("items") or {}).get("data") or []
@@ -1472,37 +1605,39 @@ def handle_subscription_deleted(sub: dict) -> dict:
         # Non-membership subscription ended — leave membership Orders alone.
         log.info(
             "stripe: subscription.deleted %s ignored (not a membership price)",
-            _stripe_id(sub.get("id")),
+            sub_id or _stripe_id(sub.get("id")),
         )
         return result
     if not matched and not email:
         log.info(
             "stripe: subscription.deleted %s ignored (no email/membership price)",
-            _stripe_id(sub.get("id")),
+            sub_id,
         )
         return result
 
-    # Prefer matched prices; if Stripe omitted items, fall back to all
-    # membership prices for this email (period-end cancel path).
-    prices = matched or (membership_prices if email else set())
     if not email:
         log.warning(
             "stripe: subscription.deleted %s has membership prices but no email",
-            _stripe_id(sub.get("id")),
+            sub_id,
         )
         result["ok"] = False
         return result
 
-    if not prices:
-        return result
-
     result["membership"] = True
-    ended = _end_paid_membership_orders(email, prices)
+    # Only end orders tied to this exact subscription so a plan switch (new
+    # sub paid, old sub deleted) cannot revoke the new membership by price.
+    if sub_id:
+        ended = _end_paid_membership_orders(
+            email, matched or membership_prices,
+            only_subscription_id=sub_id,
+        )
+    else:
+        ended = _end_paid_membership_orders(email, matched or membership_prices)
     result["orders_ended"] = ended
     clear_cancel_at_for_email(email)
     log.info(
-        "stripe: subscription.deleted ended %s order(s) for %s",
-        ended, email,
+        "stripe: subscription.deleted ended %s order(s) for %s (sub=%s)",
+        ended, email, sub_id or "-",
     )
     return result
 

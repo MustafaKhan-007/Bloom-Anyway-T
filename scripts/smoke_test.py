@@ -1410,7 +1410,7 @@ with app.app_context():
     t = User.query.filter_by(email="buyer2@example.com").first().membership
 ok("Creator-only purchases re-sync to Creator (not Full Bloom)", t == "creator", f"got {t}")
 
-# Both paid halves → Full Bloom
+# Switching plans: prior membership is cancelled immediately (not stacked)
 with app.app_context():
     from app.models import MembershipPlan
     hplan = MembershipPlan.query.filter_by(tier="healing").first()
@@ -1419,18 +1419,20 @@ with app.app_context():
     db.session.commit()
 _order_webhook("MEM-H1", "buyer2@example.com", "prod_healing_mem")
 with app.app_context():
-    t = User.query.filter_by(email="buyer2@example.com").first().membership
-ok("Healing + Creator purchases upgrade to Full Bloom", t == "full_bloom", f"got {t}")
-
-# a refund of healing leaves Creator
-_order_webhook("MEM-H1", "buyer2@example.com", "prod_healing_mem",
-               event="refund.succeeded")
-with app.app_context():
-    t = User.query.filter_by(email="buyer2@example.com").first().membership
-ok("Refunding Healing leaves Creator", t == "creator", f"got {t}")
+    u = User.query.filter_by(email="buyer2@example.com").first()
+    creator_order = Order.query.filter_by(ls_order_id="MEM-1").first()
+    healing_order = Order.query.filter_by(ls_order_id="MEM-H1").first()
+    t = u.membership
+ok("Buying Healing while on Creator switches to Healing", t == "healing", f"got {t}")
+ok("Prior Creator order is ended on switch",
+   creator_order is not None and creator_order.status == "refunded",
+   f"got {getattr(creator_order, 'status', None)}")
+ok("New Healing order stays paid",
+   healing_order is not None and healing_order.status == "paid",
+   f"got {getattr(healing_order, 'status', None)}")
 
 # a refund revokes it
-_order_webhook("MEM-1", "buyer2@example.com", "prod_creator_mem",
+_order_webhook("MEM-H1", "buyer2@example.com", "prod_healing_mem",
                event="refund.succeeded")
 with app.app_context():
     t = User.query.filter_by(email="buyer2@example.com").first().membership
