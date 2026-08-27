@@ -174,7 +174,8 @@ def seed():
         set_setting("founder_price_ends", FOUNDER_ENDS)
         print(f"Founder pricing ends → {FOUNDER_ENDS}")
 
-        # 8. Launch buzz — realistic community members + threads (idempotent)
+        # 8. Launch buzz — realistic community members + threads (idempotent).
+        #    Does not resurrect personas removed in Studio → Members.
         from app.services.community_seed import seed_community_buzz
         buzz = seed_community_buzz()
         if buzz.get("refreshed"):
@@ -182,6 +183,8 @@ def seed():
                 f"Community buzz: refreshed copy — "
                 f"{buzz['posts']} posts, {buzz['comments']} comments"
             )
+        elif buzz.get("cleared"):
+            print("Community buzz: previously removed in Studio, not recreated")
         elif buzz.get("skipped"):
             synced = buzz.get("synced") or 0
             extra = f" (synced {synced} profiles)" if synced else ""

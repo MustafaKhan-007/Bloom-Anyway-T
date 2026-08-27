@@ -1,8 +1,10 @@
 """Seed realistic community members + conversations for a busy launch feed.
 
-Idempotent: skips when any ``@bloomanyway.seed`` member already exists.
-Accounts cannot sign in (no usable password). Safe to re-run after wipe if
-those seed emails are gone.
+Idempotent: skips when seed members already exist, or when they were seeded
+before and later removed in Studio (soft-delete scrubs ``@bloomanyway.seed``
+emails — redeploy must not resurrect them).
+
+Accounts cannot sign in (no usable password).
 """
 from __future__ import annotations
 
@@ -17,6 +19,9 @@ SEED_EMAIL_DOMAIN = "bloomanyway.seed"
 #: Bump to refresh post/comment copy on already-seeded sites (keeps members).
 COPY_VERSION = "human-v2"
 COPY_SETTING_KEY = "community_seed_copy"
+#: Set once members have been created. Survives Studio soft-deletes so
+#: ``seed.py`` on deploy does not recreate removed personas.
+INSTALLED_SETTING_KEY = "community_seed_installed"
 
 # Personas — mixed Healing / Creator / Full Bloom, imperfect bios, real handles.
 MEMBERS = (
@@ -910,6 +915,22 @@ def _create_threads(by_key: dict[str, User]) -> tuple[int, int]:
     return posts_n, comments_n
 
 
+def _seed_was_installed() -> bool:
+    """True if launch buzz was applied before (even if Studio removed everyone)."""
+    from .settings import get_setting
+
+    if (get_setting(INSTALLED_SETTING_KEY) or "").strip() == "1":
+        return True
+    # Older deploys only set the copy version — still means we seeded once.
+    return bool((get_setting(COPY_SETTING_KEY) or "").strip())
+
+
+def _mark_seed_installed() -> None:
+    from .settings import set_setting
+
+    set_setting(INSTALLED_SETTING_KEY, "1")
+
+
 def seed_community_buzz() -> dict[str, int]:
     """Create launch buzz members + threads. Returns counts added."""
     from .settings import get_setting, set_setting
@@ -922,6 +943,7 @@ def seed_community_buzz() -> dict[str, int]:
     need_fresh_copy = current_copy != COPY_VERSION
 
     if _seed_emails_exist():
+        _mark_seed_installed()
         synced = _sync_existing_members()
         if not need_fresh_copy:
             return {
@@ -941,6 +963,15 @@ def seed_community_buzz() -> dict[str, int]:
             "skipped": 0,
             "synced": synced,
             "refreshed": 1,
+        }
+
+    # Soft-delete scrubs @bloomanyway.seed emails. Without this guard, every
+    # deploy would recreate the personas Studio deliberately removed.
+    if _seed_was_installed():
+        _mark_seed_installed()
+        return {
+            "members": 0, "posts": 0, "comments": 0,
+            "skipped": 1, "cleared": 1,
         }
 
     now = utcnow()
@@ -974,6 +1005,7 @@ def seed_community_buzz() -> dict[str, int]:
 
     posts_n, comments_n = _create_threads(by_key)
     set_setting(COPY_SETTING_KEY, COPY_VERSION)
+    _mark_seed_installed()
     db.session.flush()
     return {
         "members": len(by_key),
