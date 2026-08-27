@@ -12,7 +12,7 @@ from sqlalchemy import func
 
 from ..models import (JOURNAL_PROMPTS, MARKETPLACE_KINDS, MARKETPLACE_KIND_LABELS,
                       MARKETPLACE_TAG_MAX, MARKETPLACE_TAGS, MOOD_KEYS, MOODS,
-                      ChallengeWaitlist, ContactMessage, FaqItem, JournalEntry,
+                      ContactMessage, FaqItem, JournalEntry,
                       ListingImage, MarketplaceListing, MembershipPlan,
                       Notification, Order, Page, Product, ProductAsset,
                       Quote, QuoteFavorite, ReelReview, ReelReviewApplication,
@@ -449,34 +449,16 @@ def membership():
                            back_url=back_url, back_label=back_label)
 
 
+CHALLENGE_ENROLL_URL = "https://stan.store/hustlinmommazbiz/p/2-month-challenge"
+
+
 @bp.route("/challenge")
 def challenge():
-    """2-month Creator Challenge landing (Round 2 waitlist)."""
-    return render_template("main/challenge.html")
-
-
-@bp.route("/challenge/waitlist", methods=["POST"])
-@limiter.limit("8 per hour")
-def challenge_waitlist():
-    email = (request.form.get("email") or "").strip().lower()
-    if request.form.get("website"):  # honeypot
-        return redirect(url_for("main.challenge") + "#waitlist")
-    if not EMAIL_RE.match(email) or len(email) > 255:
-        flash("That doesn't look like an email address — mind checking it?", "error")
-        return redirect(url_for("main.challenge") + "#waitlist")
-    existing = ChallengeWaitlist.query.filter_by(email=email).first()
-    if existing:
-        flash("You're already on the waitlist — we'll email you when enrollment opens.", "success")
-        return redirect(url_for("main.challenge") + "#waitlist")
-    db.session.add(ChallengeWaitlist(email=email))
-    db.session.commit()
-    try:
-        from ..services.mailer import send_challenge_waitlist_confirm
-        send_challenge_waitlist_confirm(email)
-    except Exception:
-        log.exception("Challenge waitlist email failed for %s", email)
-    flash("You're on the list. Watch your inbox for early access.", "success")
-    return redirect(url_for("main.challenge") + "#waitlist")
+    """2-month Creator Challenge landing."""
+    return render_template(
+        "main/challenge.html",
+        challenge_enroll_url=CHALLENGE_ENROLL_URL,
+    )
 
 
 # --- marketplace (member adverts; we redirect out, we don't sell) ----------

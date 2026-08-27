@@ -1,8 +1,9 @@
 {% extends "base.html" %}
 {% block title %}2-Month Creator Challenge — {{ site.site_title }}{% endblock %}
-{% block meta_description %}You don't need an audience — you need a plan. Join the waitlist for Round 2 of the 2-Month Creator Challenge.{% endblock %}
+{% block meta_description %}You don't need an audience — you need a plan. Join Round 2 of the 2-Month Creator Challenge.{% endblock %}
 
 {% block content %}
+{% set enroll_url = challenge_enroll_url|default('https://stan.store/hustlinmommazbiz/p/2-month-challenge') %}
 <div class="ch2">
   <section class="ch2-hero">
     <div class="container ch2-hero__inner">
@@ -15,7 +16,7 @@
         wish someone had shown me.
       </p>
       <div class="ch2-hero__ctas">
-        <a class="btn btn--gold" href="#waitlist">Get on the Waitlist &rarr;</a>
+        <a class="btn btn--gold" href="{{ enroll_url }}" target="_blank" rel="noopener">Join the Challenge &rarr;</a>
         <a class="btn btn--quiet ch2-hero__ghost" href="#inside">See what's inside</a>
       </div>
       <p class="ch2-hero__note">2 months of live access &middot; Free access to the Bloom Anyway creator community</p>
@@ -284,23 +285,17 @@
     </div>
   </section>
 
-  <section class="ch2-waitlist" id="waitlist">
+  <section class="ch2-waitlist" id="enroll">
     <div class="container ch2-waitlist__inner">
-      <p class="ch2-eyebrow ch2-eyebrow--gold">Almost open</p>
-      <h2>The 2 Month Creator Challenge — Round 2 is almost open.</h2>
+      <p class="ch2-eyebrow ch2-eyebrow--gold">Enrollment open</p>
+      <h2>The 2 Month Creator Challenge — Round 2 is open.</h2>
       <p>
-        Get on the waitlist to be first to know when I open enrollment — plus early access
-        before it goes public. I can't wait to have you in here.
+        Ready when you are. Join now and get 2 months of live access, weekly task sheets,
+        reel reviews, and free access to the Bloom Anyway creator community.
       </p>
-      <form method="post" action="{{ url_for('main.challenge_waitlist') }}" class="ch2-waitlist__form">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <label class="visually-hidden" for="challenge-email">Email</label>
-        <input id="challenge-email" type="email" name="email" required maxlength="255"
-               placeholder="you@email.com" autocomplete="email">
-        <input type="text" name="website" value="" tabindex="-1" autocomplete="off"
-               class="hp-field" aria-hidden="true">
-        <button class="btn btn--gold" type="submit">Join the Waitlist &rarr;</button>
-      </form>
+      <p style="margin-top: 1.25rem;">
+        <a class="btn btn--gold" href="{{ enroll_url }}" target="_blank" rel="noopener">Join the Challenge &rarr;</a>
+      </p>
     </div>
   </section>
 </div>

@@ -32,7 +32,6 @@
         <p class="admin-nav__label">Community</p>
         <a href="{{ url_for('admin.community') }}" class="{{ 'active' if here.startswith('/admin/community') }}">Community</a>
         <a href="{{ url_for('admin.members') }}" class="{{ 'active' if here.startswith('/admin/members') }}">Members</a>
-        <a href="{{ url_for('admin.challenge_waitlist') }}" class="{{ 'active' if here.startswith('/admin/challenge-waitlist') }}">Challenge waitlist</a>
         <a href="{{ url_for('admin.owners') }}" class="{{ 'active' if here.startswith('/admin/owners') }}">Owners</a>
         <a href="{{ url_for('admin.membership_plans') }}" class="{{ 'active' if here.startswith('/admin/memberships') }}">Plans</a>
         <a href="{{ url_for('admin.products') }}" class="{{ 'active' if here.startswith('/admin/products') }}">Courses &amp; Guides</a>
