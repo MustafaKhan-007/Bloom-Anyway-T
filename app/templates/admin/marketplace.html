@@ -16,13 +16,26 @@
     {% if not listings %}
     <div class="empty-state"><p>No listings yet.</p></div>
     {% else %}
-    <table class="admin-table">
+    {% with form_id='bulk-marketplace',
+            action=url_for('admin.marketplace_bulk_delete'),
+            confirm_template='Delete {n} selected listing(s)?',
+            confirm_title='Delete selected listings?',
+            confirm_ok='Delete',
+            button_label='Delete selected',
+            hidden={} %}
+      {% include "admin/_bulk_bar.html" %}
+    {% endwith %}
+    <table class="admin-table" style="margin-top: 16px;">
       <thead>
-        <tr><th>Title</th><th>Kind</th><th>Seller</th><th>Clicks</th><th>Status</th><th></th></tr>
+        <tr><th class="studio-bulk__check"><span class="visually-hidden">Select</span></th><th>Title</th><th>Kind</th><th>Seller</th><th>Clicks</th><th>Status</th><th></th></tr>
       </thead>
       <tbody>
         {% for ln in listings %}
         <tr>
+          <td class="studio-bulk__check">
+            <input type="checkbox" name="ids" value="{{ ln.id }}" form="bulk-marketplace" data-bulk-item
+                   aria-label="Select {{ ln.title }}">
+          </td>
           <td><a href="{{ url_for('main.listing_detail', listing_id=ln.id) }}" target="_blank" rel="noopener">{{ ln.title }}</a></td>
           <td>{{ ln.kind_label() }}</td>
           <td>{{ ln.author.public_name() }} <span class="field-help">({{ ln.author.membership_label() }})</span></td>

@@ -48,11 +48,26 @@
 
   <section class="admin-panel studio-card">
     <h2>All testimonials</h2>
-    <table class="admin-table">
-      <thead><tr><th>Quote</th><th>Name</th><th>Product</th><th>Home</th><th>Order</th><th></th></tr></thead>
+    {% if items %}
+    {% with form_id='bulk-testimonials',
+            action=url_for('admin.testimonials_bulk_delete'),
+            confirm_template='Delete {n} selected testimonial(s)?',
+            confirm_title='Delete selected testimonials?',
+            confirm_ok='Delete',
+            button_label='Delete selected',
+            hidden={} %}
+      {% include "admin/_bulk_bar.html" %}
+    {% endwith %}
+    {% endif %}
+    <table class="admin-table" style="margin-top: 16px;">
+      <thead><tr>{% if items %}<th class="studio-bulk__check"><span class="visually-hidden">Select</span></th>{% endif %}<th>Quote</th><th>Name</th><th>Product</th><th>Home</th><th>Order</th><th></th></tr></thead>
       <tbody>
         {% for t in items %}
         <tr>
+          <td class="studio-bulk__check">
+            <input type="checkbox" name="ids" value="{{ t.id }}" form="bulk-testimonials" data-bulk-item
+                   aria-label="Select testimonial from {{ t.first_name }}">
+          </td>
           <td style="max-width: 380px;">
             <form method="post" action="{{ url_for('admin.testimonial_save', item_id=t.id) }}" id="t-form-{{ t.id }}">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

@@ -41,13 +41,34 @@
       {% endif %}
     </form>
 
+    {% if people %}
+    {% with form_id='bulk-members',
+            action=url_for('admin.members_bulk_remove'),
+            confirm_template='Permanently remove {n} selected member account(s)? This cannot be undone.',
+            confirm_title='Remove selected members?',
+            confirm_ok='Remove',
+            button_label='Remove selected',
+            hidden={'q': q or '', 'membership_filter': membership_filter or ''} %}
+      {% include "admin/_bulk_bar.html" %}
+    {% endwith %}
+    {% endif %}
+
     <table class="admin-table" style="margin-top: 16px;">
       <thead>
-        <tr><th>Member</th><th>Email</th><th>Joined</th><th>Membership</th><th></th></tr>
+        <tr>
+          {% if people %}<th class="studio-bulk__check"><span class="visually-hidden">Select</span></th>{% endif %}
+          <th>Member</th><th>Email</th><th>Joined</th><th>Membership</th><th></th>
+        </tr>
       </thead>
       <tbody>
         {% for m in people %}
         <tr>
+          <td class="studio-bulk__check">
+            {% if not m.is_admin %}
+            <input type="checkbox" name="ids" value="{{ m.id }}" form="bulk-members" data-bulk-item
+                   aria-label="Select {{ m.public_name() }}">
+            {% endif %}
+          </td>
           <td>
             {{ m.public_name() }}
             {% if m.is_admin %} <span class="status-pill">owner</span>{% endif %}

@@ -266,9 +266,78 @@
       }
     }
   }
+  /* ---- bulk select + remove on Studio list pages ---- */
+  (function () {
+    function itemsFor(form) {
+      var id = form.id;
+      if (!id) return [];
+      return Array.prototype.slice.call(
+        document.querySelectorAll(
+          'input[data-bulk-item][form="' + id + '"], #' + id + " input[data-bulk-item]"
+        )
+      ).filter(function (el) { return !el.disabled; });
+    }
+
+    function refresh(form) {
+      var items = itemsFor(form);
+      var checked = items.filter(function (el) { return el.checked; });
+      var n = checked.length;
+      var submit = form.querySelector("[data-bulk-submit]");
+      var countEl = form.querySelector("[data-bulk-count]");
+      var all = form.querySelector("[data-bulk-all]");
+      if (submit) {
+        submit.disabled = n === 0;
+        var base = submit.getAttribute("data-label")
+          || submit.textContent.replace(/\s*\(\d+\)\s*$/, "").trim()
+          || "Remove selected";
+        submit.setAttribute("data-label", base);
+        submit.textContent = n ? base + " (" + n + ")" : base;
+      }
+      if (countEl) {
+        countEl.hidden = n === 0;
+        countEl.textContent = n + " selected";
+      }
+      if (all) {
+        all.checked = items.length > 0 && n === items.length;
+        all.indeterminate = n > 0 && n < items.length;
+      }
+      var tmpl = form.getAttribute("data-bulk-confirm")
+        || "Remove {n} selected item(s)? This cannot be undone.";
+      form.setAttribute("data-confirm", tmpl.replace(/\{n\}/g, String(n || 0)));
+    }
+
+    document.querySelectorAll("form[data-bulk]").forEach(function (form) {
+      refresh(form);
+      form.addEventListener("change", function (e) {
+        var t = e.target;
+        if (!t) return;
+        if (t.matches("[data-bulk-all]")) {
+          itemsFor(form).forEach(function (el) { el.checked = t.checked; });
+        }
+        refresh(form);
+      });
+      document.addEventListener("change", function (e) {
+        var t = e.target;
+        if (!t || !t.matches || !t.matches("[data-bulk-item]")) return;
+        if (t.getAttribute("form") !== form.id && !form.contains(t)) return;
+        refresh(form);
+      });
+      form.addEventListener("submit", function (e) {
+        refresh(form);
+        if (itemsFor(form).filter(function (el) { return el.checked; }).length === 0) {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+        }
+      });
+    });
+
+    // FAQ summaries: clicking the checkbox must not toggle <details>.
+    document.querySelectorAll("input.faq-item__bulk").forEach(function (cb) {
+      cb.addEventListener("click", function (e) { e.stopPropagation(); });
+    });
+  })();
 })();
 
-  /* ---- searchable timezone picker (Studio availability) ---- */
   (function () {
     document.querySelectorAll("[data-tz-picker]").forEach(function (root) {
       var hidden = root.querySelector('input[type="hidden"][name="timezone"]');

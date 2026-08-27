@@ -88,6 +88,22 @@ def admin_required(f):
     return wrapper
 
 
+def _form_ids(name: str = "ids") -> list[int]:
+    """Parse checkbox / multi-value id lists from a Studio bulk form."""
+    out: list[int] = []
+    seen: set[int] = set()
+    for raw in request.form.getlist(name):
+        try:
+            value = int(raw)
+        except (TypeError, ValueError):
+            continue
+        if value in seen:
+            continue
+        seen.add(value)
+        out.append(value)
+    return out
+
+
 def _spotlight_candidates():
     """Current Creator-tier members (and owners) for Creator of the Month."""
     creators = (User.query.filter(
@@ -579,20 +595,12 @@ def product_gallery_upload(product_id):
     return redirect(url_for("admin.product_edit", product_id=product_id))
 
 
-@bp.route("/products/<int:product_id>/delete", methods=["POST"])
-@admin_required
-def product_delete(product_id):
+def _delete_product(product: Product) -> int:
+    """Delete a catalogue product; return count of unlinked past orders."""
     from ..models import CourseProgress, Order, Testimonial
     from ..services.product_covers import clear as clear_cover, clear_all_gallery
 
-    product = db.session.get(Product, product_id)
-    if product is None:
-        flash("That product was already gone.", "info")
-        return redirect(url_for("admin.products"))
-    title = product.title
     order_n = product.orders.count()
-
-    # Keep purchase history, but drop the catalogue link so the row can go.
     if order_n:
         (Order.query.filter_by(product_id=product.id)
          .update({Order.product_id: None}, synchronize_session=False))
@@ -606,6 +614,18 @@ def product_delete(product_id):
     for asset in list(product.assets):
         db.session.delete(asset)
     db.session.delete(product)
+    return order_n
+
+
+@bp.route("/products/<int:product_id>/delete", methods=["POST"])
+@admin_required
+def product_delete(product_id):
+    product = db.session.get(Product, product_id)
+    if product is None:
+        flash("That product was already gone.", "info")
+        return redirect(url_for("admin.products"))
+    title = product.title
+    order_n = _delete_product(product)
     db.session.commit()
     if order_n:
         flash(
@@ -615,6 +635,28 @@ def product_delete(product_id):
         )
     else:
         flash(f"Deleted “{title}”.", "success")
+    return redirect(url_for("admin.products"))
+
+
+@bp.route("/products/bulk-delete", methods=["POST"])
+@admin_required
+def products_bulk_delete():
+    ids = _form_ids()
+    if not ids:
+        flash("Select at least one product to delete.", "error")
+        return redirect(url_for("admin.products"))
+    deleted = 0
+    for pid in ids:
+        product = db.session.get(Product, pid)
+        if product is None:
+            continue
+        _delete_product(product)
+        deleted += 1
+    db.session.commit()
+    flash(
+        f"Deleted {deleted} product{'s' if deleted != 1 else ''}.",
+        "success" if deleted else "info",
+    )
     return redirect(url_for("admin.products"))
 
 
@@ -682,6 +724,30 @@ def quote_delete(quote_id):
     return redirect(url_for("admin.quotes"))
 
 
+@bp.route("/quotes/bulk-delete", methods=["POST"])
+@admin_required
+def quotes_bulk_delete():
+    ids = _form_ids()
+    if not ids:
+        flash("Select at least one quote to delete.", "error")
+        return redirect(url_for("admin.quotes"))
+    deleted = 0
+    for qid in ids:
+        quote = db.session.get(Quote, qid)
+        if quote is None:
+            continue
+        QuotePin.query.filter_by(quote_id=quote.id).delete()
+        QuoteFavorite.query.filter_by(quote_id=quote.id).delete()
+        db.session.delete(quote)
+        deleted += 1
+    db.session.commit()
+    flash(
+        f"Deleted {deleted} quote{'s' if deleted != 1 else ''}.",
+        "success" if deleted else "info",
+    )
+    return redirect(url_for("admin.quotes"))
+
+
 @bp.route("/quotes/pin", methods=["POST"])
 @admin_required
 def quote_pin():
@@ -710,6 +776,28 @@ def quote_unpin(pin_id):
     db.session.delete(pin)
     db.session.commit()
     flash("Pin removed \u2014 that day goes back to rotation.", "success")
+    return redirect(url_for("admin.quotes"))
+
+
+@bp.route("/quotes/pins/bulk-delete", methods=["POST"])
+@admin_required
+def quotes_pins_bulk_delete():
+    ids = _form_ids()
+    if not ids:
+        flash("Select at least one pin to remove.", "error")
+        return redirect(url_for("admin.quotes"))
+    deleted = 0
+    for pid in ids:
+        pin = db.session.get(QuotePin, pid)
+        if pin is None:
+            continue
+        db.session.delete(pin)
+        deleted += 1
+    db.session.commit()
+    flash(
+        f"Removed {deleted} pin{'s' if deleted != 1 else ''}.",
+        "success" if deleted else "info",
+    )
     return redirect(url_for("admin.quotes"))
 
 
@@ -803,6 +891,28 @@ def testimonial_delete(item_id):
     return redirect(url_for("admin.testimonials"))
 
 
+@bp.route("/testimonials/bulk-delete", methods=["POST"])
+@admin_required
+def testimonials_bulk_delete():
+    ids = _form_ids()
+    if not ids:
+        flash("Select at least one testimonial to delete.", "error")
+        return redirect(url_for("admin.testimonials"))
+    deleted = 0
+    for tid in ids:
+        item = db.session.get(Testimonial, tid)
+        if item is None:
+            continue
+        db.session.delete(item)
+        deleted += 1
+    db.session.commit()
+    flash(
+        f"Deleted {deleted} testimonial{'s' if deleted != 1 else ''}.",
+        "success" if deleted else "info",
+    )
+    return redirect(url_for("admin.testimonials"))
+
+
 # ================================= FAQ =======================================
 
 @bp.route("/faq")
@@ -844,6 +954,28 @@ def faq_delete(item_id):
     db.session.delete(item)
     db.session.commit()
     flash("FAQ item deleted.", "success")
+    return redirect(url_for("admin.faq"))
+
+
+@bp.route("/faq/bulk-delete", methods=["POST"])
+@admin_required
+def faq_bulk_delete():
+    ids = _form_ids()
+    if not ids:
+        flash("Select at least one FAQ item to delete.", "error")
+        return redirect(url_for("admin.faq"))
+    deleted = 0
+    for fid in ids:
+        item = db.session.get(FaqItem, fid)
+        if item is None:
+            continue
+        db.session.delete(item)
+        deleted += 1
+    db.session.commit()
+    flash(
+        f"Deleted {deleted} FAQ item{'s' if deleted != 1 else ''}.",
+        "success" if deleted else "info",
+    )
     return redirect(url_for("admin.faq"))
 
 
@@ -1049,6 +1181,21 @@ def settings():
                 db.session.commit()
             flash("Announcement removed.", "success")
             return redirect(url_for("admin.settings"))
+        remove_ids = _form_ids()
+        if request.form.get("bulk_remove_announcements") and remove_ids:
+            deleted = 0
+            for aid in remove_ids:
+                ann = db.session.get(Announcement, aid)
+                if ann is None:
+                    continue
+                db.session.delete(ann)
+                deleted += 1
+            db.session.commit()
+            flash(
+                f"Removed {deleted} announcement{'s' if deleted != 1 else ''}.",
+                "success" if deleted else "info",
+            )
+            return redirect(url_for("admin.settings"))
         values = {key: (request.form.get(key) or "").strip()
                   for key in SETTING_DEFAULTS
                   if key not in _SPOTLIGHT_KEYS}
@@ -1118,6 +1265,28 @@ def marketplace_delete(listing_id):
     db.session.delete(ln)
     db.session.commit()
     flash("Listing deleted.", "success")
+    return redirect(url_for("admin.marketplace"))
+
+
+@bp.route("/marketplace/bulk-delete", methods=["POST"])
+@admin_required
+def marketplace_bulk_delete():
+    ids = _form_ids()
+    if not ids:
+        flash("Select at least one listing to delete.", "error")
+        return redirect(url_for("admin.marketplace"))
+    deleted = 0
+    for lid in ids:
+        ln = db.session.get(MarketplaceListing, lid)
+        if ln is None:
+            continue
+        db.session.delete(ln)
+        deleted += 1
+    db.session.commit()
+    flash(
+        f"Deleted {deleted} listing{'s' if deleted != 1 else ''}.",
+        "success" if deleted else "info",
+    )
     return redirect(url_for("admin.marketplace"))
 
 
@@ -1238,6 +1407,32 @@ def video_delete(video_id):
     db.session.commit()
     delete_stored(current_app.config["VIDEO_STORAGE_DIR"], disk_name)
     flash("Video deleted.", "success")
+    return redirect(url_for("admin.videos"))
+
+
+@bp.route("/videos/bulk-delete", methods=["POST"])
+@admin_required
+def videos_bulk_delete():
+    ids = _form_ids()
+    if not ids:
+        flash("Select at least one video to delete.", "error")
+        return redirect(url_for("admin.videos"))
+    deleted = 0
+    storage = current_app.config["VIDEO_STORAGE_DIR"]
+    for vid in ids:
+        video = db.session.get(Video, vid)
+        if video is None:
+            continue
+        disk_name = video.disk_name
+        db.session.delete(video)
+        db.session.flush()
+        delete_stored(storage, disk_name)
+        deleted += 1
+    db.session.commit()
+    flash(
+        f"Deleted {deleted} video{'s' if deleted != 1 else ''}.",
+        "success" if deleted else "info",
+    )
     return redirect(url_for("admin.videos"))
 
 
@@ -1366,6 +1561,48 @@ def remove_member(user_id):
     flash(f"{name} was removed from Bloom Anyway.", "success")
     return redirect(back)
 
+
+@bp.route("/members/bulk-remove", methods=["POST"])
+@admin_required
+def members_bulk_remove():
+    """Soft-delete multiple member accounts from the Members page."""
+    from ..services.privacy import close_account
+
+    back = url_for(
+        "admin.members",
+        q=request.form.get("q") or None,
+        membership=request.form.get("membership_filter") or None,
+    )
+    ids = _form_ids()
+    if not ids:
+        flash("Select at least one member to remove.", "error")
+        return redirect(back)
+    removed = 0
+    skipped_owners = 0
+    for uid in ids:
+        member = db.session.get(User, uid)
+        if member is None or member.deleted_at is not None:
+            continue
+        if member.is_admin:
+            skipped_owners += 1
+            continue
+        close_account(member)
+        removed += 1
+    if removed:
+        flash(
+            f"Removed {removed} member{'s' if removed != 1 else ''} from Bloom Anyway.",
+            "success",
+        )
+    if skipped_owners:
+        flash(
+            f"Skipped {skipped_owners} Studio owner"
+            f"{'s' if skipped_owners != 1 else ''} (can't remove owners here).",
+            "info",
+        )
+    if not removed and not skipped_owners:
+        flash("No members were removed.", "info")
+    return redirect(back)
+
 # =============================== OWNERS ======================================
 
 @bp.route("/owners")
@@ -1402,6 +1639,46 @@ def owners_remove():
     from ..services import owners as owners_svc
     ok, msg = owners_svc.remove(request.form.get("email") or "", actor=current_user)
     flash(msg, "success" if ok else "error")
+    return redirect(url_for("admin.owners"))
+
+
+@bp.route("/owners/bulk-remove", methods=["POST"])
+@admin_required
+def owners_bulk_remove():
+    from ..services import owners as owners_svc
+
+    emails = [
+        (e or "").strip().lower()
+        for e in request.form.getlist("emails")
+        if (e or "").strip()
+    ]
+    # Dedupe while preserving order
+    seen: set[str] = set()
+    unique = []
+    for e in emails:
+        if e in seen:
+            continue
+        seen.add(e)
+        unique.append(e)
+    if not unique:
+        flash("Select at least one owner to remove.", "error")
+        return redirect(url_for("admin.owners"))
+    removed = 0
+    errors = []
+    for email in unique:
+        ok, msg = owners_svc.remove(email, actor=current_user)
+        if ok:
+            removed += 1
+        else:
+            errors.append(msg)
+    if removed:
+        flash(
+            f"Removed owner access for {removed} "
+            f"account{'s' if removed != 1 else ''}.",
+            "success",
+        )
+    for msg in errors[:3]:
+        flash(msg, "error")
     return redirect(url_for("admin.owners"))
 
 
@@ -1785,6 +2062,29 @@ def community_delete_post(post_id):
     return redirect(url_for("admin.community"))
 
 
+@bp.route("/community/posts/bulk-delete", methods=["POST"])
+@admin_required
+def community_bulk_delete_posts():
+    from ..services import forum_moderation
+
+    ids = _form_ids()
+    if not ids:
+        flash("Select at least one post to remove.", "error")
+        return redirect(url_for("admin.community"))
+    removed = 0
+    for pid in ids:
+        post = db.session.get(ForumPost, pid)
+        if post is None:
+            continue
+        forum_moderation.delete_post(post)
+        removed += 1
+    flash(
+        f"Removed {removed} post{'s' if removed != 1 else ''}.",
+        "success" if removed else "info",
+    )
+    return redirect(url_for("admin.community"))
+
+
 @bp.route("/community/comment/<int:comment_id>/delete", methods=["POST"])
 @admin_required
 def community_delete_comment(comment_id):
@@ -1960,6 +2260,29 @@ def community_remove_member(user_id):
     name = member.public_name()
     close_account(member)
     flash(f"{name} was removed from Bloom Anyway.", "success")
+    return redirect(url_for("admin.community"))
+
+
+@bp.route("/community/members/bulk-remove", methods=["POST"])
+@admin_required
+def community_bulk_remove_members():
+    from ..services.privacy import close_account
+
+    ids = _form_ids()
+    if not ids:
+        flash("Select at least one member to remove.", "error")
+        return redirect(url_for("admin.community"))
+    removed = 0
+    for uid in ids:
+        member = _community_member_for_moderation(uid)
+        if member is None:
+            continue
+        close_account(member)
+        removed += 1
+    flash(
+        f"Removed {removed} member{'s' if removed != 1 else ''} from Bloom Anyway.",
+        "success" if removed else "info",
+    )
     return redirect(url_for("admin.community"))
 
 
@@ -2173,11 +2496,28 @@ def support_groups_availability():
 
     action = (request.form.get("action") or "add").strip().lower()
     if action == "remove":
-        err = intake_svc.remove_availability(
-            request.form.get("window_id", type=int) or 0,
-            coach="saman",
-        )
-        flash(err or "Availability window removed.", "error" if err else "success")
+        ids = _form_ids("window_ids")
+        single = request.form.get("window_id", type=int) or 0
+        if single and single not in ids:
+            ids.append(single)
+        if not ids:
+            flash("Select at least one availability window to remove.", "error")
+            return redirect(url_for("admin.support_groups"))
+        removed = 0
+        err = None
+        for wid in ids:
+            err = intake_svc.remove_availability(wid, coach="saman")
+            if err:
+                break
+            removed += 1
+        if err:
+            flash(err, "error")
+        else:
+            flash(
+                f"Removed {removed} availability window"
+                f"{'s' if removed != 1 else ''}.",
+                "success",
+            )
         return redirect(url_for("admin.support_groups"))
 
     start = intake_svc.hhmm_to_minutes(request.form.get("start_time") or "")

@@ -17,9 +17,19 @@
 
   {% if items %}
   <section class="admin-panel studio-card studio-product-list">
-    <table class="studio-table">
+    {% with form_id='bulk-products',
+            action=url_for('admin.products_bulk_delete'),
+            confirm_template='Delete {n} selected product(s)?',
+            confirm_title='Delete selected products?',
+            confirm_ok='Delete',
+            button_label='Delete selected',
+            hidden={} %}
+      {% include "admin/_bulk_bar.html" %}
+    {% endwith %}
+    <table class="studio-table" style="margin-top: 16px;">
       <thead>
         <tr>
+          <th class="studio-bulk__check" scope="col"><span class="visually-hidden">Select</span></th>
           <th scope="col">Product</th>
           <th scope="col">Track</th>
           <th scope="col">Type</th>
@@ -31,6 +41,10 @@
       <tbody>
         {% for p in items %}
         <tr>
+          <td class="studio-bulk__check">
+            <input type="checkbox" name="ids" value="{{ p.id }}" form="bulk-products" data-bulk-item
+                   aria-label="Select {{ p.title }}">
+          </td>
           <td>
             <a class="studio-product-list__title" href="{{ url_for('admin.product_edit', product_id=p.id) }}">{{ p.title }}</a>
             <p class="field-help" style="margin:4px 0 0;">/courses/{{ p.slug }}</p>

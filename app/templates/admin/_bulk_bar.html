@@ -1,0 +1,26 @@
+{# Bulk select toolbar. Checkboxes elsewhere use form="{{ form_id }}" name="ids".
+   Optional: confirm_template with {n}, noun, button_label, confirm_ok, confirm_title #}
+<form id="{{ form_id }}"
+      method="post"
+      action="{{ action }}"
+      class="studio-bulk"
+      data-bulk
+      data-bulk-confirm="{{ confirm_template }}"
+      data-confirm-title="{{ confirm_title|default('Remove selected?') }}"
+      data-confirm-ok="{{ confirm_ok|default('Remove') }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  {% for key, val in (hidden or {}).items() %}
+  <input type="hidden" name="{{ key }}" value="{{ val }}">
+  {% endfor %}
+  <div class="studio-bulk__bar">
+    <label class="studio-bulk__select-all">
+      <input type="checkbox" data-bulk-all>
+      Select all
+    </label>
+    <span class="studio-bulk__count field-help" data-bulk-count hidden>0 selected</span>
+    <button type="submit"
+            class="btn btn--danger btn--sm"
+            data-bulk-submit
+            disabled>{{ button_label|default('Remove selected') }}</button>
+  </div>
+</form>

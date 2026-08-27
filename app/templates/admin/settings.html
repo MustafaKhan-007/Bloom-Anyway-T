@@ -231,11 +231,24 @@
     </form>
 
     {% if announcements %}
+    {% with form_id='bulk-announcements',
+            action=url_for('admin.settings'),
+            confirm_template='Remove {n} selected announcement(s)?',
+            confirm_title='Remove selected announcements?',
+            confirm_ok='Remove',
+            button_label='Remove selected',
+            hidden={'bulk_remove_announcements': '1'} %}
+      {% include "admin/_bulk_bar.html" %}
+    {% endwith %}
     <table class="admin-table" style="margin-top: 16px;">
-      <thead><tr><th>Announcement</th><th>Link</th><th>Expires</th><th>Status</th><th></th></tr></thead>
+      <thead><tr><th class="studio-bulk__check"><span class="visually-hidden">Select</span></th><th>Announcement</th><th>Link</th><th>Expires</th><th>Status</th><th></th></tr></thead>
       <tbody>
         {% for a in announcements %}
         <tr>
+          <td class="studio-bulk__check">
+            <input type="checkbox" name="ids" value="{{ a.id }}" form="bulk-announcements" data-bulk-item
+                   aria-label="Select announcement">
+          </td>
           <td>{{ a.body }}</td>
           <td>{% if a.link_url %}<span class="field-help" title="{{ a.link_url }}">Linked</span>{% else %}—{% endif %}</td>
           <td>{{ a.expires.isoformat() if a.expires else '—' }}</td>

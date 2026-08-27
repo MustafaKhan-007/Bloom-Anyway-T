@@ -32,9 +32,22 @@
 
   <section class="admin-panel studio-card">
     <h2>All questions ({{ items|length }})</h2>
+    {% if items %}
+    {% with form_id='bulk-faq',
+            action=url_for('admin.faq_bulk_delete'),
+            confirm_template='Delete {n} selected FAQ item(s)?',
+            confirm_title='Delete selected FAQ items?',
+            confirm_ok='Delete',
+            button_label='Delete selected',
+            hidden={} %}
+      {% include "admin/_bulk_bar.html" %}
+    {% endwith %}
+    {% endif %}
     {% for item in items %}
     <details class="admin-panel studio-card faq-item">
       <summary>
+        <input type="checkbox" name="ids" value="{{ item.id }}" form="bulk-faq" data-bulk-item
+               class="faq-item__bulk" aria-label="Select FAQ: {{ item.question }}">
         <span class="faq-item__q">{{ item.question }}</span>
         <span class="faq-item__hint">Edit</span>
       </summary>

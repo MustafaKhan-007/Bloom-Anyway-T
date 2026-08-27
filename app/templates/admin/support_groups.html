@@ -228,10 +228,21 @@
       <button class="btn btn--secondary btn--sm" type="submit">Add window</button>
     </form>
     {% if window_rows %}
+    {% with form_id='bulk-sg-windows',
+            action=url_for('admin.support_groups_availability'),
+            confirm_template='Remove {n} selected availability window(s)?',
+            confirm_title='Remove selected windows?',
+            confirm_ok='Remove',
+            button_label='Remove selected',
+            hidden={'action': 'remove'} %}
+      {% include "admin/_bulk_bar.html" %}
+    {% endwith %}
     <ul class="sg-avail-list" style="margin-top: 16px;">
       {% for row in window_rows %}
       {% set w = row.window %}
       <li>
+        <input type="checkbox" name="window_ids" value="{{ w.id }}" form="bulk-sg-windows" data-bulk-item
+               aria-label="Select {{ weekday_labels[w.weekday] }} window">
         <span>{{ weekday_labels[w.weekday] }}
           {{ minutes_to_hhmm(w.start_minute) }}–{{ minutes_to_hhmm(w.end_minute) }}
           <span class="field-help">({{ row.tz_label }})</span>

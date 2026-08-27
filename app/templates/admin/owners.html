@@ -17,13 +17,32 @@
 
   <section class="admin-panel studio-card">
     <h2 style="margin-top: 0;">Current owners</h2>
-    <table class="admin-table">
+    {% if owners and not studio_readonly %}
+    {% with form_id='bulk-owners',
+            action=url_for('admin.owners_bulk_remove'),
+            confirm_template='Remove owner access for {n} selected account(s)?',
+            confirm_title='Remove selected owners?',
+            confirm_ok='Remove',
+            button_label='Remove selected',
+            hidden={} %}
+      {% include "admin/_bulk_bar.html" %}
+    {% endwith %}
+    {% endif %}
+    <table class="admin-table" style="margin-top: 16px;">
       <thead>
-        <tr><th>Name</th><th>Email</th><th>Access</th><th></th></tr>
+        <tr>{% if owners and not studio_readonly %}<th class="studio-bulk__check"><span class="visually-hidden">Select</span></th>{% endif %}<th>Name</th><th>Email</th><th>Access</th><th></th></tr>
       </thead>
       <tbody>
         {% for o in owners %}
         <tr>
+          {% if owners and not studio_readonly %}
+          <td class="studio-bulk__check">
+            {% if (o.email or '')|lower != me_email and not studio_readonly %}
+            <input type="checkbox" name="emails" value="{{ o.email }}" form="bulk-owners" data-bulk-item
+                   aria-label="Select {{ o.email }}">
+            {% endif %}
+          </td>
+          {% endif %}
           <td>
             <strong>{{ o.public_name() }}</strong>
             {% if (o.email or '')|lower == me_email %}

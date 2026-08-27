@@ -18,10 +18,21 @@
   <section class="admin-panel studio-card">
     <h2>Members needing a look</h2>
     {% if flagged %}
+    {% with form_id='bulk-community-members',
+            action=url_for('admin.community_bulk_remove_members'),
+            confirm_template='Permanently remove {n} selected member account(s)? This cannot be undone.',
+            confirm_title='Remove selected members?',
+            confirm_ok='Remove',
+            button_label='Remove selected',
+            hidden={} %}
+      {% include "admin/_bulk_bar.html" %}
+    {% endwith %}
     <div class="flagged-list">
       {% for item in flagged %}
       {% set member = item.member %}
       <article class="flagged-member">
+        <input type="checkbox" name="ids" value="{{ member.id }}" form="bulk-community-members" data-bulk-item
+               class="flagged-member__select" aria-label="Select {{ member.public_name() }}">
         <header class="flagged-member__head">
           <div>
             <strong>{{ member.public_name() }}</strong>
@@ -122,11 +133,24 @@
   <section class="admin-panel studio-card">
     <h2>Recent posts</h2>
     {% if posts %}
-    <table class="admin-table" data-collapsible="15">
-      <thead><tr><th>Post</th><th>Category</th><th>Author</th><th>When</th><th></th></tr></thead>
+    {% with form_id='bulk-community-posts',
+            action=url_for('admin.community_bulk_delete_posts'),
+            confirm_template='Remove {n} selected post(s) and their comments?',
+            confirm_title='Remove selected posts?',
+            confirm_ok='Remove',
+            button_label='Remove selected',
+            hidden={} %}
+      {% include "admin/_bulk_bar.html" %}
+    {% endwith %}
+    <table class="admin-table" data-collapsible="15" style="margin-top: 16px;">
+      <thead><tr><th class="studio-bulk__check"><span class="visually-hidden">Select</span></th><th>Post</th><th>Category</th><th>Author</th><th>When</th><th></th></tr></thead>
       <tbody>
         {% for post in posts %}
         <tr>
+          <td class="studio-bulk__check">
+            <input type="checkbox" name="ids" value="{{ post.id }}" form="bulk-community-posts" data-bulk-item
+                   aria-label="Select {{ post.title }}">
+          </td>
           <td><a href="{{ url_for('forums.post', post_id=post.id) }}">{{ post.title }}</a></td>
           <td>{{ post.category.name }}</td>
           <td>{{ post.author.public_name() }}{% if post.anonymous %} <em>(anon)</em>{% endif %}</td>

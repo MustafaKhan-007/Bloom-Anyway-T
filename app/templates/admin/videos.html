@@ -13,13 +13,28 @@
   </div>
 
   <section class="admin-panel studio-card">
-    <table class="admin-table">
+    {% if videos %}
+    {% with form_id='bulk-videos',
+            action=url_for('admin.videos_bulk_delete'),
+            confirm_template='Delete {n} selected video(s)?',
+            confirm_title='Delete selected videos?',
+            confirm_ok='Delete',
+            button_label='Delete selected',
+            hidden={} %}
+      {% include "admin/_bulk_bar.html" %}
+    {% endwith %}
+    {% endif %}
+    <table class="admin-table" style="margin-top: 16px;">
       <thead>
-        <tr><th></th><th>Title</th><th>Size</th><th>Status</th><th>Added</th><th></th></tr>
+        <tr>{% if videos %}<th class="studio-bulk__check"><span class="visually-hidden">Select</span></th>{% endif %}<th></th><th>Title</th><th>Size</th><th>Status</th><th>Added</th><th></th></tr>
       </thead>
       <tbody>
         {% for v in videos %}
         <tr>
+          <td class="studio-bulk__check">
+            <input type="checkbox" name="ids" value="{{ v.id }}" form="bulk-videos" data-bulk-item
+                   aria-label="Select {{ v.title }}">
+          </td>
           <td style="width: 120px;">
             {% if v.has_thumb() %}
             <img src="{{ url_for('main.video_thumb', video_id=v.id) }}" alt="" style="width: 110px; border-radius: 8px; display: block;">

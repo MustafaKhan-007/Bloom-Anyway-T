@@ -6716,6 +6716,63 @@ a.at-handle:hover { text-decoration: underline; }
   padding: 12px 8px; border-bottom: 1px solid rgba(61,20,49,0.06);
   vertical-align: top;
 }
+
+/* Studio bulk select */
+.studio-bulk {
+  margin: 0 0 12px;
+}
+.studio-bulk__bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 16px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(61, 20, 49, 0.04);
+  border: 1px solid rgba(61, 20, 49, 0.08);
+}
+.studio-bulk__select-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #3d1431;
+  cursor: pointer;
+}
+.studio-bulk__check {
+  width: 2.25rem;
+  vertical-align: middle !important;
+}
+.studio-bulk__check input {
+  width: 1.05rem;
+  height: 1.05rem;
+  accent-color: #7A2E62;
+  cursor: pointer;
+}
+.studio-bulk__count {
+  margin: 0;
+}
+.flagged-member__select {
+  margin: 0 0 10px;
+  width: 1.05rem;
+  height: 1.05rem;
+  accent-color: #7A2E62;
+  cursor: pointer;
+}
+.faq-item__bulk {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-right: 8px;
+}
+.sg-avail-list .studio-bulk__check {
+  display: inline-flex;
+  margin-right: 8px;
+  width: auto;
+}
+
 .admin-main .page-head h1 { color: #3d1431; }
 .admin-body { background: #f6efe6 !important; }
 
