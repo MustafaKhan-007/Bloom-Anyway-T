@@ -161,6 +161,16 @@
           </ul>
           {% if current == 'healing' %}
           {% if current_user.is_authenticated and not current_user.is_admin %}
+          {% if current_user.membership_is_canceling() %}
+          <p class="mem-card__cancel-note">
+            Access ends on {{ current_user.membership_access_end_display() or 'your billing period end' }}.
+          </p>
+          <form method="post" action="{{ url_for('main.resume_membership') }}" class="mem-card__cancel">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="next" value="membership">
+            <button class="btn btn--primary btn--block" type="submit">Resume subscription</button>
+          </form>
+          {% else %}
           <form method="post" action="{{ url_for('main.cancel_membership') }}" class="mem-card__cancel"
                 data-confirm="Cancel Healing membership? You’ll keep access until the end of your billing period, then it will be revoked. You won’t be charged again."
                 data-confirm-title="Cancel membership?"
@@ -169,6 +179,7 @@
             <input type="hidden" name="next" value="membership">
             <button class="btn btn--secondary btn--block" type="submit">Cancel membership</button>
           </form>
+          {% endif %}
           {% else %}
           <span class="btn btn--secondary btn--block is-disabled">Your current plan</span>
           {% endif %}
@@ -246,6 +257,16 @@
           </ul>
           {% if current == 'creator' %}
           {% if current_user.is_authenticated and not current_user.is_admin %}
+          {% if current_user.membership_is_canceling() %}
+          <p class="mem-card__cancel-note">
+            Access ends on {{ current_user.membership_access_end_display() or 'your billing period end' }}.
+          </p>
+          <form method="post" action="{{ url_for('main.resume_membership') }}" class="mem-card__cancel">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="next" value="membership">
+            <button class="btn btn--gold btn--block" type="submit">Resume subscription</button>
+          </form>
+          {% else %}
           <form method="post" action="{{ url_for('main.cancel_membership') }}" class="mem-card__cancel"
                 data-confirm="Cancel Creator membership? You’ll keep access until the end of your billing period, then it will be revoked. You won’t be charged again."
                 data-confirm-title="Cancel membership?"
@@ -254,6 +275,7 @@
             <input type="hidden" name="next" value="membership">
             <button class="btn btn--secondary btn--block" type="submit">Cancel membership</button>
           </form>
+          {% endif %}
           {% else %}
           <span class="btn btn--secondary btn--block is-disabled">Your current plan</span>
           {% endif %}
@@ -334,6 +356,16 @@
           </ul>
           {% if current == 'full_bloom' %}
           {% if current_user.is_authenticated and not current_user.is_admin %}
+          {% if current_user.membership_is_canceling() %}
+          <p class="mem-card__cancel-note">
+            Access ends on {{ current_user.membership_access_end_display() or 'your billing period end' }}.
+          </p>
+          <form method="post" action="{{ url_for('main.resume_membership') }}" class="mem-card__cancel">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="next" value="membership">
+            <button class="btn btn--bloom btn--block" type="submit">Resume subscription</button>
+          </form>
+          {% else %}
           <form method="post" action="{{ url_for('main.cancel_membership') }}" class="mem-card__cancel"
                 data-confirm="Cancel Full Bloom membership? You’ll keep access until the end of your billing period, then it will be revoked. You won’t be charged again."
                 data-confirm-title="Cancel membership?"
@@ -342,6 +374,7 @@
             <input type="hidden" name="next" value="membership">
             <button class="btn btn--secondary btn--block" type="submit">Cancel membership</button>
           </form>
+          {% endif %}
           {% else %}
           <span class="btn btn--secondary btn--block is-disabled">Your current plan</span>
           {% endif %}

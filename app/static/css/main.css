@@ -5918,6 +5918,15 @@ a.at-handle:hover { text-decoration: underline; }
 }
 .mem-card__cancel { margin: 0; }
 .mem-card__cancel .btn { width: 100%; }
+.mem-card__cancel-note {
+  margin: 0 0 10px;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.4;
+  color: var(--rm-plum, #3d1431);
+  white-space: pre-line;
+}
 .mem-card--heal .mem-card__here {
   background: rgba(61, 20, 49, 0.1);
 }

@@ -67,6 +67,7 @@ def close_account(user: User) -> None:
     user.displayed_badges_json = None
     user.default_anonymous = False
     user.membership = "none"
+    user.membership_cancel_at = None
     try:
         from .listings import enforce_listing_limits
         enforce_listing_limits(user)

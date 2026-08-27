@@ -1205,6 +1205,205 @@ def cancel_membership_subscriptions(
     return result
 
 
+def resume_membership_subscriptions(email: str) -> dict:
+    """Undo cancel-at-period-end on membership subscriptions (keep renewing)."""
+    email_norm = (email or "").strip().lower()
+    result: dict[str, Any] = {
+        "ok": True,
+        "resumed": [],
+        "errors": [],
+    }
+    if not email_norm:
+        result["ok"] = False
+        result["errors"].append("missing_email")
+        return result
+
+    price_ids = _membership_price_ids()
+    if not price_ids:
+        result["errors"].append("no_membership_prices")
+        return result
+
+    sub_ids = _membership_subscription_ids_for_email(email_norm, price_ids)
+    if current_app.config.get("TESTING") or not configured():
+        result["resumed"] = sorted(sub_ids)
+        return result
+
+    _configure_stripe()
+    for sid in sorted(sub_ids):
+        try:
+            sub_d = _as_dict(stripe.Subscription.retrieve(sid))
+            if not sub_d.get("cancel_at_period_end") and not sub_d.get("cancel_at"):
+                result["resumed"].append(sid)
+                continue
+            stripe.Subscription.modify(sid, cancel_at_period_end=False)
+            # Clear a grace cancel_at if one was set (voluntary cancel uses period end).
+            try:
+                refreshed = _as_dict(stripe.Subscription.retrieve(sid))
+                if refreshed.get("cancel_at"):
+                    stripe.Subscription.modify(sid, cancel_at="")
+            except Exception:
+                pass
+            result["resumed"].append(sid)
+            log.info("stripe: resumed membership subscription %s for %s", sid, email_norm)
+        except Exception as exc:
+            msg = str(exc).lower()
+            if "already been canceled" in msg or "no such subscription" in msg:
+                result["errors"].append(f"gone:{sid}")
+                continue
+            log.exception("stripe: failed to resume %s", sid)
+            result["ok"] = False
+            result["errors"].append(f"resume_failed:{sid}")
+    return result
+
+
+def membership_cancel_status(email: str) -> dict:
+    """Live Stripe view of cancel-at-period-end for this email's memberships.
+
+    Returns ``{canceling, period_end, access_end}``.
+    """
+    email_norm = (email or "").strip().lower()
+    out = {"canceling": False, "period_end": None, "access_end": ""}
+    if not email_norm or not configured() or current_app.config.get("TESTING"):
+        return out
+    price_ids = _membership_price_ids()
+    if not price_ids:
+        return out
+    period_ends: list[int] = []
+    for sid in _membership_subscription_ids_for_email(email_norm, price_ids):
+        try:
+            _configure_stripe()
+            sub_d = _as_dict(stripe.Subscription.retrieve(sid))
+            status = (sub_d.get("status") or "").strip()
+            if status not in ("active", "trialing", "past_due"):
+                continue
+            if not (sub_d.get("cancel_at_period_end") or sub_d.get("cancel_at")):
+                continue
+            pe = sub_d.get("cancel_at") or sub_d.get("current_period_end")
+            try:
+                pe_i = int(pe) if pe is not None else None
+            except (TypeError, ValueError):
+                pe_i = None
+            if pe_i:
+                period_ends.append(pe_i)
+            out["canceling"] = True
+        except Exception:
+            log.exception("stripe: cancel status failed for %s", sid)
+    if period_ends:
+        out["period_end"] = max(period_ends)
+        out["access_end"] = format_access_end_date(out["period_end"])
+    return out
+
+
+def _membership_subscription_ids_for_email(
+    email_norm: str, price_ids: set[str] | None = None,
+) -> set[str]:
+    """Collect Stripe subscription ids for this email that use membership prices."""
+    from sqlalchemy import func
+
+    prices = price_ids or _membership_price_ids()
+    sub_ids: set[str] = set()
+    if not email_norm or not prices:
+        return sub_ids
+
+    paid = (
+        Order.query
+        .filter(
+            func.lower(Order.buyer_email) == email_norm,
+            Order.status == "paid",
+            Order.ls_variant_id.in_(list(prices)),
+        )
+        .all()
+    )
+    for order in paid:
+        sid = _subscription_id_from_payment_ref(order.ls_order_id or "")
+        if sid:
+            sub_ids.add(sid)
+
+    if not configured() or current_app.config.get("TESTING"):
+        return sub_ids
+
+    try:
+        _configure_stripe()
+        customers_data = []
+        try:
+            safe = email_norm.replace("\\", "\\\\").replace("'", "\\'")
+            found = stripe.Customer.search(
+                query=f"email:'{safe}'", limit=20,
+            )
+            customers_data = list(found.data or [])
+        except Exception:
+            listed = stripe.Customer.list(limit=100)
+            customers_data = [
+                c for c in list(listed.data or [])
+                if (getattr(c, "email", None) or "").strip().lower() == email_norm
+            ]
+        for cust in customers_data:
+            cust_id = _stripe_id(cust) or getattr(cust, "id", None)
+            if not cust_id:
+                continue
+            for status in ("active", "trialing", "past_due"):
+                page = stripe.Subscription.list(
+                    customer=cust_id, status=status, limit=20,
+                )
+                for sub in list(page.data or []):
+                    sub_d = _as_dict(sub)
+                    items = (sub_d.get("items") or {}).get("data") or []
+                    matched = False
+                    for item in items:
+                        item_d = _as_dict(item)
+                        pid = _stripe_id(item_d.get("price"))
+                        if pid and pid in prices:
+                            matched = True
+                            break
+                    if matched:
+                        sid = _stripe_id(sub_d.get("id"))
+                        if sid:
+                            sub_ids.add(sid)
+    except Exception:
+        log.exception("stripe: list membership subscriptions failed for %s", email_norm)
+    return sub_ids
+
+
+def apply_cancel_at_to_user(user, period_end: int | None) -> None:
+    """Persist scheduled access-end on the user (caller commits)."""
+    if user is None:
+        return
+    from datetime import datetime, timedelta, timezone
+
+    from ..models import utcnow
+
+    if period_end:
+        try:
+            user.membership_cancel_at = datetime.fromtimestamp(
+                int(period_end), tz=timezone.utc,
+            ).replace(tzinfo=None)
+            return
+        except (TypeError, ValueError, OSError):
+            pass
+    # Fallback: mark canceling with a far-enough placeholder so UI flips;
+    # Stripe webhook still revokes at the real period end.
+    if user.membership_cancel_at is None:
+        user.membership_cancel_at = utcnow() + timedelta(days=31)
+
+
+def clear_cancel_at_for_email(email: str) -> None:
+    """Clear membership_cancel_at after resume or subscription end."""
+    from sqlalchemy import func
+
+    from ..models import User
+
+    email_norm = (email or "").strip().lower()
+    if not email_norm:
+        return
+    user = (
+        User.query
+        .filter(func.lower(User.email) == email_norm, User.deleted_at.is_(None))
+        .first()
+    )
+    if user is not None and user.membership_cancel_at is not None:
+        user.membership_cancel_at = None
+
+
 def _end_paid_membership_orders(email_norm: str, price_ids: set[str] | None = None) -> int:
     """Mark paid membership Orders refunded and reconcile the member's tier."""
     from sqlalchemy import func
@@ -1300,6 +1499,7 @@ def handle_subscription_deleted(sub: dict) -> dict:
     result["membership"] = True
     ended = _end_paid_membership_orders(email, prices)
     result["orders_ended"] = ended
+    clear_cancel_at_for_email(email)
     log.info(
         "stripe: subscription.deleted ended %s order(s) for %s",
         ended, email,

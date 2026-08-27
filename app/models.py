@@ -89,6 +89,8 @@ class User(UserMixin, db.Model):
 
     # membership tier: none / healing / creator / full_bloom (owner-assigned)
     membership = db.Column(db.String(20), nullable=False, default="none")
+    # When set, Stripe cancel-at-period-end is scheduled; access until this UTC time.
+    membership_cancel_at = db.Column(db.DateTime)
 
     # showing-up streak ("I showed up today")
     last_checkin_date = db.Column(db.Date)
@@ -173,6 +175,22 @@ class User(UserMixin, db.Model):
     def is_member(self) -> bool:
         """Any paid membership (or owner)."""
         return self.effective_membership() in ("healing", "creator", "full_bloom")
+
+    def membership_is_canceling(self) -> bool:
+        """True when cancel-at-period-end is scheduled and access still remains."""
+        ends = self.membership_cancel_at
+        if ends is None or self.effective_membership() == "none":
+            return False
+        return ends >= utcnow()
+
+    def membership_access_end_display(self) -> str:
+        """Human date for canceling memberships, or empty."""
+        if not self.membership_is_canceling():
+            return ""
+        try:
+            return self.membership_cancel_at.strftime("%b %d, %Y")
+        except Exception:
+            return ""
 
     def has_feature(self, key: str) -> bool:
         """True when this user's plan includes a Studio-toggled capability."""

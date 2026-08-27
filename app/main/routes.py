@@ -358,9 +358,51 @@ def _safe_back_url(raw: str | None):
     return None
 
 
+def _sync_membership_cancel_flag(user) -> None:
+    """Pull cancel-at-period-end from Stripe so the UI stays honest."""
+    if user is None or not user.is_authenticated or user.is_admin:
+        return
+    if not user.is_member() or not pay.configured():
+        return
+    try:
+        live = pay.membership_cancel_status(user.email)
+    except Exception:
+        log.exception("membership cancel sync failed for user %s", user.id)
+        return
+    changed = False
+    if live.get("canceling"):
+        pe = live.get("period_end")
+        if pe:
+            from datetime import datetime, timezone
+            try:
+                ends = datetime.fromtimestamp(int(pe), tz=timezone.utc).replace(tzinfo=None)
+            except (TypeError, ValueError, OSError):
+                ends = None
+            if ends and user.membership_cancel_at != ends:
+                user.membership_cancel_at = ends
+                changed = True
+        elif user.membership_cancel_at is None:
+            pay.apply_cancel_at_to_user(user, None)
+            changed = True
+    elif user.membership_cancel_at is not None and not live.get("canceling"):
+        # Stripe says renewing again (or sub gone) — clear stale local flag only
+        # when they still have a paid membership (revoke webhook clears on end).
+        user.membership_cancel_at = None
+        changed = True
+    if changed:
+        try:
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+            log.exception("membership cancel flag commit failed for user %s", user.id)
+
+
 @bp.route("/membership")
 def membership():
     from ..services.plan_features import build_membership_matrix
+
+    if current_user.is_authenticated:
+        _sync_membership_cancel_flag(current_user)
 
     all_plans = {p.tier: p for p in MembershipPlan.query.all()}
     plans = {t: p for t, p in all_plans.items() if p.active}
@@ -747,6 +789,7 @@ def account():
     # Attach any pending Stripe purchases that match this email (guest checkout → later signup).
     if link_pending_purchases(current_user):
         db.session.commit()
+    _sync_membership_cancel_flag(current_user)
 
     hour = datetime.now().hour
     if hour < 12:
@@ -1116,6 +1159,7 @@ def journey_pdf():
 @bp.route("/account/settings")
 @login_required
 def settings():
+    _sync_membership_cancel_flag(current_user)
     links = current_user.links()
     return render_template("main/settings.html", intents=INTENTS,
                            user_goals=set(current_user.goals()),
@@ -1138,6 +1182,13 @@ def cancel_membership():
         return redirect(dest)
     if current_user.membership == "none":
         flash("You're on the free plan already.", "info")
+        return redirect(dest)
+    if current_user.membership_is_canceling():
+        flash(
+            f"Your membership is already set to end on "
+            f"{current_user.membership_access_end_display() or 'the billing period end'}.",
+            "info",
+        )
         return redirect(dest)
 
     from ..models import MembershipPlan
@@ -1171,7 +1222,21 @@ def cancel_membership():
 
     access_end = pay.format_access_end_date(stripe_result.get("period_end"))
     if not access_end:
+        # Fall back to live Stripe status if the cancel response omitted the date.
+        live = pay.membership_cancel_status(current_user.email)
+        if live.get("period_end"):
+            stripe_result["period_end"] = live["period_end"]
+            access_end = live.get("access_end") or ""
+    if not access_end:
         access_end = "the end of your billing period"
+
+    if stripe_result.get("cancelled") or not pay.configured():
+        pay.apply_cancel_at_to_user(current_user, stripe_result.get("period_end"))
+        db.session.commit()
+    elif stripe_result.get("ok") and not stripe_result.get("cancelled"):
+        # No live Stripe sub found — treat as cancelled locally so UI updates.
+        pay.apply_cancel_at_to_user(current_user, stripe_result.get("period_end"))
+        db.session.commit()
 
     try:
         send_membership_cancelled(
@@ -1193,16 +1258,56 @@ def cancel_membership():
             f"Your membership is cancelled. Access continues until {access_end}.",
             "success",
         )
-    elif stripe_result.get("ok"):
+    else:
         flash(
-            "Cancellation noted. No active Stripe subscription was found for "
-            "this email — you will not be charged again from Bloom.",
+            "We couldn't confirm the cancel with Stripe yet. "
+            "If renewals continue, contact us and we'll sort it out.",
+            "error",
+        )
+    return redirect(dest)
+
+
+@bp.route("/account/membership/resume", methods=["POST"])
+@login_required
+def resume_membership():
+    next_page = (request.form.get("next") or "").strip().lower()
+    dest = url_for("main.membership") if next_page == "membership" else url_for("main.settings")
+
+    if current_user.is_admin:
+        flash("The owner account always keeps Full Bloom access.", "info")
+        return redirect(dest)
+    if not current_user.is_member():
+        flash("You're on the free plan — nothing to resume.", "info")
+        return redirect(dest)
+    if not current_user.membership_is_canceling():
+        # Still try Stripe in case local flag is stale.
+        live = pay.membership_cancel_status(current_user.email) if pay.configured() else {}
+        if not live.get("canceling"):
+            flash("Your membership isn't scheduled to end.", "info")
+            return redirect(dest)
+
+    result = {"ok": True, "resumed": [], "errors": []}
+    if pay.configured():
+        try:
+            result = pay.resume_membership_subscriptions(current_user.email)
+        except Exception:
+            log.exception(
+                "Stripe membership resume failed for user %s", current_user.id,
+            )
+            result = {"ok": False, "resumed": [], "errors": ["exception"]}
+
+    if result.get("resumed") or (result.get("ok") and not result.get("errors")):
+        current_user.membership_cancel_at = None
+        db.session.commit()
+        flash(
+            "Welcome back — your membership will renew as usual. "
+            "You won't lose access at the end of this period.",
             "success",
         )
     else:
         flash(
-            "We could not reach Stripe to stop renewals automatically. Check "
-            "Stripe or your receipt email so you are not charged again.",
+            "We couldn't resume your subscription with Stripe. "
+            "Try again in a moment, or contact us for help.",
             "error",
         )
     return redirect(dest)
