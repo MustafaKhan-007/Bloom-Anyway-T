@@ -958,6 +958,9 @@ class Order(db.Model):
     total_cents = db.Column(db.Integer, nullable=False, default=0)
     currency = db.Column(db.String(3), nullable=False, default="USD")
     status = db.Column(db.String(20), nullable=False, default="paid")
+    # Set when a membership welcome email is claimed/sent for this order.
+    # Used to stop duplicate welcomes across checkout + invoice events.
+    welcome_sent_at = db.Column(db.DateTime)
     created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
 
     def total_display(self):

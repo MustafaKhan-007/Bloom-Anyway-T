@@ -650,6 +650,49 @@ def sync_recent_payments(*, days: int = 60, max_pages: int = 3) -> dict:
     }
 
 
+def _claim_membership_welcome(email: str, tier: str, order: Order) -> bool:
+    """Return True once per email+tier — claim before sending to stop duplicates.
+
+    checkout.session.completed and invoice.paid often use different payment ids,
+    so order-level send_receipt alone is not enough.
+    """
+    from sqlalchemy import func
+
+    from ..models import utcnow
+
+    email_l = (email or "").strip().lower()
+    tier_l = (tier or "").strip().lower()
+    if not email_l or "@" not in email_l or tier_l not in ("healing", "creator", "full_bloom"):
+        return False
+    if getattr(order, "welcome_sent_at", None) is not None:
+        return False
+
+    prior = (
+        Order.query
+        .filter(
+            func.lower(Order.buyer_email) == email_l,
+            Order.membership_tier == tier_l,
+            Order.welcome_sent_at.isnot(None),
+        )
+        .first()
+    )
+    if prior is not None:
+        return False
+
+    # Claim immediately so a parallel webhook with another payment_id skips.
+    order.welcome_sent_at = utcnow()
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        log.exception(
+            "stripe: failed claiming membership welcome for %s (%s)",
+            email_l, tier_l,
+        )
+        return False
+    return True
+
+
 def upsert_order_from_payment(
     *,
     payment_id: str,
@@ -857,12 +900,15 @@ def handle_payment_event(event_type: str, data: dict) -> Order | None:
 
     if (send_receipt and plan and plan.tier in ("healing", "creator", "full_bloom")
             and order.buyer_email and "@" in order.buyer_email):
+        # Already on this tier (or higher) before this fulfill — renewals / no-ops.
         already = (
             (plan.tier == "healing" and prev_tier in ("healing", "creator", "full_bloom"))
             or (plan.tier == "creator" and prev_tier in ("creator", "full_bloom"))
             or (plan.tier == "full_bloom" and prev_tier == "full_bloom")
         )
-        if not already and plan.tier in ("healing", "creator", "full_bloom"):
+        # Durable claim: one welcome per email+tier across checkout + invoice ids.
+        if (not already
+                and _claim_membership_welcome(order.buyer_email, plan.tier, order)):
             try:
                 from .mailer import (
                     send_creator_welcome,
