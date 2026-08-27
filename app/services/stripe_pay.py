@@ -1418,12 +1418,70 @@ def _tier_hint_from_text(*parts: str) -> str | None:
     return None
 
 
-def _tier_from_live_subscription(sub_d: dict) -> tuple[str | None, str | None]:
-    """Resolve (tier, price_id) for one Stripe subscription dict."""
+def _stripe_price_labels(price_id: str | None) -> tuple[str, str]:
+    """Return (nickname, product_name) for a Stripe price, best-effort."""
+    pid = (price_id or "").strip()
+    if not pid or not configured() or current_app.config.get("TESTING"):
+        return "", ""
+    try:
+        _configure_stripe()
+        price = stripe.Price.retrieve(pid, expand=["product"])
+        price_d = _as_dict(price)
+        nick = str(price_d.get("nickname") or "")
+        prod = price_d.get("product")
+        if isinstance(prod, dict):
+            return nick, str(prod.get("name") or "")
+        if isinstance(prod, str) and prod.startswith("prod_"):
+            p = _as_dict(stripe.Product.retrieve(prod))
+            return nick, str(p.get("name") or "")
+        return nick, ""
+    except Exception:
+        log.warning("stripe: could not load labels for price %s", pid, exc_info=True)
+        return "", ""
+
+
+def resolve_membership_tier(
+    price_id: str | None,
+    *,
+    metadata: dict | None = None,
+    product_name: str | None = None,
+    nickname: str | None = None,
+    fetch_stripe_labels: bool = False,
+) -> str | None:
+    """Resolve healing/creator/full_bloom for a price.
+
+    Priority: checkout metadata ``tier`` → Stripe product/nickname text →
+    Studio MembershipPlan price mapping. Stripe's product name wins over a
+    mis-pasted Studio price id (e.g. Creator price on the Healing row).
+    """
     from .memberships import _plan_for_product_id
 
-    meta = sub_d.get("metadata") if isinstance(sub_d.get("metadata"), dict) else {}
+    meta = metadata if isinstance(metadata, dict) else {}
     meta_tier = str((meta or {}).get("tier") or "").strip().lower()
+    if meta_tier in ("healing", "creator", "full_bloom"):
+        return meta_tier
+
+    nick = (nickname or "").strip()
+    pname = (product_name or "").strip()
+    if fetch_stripe_labels and price_id and not (nick or pname):
+        nick, pname = _stripe_price_labels(price_id)
+
+    name_tier = _tier_hint_from_text(
+        nick, pname, str((meta or {}).get("product_name") or ""),
+    )
+    if name_tier in ("healing", "creator", "full_bloom"):
+        return name_tier
+
+    if price_id:
+        plan = _plan_for_product_id(price_id)
+        if plan and plan.tier in ("healing", "creator", "full_bloom"):
+            return plan.tier
+    return None
+
+
+def _tier_from_live_subscription(sub_d: dict) -> tuple[str | None, str | None]:
+    """Resolve (tier, price_id) for one Stripe subscription dict."""
+    meta = sub_d.get("metadata") if isinstance(sub_d.get("metadata"), dict) else {}
     items = (sub_d.get("items") or {}).get("data") or []
     price_id = None
     price_nick = ""
@@ -1440,25 +1498,19 @@ def _tier_from_live_subscription(sub_d: dict) -> tuple[str | None, str | None]:
             prod = price_obj.get("product")
             if isinstance(prod, dict):
                 product_name = str(prod.get("name") or "")
+            elif isinstance(prod, str) and not product_name:
+                # Unexpanded product id — resolve below via fetch.
+                pass
         break
 
-    if meta_tier in ("healing", "creator", "full_bloom"):
-        return meta_tier, price_id
-
-    if price_id:
-        plan = _plan_for_product_id(price_id)
-        if plan and plan.tier in ("healing", "creator", "full_bloom"):
-            # Studio sometimes pastes the Creator price onto Full Bloom. Prefer
-            # Stripe product/nickname when it clearly names a half-tier.
-            name_tier = _tier_hint_from_text(price_nick, product_name)
-            if (plan.tier == "full_bloom" and name_tier in ("healing", "creator")):
-                return name_tier, price_id
-            return plan.tier, price_id
-
-    name_tier = _tier_hint_from_text(
-        price_nick, product_name, str((meta or {}).get("product_name") or ""),
+    tier = resolve_membership_tier(
+        price_id,
+        metadata=meta,
+        product_name=product_name,
+        nickname=price_nick,
+        fetch_stripe_labels=not (product_name or price_nick),
     )
-    return name_tier, price_id
+    return tier, price_id
 
 
 def _list_customer_membership_subs(email_norm: str) -> list[dict] | None:

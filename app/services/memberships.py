@@ -33,10 +33,20 @@ def _plan_for_product_id(product_id):
         return None
     if len(matches) == 1:
         return matches[0]
-    # Same Stripe price on multiple plans (Studio misconfig). Prefer a half-tier
-    # over Full Bloom so a Creator checkout cannot grant Full Bloom by accident.
+    # Same Stripe price on multiple plans (Studio misconfig). Never guess
+    # Healing vs Creator — prefer Full Bloom only if it's the sole paid match
+    # alongside nothing else useful; otherwise prefer creator over healing when
+    # both halves claim the same price (creator is the common mis-paste target
+    # to fix via Stripe product name in resolve_membership_tier).
+    by_tier = {p.tier: p for p in matches}
+    if "creator" in by_tier and "healing" in by_tier:
+        log.warning(
+            "membership: price %s on both healing and creator; defer to Stripe name",
+            key,
+        )
+        return None
     halves = [p for p in matches if p.tier in ("healing", "creator")]
-    pick = halves[0] if len(halves) == 1 else matches[0]
+    pick = halves[0] if len(halves) == 1 else (by_tier.get("full_bloom") or matches[0])
     log.warning(
         "membership: price %s matches plans %s; using %s",
         key, [p.tier for p in matches], pick.tier,
@@ -48,6 +58,8 @@ def purchased_tier(email: str) -> str:
     """Highest membership tier this email owns via paid membership orders."""
     if not email:
         return "none"
+    from .stripe_pay import resolve_membership_tier
+
     orders = (Order.query
               .filter(Order.status == "paid",
                       func.lower(Order.buyer_email) == email.strip().lower(),
@@ -55,9 +67,15 @@ def purchased_tier(email: str) -> str:
               .all())
     best = "none"
     for order in orders:
-        plan = _plan_for_product_id(order.ls_variant_id)
-        if plan and plan.tier in _PAID_TIERS:
-            best = higher_membership(best, plan.tier)
+        tier = resolve_membership_tier(
+            order.ls_variant_id,
+            fetch_stripe_labels=True,
+        )
+        if not tier:
+            plan = _plan_for_product_id(order.ls_variant_id)
+            tier = plan.tier if plan and plan.tier in _PAID_TIERS else None
+        if tier in _PAID_TIERS:
+            best = higher_membership(best, tier)
     return best
 
 
@@ -122,7 +140,13 @@ def apply_from_order(order: Order) -> None:
     """After an order changes, grant/revoke membership if its product matches a plan."""
     if not order or not order.ls_variant_id:
         return
-    plan = _plan_for_product_id(order.ls_variant_id)
-    if not plan or plan.tier not in _PAID_TIERS:
+    from .stripe_pay import resolve_membership_tier
+
+    tier = resolve_membership_tier(order.ls_variant_id, fetch_stripe_labels=True)
+    if not tier:
+        plan = _plan_for_product_id(order.ls_variant_id)
+        if not plan or plan.tier not in _PAID_TIERS:
+            return
+    elif tier not in _PAID_TIERS:
         return
     reconcile_email(order.buyer_email, downgrade=(order.status == "refunded"))
