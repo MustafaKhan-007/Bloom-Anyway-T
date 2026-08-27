@@ -2140,7 +2140,7 @@ html.is-page-loading { cursor: progress; }
 }
 .spotlight-candidates ul, .spotlight-list { list-style: none; padding: 0; margin: 8px 0 0; }
 .spotlight-candidates li, .spotlight-list li { padding: 6px 0; border-bottom: 1px solid var(--ivory-deep); }
-.member-search { display: flex; gap: 10px; max-width: 420px; }
+.member-search { display: flex; gap: 10px; max-width: 520px; align-items: center; }
 .member-search input { flex: 1; }
 .stat-row { display: flex; gap: 14px; flex-wrap: wrap; }
 .stat-chip {
@@ -2148,6 +2148,19 @@ html.is-page-loading { cursor: progress; }
   font-weight: 600; color: var(--ink-soft);
 }
 .stat-chip span { font-size: 22px; font-weight: 700; color: var(--plum); margin-right: 6px; }
+a.studio-member-filter {
+  text-decoration: none;
+  transition: background 150ms ease, color 150ms ease;
+}
+a.studio-member-filter:hover {
+  background: rgba(61, 20, 49, 0.12);
+  color: var(--ink);
+}
+a.studio-member-filter.is-active {
+  background: var(--plum);
+  color: #fff;
+}
+a.studio-member-filter.is-active span { color: #fff; }
 .link-fields--locked { opacity: 0.9; }
 
 /* ---------- Membership plans & comparison ---------- */
