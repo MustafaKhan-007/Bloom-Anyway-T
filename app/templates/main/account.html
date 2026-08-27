@@ -16,9 +16,11 @@
           <div class="ms-exact__badges">
             {% if current_user.is_admin %}
             <span class="ms-exact__badge ms-exact__badge--gold">Owner</span>
-            {% elif current_user.is_creator() %}
+            {% elif current_user.effective_membership() == 'full_bloom' %}
+            <span class="ms-exact__badge ms-exact__badge--gold">Full Bloom Member</span>
+            {% elif current_user.effective_membership() == 'creator' %}
             <span class="ms-exact__badge ms-exact__badge--gold">Creator Member</span>
-            {% elif current_user.is_member() %}
+            {% elif current_user.effective_membership() == 'healing' %}
             <span class="ms-exact__badge ms-exact__badge--heal">Healing Member</span>
             {% else %}
             <span class="ms-exact__badge">Free</span>
@@ -280,9 +282,7 @@
             {% endfor %}
           </ul>
           <p class="ms-exact__renews">Renews with your {{ plan_perks.label() }} plan.</p>
-          {% if current_user.effective_membership() != 'full_bloom' %}
-          <a class="btn btn--gold btn--sm" href="{{ url_for('main.membership', next=url_for('main.account')) }}">See other plans</a>
-          {% endif %}
+          <a class="btn btn--gold btn--sm" href="{{ url_for('main.membership', next=url_for('main.account')) }}">View membership</a>
           {% endif %}
           {% else %}
           <h3>Free</h3>

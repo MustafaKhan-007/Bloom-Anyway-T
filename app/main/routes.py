@@ -789,6 +789,10 @@ def account():
     # Attach any pending Stripe purchases that match this email (guest checkout → later signup).
     if link_pending_purchases(current_user):
         db.session.commit()
+    # Keep tier in sync with paid membership orders (fixes stale Full Bloom, etc.).
+    from ..services.memberships import reconcile_user
+    if reconcile_user(current_user):
+        db.session.commit()
     _sync_membership_cancel_flag(current_user)
 
     hour = datetime.now().hour
@@ -1159,6 +1163,9 @@ def journey_pdf():
 @bp.route("/account/settings")
 @login_required
 def settings():
+    from ..services.memberships import reconcile_user
+    if reconcile_user(current_user):
+        db.session.commit()
     _sync_membership_cancel_flag(current_user)
     links = current_user.links()
     return render_template("main/settings.html", intents=INTENTS,

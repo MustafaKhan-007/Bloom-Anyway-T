@@ -1518,6 +1518,28 @@ def membership_plans():
                 )
             except ValueError:
                 plan.founder_annual_price_cents = plan.founder_annual_price_cents
+        # Reject the same Stripe price on two plans — that made Creator checkouts
+        # look like Full Bloom when both rows matched one order.
+        seen_prices: dict[str, str] = {}
+        dupes = []
+        for plan in plans:
+            for raw in (plan.stripe_price_id, plan.stripe_price_id_annual):
+                key = (raw or "").strip()
+                if not key:
+                    continue
+                other = seen_prices.get(key)
+                if other and other != plan.tier:
+                    dupes.append(f"{key} ({other} + {plan.tier})")
+                else:
+                    seen_prices[key] = plan.tier
+        if dupes:
+            db.session.rollback()
+            flash(
+                "Each Stripe price can only belong to one plan. Duplicates: "
+                + "; ".join(dupes),
+                "error",
+            )
+            return redirect(url_for("admin.membership_plans"))
         db.session.commit()
         flash("Membership plans saved.", "success")
         return redirect(url_for("admin.membership_plans"))

@@ -1399,6 +1399,36 @@ with app.app_context():
     t = User.query.filter_by(email="buyer2@example.com").first().membership
 ok("Buying a membership upgrades the account", t == "creator", f"got {t}")
 
+# Stale / studio Healing on the column must NOT invent Full Bloom from a Creator buy
+with app.app_context():
+    from app.services.memberships import reconcile_user
+    stuck = User.query.filter_by(email="buyer2@example.com").first()
+    stuck.membership = "full_bloom"  # wrong leftover
+    db.session.commit()
+    reconcile_user(stuck)
+    db.session.commit()
+    t = User.query.filter_by(email="buyer2@example.com").first().membership
+ok("Creator-only purchases re-sync to Creator (not Full Bloom)", t == "creator", f"got {t}")
+
+# Both paid halves → Full Bloom
+with app.app_context():
+    from app.models import MembershipPlan
+    hplan = MembershipPlan.query.filter_by(tier="healing").first()
+    hplan.stripe_price_id = "prod_healing_mem"
+    hplan.active = True
+    db.session.commit()
+_order_webhook("MEM-H1", "buyer2@example.com", "prod_healing_mem")
+with app.app_context():
+    t = User.query.filter_by(email="buyer2@example.com").first().membership
+ok("Healing + Creator purchases upgrade to Full Bloom", t == "full_bloom", f"got {t}")
+
+# a refund of healing leaves Creator
+_order_webhook("MEM-H1", "buyer2@example.com", "prod_healing_mem",
+               event="refund.succeeded")
+with app.app_context():
+    t = User.query.filter_by(email="buyer2@example.com").first().membership
+ok("Refunding Healing leaves Creator", t == "creator", f"got {t}")
+
 # a refund revokes it
 _order_webhook("MEM-1", "buyer2@example.com", "prod_creator_mem",
                event="refund.succeeded")
