@@ -48,7 +48,15 @@
       <tbody>
         {% for m in people %}
         <tr>
-          <td>{{ m.public_name() }}{% if m.is_admin %} <span class="status-pill">owner</span>{% endif %}</td>
+          <td>
+            {{ m.public_name() }}
+            {% if m.is_admin %} <span class="status-pill">owner</span>{% endif %}
+            {% if m.membership_is_canceling() %}
+            <span class="status-pill status-pill--pending" title="Access continues until period end">
+              cancelled, revoked on {{ m.membership_access_end_display() }}
+            </span>
+            {% endif %}
+          </td>
           <td>{{ m.email }}</td>
           <td>{{ m.created_at.strftime('%b %d, %Y') }}</td>
           <td>
