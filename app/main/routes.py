@@ -402,6 +402,9 @@ def membership():
     from ..services.plan_features import build_membership_matrix
 
     if current_user.is_authenticated:
+        from ..services.memberships import reconcile_user
+        if reconcile_user(current_user):
+            db.session.commit()
         _sync_membership_cancel_flag(current_user)
 
     all_plans = {p.tier: p for p in MembershipPlan.query.all()}

@@ -1405,6 +1405,234 @@ def membership_cancel_status(email: str) -> dict:
     return out
 
 
+def _tier_hint_from_text(*parts: str) -> str | None:
+    blob = " ".join(p for p in parts if p).lower()
+    if not blob:
+        return None
+    if "full bloom" in blob or "full_bloom" in blob or "fullbloom" in blob:
+        return "full_bloom"
+    if "creator" in blob or "building" in blob:
+        return "creator"
+    if "healing" in blob:
+        return "healing"
+    return None
+
+
+def _tier_from_live_subscription(sub_d: dict) -> tuple[str | None, str | None]:
+    """Resolve (tier, price_id) for one Stripe subscription dict."""
+    from .memberships import _plan_for_product_id
+
+    meta = sub_d.get("metadata") if isinstance(sub_d.get("metadata"), dict) else {}
+    meta_tier = str((meta or {}).get("tier") or "").strip().lower()
+    items = (sub_d.get("items") or {}).get("data") or []
+    price_id = None
+    price_nick = ""
+    product_name = ""
+    for item in items:
+        item_d = _as_dict(item)
+        pid = _stripe_id(item_d.get("price"))
+        if not pid:
+            continue
+        price_id = pid
+        price_obj = item_d.get("price")
+        if isinstance(price_obj, dict):
+            price_nick = str(price_obj.get("nickname") or "")
+            prod = price_obj.get("product")
+            if isinstance(prod, dict):
+                product_name = str(prod.get("name") or "")
+        break
+
+    if meta_tier in ("healing", "creator", "full_bloom"):
+        return meta_tier, price_id
+
+    if price_id:
+        plan = _plan_for_product_id(price_id)
+        if plan and plan.tier in ("healing", "creator", "full_bloom"):
+            # Studio sometimes pastes the Creator price onto Full Bloom. Prefer
+            # Stripe product/nickname when it clearly names a half-tier.
+            name_tier = _tier_hint_from_text(price_nick, product_name)
+            if (plan.tier == "full_bloom" and name_tier in ("healing", "creator")):
+                return name_tier, price_id
+            return plan.tier, price_id
+
+    name_tier = _tier_hint_from_text(
+        price_nick, product_name, str((meta or {}).get("product_name") or ""),
+    )
+    return name_tier, price_id
+
+
+def _list_customer_membership_subs(email_norm: str) -> list[dict] | None:
+    """Active/trialing/past_due membership subscriptions for this email.
+
+    Returns a list (possibly empty) on success, or ``None`` if Stripe could
+    not be queried (caller must not treat that as “no membership”).
+    """
+    if not email_norm or not configured() or current_app.config.get("TESTING"):
+        return None
+    price_ids = _membership_price_ids()
+    out: list[dict] = []
+    try:
+        _configure_stripe()
+        customers_data = []
+        try:
+            safe = email_norm.replace("\\", "\\\\").replace("'", "\\'")
+            found = stripe.Customer.search(query=f"email:'{safe}'", limit=20)
+            customers_data = list(found.data or [])
+        except Exception:
+            listed = stripe.Customer.list(limit=100)
+            customers_data = [
+                c for c in list(listed.data or [])
+                if (getattr(c, "email", None) or "").strip().lower() == email_norm
+            ]
+        for cust in customers_data:
+            cust_id = _stripe_id(cust) or getattr(cust, "id", None)
+            if not cust_id:
+                continue
+            for status in ("active", "trialing", "past_due"):
+                page = stripe.Subscription.list(
+                    customer=cust_id, status=status, limit=20,
+                    expand=["data.items.data.price.product"],
+                )
+                for sub in list(page.data or []):
+                    sub_d = _as_dict(sub)
+                    items = (sub_d.get("items") or {}).get("data") or []
+                    price_hit = False
+                    for item in items:
+                        item_d = _as_dict(item)
+                        pid = _stripe_id(item_d.get("price"))
+                        if pid and pid in price_ids:
+                            price_hit = True
+                            break
+                    if price_hit:
+                        out.append(sub_d)
+                        continue
+                    # Studio may be missing the price id — still accept when
+                    # checkout metadata / Stripe product name names a plan.
+                    tier, _ = _tier_from_live_subscription(sub_d)
+                    if tier in ("healing", "creator", "full_bloom"):
+                        out.append(sub_d)
+        return out
+    except Exception:
+        log.exception("stripe: list live memberships failed for %s", email_norm)
+        return None
+
+
+def active_membership_tier_from_stripe(email: str) -> str | None:
+    """Live Stripe membership tier for this email, or None if Stripe unusable.
+
+    Returns ``none`` / ``healing`` / ``creator`` / ``full_bloom`` when Stripe
+    answered successfully (including no active memberships → ``none``).
+    Returns ``None`` when Stripe isn't configured or the lookup failed so the
+    caller should fall back to local Orders.
+    """
+    email_norm = (email or "").strip().lower()
+    if not email_norm or not configured() or current_app.config.get("TESTING"):
+        return None
+
+    try:
+        subs = _list_customer_membership_subs(email_norm)
+    except Exception:
+        log.exception("stripe: active membership lookup failed for %s", email_norm)
+        return None
+    if subs is None:
+        return None
+
+    if not subs:
+        try:
+            _heal_local_membership_orders(
+                email_norm, keep_subscription_ids=set(), keep_price_ids=set(),
+            )
+        except Exception:
+            log.exception("stripe: heal local membership orders failed for %s", email_norm)
+        log.info("stripe: live membership for %s → none (0 active subs)", email_norm)
+        return "none"
+
+    ranked = []
+    for sub_d in subs:
+        tier, price_id = _tier_from_live_subscription(sub_d)
+        sid = _stripe_id(sub_d.get("id"))
+        created = int(sub_d.get("created") or 0)
+        if tier not in ("healing", "creator", "full_bloom"):
+            continue
+        ranked.append((tier, created, sid, price_id, sub_d))
+
+    if not ranked:
+        log.info("stripe: live membership for %s → none (subs not mapped)", email_norm)
+        return "none"
+
+    def _rank(row):
+        t, created, _sid, _pid, _sub = row
+        rank = {"full_bloom": 2, "creator": 1, "healing": 1, "none": 0}.get(t, 0)
+        return (rank, created)
+
+    ranked.sort(key=_rank, reverse=True)
+    best_tier, _created, keep_sid, keep_price, _sub = ranked[0]
+    keep_subs = {keep_sid} if keep_sid else set()
+    keep_prices = {keep_price} if keep_price else set()
+
+    # One active membership at a time.
+    for _t, _c, sid, _pid, _sub in ranked[1:]:
+        if sid and sid != keep_sid:
+            _cancel_stripe_subscription_now(sid)
+
+    try:
+        _heal_local_membership_orders(
+            email_norm,
+            keep_subscription_ids=keep_subs,
+            keep_price_ids=keep_prices,
+        )
+    except Exception:
+        log.exception("stripe: heal local membership orders failed for %s", email_norm)
+
+    log.info(
+        "stripe: live membership for %s → %s (%s active sub(s))",
+        email_norm, best_tier, len(ranked),
+    )
+    return best_tier
+
+
+def _heal_local_membership_orders(
+    email_norm: str,
+    *,
+    keep_subscription_ids: set[str],
+    keep_price_ids: set[str],
+) -> int:
+    """Refund local paid membership orders that don't match live Stripe subs."""
+    from sqlalchemy import func
+
+    prices = _membership_price_ids()
+    if not email_norm or not prices:
+        return 0
+    paid = (
+        Order.query
+        .filter(
+            func.lower(Order.buyer_email) == email_norm,
+            Order.status == "paid",
+            Order.ls_variant_id.in_(list(prices)),
+        )
+        .all()
+    )
+    ended = 0
+    for order in paid:
+        oid = str(order.ls_order_id or "").strip()
+        variant = str(order.ls_variant_id or "").strip()
+        sid = _subscription_id_from_payment_ref(oid) if oid else None
+        if sid and sid in keep_subscription_ids:
+            continue
+        if (not sid) and variant and variant in keep_price_ids:
+            continue
+        # Live Creator (etc.) exists — drop other local paid membership rows.
+        # Or no live membership — drop all local membership rows.
+        order.status = "refunded"
+        ended += 1
+    if ended:
+        log.info(
+            "stripe: healed %s stale membership order(s) for %s",
+            ended, email_norm,
+        )
+    return ended
+
+
 def _membership_subscription_ids_for_email(
     email_norm: str, price_ids: set[str] | None = None,
 ) -> set[str]:

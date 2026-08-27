@@ -2,10 +2,10 @@
 
 Memberships are sold as ``MembershipPlan`` rows. Each plan carries a Stripe
 product id; an order for that product grants the plan's tier. A member's tier
-is kept on ``users.membership``. Buying a new membership replaces any prior
-one (Stripe cancels the old subscription immediately). A refund recomputes
-the tier from remaining paid membership orders. The owner (``is_admin``) is
-always Full Bloom and is untouched.
+is kept on ``users.membership``. Live Stripe subscriptions are the source of
+truth when available; otherwise paid local Orders drive the tier. Buying a new
+membership replaces any prior one. The owner (``is_admin``) is always Full
+Bloom and is untouched.
 """
 import logging
 
@@ -62,12 +62,12 @@ def purchased_tier(email: str) -> str:
 
 
 def reconcile_user(user: User, downgrade: bool = False) -> bool:
-    """Sync a user's membership column from their purchases.
+    """Sync a user's membership column from Stripe / purchases.
 
-    Paid membership orders are the source of truth for paid tiers (including
-    Healing + Creator → Full Bloom). Studio-only grants are kept when there are
-    no paid membership orders. On refunds, ``downgrade`` clears to whatever
-    purchases remain. Never touches the owner. The caller commits.
+    Prefer the live Stripe subscription tier when Stripe is reachable. Fall
+    back to paid local Orders. Studio-only grants are kept only when neither
+    Stripe nor Orders show a membership (unless ``downgrade``). Never touches
+    the owner. The caller commits.
     """
     if user is None:
         return False
@@ -76,17 +76,31 @@ def reconcile_user(user: User, downgrade: bool = False) -> bool:
             user.membership = "full_bloom"
             return True
         return False
+
+    live = None
+    try:
+        from .stripe_pay import active_membership_tier_from_stripe
+        live = active_membership_tier_from_stripe(user.email)
+    except Exception:
+        log.exception("membership: stripe live sync failed for user %s", user.id)
+        live = None
+
     purchased = purchased_tier(user.email)
     current = user.membership or "none"
-    if purchased != "none":
+
+    if live is not None:
+        new = live
+    elif purchased != "none":
         new = purchased
     elif downgrade:
         new = "none"
     else:
         new = current
+
     if new != current:
         user.membership = new
-        log.info("membership: user %s %s -> %s", user.id, current, new)
+        log.info("membership: user %s %s -> %s (live=%s purchased=%s)",
+                 user.id, current, new, live, purchased)
         from .listings import enforce_listing_limits
         enforce_listing_limits(user)
         return True
