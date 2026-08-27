@@ -1,11 +1,11 @@
 """Grant / revoke membership tiers from purchases.
 
-Memberships are sold as ``MembershipPlan`` rows. Each plan carries a Stripe
-product id; an order for that product grants the plan's tier. A member's tier
-is kept on ``users.membership``. Live Stripe subscriptions are the source of
-truth when available; otherwise paid local Orders drive the tier. Buying a new
-membership replaces any prior one. The owner (``is_admin``) is always Full
-Bloom and is untouched.
+Source of truth (in order):
+1. ``orders.membership_tier`` on paid membership orders (set at checkout)
+2. Stripe price id → ``MembershipPlan`` row (Studio / DB mapping)
+3. Live Stripe subscription metadata ``tier`` only when price→plan is missing
+
+Product name / nickname text is never used to grant access.
 """
 import logging
 
@@ -33,59 +33,51 @@ def _plan_for_product_id(product_id):
         return None
     if len(matches) == 1:
         return matches[0]
-    # Same Stripe price on multiple plans (Studio misconfig). Never guess
-    # Healing vs Creator — prefer Full Bloom only if it's the sole paid match
-    # alongside nothing else useful; otherwise prefer creator over healing when
-    # both halves claim the same price (creator is the common mis-paste target
-    # to fix via Stripe product name in resolve_membership_tier).
     by_tier = {p.tier: p for p in matches}
-    if "creator" in by_tier and "healing" in by_tier:
-        log.warning(
-            "membership: price %s on both healing and creator; defer to Stripe name",
-            key,
-        )
-        return None
-    halves = [p for p in matches if p.tier in ("healing", "creator")]
-    pick = halves[0] if len(halves) == 1 else (by_tier.get("full_bloom") or matches[0])
-    log.warning(
-        "membership: price %s matches plans %s; using %s",
-        key, [p.tier for p in matches], pick.tier,
+    log.error(
+        "membership: price %s matches multiple plans %s — fix Studio price ids",
+        key, [p.tier for p in matches],
     )
-    return pick
+    # Prefer an unambiguous half-tier if only one half is present.
+    halves = [p for p in matches if p.tier in ("healing", "creator")]
+    if len(halves) == 1:
+        return halves[0]
+    return by_tier.get("full_bloom") or matches[0]
+
+
+def tier_for_price_id(price_id: str | None) -> str | None:
+    """Map a Stripe price id to a membership tier via MembershipPlan only."""
+    plan = _plan_for_product_id(price_id)
+    if plan and plan.tier in _PAID_TIERS:
+        return plan.tier
+    return None
 
 
 def purchased_tier(email: str) -> str:
     """Highest membership tier this email owns via paid membership orders."""
     if not email:
         return "none"
-    from .stripe_pay import resolve_membership_tier
-
     orders = (Order.query
               .filter(Order.status == "paid",
-                      func.lower(Order.buyer_email) == email.strip().lower(),
-                      Order.ls_variant_id.isnot(None))
+                      func.lower(Order.buyer_email) == email.strip().lower())
               .all())
     best = "none"
     for order in orders:
-        tier = resolve_membership_tier(
-            order.ls_variant_id,
-            fetch_stripe_labels=True,
-        )
-        if not tier:
-            plan = _plan_for_product_id(order.ls_variant_id)
-            tier = plan.tier if plan and plan.tier in _PAID_TIERS else None
+        tier = (order.membership_tier or "").strip().lower()
+        if tier not in _PAID_TIERS:
+            tier = tier_for_price_id(order.ls_variant_id) or ""
+            if tier in _PAID_TIERS and not order.membership_tier:
+                order.membership_tier = tier
         if tier in _PAID_TIERS:
             best = higher_membership(best, tier)
     return best
 
 
 def reconcile_user(user: User, downgrade: bool = False) -> bool:
-    """Sync a user's membership column from Stripe / purchases.
+    """Sync a user's membership column from Stripe / paid orders.
 
-    Prefer the live Stripe subscription tier when Stripe is reachable. Fall
-    back to paid local Orders. Studio-only grants are kept only when neither
-    Stripe nor Orders show a membership (unless ``downgrade``). Never touches
-    the owner. The caller commits.
+    Prefer live Stripe (price→plan / metadata). Else paid local orders.
+    Never touches the owner. The caller commits.
     """
     if user is None:
         return False
@@ -137,16 +129,14 @@ def reconcile_email(email: str, downgrade: bool = False) -> bool:
 
 
 def apply_from_order(order: Order) -> None:
-    """After an order changes, grant/revoke membership if its product matches a plan."""
-    if not order or not order.ls_variant_id:
+    """After an order changes, grant/revoke membership if it is a membership order."""
+    if not order:
         return
-    from .stripe_pay import resolve_membership_tier
-
-    tier = resolve_membership_tier(order.ls_variant_id, fetch_stripe_labels=True)
-    if not tier:
-        plan = _plan_for_product_id(order.ls_variant_id)
-        if not plan or plan.tier not in _PAID_TIERS:
-            return
-    elif tier not in _PAID_TIERS:
+    tier = (order.membership_tier or "").strip().lower()
+    if tier not in _PAID_TIERS:
+        tier = tier_for_price_id(order.ls_variant_id) or ""
+        if tier in _PAID_TIERS:
+            order.membership_tier = tier
+    if tier not in _PAID_TIERS:
         return
     reconcile_email(order.buyer_email, downgrade=(order.status == "refunded"))

@@ -607,8 +607,9 @@ class MembershipPlan(db.Model):
     period = db.Column(db.String(20), nullable=False, default="month")  # month / year / once
     ls_variant_id = db.Column(db.String(40), index=True)  # legacy
     ls_checkout_url = db.Column(db.String(500))  # legacy
-    stripe_price_id = db.Column(db.String(80), index=True)
-    stripe_price_id_annual = db.Column(db.String(80), index=True)
+    # Unique so one Stripe price can never map to two plans (DB-enforced).
+    stripe_price_id = db.Column(db.String(80), unique=True, index=True)
+    stripe_price_id_annual = db.Column(db.String(80), unique=True, index=True)
     active = db.Column(db.Boolean, nullable=False, default=False)
     sort_order = db.Column(db.Integer, nullable=False, default=0)
     features_json = db.Column(db.Text)  # JSON: toggled non-free capabilities
@@ -943,6 +944,9 @@ class Order(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     ls_order_id = db.Column(db.String(120), unique=True, nullable=False)
     ls_variant_id = db.Column(db.String(80))
+    # Set at membership checkout from metadata.tier / price→plan. Source of truth
+    # for which plan this paid order grants (healing / creator / full_bloom).
+    membership_tier = db.Column(db.String(20), index=True)
     product_id = db.Column(db.Integer, db.ForeignKey("products.id"))
     buyer_email = db.Column(db.String(255), nullable=False, index=True)
     # if the buyer gifted this to a friend, the friend's account email gets

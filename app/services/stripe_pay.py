@@ -659,6 +659,7 @@ def upsert_order_from_payment(
     currency: str,
     status: str,
     gift_to: str | None = None,
+    membership_tier: str | None = None,
 ) -> Order:
     """Insert or update an order; idempotent on payment_id (stored as ls_order_id)."""
     order = Order.query.filter_by(ls_order_id=str(payment_id)).first()
@@ -677,6 +678,14 @@ def upsert_order_from_payment(
     order.total_cents = int(total_cents or 0)
     order.currency = (currency or "USD").upper()[:3]
     order.status = status
+
+    tier = (membership_tier or "").strip().lower()
+    if tier not in ("healing", "creator", "full_bloom"):
+        from .memberships import tier_for_price_id
+        tier = tier_for_price_id(order.ls_variant_id) or ""
+    if tier in ("healing", "creator", "full_bloom"):
+        order.membership_tier = tier
+
     if order.ls_variant_id and order.product_id is None:
         from .shop_purchases import is_addon_checkout
         if not is_addon_checkout(variant_id=order.ls_variant_id):
@@ -700,7 +709,7 @@ def handle_payment_event(event_type: str, data: dict) -> Order | None:
     from sqlalchemy import func
 
     from ..models import User, utcnow
-    from .memberships import _plan_for_product_id
+    from .memberships import _plan_for_product_id, tier_for_price_id
 
     payment_id = (
         data.get("payment_id")
@@ -740,7 +749,15 @@ def handle_payment_event(event_type: str, data: dict) -> Order | None:
         and (prior is None or prior.status != "failed")
     )
 
+    meta_tier = str((meta or {}).get("tier") or "").strip().lower()
+    grant_tier = meta_tier if meta_tier in ("healing", "creator", "full_bloom") else None
+    if not grant_tier:
+        grant_tier = tier_for_price_id(product_id)
     plan = _plan_for_product_id(product_id) if product_id else None
+    if plan is None and grant_tier:
+        from ..models import MembershipPlan
+        plan = MembershipPlan.query.filter_by(tier=grant_tier).first()
+
     prev_tier = "none"
     if email:
         buyer = (User.query
@@ -758,6 +775,7 @@ def handle_payment_event(event_type: str, data: dict) -> Order | None:
         currency=currency,
         status=status,
         gift_to=gift_to,
+        membership_tier=grant_tier,
     )
 
     # New membership purchase replaces any prior membership immediately
@@ -1406,6 +1424,7 @@ def membership_cancel_status(email: str) -> dict:
 
 
 def _tier_hint_from_text(*parts: str) -> str | None:
+    """Diagnostic only — never used to grant membership access."""
     blob = " ".join(p for p in parts if p).lower()
     if not blob:
         return None
@@ -1418,28 +1437,6 @@ def _tier_hint_from_text(*parts: str) -> str | None:
     return None
 
 
-def _stripe_price_labels(price_id: str | None) -> tuple[str, str]:
-    """Return (nickname, product_name) for a Stripe price, best-effort."""
-    pid = (price_id or "").strip()
-    if not pid or not configured() or current_app.config.get("TESTING"):
-        return "", ""
-    try:
-        _configure_stripe()
-        price = stripe.Price.retrieve(pid, expand=["product"])
-        price_d = _as_dict(price)
-        nick = str(price_d.get("nickname") or "")
-        prod = price_d.get("product")
-        if isinstance(prod, dict):
-            return nick, str(prod.get("name") or "")
-        if isinstance(prod, str) and prod.startswith("prod_"):
-            p = _as_dict(stripe.Product.retrieve(prod))
-            return nick, str(p.get("name") or "")
-        return nick, ""
-    except Exception:
-        log.warning("stripe: could not load labels for price %s", pid, exc_info=True)
-        return "", ""
-
-
 def resolve_membership_tier(
     price_id: str | None,
     *,
@@ -1450,32 +1447,23 @@ def resolve_membership_tier(
 ) -> str | None:
     """Resolve healing/creator/full_bloom for a price.
 
-    Priority: checkout metadata ``tier`` → Stripe product/nickname text →
-    Studio MembershipPlan price mapping. Stripe's product name wins over a
-    mis-pasted Studio price id (e.g. Creator price on the Healing row).
+    Priority (no product-name guessing):
+    1. Checkout / subscription metadata ``tier``
+    2. Studio ``MembershipPlan`` row matched by Stripe price id
     """
-    from .memberships import _plan_for_product_id
+    from .memberships import tier_for_price_id
 
     meta = metadata if isinstance(metadata, dict) else {}
     meta_tier = str((meta or {}).get("tier") or "").strip().lower()
     if meta_tier in ("healing", "creator", "full_bloom"):
         return meta_tier
 
-    nick = (nickname or "").strip()
-    pname = (product_name or "").strip()
-    if fetch_stripe_labels and price_id and not (nick or pname):
-        nick, pname = _stripe_price_labels(price_id)
+    plan_tier = tier_for_price_id(price_id)
+    if plan_tier:
+        return plan_tier
 
-    name_tier = _tier_hint_from_text(
-        nick, pname, str((meta or {}).get("product_name") or ""),
-    )
-    if name_tier in ("healing", "creator", "full_bloom"):
-        return name_tier
-
-    if price_id:
-        plan = _plan_for_product_id(price_id)
-        if plan and plan.tier in ("healing", "creator", "full_bloom"):
-            return plan.tier
+    # Labels are ignored for grants — kept only so old call sites don't break.
+    _ = (product_name, nickname, fetch_stripe_labels)
     return None
 
 
@@ -1484,33 +1472,27 @@ def _tier_from_live_subscription(sub_d: dict) -> tuple[str | None, str | None]:
     meta = sub_d.get("metadata") if isinstance(sub_d.get("metadata"), dict) else {}
     items = (sub_d.get("items") or {}).get("data") or []
     price_id = None
-    price_nick = ""
-    product_name = ""
     for item in items:
         item_d = _as_dict(item)
         pid = _stripe_id(item_d.get("price"))
-        if not pid:
-            continue
-        price_id = pid
-        price_obj = item_d.get("price")
-        if isinstance(price_obj, dict):
-            price_nick = str(price_obj.get("nickname") or "")
-            prod = price_obj.get("product")
-            if isinstance(prod, dict):
-                product_name = str(prod.get("name") or "")
-            elif isinstance(prod, str) and not product_name:
-                # Unexpanded product id — resolve below via fetch.
-                pass
-        break
+        if pid:
+            price_id = pid
+            break
 
-    tier = resolve_membership_tier(
-        price_id,
-        metadata=meta,
-        product_name=product_name,
-        nickname=price_nick,
-        fetch_stripe_labels=not (product_name or price_nick),
-    )
-    return tier, price_id
+    # Price → MembershipPlan first (DB is authoritative when Studio is correct).
+    from .memberships import tier_for_price_id
+    plan_tier = tier_for_price_id(price_id)
+    meta_tier = str((meta or {}).get("tier") or "").strip().lower()
+    if plan_tier:
+        if meta_tier in ("healing", "creator", "full_bloom") and meta_tier != plan_tier:
+            log.warning(
+                "stripe: sub metadata tier=%s but price %s maps to %s — using plan",
+                meta_tier, price_id, plan_tier,
+            )
+        return plan_tier, price_id
+    if meta_tier in ("healing", "creator", "full_bloom"):
+        return meta_tier, price_id
+    return None, price_id
 
 
 def _list_customer_membership_subs(email_norm: str) -> list[dict] | None:
