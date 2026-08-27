@@ -1265,17 +1265,23 @@ def _csv_response(filename: str, header: list[str], rows: list[list]) -> Respons
 @admin_required
 def members():
     q = (request.args.get("q") or "").strip()
+    membership = (request.args.get("membership") or "").strip().lower()
+    if membership not in MEMBERSHIPS:
+        membership = ""
     query = User.query.filter(User.deleted_at.is_(None))
     if q:
         like = f"%{q}%"
         query = query.filter(db.or_(User.email.ilike(like),
                                     User.display_name.ilike(like)))
+    if membership:
+        query = query.filter(User.membership == membership)
     people = query.order_by(User.created_at.desc()).limit(200).all()
     counts = dict(db.session.query(User.membership, func.count(User.id))
                   .filter(User.deleted_at.is_(None)).group_by(User.membership).all())
     return render_template("admin/members.html", people=people, counts=counts,
                            memberships=MEMBERSHIPS,
                            membership_labels=MEMBERSHIP_LABELS, q=q,
+                           membership_filter=membership,
                            spotlight=_spotlight_candidates())
 
 
@@ -1329,7 +1335,12 @@ def set_membership(user_id):
         enforce_listing_limits(member)
         db.session.commit()
         flash(f"{member.public_name()} \u2192 {member.membership_label()}.", "success")
-    return redirect(request.form.get("next") or url_for("admin.members"))
+    next_url = request.form.get("next") or url_for(
+        "admin.members",
+        q=request.form.get("q") or None,
+        membership=request.form.get("membership_filter") or None,
+    )
+    return redirect(next_url)
 
 
 @bp.route("/members/<int:user_id>/remove", methods=["POST"])
@@ -1339,17 +1350,21 @@ def remove_member(user_id):
     from ..services.privacy import close_account
 
     member = db.session.get(User, user_id) or abort(404)
+    back = url_for(
+        "admin.members",
+        q=request.form.get("q") or None,
+        membership=request.form.get("membership_filter") or None,
+    )
     if member.deleted_at is not None:
         flash("That account is already removed.", "info")
-        return redirect(url_for("admin.members"))
+        return redirect(back)
     if member.is_admin:
         flash("Studio owners can't be removed from Members.", "error")
-        return redirect(url_for("admin.members"))
+        return redirect(back)
     name = member.public_name()
     close_account(member)
     flash(f"{name} was removed from Bloom Anyway.", "success")
-    return redirect(url_for("admin.members", q=request.form.get("q") or ""))
-
+    return redirect(back)
 
 # =============================== OWNERS ======================================
 

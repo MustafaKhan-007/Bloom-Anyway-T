@@ -13,19 +13,32 @@
         immediately. A refund removes access. Manual changes here always win.</p>
     </div>
     <a class="btn btn--secondary btn--sm"
-       href="{{ url_for('admin.members_export_csv', q=q or none) }}">Export emails (CSV)</a>
+       href="{{ url_for('admin.members_export_csv', q=q or none, membership=membership_filter or none) }}">Export emails (CSV)</a>
   </div>
 
-  <div class="stat-row" style="margin-bottom: 20px;">
-    <div class="stat-chip"><span>{{ counts.get('none', 0) }}</span> Free</div>
-    <div class="stat-chip"><span>{{ counts.get('healing', 0) }}</span> Healing</div>
-    <div class="stat-chip"><span>{{ counts.get('creator', 0) }}</span> Creator</div>
+  <div class="stat-row studio-member-filters" style="margin-bottom: 20px;" role="group" aria-label="Filter by membership">
+    <a class="stat-chip studio-member-filter {{ 'is-active' if not membership_filter }}"
+       href="{{ url_for('admin.members', q=q or none) }}">
+      <span>{{ (counts.get('none', 0) + counts.get('healing', 0) + counts.get('creator', 0) + counts.get('full_bloom', 0)) }}</span> All
+    </a>
+    {% for tier in memberships %}
+    <a class="stat-chip studio-member-filter {{ 'is-active' if membership_filter == tier }}"
+       href="{{ url_for('admin.members', membership=tier, q=q or none) }}">
+      <span>{{ counts.get(tier, 0) }}</span> {{ membership_labels.get(tier, tier) }}
+    </a>
+    {% endfor %}
   </div>
 
   <section class="admin-panel studio-card">
     <form method="get" class="member-search">
+      {% if membership_filter %}
+      <input type="hidden" name="membership" value="{{ membership_filter }}">
+      {% endif %}
       <input type="search" name="q" value="{{ q }}" placeholder="Search by name or email">
       <button class="btn btn--secondary btn--sm" type="submit">Search</button>
+      {% if q or membership_filter %}
+      <a class="btn btn--quiet btn--sm" href="{{ url_for('admin.members') }}">Clear</a>
+      {% endif %}
     </form>
 
     <table class="admin-table" style="margin-top: 16px;">
@@ -42,6 +55,7 @@
             <form class="inline-form" method="post" action="{{ url_for('admin.set_membership', user_id=m.id) }}">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <input type="hidden" name="q" value="{{ q }}">
+              <input type="hidden" name="membership_filter" value="{{ membership_filter }}">
               <select name="membership" data-autosubmit {{ 'disabled' if m.is_admin }}>
                 {% for tier in memberships %}
                 <option value="{{ tier }}" {{ 'selected' if m.membership == tier }}>{{ membership_labels.get(tier, tier) }}</option>
@@ -57,13 +71,14 @@
                   data-confirm-ok="Remove">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <input type="hidden" name="q" value="{{ q }}">
+              <input type="hidden" name="membership_filter" value="{{ membership_filter }}">
               <button class="btn btn--danger btn--sm" type="submit">Remove</button>
             </form>
             {% endif %}
           </td>
         </tr>
         {% else %}
-        <tr><td colspan="5">No members found.</td></tr>
+        <tr><td colspan="5">No members found{% if membership_filter %} for {{ membership_labels.get(membership_filter, membership_filter) }}{% endif %}.</td></tr>
         {% endfor %}
       </tbody>
     </table>
