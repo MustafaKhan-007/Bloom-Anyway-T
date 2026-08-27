@@ -10,7 +10,9 @@
       <p class="field-help" style="margin: 6px 0 0; max-width: 640px;">
         Public page: <a href="{{ url_for('main.membership') }}" target="_blank">/membership</a>.
         Set regular prices, optional <strong>founder locked-in</strong> prices, paste each
-        <strong>Stripe price ID</strong>, then flip <strong>Live</strong>.
+        <strong>Stripe price ID</strong> and <strong>product ID</strong> (prod_…), then flip
+        <strong>Live</strong>. Product names in Stripe should match
+        Healing / Creator / Full Bloom Membership (Monthly or Annual).
         Turn on the founder banner via the end date in Settings.
         The owner always has Full Bloom access.
       </p>
@@ -67,6 +69,21 @@
                  placeholder="price_…" value="{{ plan.stripe_price_id_annual or '' }}">
         </div>
       </div>
+      <div class="form-row">
+        <div class="field" style="flex:2;">
+          <label for="{{ plan.tier }}_stripe_product">Stripe product ID (monthly)</label>
+          <input type="text" id="{{ plan.tier }}_stripe_product" name="{{ plan.tier }}_stripe_product"
+                 placeholder="prod_…" value="{{ plan.stripe_product_id or '' }}">
+        </div>
+        <div class="field" style="flex:2;">
+          <label for="{{ plan.tier }}_stripe_product_annual">Stripe product ID (annual)</label>
+          <input type="text" id="{{ plan.tier }}_stripe_product_annual" name="{{ plan.tier }}_stripe_product_annual"
+                 placeholder="prod_…" value="{{ plan.stripe_product_id_annual or '' }}">
+        </div>
+      </div>
+      <p class="field-help">Product names in Stripe should be exactly
+        <em>Healing / Creator / Full Bloom Membership (Monthly|Annual)</em>
+        — the site also maps those names to this tier.</p>
 
       <h3 class="studio-subsection">Founder locked-in rate</h3>
       <p class="field-help studio-section__lede">

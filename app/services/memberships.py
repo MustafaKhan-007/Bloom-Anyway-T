@@ -2,12 +2,13 @@
 
 Source of truth (in order):
 1. ``orders.membership_tier`` on paid membership orders (set at checkout)
-2. Stripe price id → ``MembershipPlan`` row (Studio / DB mapping)
-3. Live Stripe subscription metadata ``tier`` only when price→plan is missing
-
-Product name / nickname text is never used to grant access.
+2. Stripe price id → ``MembershipPlan``
+3. Stripe product id → ``MembershipPlan``
+4. Known Stripe product names (Healing/Creator/Full Bloom Membership Monthly|Annual)
+5. Checkout / subscription metadata ``tier``
 """
 import logging
+import re
 
 from sqlalchemy import func, or_
 
@@ -17,8 +18,46 @@ log = logging.getLogger(__name__)
 
 _PAID_TIERS = ("healing", "creator", "full_bloom")
 
+# Exact Stripe product names used in the dashboard (normalized lowercase).
+_STRIPE_PRODUCT_NAME_TIERS = {
+    "full bloom membership (annual)": "full_bloom",
+    "full bloom membership (monthly)": "full_bloom",
+    "creator membership (annual)": "creator",
+    "creator membership (monthly)": "creator",
+    "healing membership (annual)": "healing",
+    "healing membership (monthly)": "healing",
+}
+
+
+def _norm_name(value: str | None) -> str:
+    return re.sub(r"\s+", " ", (value or "").strip().lower())
+
+
+def tier_from_stripe_product_name(name: str | None) -> str | None:
+    """Map a Stripe product name to a tier when it matches the known catalog."""
+    key = _norm_name(name)
+    if not key:
+        return None
+    if key in _STRIPE_PRODUCT_NAME_TIERS:
+        return _STRIPE_PRODUCT_NAME_TIERS[key]
+    # Tolerate missing "Membership" or swapped punctuation.
+    compact = key.replace("—", "-").replace("–", "-")
+    for label, tier in _STRIPE_PRODUCT_NAME_TIERS.items():
+        if compact == label:
+            return tier
+    # Last resort: clear "[Tier] Membership" without billing suffix.
+    for needle, tier in (
+        ("full bloom membership", "full_bloom"),
+        ("creator membership", "creator"),
+        ("healing membership", "healing"),
+    ):
+        if compact.startswith(needle):
+            return tier
+    return None
+
 
 def _plan_for_product_id(product_id):
+    """Match a Stripe *price* id (or legacy variant) to a MembershipPlan."""
     if not product_id:
         return None
     key = str(product_id).strip()
@@ -38,19 +77,51 @@ def _plan_for_product_id(product_id):
         "membership: price %s matches multiple plans %s — fix Studio price ids",
         key, [p.tier for p in matches],
     )
-    # Prefer an unambiguous half-tier if only one half is present.
     halves = [p for p in matches if p.tier in ("healing", "creator")]
     if len(halves) == 1:
         return halves[0]
     return by_tier.get("full_bloom") or matches[0]
 
 
+def _plan_for_stripe_product_id(stripe_product_id):
+    """Match a Stripe *product* id (prod_…) to a MembershipPlan."""
+    if not stripe_product_id:
+        return None
+    key = str(stripe_product_id).strip()
+    if not key:
+        return None
+    matches = (MembershipPlan.query
+               .filter(or_(MembershipPlan.stripe_product_id == key,
+                           MembershipPlan.stripe_product_id_annual == key))
+               .all())
+    if not matches:
+        return None
+    if len(matches) == 1:
+        return matches[0]
+    log.error(
+        "membership: Stripe product %s matches multiple plans %s",
+        key, [p.tier for p in matches],
+    )
+    return matches[0]
+
+
 def tier_for_price_id(price_id: str | None) -> str | None:
-    """Map a Stripe price id to a membership tier via MembershipPlan only."""
+    """Map a Stripe price id to a membership tier via MembershipPlan."""
     plan = _plan_for_product_id(price_id)
     if plan and plan.tier in _PAID_TIERS:
         return plan.tier
     return None
+
+
+def tier_for_stripe_product(
+    product_id: str | None = None,
+    product_name: str | None = None,
+) -> str | None:
+    """Resolve tier from Studio product id and/or known Stripe product name."""
+    plan = _plan_for_stripe_product_id(product_id)
+    if plan and plan.tier in _PAID_TIERS:
+        return plan.tier
+    return tier_from_stripe_product_name(product_name)
 
 
 def purchased_tier(email: str) -> str:
@@ -76,7 +147,7 @@ def purchased_tier(email: str) -> str:
 def reconcile_user(user: User, downgrade: bool = False) -> bool:
     """Sync a user's membership column from Stripe / paid orders.
 
-    Prefer live Stripe (price→plan / metadata). Else paid local orders.
+    Prefer live Stripe (price/product → plan). Else paid local orders.
     Never touches the owner. The caller commits.
     """
     if user is None:

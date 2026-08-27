@@ -971,6 +971,17 @@ def _membership_price_ids() -> set[str]:
     return ids
 
 
+def _membership_product_ids() -> set[str]:
+    from ..models import MembershipPlan
+    ids: set[str] = set()
+    for plan in MembershipPlan.query.all():
+        for raw in (plan.stripe_product_id, plan.stripe_product_id_annual):
+            key = (raw or "").strip()
+            if key:
+                ids.add(key)
+    return ids
+
+
 def _subscription_id_from_payment_ref(payment_id: str) -> str | None:
     """Resolve a stored order id (sub_ / cs_ / pi_) to a Stripe subscription id."""
     key = (payment_id or "").strip()
@@ -1423,35 +1434,24 @@ def membership_cancel_status(email: str) -> dict:
     return out
 
 
-def _tier_hint_from_text(*parts: str) -> str | None:
-    """Diagnostic only — never used to grant membership access."""
-    blob = " ".join(p for p in parts if p).lower()
-    if not blob:
-        return None
-    if "full bloom" in blob or "full_bloom" in blob or "fullbloom" in blob:
-        return "full_bloom"
-    if "creator" in blob or "building" in blob:
-        return "creator"
-    if "healing" in blob:
-        return "healing"
-    return None
-
-
 def resolve_membership_tier(
     price_id: str | None,
     *,
     metadata: dict | None = None,
     product_name: str | None = None,
     nickname: str | None = None,
+    stripe_product_id: str | None = None,
     fetch_stripe_labels: bool = False,
 ) -> str | None:
-    """Resolve healing/creator/full_bloom for a price.
+    """Resolve healing/creator/full_bloom for a checkout / subscription.
 
-    Priority (no product-name guessing):
-    1. Checkout / subscription metadata ``tier``
-    2. Studio ``MembershipPlan`` row matched by Stripe price id
+    Priority:
+    1. Checkout metadata ``tier``
+    2. Studio plan matched by Stripe price id
+    3. Studio plan matched by Stripe product id
+    4. Known Stripe product names (Healing/Creator/Full Bloom Membership …)
     """
-    from .memberships import tier_for_price_id
+    from .memberships import tier_for_price_id, tier_for_stripe_product
 
     meta = metadata if isinstance(metadata, dict) else {}
     meta_tier = str((meta or {}).get("tier") or "").strip().lower()
@@ -1462,9 +1462,39 @@ def resolve_membership_tier(
     if plan_tier:
         return plan_tier
 
-    # Labels are ignored for grants — kept only so old call sites don't break.
-    _ = (product_name, nickname, fetch_stripe_labels)
-    return None
+    pname = (product_name or "").strip()
+    nick = (nickname or "").strip()
+    prod_id = (stripe_product_id or "").strip() or None
+    if fetch_stripe_labels and price_id and not (pname or prod_id):
+        prod_id, pname, nick = _stripe_price_product_info(price_id)
+
+    return tier_for_stripe_product(prod_id, pname or nick)
+
+
+def _stripe_price_product_info(price_id: str | None) -> tuple[str | None, str, str]:
+    """Return (product_id, product_name, nickname) for a Stripe price."""
+    pid = (price_id or "").strip()
+    if not pid or not configured() or current_app.config.get("TESTING"):
+        return None, "", ""
+    try:
+        _configure_stripe()
+        price = stripe.Price.retrieve(pid, expand=["product"])
+        price_d = _as_dict(price)
+        nick = str(price_d.get("nickname") or "")
+        prod = price_d.get("product")
+        if isinstance(prod, dict):
+            return (
+                _stripe_id(prod.get("id")) or None,
+                str(prod.get("name") or ""),
+                nick,
+            )
+        if isinstance(prod, str) and prod.startswith("prod_"):
+            p = _as_dict(stripe.Product.retrieve(prod))
+            return prod, str(p.get("name") or ""), nick
+        return None, "", nick
+    except Exception:
+        log.warning("stripe: could not load product for price %s", pid, exc_info=True)
+        return None, "", ""
 
 
 def _tier_from_live_subscription(sub_d: dict) -> tuple[str | None, str | None]:
@@ -1472,27 +1502,35 @@ def _tier_from_live_subscription(sub_d: dict) -> tuple[str | None, str | None]:
     meta = sub_d.get("metadata") if isinstance(sub_d.get("metadata"), dict) else {}
     items = (sub_d.get("items") or {}).get("data") or []
     price_id = None
+    price_nick = ""
+    product_name = ""
+    stripe_product_id = None
     for item in items:
         item_d = _as_dict(item)
         pid = _stripe_id(item_d.get("price"))
-        if pid:
-            price_id = pid
-            break
+        if not pid:
+            continue
+        price_id = pid
+        price_obj = item_d.get("price")
+        if isinstance(price_obj, dict):
+            price_nick = str(price_obj.get("nickname") or "")
+            prod = price_obj.get("product")
+            if isinstance(prod, dict):
+                product_name = str(prod.get("name") or "")
+                stripe_product_id = _stripe_id(prod.get("id"))
+            elif isinstance(prod, str) and prod.startswith("prod_"):
+                stripe_product_id = prod
+        break
 
-    # Price → MembershipPlan first (DB is authoritative when Studio is correct).
-    from .memberships import tier_for_price_id
-    plan_tier = tier_for_price_id(price_id)
-    meta_tier = str((meta or {}).get("tier") or "").strip().lower()
-    if plan_tier:
-        if meta_tier in ("healing", "creator", "full_bloom") and meta_tier != plan_tier:
-            log.warning(
-                "stripe: sub metadata tier=%s but price %s maps to %s — using plan",
-                meta_tier, price_id, plan_tier,
-            )
-        return plan_tier, price_id
-    if meta_tier in ("healing", "creator", "full_bloom"):
-        return meta_tier, price_id
-    return None, price_id
+    tier = resolve_membership_tier(
+        price_id,
+        metadata=meta,
+        product_name=product_name,
+        nickname=price_nick,
+        stripe_product_id=stripe_product_id,
+        fetch_stripe_labels=not (product_name or stripe_product_id),
+    )
+    return tier, price_id
 
 
 def _list_customer_membership_subs(email_norm: str) -> list[dict] | None:
@@ -1504,6 +1542,7 @@ def _list_customer_membership_subs(email_norm: str) -> list[dict] | None:
     if not email_norm or not configured() or current_app.config.get("TESTING"):
         return None
     price_ids = _membership_price_ids()
+    product_ids = _membership_product_ids()
     out: list[dict] = []
     try:
         _configure_stripe()
@@ -1530,18 +1569,27 @@ def _list_customer_membership_subs(email_norm: str) -> list[dict] | None:
                 for sub in list(page.data or []):
                     sub_d = _as_dict(sub)
                     items = (sub_d.get("items") or {}).get("data") or []
-                    price_hit = False
+                    matched = False
                     for item in items:
                         item_d = _as_dict(item)
                         pid = _stripe_id(item_d.get("price"))
                         if pid and pid in price_ids:
-                            price_hit = True
+                            matched = True
                             break
-                    if price_hit:
+                        price_obj = item_d.get("price")
+                        if isinstance(price_obj, dict):
+                            prod = price_obj.get("product")
+                            prod_id = (
+                                _stripe_id(prod.get("id"))
+                                if isinstance(prod, dict) else _stripe_id(prod)
+                            )
+                            if prod_id and prod_id in product_ids:
+                                matched = True
+                                break
+                    if matched:
                         out.append(sub_d)
                         continue
-                    # Studio may be missing the price id — still accept when
-                    # checkout metadata / Stripe product name names a plan.
+                    # Still accept when product name / metadata maps to a plan.
                     tier, _ = _tier_from_live_subscription(sub_d)
                     if tier in ("healing", "creator", "full_bloom"):
                         out.append(sub_d)

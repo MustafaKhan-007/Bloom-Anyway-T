@@ -1495,6 +1495,10 @@ def membership_plans():
             plan.stripe_price_id = (request.form.get(f"{p}_stripe") or "").strip() or None
             plan.stripe_price_id_annual = (
                 request.form.get(f"{p}_stripe_annual") or "").strip() or None
+            plan.stripe_product_id = (
+                request.form.get(f"{p}_stripe_product") or "").strip() or None
+            plan.stripe_product_id_annual = (
+                request.form.get(f"{p}_stripe_product_annual") or "").strip() or None
             plan.active = bool(request.form.get(f"{p}_active"))
             raw = (request.form.get(f"{p}_price") or "").strip().replace(",", "")
             try:
@@ -1518,16 +1522,23 @@ def membership_plans():
                 )
             except ValueError:
                 plan.founder_annual_price_cents = plan.founder_annual_price_cents
-        # Reject the same Stripe price on two plans (also enforced by DB unique indexes).
+        # Reject the same Stripe price/product on two plans (also DB unique indexes).
         seen_prices: dict[str, str] = {}
+        seen_products: dict[str, str] = {}
         dupes = []
         for plan in plans:
             month = (plan.stripe_price_id or "").strip() or None
             year = (plan.stripe_price_id_annual or "").strip() or None
             plan.stripe_price_id = month
             plan.stripe_price_id_annual = year
+            pm = (plan.stripe_product_id or "").strip() or None
+            py = (plan.stripe_product_id_annual or "").strip() or None
+            plan.stripe_product_id = pm
+            plan.stripe_product_id_annual = py
             if month and year and month == year:
-                dupes.append(f"{month} (monthly+annual on {plan.tier})")
+                dupes.append(f"{month} (monthly+annual price on {plan.tier})")
+            if pm and py and pm == py:
+                dupes.append(f"{pm} (monthly+annual product on {plan.tier})")
             for key in (month, year):
                 if not key:
                     continue
@@ -1536,10 +1547,18 @@ def membership_plans():
                     dupes.append(f"{key} ({other} + {plan.tier})")
                 else:
                     seen_prices[key] = plan.tier
+            for key in (pm, py):
+                if not key:
+                    continue
+                other = seen_products.get(key)
+                if other and other != plan.tier:
+                    dupes.append(f"{key} ({other} + {plan.tier})")
+                else:
+                    seen_products[key] = plan.tier
         if dupes:
             db.session.rollback()
             flash(
-                "Each Stripe price can only belong to one plan. Duplicates: "
+                "Each Stripe price/product can only belong to one plan. Duplicates: "
                 + "; ".join(dupes),
                 "error",
             )
@@ -1550,7 +1569,7 @@ def membership_plans():
             db.session.rollback()
             log.exception("membership plans save failed")
             flash(
-                "Could not save plans — each Stripe price id must be unique across all plans.",
+                "Could not save plans — each Stripe price/product id must be unique.",
                 "error",
             )
             return redirect(url_for("admin.membership_plans"))

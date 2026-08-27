@@ -610,6 +610,9 @@ class MembershipPlan(db.Model):
     # Unique so one Stripe price can never map to two plans (DB-enforced).
     stripe_price_id = db.Column(db.String(80), unique=True, index=True)
     stripe_price_id_annual = db.Column(db.String(80), unique=True, index=True)
+    # Stripe Product ids (prod_…) — monthly / annual products in Stripe.
+    stripe_product_id = db.Column(db.String(80), unique=True, index=True)
+    stripe_product_id_annual = db.Column(db.String(80), unique=True, index=True)
     active = db.Column(db.Boolean, nullable=False, default=False)
     sort_order = db.Column(db.Integer, nullable=False, default=0)
     features_json = db.Column(db.Text)  # JSON: toggled non-free capabilities
