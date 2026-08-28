@@ -16,7 +16,7 @@ from flask import url_for
 
 from ..extensions import db
 from ..models import Setting, User
-from .mailer import send_email
+from .mailer import send_styled_email
 
 log = logging.getLogger(__name__)
 
@@ -304,23 +304,33 @@ def _send_invite_email(email: str, *, existing_account: bool,
     if existing_account:
         subject = "You're now a Bloom Anyway Studio owner" if not readonly else (
             "Bloom Anyway Studio access (view-only)")
-        text = (
-            f"Hi,\n\n"
+        title = "Studio access"
+        body = (
             f"You've been given {access}{who}.\n\n"
-            f"Sign in and open Studio:\n{login_url}\n\n"
-            f"— Bloom Anyway\n"
+            "Sign in and open Studio from your account."
         )
+        button_text = "Sign in"
+        button_url = login_url
     else:
         subject = "You're invited to Bloom Anyway Studio"
-        text = (
-            f"Hi,\n\n"
+        title = "You're invited to Studio"
+        body = (
             f"You've been invited with {access}{who}.\n\n"
-            f"Create your account with this email address:\n{register_url}\n\n"
-            f"After you confirm your email, you'll unlock Studio.\n"
-            f"Already have an account? Sign in here:\n{login_url}\n\n"
-            f"— Bloom Anyway\n"
+            "Create your account with this email address. After you confirm "
+            "your email, you'll unlock Studio."
         )
+        button_text = "Create account"
+        button_url = register_url
     try:
-        send_email(email, subject, text)
+        send_styled_email(
+            email,
+            subject=subject,
+            preview=title,
+            header="Bloom Anyway Studio",
+            title=title,
+            body=body,
+            button_text=button_text,
+            button_url=button_url,
+        )
     except Exception:
         log.exception("owners: failed to email invite to %s", email)

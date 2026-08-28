@@ -123,6 +123,9 @@ class Config:
     BREVO_TEMPLATE_ONE_ON_ONE_CANCELLED = int(
         os.environ.get("BREVO_TEMPLATE_ONE_ON_ONE_CANCELLED", "18") or 0
     )
+    BREVO_TEMPLATE_FULL_BLOOM = int(
+        os.environ.get("BREVO_TEMPLATE_FULL_BLOOM", "19") or 0
+    )
     # Optional absolute site origin for email CTAs when no request context.
     PUBLIC_BASE_URL = (
         os.environ.get("PUBLIC_BASE_URL", "").strip()

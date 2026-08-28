@@ -4,7 +4,6 @@ from __future__ import annotations
 import logging
 import time
 from datetime import datetime, timedelta, timezone
-from html import escape
 
 from flask import url_for
 from sqlalchemy import func
@@ -15,7 +14,6 @@ from ..models import (SUPPORT_CIRCLE_SEED, SupportGroupApplication,
                       SupportGroupCircle, SupportGroupMeeting,
                       SupportGroupTopicAlert, User, utcnow)
 from .mailer import (
-    send_email,
     send_facilitator_booked,
     send_facilitator_cancelled,
     send_one_on_one_booked,
@@ -1203,6 +1201,7 @@ def _send_booked_email(meeting: SupportGroupMeeting, user: User) -> None:
                 session_date=day,
                 session_time=time_s,
                 amount=_one_on_one_amount_for(user.email, coach),
+                button_url=_meeting_room_url(meeting) or _circle_browse_url(meeting.circle_id),
             )
             return
         room = _meeting_room_url(meeting)
@@ -1301,24 +1300,20 @@ def _send_updated_email(meeting: SupportGroupMeeting, user: User) -> None:
             return
         seats = meeting_seats(meeting)
         others = max(0, len(seats) - 1)
-        send_email(
+        send_styled_email(
             user.email,
-            f"{group} time updated",
-            (
-                f"Hi {user.first_name() or user.public_name()},\n\n"
-                f"Your {group} details changed.\n\n"
-                f"When: {when}\n"
-                f"With: {others} other member{'s' if others != 1 else ''}\n"
-                f"Join in Bloom Anyway: {room}\n\n"
-                f"— Bloom Anyway\n"
+            subject=f"{group} time updated",
+            preview=f"Your session was moved to {when}.",
+            header="Session update",
+            title=f"Your {group} was rescheduled",
+            body=(
+                f"Your session details changed.\n\n"
+                f"New time: {when}\n"
+                f"Others in the circle: {others}\n\n"
+                "Join from Support Groups in Bloom Anyway when it’s time."
             ),
-            html_body=(
-                f"<p>Hi {escape(user.first_name() or user.public_name())},</p>"
-                f"<p>Your {escape(group)} details changed.</p>"
-                f"<p><strong>When:</strong> {escape(when)}</p>"
-                f"<p><a href=\"{escape(room)}\">Join the session</a></p>"
-                f"<p>— Bloom Anyway</p>"
-            ),
+            button_text="Open session",
+            button_url=button_url,
         )
     except Exception:
         log.exception("Support-group update email failed for user %s", user.id)

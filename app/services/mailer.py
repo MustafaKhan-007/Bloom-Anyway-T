@@ -254,14 +254,6 @@ def _public_href(path: str = "/") -> str:
     return base + path
 
 
-def _body_html(plain: str) -> str:
-    """Turn blank-line paragraphs into simple HTML for the Brevo BODY field."""
-    chunks = [c.strip() for c in re.split(r"\n\s*\n", (plain or "").strip()) if c.strip()]
-    if not chunks:
-        return ""
-    return "".join(f"<p>{escape(c).replace(chr(10), '<br>')}</p>" for c in chunks)
-
-
 def send_styled_email(
     to: str,
     *,
@@ -274,10 +266,12 @@ def send_styled_email(
     button_url: str,
     extra_params: dict | None = None,
 ) -> bool:
-    """Send via Brevo general template (#10) for emails without a dedicated template.
+    """Send via Brevo general template (#10).
 
-    Params: SUBJECT, PREVIEW, HEADER, TITLE, BODY, BODY_HTML, BUTTON_TEXT, BUTTON_URL.
+    Params: HEADER, TITLE, BODY, BUTTON_TEXT, BUTTON_URL.
+    ``preview`` is kept for callers / plain-text fallback only.
     """
+    _ = preview  # reserved for plain-text / future template fields
     text = (
         f"{title}\n\n{body}\n\n"
         f"{button_text}: {button_url}\n\n"
@@ -288,12 +282,9 @@ def send_styled_email(
         return send_email(to, subject, text)
 
     params = {
-        "SUBJECT": subject,
-        "PREVIEW": preview,
         "HEADER": header,
         "TITLE": title,
         "BODY": body,
-        "BODY_HTML": _body_html(body),
         "BUTTON_TEXT": button_text,
         "BUTTON_URL": button_url,
     }
@@ -309,9 +300,24 @@ def send_verification_code(to: str, code: str, purpose: str) -> bool:
     if purpose == "reset":
         subject = "Your password reset code"
         intro = "Here's your code to reset your password:"
-    else:
-        subject = "Your confirmation code"
-        intro = "Welcome. Here's your code to confirm your email:"
+        # No dedicated reset template — use general (#10).
+        return send_styled_email(
+            to,
+            subject=subject,
+            preview=f"Your reset code: {code}",
+            header="Bloom Anyway",
+            title="Password reset code",
+            body=(
+                f"{intro}\n\n{code}\n\n"
+                f"It expires in {minutes} minutes.\n"
+                "If you didn't request it, you can safely ignore this email."
+            ),
+            button_text="Reset password",
+            button_url=_public_href("/reset-password"),
+        )
+
+    subject = "Your confirmation code"
+    intro = "Welcome. Here's your code to confirm your email:"
     text = (
         f"{intro}\n\n    {code}\n\n"
         f"It expires in {minutes} minutes.\n"
@@ -319,27 +325,15 @@ def send_verification_code(to: str, code: str, purpose: str) -> bool:
         "— Bloom Anyway"
     )
 
-    template_id = None
-    params = None
-    if purpose == "confirm":
-        raw_id = current_app.config.get("BREVO_TEMPLATE_CONFIRM") or 0
-        try:
-            template_id = int(raw_id) or None
-        except (TypeError, ValueError):
-            template_id = None
-        if template_id:
-            # Brevo: {{ params.CODE }} (and optional {{ params.MINUTES }})
-            params = {
-                "CODE": code,
-                "code": code,
-                "MINUTES": str(minutes),
-                "minutes": str(minutes),
-            }
+    template_id = _int_config("BREVO_TEMPLATE_CONFIRM", 3) or None
+    if not template_id:
+        return send_email(to, subject, text)
 
+    # Brevo #3: {{ params.CODE }}
     return send_email(
         to, subject, text,
-        template_id=template_id if purpose == "confirm" else None,
-        params=params,
+        template_id=template_id,
+        params={"CODE": code},
     )
 
 
@@ -355,18 +349,13 @@ def send_welcome_email(to: str, *, first_name: str | None = None) -> bool:
     if not template_id:
         return send_email(to, "Welcome to Bloom Anyway", text)
 
-    params = {
-        "FIRSTNAME": name,
-        "firstName": name,
-        "EMAIL": to,
-        "email": to,
-    }
+    # Brevo #2: {{ params.VORNAME }}
     return send_email(
         to,
         "Welcome to Bloom Anyway",
         text,
         template_id=template_id,
-        params=params,
+        params={"VORNAME": name},
     )
 
 
@@ -378,7 +367,7 @@ def send_order_receipt(
     amount: str,
     order_date: str,
 ) -> bool:
-    """Send Brevo order-receipt template (#4) after a successful payment."""
+    """Send Brevo order-receipt template (#4) after a successful product purchase."""
     template_id = _int_config("BREVO_TEMPLATE_RECEIPT", 4) or None
     oid = str(order_id or "").strip()
     product = (product_name or "").strip() or "Purchase"
@@ -413,7 +402,7 @@ def send_order_receipt(
 def send_healing_welcome(
     to: str,
     *,
-    trial_end_date: str,
+    trial_end_date: str = "",
     plan_price: str,
     billing_interval: str,
 ) -> bool:
@@ -433,7 +422,7 @@ def send_healing_welcome(
 def send_creator_welcome(
     to: str,
     *,
-    trial_end_date: str,
+    trial_end_date: str = "",
     plan_price: str,
     billing_interval: str,
 ) -> bool:
@@ -453,29 +442,20 @@ def send_creator_welcome(
 def send_full_bloom_welcome(
     to: str,
     *,
-    trial_end_date: str,
+    trial_end_date: str = "",
     plan_price: str,
     billing_interval: str,
 ) -> bool:
-    """Welcome email for Full Bloom (general template — no dedicated Brevo id yet)."""
-    interval = (billing_interval or "").strip() or "monthly"
-    price = (plan_price or "").strip() or "—"
-    trial = (trial_end_date or "").strip() or "—"
-    return send_styled_email(
+    """Send Brevo template (#19) when someone newly joins Full Bloom membership."""
+    return _send_membership_welcome(
         to,
+        tier="full_bloom",
         subject="Welcome to Full Bloom membership",
-        preview="You're in — Healing and Creator, together.",
-        header="Bloom Anyway",
-        title="Welcome to Full Bloom",
-        body=(
-            "You're all in — Full Bloom includes everything in Healing and Creator.\n\n"
-            f"Your trial ends: {trial}\n"
-            f"Plan price: {price}\n"
-            f"Billing: {interval}\n\n"
-            "Cancel any time from My space."
-        ),
-        button_text="Open My space",
-        button_url=_public_href("/account"),
+        config_key="BREVO_TEMPLATE_FULL_BLOOM",
+        default_id=19,
+        trial_end_date=trial_end_date,
+        plan_price=plan_price,
+        billing_interval=billing_interval,
     )
 
 
@@ -490,23 +470,28 @@ def _send_membership_welcome(
     plan_price: str,
     billing_interval: str,
 ) -> bool:
+    """Healing #5 / Creator #6 / Full Bloom #19 — PLAN_PRICE, BILLING_INTERVAL."""
     template_id = _int_config(config_key, default_id) or None
     trial = (trial_end_date or "").strip() or "—"
     price = (plan_price or "").strip() or "—"
     interval = (billing_interval or "").strip() or "monthly"
-    label = "Healing" if tier == "healing" else "Creator"
+    label = {
+        "healing": "Healing",
+        "creator": "Creator",
+        "full_bloom": "Full Bloom",
+    }.get(tier, "membership")
     text = (
         f"Welcome to {label} membership on Bloom Anyway.\n\n"
-        f"Your trial ends: {trial}\n"
         f"Plan price: {price}\n"
-        f"Billing: {interval}\n\n"
-        "— Bloom Anyway"
+        f"Billing: {interval}\n"
     )
+    if trial and trial != "—":
+        text += f"Trial ends: {trial}\n"
+    text += "\n— Bloom Anyway"
     if not template_id:
         return send_email(to, subject, text)
 
     params = {
-        "TRIAL_END_DATE": trial,
         "PLAN_PRICE": price,
         "BILLING_INTERVAL": interval,
     }
@@ -626,12 +611,15 @@ def send_support_group_booked(
     to: str,
     *,
     group_topic: str,
-    host_name: str,
+    host_name: str = "",
     session_date: str,
     session_time: str,
-    button_url: str,
+    button_url: str = "",
 ) -> bool:
-    """Send Brevo template (#11) when a support-group seat is saved."""
+    """Send Brevo template (#11) when a peer support-group seat is saved.
+
+    Params: GROUP_TOPIC, SESSION_DATE, SESSION_TIME.
+    """
     template_id = _int_config("BREVO_TEMPLATE_SUPPORT_BOOKED", 11) or None
     topic = (group_topic or "").strip() or "your support session"
     host = (host_name or "").strip() or "a member"
@@ -655,10 +643,8 @@ def send_support_group_booked(
 
     params = {
         "GROUP_TOPIC": topic,
-        "HOST_NAME": host,
         "SESSION_DATE": day,
         "SESSION_TIME": time_s,
-        "BUTTON_URL": url,
     }
     return send_email(
         to,
@@ -754,9 +740,12 @@ def send_support_group_host_cancelled(
     *,
     group_topic: str,
     session_date: str,
-    button_url: str,
+    button_url: str = "",
 ) -> bool:
-    """Send Brevo template (#14) when a host cancels a support session."""
+    """Send Brevo template (#14) when a host cancels a peer support session.
+
+    Params: GROUP_TOPIC, SESSION_DATE.
+    """
     template_id = _int_config("BREVO_TEMPLATE_SUPPORT_HOST_CANCEL", 14) or None
     topic = (group_topic or "").strip() or "your support session"
     day = (session_date or "").strip() or "—"
@@ -778,7 +767,6 @@ def send_support_group_host_cancelled(
     params = {
         "GROUP_TOPIC": topic,
         "SESSION_DATE": day,
-        "BUTTON_URL": url,
     }
     return send_email(
         to,
@@ -836,13 +824,20 @@ def send_one_on_one_booked(
     session_date: str,
     session_time: str,
     amount: str,
+    button_url: str = "",
 ) -> bool:
-    """Send Brevo template (#16) when a 1:1 with a founder is booked."""
+    """Send Brevo template (#16) when a 1:1 with a founder is booked.
+
+    Params: COACH_NAME, SESSION_DATE, SESSION_TIME, AMOUNT, BUTTON_URL.
+    """
     template_id = _int_config("BREVO_TEMPLATE_ONE_ON_ONE_BOOKED", 16) or None
     coach = (coach_name or "").strip() or "a founder"
     day = (session_date or "").strip() or "—"
     time_s = (session_time or "").strip() or "—"
     paid = (amount or "").strip() or "—"
+    url = (button_url or "").strip() or _public_href("/support-groups")
+    if url.startswith("/"):
+        url = _public_href(url)
     subject = f"Your 1:1 with {coach} is booked"
     text = (
         f"Your 1:1 with {coach} is booked.\n\n"
@@ -851,6 +846,7 @@ def send_one_on_one_booked(
         f"Time: {time_s}\n"
         f"With: {coach}\n"
         f"Amount paid: {paid}\n\n"
+        f"Join: {url}\n\n"
         "— Bloom Anyway"
     )
     if not template_id:
@@ -861,6 +857,7 @@ def send_one_on_one_booked(
         "SESSION_DATE": day,
         "SESSION_TIME": time_s,
         "AMOUNT": paid,
+        "BUTTON_URL": url,
     }
     return send_email(
         to,
@@ -955,5 +952,13 @@ def send_contact_notification(name: str, email: str, body: str) -> bool:
         log.warning("No owner account to notify; contact message stored but not emailed.")
         _set_error("No owner account email to notify.")
         return False
-    text = f"New message from the contact form.\n\nFrom: {name} <{email}>\n\n{body}"
-    return send_email(admin, f"Contact form: {name}", text)
+    return send_styled_email(
+        admin,
+        subject=f"Contact form: {name}",
+        preview=f"New message from {name}",
+        header="Contact form",
+        title=f"Message from {name}",
+        body=f"From: {name} <{email}>\n\n{body}",
+        button_text="Open Studio inbox",
+        button_url=_public_href("/admin/inbox"),
+    )

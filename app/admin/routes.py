@@ -29,7 +29,7 @@ from ..services import badges as badges_service
 from ..services import quotes as quotes_service
 from ..services import reel_reviews as reel_svc
 from ..services import stats
-from ..services.mailer import last_send_error, send_email
+from ..services.mailer import last_send_error, send_styled_email
 from ..services.settings import DEFAULTS as SETTING_DEFAULTS
 from ..services.settings import all_settings, set_setting
 from ..services.social import (fetch_instagram_preview, instagram_handle,
@@ -1123,11 +1123,18 @@ def settings_test_email():
     if not to:
         flash("Your owner account has no email address.", "error")
         return redirect(url_for("admin.settings"))
-    ok = send_email(
+    ok = send_styled_email(
         to,
-        "Bloom Anyway — test email",
-        "If you received this, email sending from the site is working.\n\n"
-        "— Bloom Anyway",
+        subject="Bloom Anyway — test email",
+        preview="If you received this, email sending from the site is working.",
+        header="Bloom Anyway",
+        title="Test email",
+        body=(
+            "If you received this, email sending from the site is working.\n\n"
+            "This uses the general Brevo template (#10)."
+        ),
+        button_text="Open Studio",
+        button_url=url_for("admin.dashboard", _external=True),
     )
     if ok:
         flash(f"Test email sent to {to}. Check inbox and spam.", "success")
