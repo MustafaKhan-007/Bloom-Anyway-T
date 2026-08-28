@@ -2627,6 +2627,7 @@ with app.app_context():
        Notification.query.filter_by(post_id=victim_id).count() == 0)
 
 with app.app_context():
+    from app.models import Order, ShopPurchase
     doomed = User(email="doomed@example.com", display_name="Doomed Soul",
                   username="doomedx", bio="secret bio", membership="healing",
                   email_verified_at=utcnow(),
@@ -2638,18 +2639,49 @@ with app.app_context():
                             title="Will vanish", body="please hide me",
                             anonymous=False)
     db.session.add(doomed_post)
+    paid = Order(
+        ls_order_id="close-acct-mem-1",
+        buyer_email="doomed@example.com",
+        membership_tier="healing",
+        status="paid",
+        total_cents=900,
+        currency="USD",
+    )
+    db.session.add(paid)
+    shop = ShopPurchase(
+        lemon_squeezy_order_id="close-acct-shop-1",
+        customer_email="doomed@example.com",
+        user_id=doomed.id,
+        product_name="A guide",
+        status="linked",
+    )
+    db.session.add(shop)
     db.session.commit()
     doomed_id, doomed_post_id = doomed.id, doomed_post.id
+    paid_id, shop_id = paid.id, shop.id
     close_account(doomed)
     doomed = db.session.get(User, doomed_id)
     doomed_post = db.session.get(ForumPost, doomed_post_id)
+    paid = db.session.get(Order, paid_id)
+    shop = db.session.get(ShopPurchase, shop_id)
     ok("Closed account email scrubbed",
        doomed.deleted_at is not None and doomed.email.startswith("deleted+"))
     ok("Closed account profile scrubbed",
        doomed.display_name == "Former member" and doomed.username is None
        and doomed.bio is None and doomed.avatar_data is None
-       and doomed.password_hash is None)
+       and doomed.password_hash is None
+       and (doomed.membership or "none") == "none")
     ok("Closed account posts hidden", doomed_post.hidden is True)
+    ok("Closed account membership orders ended",
+       paid is not None and paid.status == "refunded"
+       and (paid.buyer_email or "").startswith("closed+"))
+    ok("Closed account shop purchases detached",
+       shop is not None and shop.user_id is None
+       and (shop.customer_email or "").startswith("closed+"))
+    from app.services.memberships import purchased_tier
+    ok("Re-signup email has no purchased membership",
+       purchased_tier("doomed@example.com") == "none")
+
 
 ok("PageView has no IP field",
    not hasattr(PageView, "ip") and not hasattr(PageView, "ip_address"))
