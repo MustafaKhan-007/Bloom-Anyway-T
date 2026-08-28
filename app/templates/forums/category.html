@@ -235,11 +235,13 @@
             <time datetime="{{ post.created_at.isoformat() }}">{{ post.created_at|localtime('%b %d · %I:%M %p') }}</time>
             <span>{{ comment_n }} {{ 'reply' if comment_n == 1 else 'replies' }}</span>
           </div>
-          {% if current_user.is_authenticated and current_user.id == post.user_id %}
+          {% if current_user.is_authenticated and (current_user.id == post.user_id or current_user.is_admin) %}
           <div class="post-row__report">
             <form method="post" action="{{ url_for('forums.delete_own_post', post_id=post.id) }}"
                   class="delete-own-form"
-                  onsubmit="return confirm('Delete this post and all its comments? This cannot be undone.');">
+                  data-confirm="Delete this post and all its comments? This cannot be undone."
+                  data-confirm-title="Delete post?"
+                  data-confirm-ok="Delete">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <button class="delete-own-btn" type="submit">Delete</button>
             </form>

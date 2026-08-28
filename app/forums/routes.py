@@ -454,15 +454,21 @@ def report_comment(comment_id):
 @login_required
 @limiter.limit("30 per hour")
 def delete_own_post(post_id):
-    """Authors can permanently remove their own post (and its comments)."""
+    """Authors (or Studio owners) can permanently remove a post and its comments."""
     from ..services.forum_moderation import delete_post
 
     post = db.session.get(ForumPost, post_id)
-    if post is None or post.user_id != current_user.id:
+    if post is None:
+        abort(404)
+    is_owner = bool(getattr(current_user, "is_admin", False))
+    if post.user_id != current_user.id and not is_owner:
         abort(404)
     cat_slug = post.category.slug if post.category else None
     delete_post(post)
-    flash("Your post was deleted.", "success")
+    if is_owner and post.user_id != current_user.id:
+        flash("Post removed.", "success")
+    else:
+        flash("Your post was deleted.", "success")
     if cat_slug:
         return redirect(url_for("forums.category", slug=cat_slug))
     return redirect(url_for("forums.index"))
@@ -472,15 +478,21 @@ def delete_own_post(post_id):
 @login_required
 @limiter.limit("60 per hour")
 def delete_own_comment(comment_id):
-    """Authors can permanently remove their own comment (and its replies)."""
+    """Authors (or Studio owners) can permanently remove a comment and its replies."""
     from ..services.forum_moderation import delete_comment
 
     comment = db.session.get(ForumComment, comment_id)
-    if comment is None or comment.user_id != current_user.id:
+    if comment is None:
+        abort(404)
+    is_owner = bool(getattr(current_user, "is_admin", False))
+    if comment.user_id != current_user.id and not is_owner:
         abort(404)
     post_id = comment.post_id
     delete_comment(comment)
-    flash("Your comment was deleted.", "success")
+    if is_owner and comment.user_id != current_user.id:
+        flash("Comment removed.", "success")
+    else:
+        flash("Your comment was deleted.", "success")
     post = db.session.get(ForumPost, post_id)
     if post and not post.hidden:
         return redirect(url_for("forums.post", post_id=post_id) + "#comments")
