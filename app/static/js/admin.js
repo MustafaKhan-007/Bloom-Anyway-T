@@ -269,16 +269,23 @@
   /* ---- bulk select + remove on Studio list pages ---- */
   (function () {
     function itemsFor(form) {
-      var id = form.id;
+      var id = (form && form.id) || "";
       if (!id) return [];
-      return Array.prototype.slice.call(
-        document.querySelectorAll(
-          'input[data-bulk-item][form="' + id + '"], #' + id + " input[data-bulk-item]"
-        )
-      ).filter(function (el) { return !el.disabled; });
+      var out = [];
+      var nodes = document.querySelectorAll("input[data-bulk-item]");
+      for (var i = 0; i < nodes.length; i++) {
+        var el = nodes[i];
+        if (el.disabled) continue;
+        // Prefer explicit form= association (items live outside the <form>).
+        if (el.getAttribute("form") === id || form.contains(el)) {
+          out.push(el);
+        }
+      }
+      return out;
     }
 
     function refresh(form) {
+      if (!form) return;
       var items = itemsFor(form);
       var checked = items.filter(function (el) { return el.checked; });
       var n = checked.length;
@@ -306,28 +313,59 @@
       form.setAttribute("data-confirm", tmpl.replace(/\{n\}/g, String(n || 0)));
     }
 
+    function formFor(el) {
+      if (!el) return null;
+      var host = el.closest ? el.closest("form[data-bulk]") : null;
+      if (host) return host;
+      var fid = el.getAttribute("form");
+      if (fid) return document.getElementById(fid);
+      return null;
+    }
+
+    function setAll(form, on) {
+      itemsFor(form).forEach(function (el) { el.checked = !!on; });
+      refresh(form);
+    }
+
+    // One delegated listener — survives any number of bulk forms on the page.
+    document.addEventListener("change", function (e) {
+      var t = e.target;
+      if (!t || !t.matches) return;
+      if (t.matches("input[data-bulk-all]")) {
+        var form = formFor(t);
+        if (!form) return;
+        setAll(form, t.checked);
+        return;
+      }
+      if (t.matches("input[data-bulk-item]")) {
+        refresh(formFor(t));
+      }
+    });
+
     document.querySelectorAll("form[data-bulk]").forEach(function (form) {
       refresh(form);
-      form.addEventListener("change", function (e) {
-        var t = e.target;
-        if (!t) return;
-        if (t.matches("[data-bulk-all]")) {
-          itemsFor(form).forEach(function (el) { el.checked = t.checked; });
-        }
-        refresh(form);
-      });
-      document.addEventListener("change", function (e) {
-        var t = e.target;
-        if (!t || !t.matches || !t.matches("[data-bulk-item]")) return;
-        if (t.getAttribute("form") !== form.id && !form.contains(t)) return;
-        refresh(form);
-      });
       form.addEventListener("submit", function (e) {
         refresh(form);
-        if (itemsFor(form).filter(function (el) { return el.checked; }).length === 0) {
+        var selected = itemsFor(form).filter(function (el) { return el.checked; });
+        if (selected.length === 0) {
           e.preventDefault();
           e.stopImmediatePropagation();
+          return;
         }
+        // Backup: some browsers are flaky with form= association across tables.
+        // Mirror checked values as hidden inputs inside the bulk form.
+        form.querySelectorAll("input[data-bulk-mirror]").forEach(function (n) {
+          n.parentNode.removeChild(n);
+        });
+        selected.forEach(function (el) {
+          var name = el.getAttribute("name") || "ids";
+          var hidden = document.createElement("input");
+          hidden.type = "hidden";
+          hidden.name = name;
+          hidden.value = el.value;
+          hidden.setAttribute("data-bulk-mirror", "1");
+          form.appendChild(hidden);
+        });
       });
     });
 
