@@ -2502,7 +2502,7 @@ def reel_reviews_publish(app_id):
     notify_everyone(
         kind="content_hub",
         body=f"New reel review on Content Hub: “{title[:80]}”",
-        url=url_for("main.videos") + "#reviews",
+        url=url_for("main.reel_review", review_id=review.id),
         actor_id=current_user.id,
         exclude_id=current_user.id,
     )

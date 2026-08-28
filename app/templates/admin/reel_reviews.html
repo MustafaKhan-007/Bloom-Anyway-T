@@ -121,12 +121,17 @@
           <td>{% if r.application and r.application.author %}{{ r.application.author.public_name() }}{% else %}—{% endif %}</td>
           <td>{{ 'Live' if r.published else 'Hidden' }}</td>
           <td>
-            {% if r.published %}
-            <form method="post" action="{{ url_for('admin.reel_reviews_unpublish', review_id=r.id) }}">
-              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-              <button class="btn btn--secondary btn--sm" type="submit">Unpublish</button>
-            </form>
-            {% endif %}
+            <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+              <a class="btn btn--secondary btn--sm"
+                 href="{{ url_for('main.reel_review', review_id=r.id) }}"
+                 target="_blank" rel="noopener">View page</a>
+              {% if r.published %}
+              <form method="post" action="{{ url_for('admin.reel_reviews_unpublish', review_id=r.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="btn btn--secondary btn--sm" type="submit">Unpublish</button>
+              </form>
+              {% endif %}
+            </div>
           </td>
         </tr>
         {% endfor %}

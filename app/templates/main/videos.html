@@ -142,35 +142,7 @@
       {% if reviews %}
       <div class="hub-exact__review-row">
         {% for rev in reviews %}
-        <article class="hub-exact__review-card">
-          <div class="hub-exact__review-thumb">
-            {% if rev.review_disk_name %}
-            <video controls playsinline preload="metadata">
-              <source src="{{ url_for('main.reel_review_stream', review_id=rev.id) }}"
-                      type="{{ rev.review_mime or 'video/mp4' }}">
-            </video>
-            {% else %}
-            <span class="hub-exact__review-play" aria-hidden="true">&#9654;</span>
-            {% endif %}
-          </div>
-          <div class="hub-exact__review-body">
-            <h3>{{ rev.title }}</h3>
-            {% if rev.application and rev.application.author %}
-            <p class="hub-exact__review-author">{{ rev.application.author.public_name() }}</p>
-            {% endif %}
-            <div class="hub-exact__review-tags">
-              <span>Reel review</span>
-              {% if rev.application and rev.application.selected %}<span>Pick of the week</span>{% endif %}
-            </div>
-            {% if rev.body %}
-            <div class="hub-exact__review-critique">{{ rev.body|truncate(160)|nl2br }}</div>
-            {% endif %}
-            {% if rev.application and rev.application.reel_url %}
-            <a class="hub-exact__review-ig" href="{{ rev.application.reel_url }}" target="_blank" rel="noopener">Original reel &rarr;</a>
-            {% endif %}
-            <span class="hub-exact__review-date">{{ rev.created_at|localtime('%b %d, %Y') }}</span>
-          </div>
-        </article>
+        {% include "partials/review_card.html" %}
         {% endfor %}
       </div>
       {% else %}

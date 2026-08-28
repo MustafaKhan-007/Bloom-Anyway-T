@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block title %}{{ review.title }} — Reel review — {{ site.site_title }}{% endblock %}
+
+{% block content %}
+{% set has_review_video = review.review_disk_name and playable %}
+{% set has_media = has_review_video or reel_embed %}
+<section class="section">
+  <div class="container reel-read">
+    <p class="eyebrow"><a href="{{ url_for('main.videos') }}#reviews">&larr; Content Hub</a></p>
+
+    <header class="reel-read__head">
+      <span class="reel-read__cat">Reel review</span>
+      <h1>{{ review.title }}</h1>
+      <p class="reel-read__meta">
+        {% if author %}
+        <a class="reel-read__author" href="{{ url_for('main.profile', user_id=author.id) }}">
+          {{ author.public_name() }}</a>
+        {% endif %}
+        <span>{{ review.created_at|localtime('%B %d, %Y') }}</span>
+        {% if has_review_video %}<span>Video review</span>{% endif %}
+        {% if application and application.selected %}
+        <span class="reel-read__pick">Pick of the week</span>
+        {% endif %}
+        {% if not review.published %}<span class="reel-read__pick">Hidden draft</span>{% endif %}
+      </p>
+    </header>
+
+    <div class="reel-read__grid{% if not has_media %} reel-read__grid--solo{% endif %}">
+      {% if has_media %}
+      <div class="reel-read__media">
+        {% if review.review_disk_name %}
+          {% if current_user.is_authenticated %}
+            {% if playable %}
+            <div class="reel-read__player">
+              <video controls playsinline preload="metadata"
+                     controlslist="nodownload" data-no-contextmenu>
+                <source src="{{ url_for('main.reel_review_stream', review_id=review.id) }}"
+                        type="{{ review.review_mime or 'video/mp4' }}">
+                Your browser can't play this video.
+              </video>
+            </div>
+            {% else %}
+            <div class="empty-state">
+              <p>The review video isn't on the server right now
+                {% if current_user.is_admin %}
+                &mdash; re-upload it from <a href="{{ url_for('admin.reel_reviews') }}">Studio &rarr; Reel reviews</a>.
+                {% else %}
+                &mdash; the written review is below.
+                {% endif %}
+              </p>
+            </div>
+            {% endif %}
+          {% else %}
+          <div class="reel-read__signin">
+            <span class="reel-read__signin-icon" aria-hidden="true">&#9654;</span>
+            <p>There's a video review for this reel.</p>
+            <a class="btn btn--primary btn--sm"
+               href="{{ url_for('auth.login', next=request.path) }}">Sign in to watch</a>
+          </div>
+          {% endif %}
+        {% endif %}
+
+        {% if reel_embed %}
+        <div class="reel-read__original">
+          <p class="reel-read__media-label">The original reel</p>
+          <div class="reel-read__embed">
+            <iframe src="{{ reel_embed }}" loading="lazy" scrolling="no"
+                    allowtransparency="true" frameborder="0"
+                    title="The reel being reviewed"></iframe>
+          </div>
+        </div>
+        {% endif %}
+
+        {% if reel_url %}
+        <a class="reel-read__ig" href="{{ reel_url }}" target="_blank" rel="noopener">
+          Watch on Instagram &rarr;</a>
+        {% endif %}
+      </div>
+      {% endif %}
+
+      <div class="reel-read__copy">
+        {% if review.body %}
+        <article class="reel-read__body forum-body">{{ review.body|nl2br }}</article>
+        {% else %}
+        <div class="empty-state">
+          <p>The write-up for this review is still being added.</p>
+        </div>
+        {% endif %}
+
+        <div class="reel-read__cta">
+          <h2>Want yours reviewed?</h2>
+          <p>Every week one Creator entry is picked at random and reviewed here.</p>
+          <a class="btn btn--gold btn--sm" href="{{ url_for('main.videos') }}#reel-of-the-week">
+            Submit your reel</a>
+        </div>
+      </div>
+    </div>
+
+    {% if more %}
+    <h2 class="reel-read__more-head">More reel reviews</h2>
+    <div class="hub-exact__review-row">
+      {% for rev in more %}
+      {% include "partials/review_card.html" %}
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

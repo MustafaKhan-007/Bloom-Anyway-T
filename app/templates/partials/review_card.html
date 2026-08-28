@@ -1,0 +1,25 @@
+{# One published reel review, as a card that opens the full review page.
+   Expects `rev` (a ReelReview). #}
+<a class="hub-exact__review-card" href="{{ url_for('main.reel_review', review_id=rev.id) }}">
+  <div class="hub-exact__review-thumb">
+    <span class="hub-exact__review-play" aria-hidden="true">
+      {{ '&#9654;'|safe if rev.review_disk_name else '&#10077;'|safe }}</span>
+    <span class="hub-exact__review-kind">
+      {{ 'Video review' if rev.review_disk_name else 'Written review' }}</span>
+  </div>
+  <div class="hub-exact__review-body">
+    <h3>{{ rev.title }}</h3>
+    {% if rev.application and rev.application.author %}
+    <p class="hub-exact__review-author">{{ rev.application.author.public_name() }}</p>
+    {% endif %}
+    <div class="hub-exact__review-tags">
+      <span>Reel review</span>
+      {% if rev.application and rev.application.selected %}<span>Pick of the week</span>{% endif %}
+    </div>
+    {% if rev.body %}
+    <div class="hub-exact__review-critique">{{ rev.body|truncate(150) }}</div>
+    {% endif %}
+    <span class="hub-exact__review-open">Read the review &rarr;</span>
+    <span class="hub-exact__review-date">{{ rev.created_at|localtime('%b %d, %Y') }}</span>
+  </div>
+</a>

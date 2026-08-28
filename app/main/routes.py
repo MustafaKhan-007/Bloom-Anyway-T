@@ -1768,12 +1768,45 @@ def video_stream(video_id):
     abort(404)
 
 
+def _reel_review_playable(review) -> bool:
+    """True when the owner's review video is actually on the disk."""
+    if review is None or not review.review_disk_name:
+        return False
+    path = os.path.join(current_app.config["VIDEO_STORAGE_DIR"],
+                        review.review_disk_name)
+    return os.path.exists(path)
+
+
+@bp.route("/watch/reviews/<int:review_id>")
+def reel_review(review_id):
+    """A published reel review on its own page: the video plus the full write-up."""
+    review = db.session.get(ReelReview, review_id)
+    if review is None:
+        abort(404)
+    # Guests never see hidden reviews; the owner can still preview one.
+    if not review.published and not getattr(current_user, "is_admin", False):
+        abort(404)
+    application = review.application
+    more = (ReelReview.query
+            .filter(ReelReview.published.is_(True), ReelReview.id != review.id)
+            .order_by(ReelReview.created_at.desc()).limit(6).all())
+    return render_template(
+        "main/reel_review.html", review=review, application=application,
+        author=application.author if application else None,
+        reel_url=application.reel_url if application else "",
+        reel_embed=instagram_embed_url(application.reel_url) if application else None,
+        playable=_reel_review_playable(review), more=more,
+    )
+
+
 @bp.route("/watch/reviews/<int:review_id>/stream")
 @login_required
 def reel_review_stream(review_id):
     """Stream the owner's published review video (public to signed-in visitors)."""
     review = db.session.get(ReelReview, review_id)
-    if review is None or not review.published or not review.review_disk_name:
+    if review is None or not review.review_disk_name:
+        abort(404)
+    if not review.published and not current_user.is_admin:
         abort(404)
     path = os.path.join(current_app.config["VIDEO_STORAGE_DIR"], review.review_disk_name)
     if not os.path.exists(path):

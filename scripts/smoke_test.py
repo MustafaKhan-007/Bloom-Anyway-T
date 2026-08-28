@@ -1982,6 +1982,48 @@ r = client.get("/watch")
 cbody = r.get_data(as_text=True)
 ok("Published reel reviews are public on Content Hub",
    "Loved your pacing" in cbody)
+
+# the review opens on its own page: full write-up + a properly sized player
+long_review = ("Your hook lands inside the first second and the caption carries "
+               "the rest of it. Keep the pacing this tight, trim the last beat, "
+               "and add a face-to-camera line at the end so people know exactly "
+               "who they just watched.")
+r = admin.post(f"/admin/reel-reviews/{app_id}/publish", data={
+    "title": "Loved your pacing", "body": long_review,
+    "review_video": (io.BytesIO(minimal_mp4), "review.mp4"),
+}, content_type="multipart/form-data", follow_redirects=True)
+ok("Owner can attach a video to a published review",
+   "published to the Content Hub" in r.get_data(as_text=True))
+with app.app_context():
+    rev_row = ReelReview.query.order_by(ReelReview.id.desc()).first()
+    review_id = rev_row.id
+    ok("Review video is stored for playback", bool(rev_row.review_disk_name))
+
+hub = client.get("/watch").get_data(as_text=True)
+ok("Hub review cards open the full review page",
+   f'href="/watch/reviews/{review_id}"' in hub and "Read the review" in hub)
+ok("Hub cards no longer cram a player into the card", "<video" not in hub)
+
+r = client.get(f"/watch/reviews/{review_id}")
+rbody = r.get_data(as_text=True)
+ok("Reel review opens on its own page with the whole write-up",
+   r.status_code == 200 and "Loved your pacing" in rbody
+   and "who they just watched" in rbody)
+ok("Reel review page plays the review video",
+   "<video" in rbody and f"/watch/reviews/{review_id}/stream" in rbody)
+ok("Reel review page embeds the original reel",
+   "instagram.com/reel/TESTREEL1/embed" in rbody
+   and "Watch on Instagram" in rbody)
+r = client.get(f"/watch/reviews/{review_id}/stream")
+ok("Review video streams to a signed-in member",
+   r.status_code == 200 and len(r.data) > 0)
+
+guest_body = app.test_client().get(f"/watch/reviews/{review_id}").get_data(as_text=True)
+ok("Guests read the review but are asked to sign in for the video",
+   "who they just watched" in guest_body and "Sign in to watch" in guest_body
+   and "<video" not in guest_body)
+ok("Missing reel review returns 404",
+   client.get("/watch/reviews/999999").status_code == 404)
 ok("Content Hub shows the week is closed after publish",
    "reel review is published" in cbody.lower()
    and "Hang tight" not in cbody)
