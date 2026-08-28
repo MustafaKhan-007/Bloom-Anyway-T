@@ -1374,7 +1374,7 @@ def marketplace_bulk_delete():
     return redirect(url_for("admin.marketplace"))
 
 
-# =============================== VIDEOS ======================================
+# ============================ CONTENT TIPS ===================================
 
 @bp.route("/videos")
 @admin_required
@@ -1394,9 +1394,11 @@ def video_form(video_id=None):
     if request.method == "POST":
         title = (request.form.get("title") or "").strip()[:160]
         description = (request.form.get("description") or "").strip() or None
+        body = (request.form.get("body") or "").strip() or None
         published = bool(request.form.get("published"))
         free_access = bool(request.form.get("free_access"))
         healing_access = bool(request.form.get("healing_access"))
+        remove_video = bool(request.form.get("remove_video"))
         try:
             sort_order = int(request.form.get("sort_order") or 0)
         except ValueError:
@@ -1415,8 +1417,14 @@ def video_form(video_id=None):
                     current_app.config["MAX_VIDEO_MB"] * 1024 * 1024)
             except VideoError as exc:
                 errors.append(str(exc))
-        elif video is None:
-            errors.append("Please choose a video file to upload.")
+
+        # A tip is the writing; the video is a bonus. One of them has to exist.
+        keeps_video = bool(
+            new_video
+            or (video is not None and video.has_video() and not remove_video)
+        )
+        if not body and not keeps_video:
+            errors.append("Write the tip, or attach a video to go with it.")
 
         new_thumb = None
         thumb = request.files.get("thumb_file")
@@ -1434,10 +1442,11 @@ def video_form(video_id=None):
             was_live = bool(video and video.published)
             try:
                 if video is None:
-                    video = Video(mime="video/mp4")
+                    video = Video()
                     db.session.add(video)
                 video.title = title
                 video.description = description
+                video.body = body
                 video.published = published
                 video.free_access = free_access
                 video.healing_access = healing_access
@@ -1447,6 +1456,11 @@ def video_form(video_id=None):
                     old_disk = video.disk_name  # replaced file, delete after commit
                     video.disk_name, video.mime, video.filename = disk_name, mime, fname
                     video.size = size
+                    video.data = None
+                elif remove_video and video.has_video():
+                    old_disk = video.disk_name
+                    video.disk_name = video.mime = video.filename = None
+                    video.size = 0
                     video.data = None
                 if new_thumb:
                     video.thumb_data, video.thumb_mime = new_thumb
@@ -1466,16 +1480,16 @@ def video_form(video_id=None):
                 db.session.commit()
             except Exception:
                 db.session.rollback()
-                log.exception("video upload failed")
+                log.exception("content tip save failed")
                 # a brand-new file we just wrote is now orphaned; clean it up
                 if new_video:
                     delete_stored(current_app.config["VIDEO_STORAGE_DIR"], new_video[0])
-                flash("We couldn't save that video just now \u2014 please try again.",
+                flash("We couldn't save that tip just now \u2014 please try again.",
                       "error")
             else:
                 if old_disk:
                     delete_stored(current_app.config["VIDEO_STORAGE_DIR"], old_disk)
-                flash("Video saved.", "success")
+                flash("Tip saved.", "success")
                 return redirect(url_for("admin.videos"))
 
     return render_template("admin/video_form.html", video=video,
@@ -1490,7 +1504,7 @@ def video_delete(video_id):
     db.session.delete(video)
     db.session.commit()
     delete_stored(current_app.config["VIDEO_STORAGE_DIR"], disk_name)
-    flash("Video deleted.", "success")
+    flash("Tip deleted.", "success")
     return redirect(url_for("admin.videos"))
 
 
@@ -1499,7 +1513,7 @@ def video_delete(video_id):
 def videos_bulk_delete():
     ids = _form_ids()
     if not ids:
-        flash("Select at least one video to delete.", "error")
+        flash("Select at least one tip to delete.", "error")
         return redirect(url_for("admin.videos"))
     deleted = 0
     storage = current_app.config["VIDEO_STORAGE_DIR"]
@@ -1514,7 +1528,7 @@ def videos_bulk_delete():
         deleted += 1
     db.session.commit()
     flash(
-        f"Deleted {deleted} video{'s' if deleted != 1 else ''}.",
+        f"Deleted {deleted} tip{'s' if deleted != 1 else ''}.",
         "success" if deleted else "info",
     )
     return redirect(url_for("admin.videos"))

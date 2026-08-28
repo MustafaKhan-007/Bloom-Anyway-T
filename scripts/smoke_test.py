@@ -1113,16 +1113,53 @@ r = client.get("/courses?h=workbook", follow_redirects=False)
 ok("Filtered /courses stays on-site",
    r.status_code == 200 and "Courses &amp; Guides" in r.get_data(as_text=True))
 
-# videos: owner uploads, Creator watches, free is blocked
+# content tips: owner writes one, Creator reads it, free is blocked
 minimal_mp4 = b"\x00\x00\x00\x18ftypmp42" + b"\x00" * 64
 r = admin.post("/admin/videos/new", data={
     "title": "Morning pages walkthrough", "description": "How I use the notebook.",
+    "body": "Start with three pages.\n\nDon't edit while you write.",
     "published": "1", "sort_order": "0",
     "video_file": (io.BytesIO(minimal_mp4), "clip.mp4"),
 }, content_type="multipart/form-data", follow_redirects=True)
-ok("Owner uploads a video", "Video saved" in r.get_data(as_text=True))
+ok("Owner writes a tip with a video", "Tip saved" in r.get_data(as_text=True))
 with app.app_context():
     vid_id = Video.query.filter_by(title="Morning pages walkthrough").first().id
+
+# the whole point: a tip is writing, so the video is optional
+r = admin.post("/admin/videos/new", data={
+    "title": "Batch a week of hooks", "description": "Twenty minutes, once a week.",
+    "body": "Open a note.\n\nWrite ten first lines without judging them.",
+    "published": "1", "sort_order": "1", "free_access": "1",
+}, content_type="multipart/form-data", follow_redirects=True)
+ok("Owner publishes a text-only tip", "Tip saved" in r.get_data(as_text=True))
+with app.app_context():
+    text_tip = Video.query.filter_by(title="Batch a week of hooks").first()
+    ok("Text-only tip is stored without a video",
+       text_tip is not None and text_tip.has_video() is False
+       and "ten first lines" in (text_tip.body or ""))
+    text_tip_id = text_tip.id
+
+r = admin.post("/admin/videos/new", data={
+    "title": "Nothing to say", "published": "1",
+}, content_type="multipart/form-data", follow_redirects=True)
+ok("A tip with neither text nor video is refused",
+   "Write the tip" in r.get_data(as_text=True))
+
+# a video can come off again without losing the tip
+admin.post("/admin/videos/new", data={
+    "title": "Swap the clip out", "body": "Words that stay.", "published": "1",
+    "video_file": (io.BytesIO(minimal_mp4), "swap.mp4"),
+}, content_type="multipart/form-data", follow_redirects=True)
+with app.app_context():
+    swap_id = Video.query.filter_by(title="Swap the clip out").first().id
+admin.post(f"/admin/videos/{swap_id}/edit", data={
+    "title": "Swap the clip out", "body": "Words that stay.", "published": "1",
+    "remove_video": "1",
+}, content_type="multipart/form-data", follow_redirects=True)
+with app.app_context():
+    swapped = db.session.get(Video, swap_id)
+    ok("Owner can drop the video and keep the tip",
+       swapped.has_video() is False and swapped.body == "Words that stay.")
 
 r = free_client.get("/watch", follow_redirects=False)
 ok("Free member can open Content Hub (public reviews)",
@@ -1138,7 +1175,17 @@ ok("Creator member sees the video room",
    r.status_code == 200 and "Morning pages walkthrough" in r.get_data(as_text=True)
    and "Content Hub" in r.get_data(as_text=True))
 r = client.get(f"/watch/{vid_id}")
-ok("Creator member opens a video page", r.status_code == 200)
+ok("Creator member opens a tip and reads it",
+   r.status_code == 200 and "Don&#39;t edit while you write." in r.get_data(as_text=True))
+r = free_client.get(f"/watch/{text_tip_id}")
+ok("Free member reads a tip that was opened to Free",
+   r.status_code == 200 and "ten first lines" in r.get_data(as_text=True))
+r = free_client.get(f"/watch/{vid_id}")
+free_tip = r.get_data(as_text=True)
+ok("Locked tip shows a teaser, not the whole thing",
+   r.status_code == 200 and "Start with three pages" in free_tip
+   and "Don&#39;t edit while you write." not in free_tip
+   and "See memberships" in free_tip)
 r = client.get(f"/watch/{vid_id}/stream", headers={"Range": "bytes=0-3"})
 ok("Video streams with range support (206 partial)",
    r.status_code == 206 and r.headers.get("Accept-Ranges") == "bytes"
@@ -1151,14 +1198,15 @@ ok("Owner can stream Content Hub videos",
    r.status_code == 206 and "Content-Range" in r.headers)
 
 r = admin.post("/admin/videos/new", data={
-    "title": "Bad file", "video_file": (io.BytesIO(b"nope"), "notes.txt"),
+    "title": "Bad file", "body": "Some words.",
+    "video_file": (io.BytesIO(b"nope"), "notes.txt"),
 }, content_type="multipart/form-data", follow_redirects=True)
-ok("Non-video upload is rejected", "MP4" in r.get_data(as_text=True))
+ok("Non-video attachment is rejected", "MP4" in r.get_data(as_text=True))
 
 # oversized video shows the error inline on the form, not an error page
 app.config["MAX_VIDEO_MB"] = 0
 r = admin.post("/admin/videos/new", data={
-    "title": "Too big", "published": "1", "sort_order": "0",
+    "title": "Too big", "body": "Some words.", "published": "1", "sort_order": "0",
     "video_file": (io.BytesIO(minimal_mp4), "big.mp4"),
 }, content_type="multipart/form-data", follow_redirects=False)
 ok("Oversized video shows an inline error (no error-page redirect)",
@@ -1554,8 +1602,9 @@ ok("Healing member can browse the Content Hub",
    r.status_code == 200 and "Content Hub" in r.get_data(as_text=True)
    and "Morning pages walkthrough" in r.get_data(as_text=True))
 r = banclient.get(f"/watch/{vid_id}")
-ok("Healing member sees the locked video page",
-   r.status_code == 200 and "Upgrade to Creator" in r.get_data(as_text=True))
+ok("Healing member sees the locked tip page",
+   r.status_code == 200
+   and "Creator members and up" in r.get_data(as_text=True))
 r = banclient.get(f"/watch/{vid_id}/stream")
 ok("Healing member can't stream a locked video", r.status_code == 404)
 
@@ -2394,12 +2443,14 @@ with app.app_context():
     ok("Creator photo setting points at media route",
        get_setting("creator_image_url") == "/media/site/creator")
 
-# Content Hub: video library appears before reel reviews
+# Content Hub: the tips library appears before reel reviews
 r = client.get("/watch")
 hub = r.get_data(as_text=True)
-ok("Content Hub lists video library above reel reviews",
+ok("Content Hub lists tips above reel reviews",
    hub.find('id="videos"') < hub.find('id="reviews"')
-   and hub.find("Video library") < hub.find("Reel reviews"))
+   and hub.find("Content tips library") < hub.find("Reel reviews"))
+ok("Hub card shows the tip summary and read time",
+   "Twenty minutes, once a week." in hub and "min read" in hub)
 
 # Brevo helper strips Bearer / whitespace / wrapping quotes
 from app.services import mailer as mailer_mod

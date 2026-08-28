@@ -972,17 +972,22 @@ class Notification(db.Model):
 
 
 class Video(db.Model):
-    """An owner-uploaded video. Creator members can play by default; optional
-    ``free_access`` opens playback to every signed-in member (including Free).
-    Files stream from disk (VIDEO_STORAGE_DIR); thumbnails live in the DB."""
+    """A Content Hub tip: written advice with an optional video attached.
+
+    ``description`` is the short summary on hub cards; ``body`` is the tip
+    itself and is gated the same way playback is. Creator members get
+    everything by default; ``free_access`` / ``healing_access`` open a tip up
+    to lower tiers. Video files stream from disk (VIDEO_STORAGE_DIR);
+    thumbnails live in the DB."""
     __tablename__ = "videos"
 
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(160), nullable=False)
     description = db.Column(db.Text)
+    body = db.Column(db.Text)              # the written tip
     filename = db.Column(db.String(255))   # original upload name (for download)
     disk_name = db.Column(db.String(64))   # stored file name on disk
-    mime = db.Column(db.String(120), nullable=False)
+    mime = db.Column(db.String(120))       # None for tips with no video
     size = db.Column(db.Integer, nullable=False, default=0)
     data = db.Column(db.LargeBinary)       # legacy DB-stored bytes (older rows)
     thumb_data = db.Column(db.LargeBinary)
@@ -1012,6 +1017,36 @@ class Video(db.Model):
 
     def has_thumb(self) -> bool:
         return self.thumb_data is not None
+
+    def has_video(self) -> bool:
+        return bool(self.disk_name or self.data)
+
+    def summary(self, limit: int = 150) -> str:
+        """Card blurb: the owner's summary, else the opening of the tip."""
+        text = (self.description or "").strip()
+        if not text:
+            text = " ".join((self.body or "").split())
+        if len(text) <= limit:
+            return text
+        return text[:limit].rsplit(" ", 1)[0] + "\u2026"
+
+    def teaser(self, limit: int = 240) -> str:
+        """Opening of the tip for members whose plan doesn't cover it.
+
+        Never more than half of it — a short tip would otherwise be given away
+        in full on the page that asks them to upgrade.
+        """
+        words = (self.body or "").split()
+        if not words:
+            return ""
+        text = " ".join(words[:max(1, len(words) // 2)])
+        if len(text) > limit:
+            text = text[:limit].rsplit(" ", 1)[0]
+        return text + "\u2026"
+
+    def read_minutes(self) -> int:
+        words = len((self.body or "").split())
+        return max(1, round(words / 200)) if words else 0
 
     def size_mb(self):
         return round((self.size or 0) / 1024 / 1024, 1)

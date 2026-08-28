@@ -13,7 +13,7 @@
       {% elif is_healing %}
       <p>
         <strong>Healing tips are open for you.</strong>
-        Full Content Hub playback, reel reviews, and spotlight stay with Creator or Full Bloom.
+        The rest of the Content Hub, reel reviews, and spotlight stay with Creator or Full Bloom.
       </p>
       <a class="btn btn--gold hub-exact__banner-cta" href="{{ url_for('main.membership', next=url_for('main.videos')) }}">See Creator &amp; Full Bloom</a>
       {% else %}
@@ -31,8 +31,9 @@
       <p class="hub-exact__eyebrow">Content Hub</p>
       <h1>Content Hub</h1>
       <p class="hub-exact__lede">
-        Tips for showing up online, daily reel reviews from the community, and a weekly
-        Reel of the Week draw — open to Creator and Full Bloom members.
+        Written tips for showing up online (with video when it helps), daily reel reviews
+        from the community, and a weekly Reel of the Week draw — open to Creator and
+        Full Bloom members.
       </p>
     </div>
   </header>
@@ -63,8 +64,8 @@
       <div class="hub-exact__section-head">
         <div>
           <h2>Content Tips</h2>
-          <p class="hub-exact__section-sub">from the founders — updated regularly</p>
-          <p class="sr-only">Video library</p>
+          <p class="hub-exact__section-sub">written by the founders — updated regularly, some with video</p>
+          <p class="sr-only">Content tips library</p>
         </div>
         <a class="hub-exact__view-all" href="#videos">View all tips &rarr;</a>
       </div>
@@ -84,15 +85,16 @@
                 {% if v.free_access %}Free pick{% elif v.healing_access %}Healing tip{% else %}Creator tip{% endif %}
               </span>
               <h3>{{ v.title }}</h3>
-              {% if v.description %}<p>{{ v.description|truncate(110) }}</p>{% endif %}
+              {% if v.summary() %}<p>{{ v.summary() }}</p>{% endif %}
               <div class="hub-exact__tip-meta">
                 <span>{{ v.created_at|localtime('%b %d, %Y') }}</span>
-                <span>{{ v.access_label(current_user) }}</span>
+                {% if v.read_minutes() %}<span>{{ v.read_minutes() }} min read</span>{% endif %}
+                {% if v.has_video() %}<span>Video</span>{% endif %}
                 <span class="hub-exact__tip-read">
                   {% if playable_for_me %}Read &rarr;{% else %}<span class="hub-exact__tip-lock" aria-hidden="true">&#128274;</span> Locked{% endif %}
                 </span>
               </div>
-              {% if playable_for_me %}
+              {% if playable_for_me and v.has_video() %}
               <span class="hub-exact__tip-play" aria-hidden="true">&#9654;</span>
               {% endif %}
             </div>

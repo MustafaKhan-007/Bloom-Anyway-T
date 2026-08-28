@@ -3,52 +3,74 @@
 
 {% block content %}
 <section class="section">
-  <div class="container" style="max-width: 900px;">
+  <div class="container tip-read">
     <p class="eyebrow"><a href="{{ url_for('main.videos') }}">&larr; Content Hub</a></p>
 
-    {% if can_play and playable %}
-    <div class="video-player">
-      <video controls playsinline preload="auto"
-             {% if video.has_thumb() %}poster="{{ url_for('main.video_thumb', video_id=video.id) }}"{% endif %}
-             controlslist="nodownload" data-no-contextmenu>
-        <source src="{{ url_for('main.video_stream', video_id=video.id) }}" type="{{ video.mime or 'video/mp4' }}">
-        Your browser can't play this video.
-      </video>
-    </div>
-    {% elif can_play and not playable %}
-    <div class="empty-state">
-      <p>This video's file isn't on the server right now
-        {% if current_user.is_admin %}
-        &mdash; re-upload it from <a href="{{ url_for('admin.videos') }}">Studio &rarr; Content Hub</a>
-        (make sure <code>VIDEO_STORAGE_DIR</code> points at a persistent disk on Render).
-        {% else %}
-        &mdash; please check back soon.
-        {% endif %}
+    <header class="tip-read__head">
+      <span class="tip-read__cat">
+        {% if video.free_access %}Free pick{% elif video.healing_access %}Healing tip{% else %}Creator tip{% endif %}
+      </span>
+      <h1>{{ video.title }}</h1>
+      <p class="tip-read__meta">
+        <span>{{ video.created_at|localtime('%B %d, %Y') }}</span>
+        {% if video.read_minutes() %}<span>{{ video.read_minutes() }} min read</span>{% endif %}
+        {% if video.has_video() %}<span>Video included</span>{% endif %}
+        <span class="video-access-tag {{ 'video-access-tag--yours' if can_play }}">{{ access_label }}</span>
       </p>
-    </div>
-    {% else %}
-    <div class="video-locked"
-         {% if video.has_thumb() %}style="background-image:url('{{ url_for('main.video_thumb', video_id=video.id) }}')"{% endif %}>
-      <div class="video-locked__veil">
-        <span class="video-locked__icon" aria-hidden="true">&#128274;</span>
-        <h2>Creator members only</h2>
-        <p>You can browse on Free, but this video's playback is a Creator perk.</p>
-        <a class="btn btn--primary" href="{{ url_for('main.membership', next=request.path) }}">Upgrade to Creator</a>
-      </div>
-    </div>
-    {% endif %}
+      {% if video.description %}
+      <p class="tip-read__lede">{{ video.description }}</p>
+      {% endif %}
+    </header>
 
-    <h1>{{ video.title }}</h1>
-    <p style="color: var(--ink-soft);">
-      {{ video.created_at|localtime('%B %d, %Y') }}
-      &middot; <span class="video-access-tag {{ 'video-access-tag--yours' if can_play }}">{{ access_label }}</span>
-    </p>
-    {% if video.description %}
-    <div class="forum-body">{{ video.description|nl2br }}</div>
+    {% if can_play %}
+      {% if video.has_video() %}
+        {% if playable %}
+        <div class="video-player">
+          <video controls playsinline preload="auto"
+                 {% if video.has_thumb() %}poster="{{ url_for('main.video_thumb', video_id=video.id) }}"{% endif %}
+                 controlslist="nodownload" data-no-contextmenu>
+            <source src="{{ url_for('main.video_stream', video_id=video.id) }}" type="{{ video.mime or 'video/mp4' }}">
+            Your browser can't play this video.
+          </video>
+        </div>
+        {% else %}
+        <div class="empty-state">
+          <p>The video for this tip isn't on the server right now
+            {% if current_user.is_admin %}
+            &mdash; re-upload it from <a href="{{ url_for('admin.videos') }}">Studio &rarr; Content Hub</a>
+            (make sure <code>VIDEO_STORAGE_DIR</code> points at a persistent disk on Render).
+            {% else %}
+            &mdash; the written tip is below.
+            {% endif %}
+          </p>
+        </div>
+        {% endif %}
+      {% elif video.has_thumb() %}
+      <img class="tip-read__cover" src="{{ url_for('main.video_thumb', video_id=video.id) }}" alt="">
+      {% endif %}
+
+      {% if video.body %}
+      <article class="tip-read__body forum-body">{{ video.body|nl2br }}</article>
+      {% endif %}
+    {% else %}
+      {% if video.teaser() %}
+      <div class="tip-read__teaser">
+        <p>{{ video.teaser() }}</p>
+      </div>
+      {% endif %}
+      <div class="video-locked"
+           {% if video.has_thumb() %}style="background-image:url('{{ url_for('main.video_thumb', video_id=video.id) }}')"{% endif %}>
+        <div class="video-locked__veil">
+          <span class="video-locked__icon" aria-hidden="true">&#128274;</span>
+          <h2>{{ 'Healing members and up' if video.healing_access else 'Creator members and up' }}</h2>
+          <p>You can browse every tip on Free. Reading this one{% if video.has_video() %} and watching its video{% endif %} comes with {{ 'Healing' if video.healing_access else 'Creator' }}.</p>
+          <a class="btn btn--primary" href="{{ url_for('main.membership', next=request.path) }}">See memberships</a>
+        </div>
+      </div>
     {% endif %}
 
     {% if more %}
-    <h2 style="margin-top: 48px;">More to watch</h2>
+    <h2 class="tip-read__more-head">More tips</h2>
     <div class="video-grid">
       {% for v in more %}
       <a class="video-card" href="{{ url_for('main.watch', video_id=v.id) }}">
@@ -56,7 +78,7 @@
           {% if v.has_thumb() %}
           <img src="{{ url_for('main.video_thumb', video_id=v.id) }}" alt="" loading="lazy">
           {% else %}
-          <span class="video-card__play" aria-hidden="true">&#9654;</span>
+          <span class="video-card__play" aria-hidden="true">{{ '&#9654;'|safe if v.has_video() else '&#128161;'|safe }}</span>
           {% endif %}
         </div>
         <div class="video-card__body">

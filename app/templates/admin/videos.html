@@ -1,23 +1,23 @@
 {% extends "admin/base_admin.html" %}
-{% block title %}Videos{% endblock %}
+{% block title %}Content tips{% endblock %}
 
 {% block content %}
 <div class="studio-page">
   <div class="page-head">
     <div>
       <p class="eyebrow">Content Hub</p>
-      <h1>Content Hub videos</h1>
-      <p class="field-help" style="margin: 6px 0 0; max-width: 62ch;">Creator members (and you) can watch these. Videos stream from the site &mdash; no downloads. Use a persistent <code>VIDEO_STORAGE_DIR</code> disk on Render so files survive deploys.</p>
+      <h1>Content tips</h1>
+      <p class="field-help" style="margin: 6px 0 0; max-width: 62ch;">Written tips for members, with a video attached when it helps. Creator and Full Bloom read everything; open a tip to Free or Healing on the tip itself.</p>
     </div>
-    <a class="btn btn--primary btn--sm" href="{{ url_for('admin.video_form') }}">Upload video</a>
+    <a class="btn btn--primary btn--sm" href="{{ url_for('admin.video_form') }}">Write a tip</a>
   </div>
 
   <section class="admin-panel studio-card">
     {% if videos %}
     {% with form_id='bulk-videos',
             action=url_for('admin.videos_bulk_delete'),
-            confirm_template='Delete {n} selected video(s)?',
-            confirm_title='Delete selected videos?',
+            confirm_template='Delete {n} selected tip(s)?',
+            confirm_title='Delete selected tips?',
             confirm_ok='Delete',
             button_label='Delete selected',
             hidden={} %}
@@ -26,7 +26,7 @@
     {% endif %}
     <table class="admin-table" style="margin-top: 16px;">
       <thead>
-        <tr>{% if videos %}<th class="studio-bulk__check"><span class="visually-hidden">Select</span></th>{% endif %}<th></th><th>Title</th><th>Size</th><th>Status</th><th>Added</th><th></th></tr>
+        <tr>{% if videos %}<th class="studio-bulk__check"><span class="visually-hidden">Select</span></th>{% endif %}<th></th><th>Title</th><th>Contains</th><th>Who it's for</th><th>Status</th><th>Added</th><th></th></tr>
       </thead>
       <tbody>
         {% for v in videos %}
@@ -38,12 +38,14 @@
           <td style="width: 120px;">
             {% if v.has_thumb() %}
             <img src="{{ url_for('main.video_thumb', video_id=v.id) }}" alt="" style="width: 110px; border-radius: 8px; display: block;">
-            {% else %}
-            <span class="field-help">no thumb</span>
             {% endif %}
           </td>
           <td><a href="{{ url_for('admin.video_form', video_id=v.id) }}">{{ v.title }}</a></td>
-          <td>{{ v.size_mb() }} MB</td>
+          <td>
+            {% if v.read_minutes() %}{{ v.read_minutes() }} min read{% else %}No text{% endif %}
+            {% if v.has_video() %}<br><span class="field-help">+ video ({{ v.size_mb() }} MB)</span>{% endif %}
+          </td>
+          <td>{% if v.free_access %}Free and up{% elif v.healing_access %}Healing and up{% else %}Creator and up{% endif %}</td>
           <td><span class="status-pill status-pill--{{ 'published' if v.published else 'draft' }}">{{ 'live' if v.published else 'hidden' }}</span></td>
           <td>{{ v.created_at.strftime('%b %d, %Y') }}</td>
           <td style="white-space: nowrap;">
@@ -56,7 +58,7 @@
           </td>
         </tr>
         {% else %}
-        <tr><td colspan="6">No videos yet &mdash; upload the first one.</td></tr>
+        <tr><td colspan="8">No tips yet &mdash; write the first one.</td></tr>
         {% endfor %}
       </tbody>
     </table>
