@@ -2733,6 +2733,97 @@ with app.app_context():
 ok("PageView has no IP field",
    not hasattr(PageView, "ip") and not hasattr(PageView, "ip_address"))
 
+# --- membership emails must not follow a deleted account ----------------------
+import app.services.mailer as _mailer_mod
+
+_welcomes = []
+_billing_alerts = []
+_mailer_mod.send_healing_welcome = (
+    lambda to, **kw: _welcomes.append(to) or True)
+_mailer_mod.send_creator_welcome = (
+    lambda to, **kw: _welcomes.append(to) or True)
+_mailer_mod.send_full_bloom_welcome = (
+    lambda to, **kw: _welcomes.append(to) or True)
+_mailer_mod.send_billing_alert = (
+    lambda title, body: _billing_alerts.append(title) or True)
+
+
+def _invoice_webhook(invoice_id, email, price_id, sub_id, reason):
+    body = json.dumps({
+        "id": f"evt_{invoice_id}",
+        "object": "event",
+        "type": "invoice.paid",
+        "data": {"object": {
+            "id": f"in_{invoice_id}",
+            "object": "invoice",
+            "amount_paid": 900,
+            "currency": "usd",
+            "customer_email": email,
+            "payment_intent": str(invoice_id),
+            "subscription": sub_id,
+            "billing_reason": reason,
+            "metadata": {"tier": "healing"},
+            "lines": {"data": [{"price": {"id": price_id}}]},
+        }},
+    }).encode()
+    return client.post("/webhooks/stripe", data=body, headers=_stripe_headers(body))
+
+
+with app.app_context():
+    from app.models import MembershipPlan
+    _hplan = MembershipPlan.query.filter_by(tier="healing").first()
+    _mem_price = _hplan.stripe_price_id
+    leaver = User(email="leaver@example.com", display_name="Leaver",
+                  membership="none", email_verified_at=utcnow())
+    leaver.set_password(USER_PW)
+    db.session.add(leaver)
+    db.session.commit()
+    leaver_id = leaver.id
+
+_invoice_webhook("WEL-1", "leaver@example.com", _mem_price,
+                 "sub_leaver", "subscription_create")
+ok("First membership payment sends the welcome",
+   _welcomes.count("leaver@example.com") == 1, f"got {_welcomes}")
+
+_invoice_webhook("WEL-2", "leaver@example.com", _mem_price,
+                 "sub_leaver", "subscription_cycle")
+ok("Renewal does not re-send the welcome",
+   _welcomes.count("leaver@example.com") == 1, f"got {_welcomes}")
+
+with app.app_context():
+    first_order = Order.query.filter_by(ls_order_id="WEL-1").first()
+    ok("Order records the subscription behind the payment",
+       first_order is not None and first_order.stripe_subscription_id == "sub_leaver")
+    close_account(db.session.get(User, leaver_id))
+
+_invoice_webhook("WEL-3", "leaver@example.com", _mem_price,
+                 "sub_leaver", "subscription_cycle")
+ok("Renewal after account deletion sends no welcome",
+   _welcomes.count("leaver@example.com") == 1, f"got {_welcomes}")
+ok("Owner is told a deleted account is still being charged",
+   any("charged again" in t.lower() for t in _billing_alerts),
+   f"got {_billing_alerts}")
+with app.app_context():
+    after = Order.query.filter_by(ls_order_id="WEL-3").first()
+    ok("Charge after deletion does not restore the deleted email",
+       after is not None and (after.buyer_email or "").startswith("closed+"),
+       f"got {after.buyer_email if after else None}")
+
+# Re-running fulfillment (late webhook, dashboard sync) keeps the scrub.
+_invoice_webhook("WEL-1", "leaver@example.com", _mem_price,
+                 "sub_leaver", "subscription_create")
+with app.app_context():
+    replayed = Order.query.filter_by(ls_order_id="WEL-1").first()
+    ok("Replaying an old payment keeps a scrubbed order scrubbed",
+       replayed is not None and (replayed.buyer_email or "").startswith("closed+"),
+       f"got {replayed.buyer_email if replayed else None}")
+
+# A genuinely new subscriber still gets welcomed.
+_invoice_webhook("WEL-4", "fresh-member@example.com", _mem_price,
+                 "sub_fresh", "subscription_create")
+ok("A new subscriber still gets a welcome",
+   "fresh-member@example.com" in _welcomes, f"got {_welcomes}")
+
 # --- drip-fed modules + free membership perk ----------------------------------
 _drip_fields = {
     "title": "Drip Course",

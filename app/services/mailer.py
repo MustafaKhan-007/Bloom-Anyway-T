@@ -943,11 +943,38 @@ def send_one_on_one_cancelled(
     )
 
 
-def send_contact_notification(name: str, email: str, body: str) -> bool:
+def _owner_email() -> str | None:
     from ..models import User
     owner = (User.query.filter_by(is_admin=True)
              .filter(User.deleted_at.is_(None)).order_by(User.id).first())
-    admin = owner.email if owner else None
+    return owner.email if owner else None
+
+
+def send_billing_alert(title: str, body: str) -> bool:
+    """Tell the owner about billing that needs to be sorted out in Stripe.
+
+    Used when we could not stop a subscription ourselves, so a silent failure
+    can't leave someone being charged after they've left.
+    """
+    admin = _owner_email()
+    if not admin:
+        log.warning("No owner account to notify about billing: %s", title)
+        _set_error("No owner account email to notify.")
+        return False
+    return send_styled_email(
+        admin,
+        subject=f"Action needed: {title}",
+        preview=title,
+        header="Billing",
+        title=title,
+        body=body,
+        button_text="Open Stripe",
+        button_url="https://dashboard.stripe.com/subscriptions",
+    )
+
+
+def send_contact_notification(name: str, email: str, body: str) -> bool:
+    admin = _owner_email()
     if not admin:
         log.warning("No owner account to notify; contact message stored but not emailed.")
         _set_error("No owner account email to notify.")

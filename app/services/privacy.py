@@ -39,10 +39,22 @@ _PAID_TIERS = frozenset({"healing", "creator", "full_bloom"})
 
 # Shared placeholder so forum posts/comments keep a valid author after hard-delete.
 FORMER_MEMBER_EMAIL = "former-member@invalid.local"
+#: stand-in for rows that arrive after the account they belong to was deleted
+CLOSED_ACCOUNT_EMAIL = "closed+orphan@invalid.local"
 
 
 def _scrub_email_token(user_id: int, row_id: int) -> str:
     return f"closed+{user_id}.{row_id}@invalid.local"
+
+
+def is_closed_account_email(email: str | None) -> bool:
+    """True for the placeholder we leave on rows after an account is deleted.
+
+    Fulfillment uses this to keep scrubbed rows scrubbed and to recognise a
+    payment that belongs to someone who no longer has an account.
+    """
+    value = (email or "").strip().lower()
+    return value.startswith("closed+") and value.endswith("@invalid.local")
 
 
 def _former_member() -> User:
@@ -93,6 +105,7 @@ def _clear_membership_history(email: str, *, user_id: int) -> dict:
         "orders_ended": 0,
         "orders_scrubbed": 0,
         "shop_scrubbed": 0,
+        "still_billing": [],
         "errors": [],
     }
     if not email_norm or "@" not in email_norm or email_norm.endswith("@invalid.local"):
@@ -109,7 +122,12 @@ def _clear_membership_history(email: str, *, user_id: int) -> dict:
             out["stripe_cancelled"] = len(result.get("cancelled") or [])
             out["orders_ended"] = int(result.get("orders_ended") or 0)
             if not result.get("ok"):
-                out["errors"].extend(result.get("errors") or ["stripe_cancel_incomplete"])
+                errors = list(result.get("errors") or ["stripe_cancel_incomplete"])
+                out["errors"].extend(errors)
+                out["still_billing"] = [
+                    err.split(":", 1)[1] for err in errors
+                    if isinstance(err, str) and err.startswith("cancel_failed:")
+                ]
                 log.warning(
                     "close_account: Stripe cancel incomplete for user %s: %s",
                     user_id, result.get("errors"),
@@ -237,6 +255,36 @@ def _detach_and_purge_user_rows(user: User, *, tombstone_id: int) -> None:
     )
 
 
+def _alert_owner_still_billing(email: str, user_id: int, info: dict) -> None:
+    """Email the owner when a closed account may still be billing in Stripe.
+
+    Deletion goes ahead either way, but the owner has to know so the card stops
+    being charged; a log line alone is how people end up paying for an account
+    that no longer exists.
+    """
+    sub_ids = [s for s in (info.get("still_billing") or []) if s]
+    lines = [
+        f"Account #{user_id} was deleted, but we could not confirm their "
+        "Stripe membership was cancelled.",
+        "",
+    ]
+    if sub_ids:
+        lines.append("Cancel these subscriptions in Stripe:")
+        lines.extend(f"  {sid}" for sid in sub_ids)
+    else:
+        # No id to go on, so the owner needs the address to find the customer.
+        lines.append(
+            f"We could not list their subscriptions. Search Stripe for {email} "
+            "and cancel anything still active."
+        )
+    lines += ["", f"Details: {info.get('errors')}"]
+    try:
+        from .mailer import send_billing_alert
+        send_billing_alert("Deleted account may still be billing", "\n".join(lines))
+    except Exception:
+        log.exception("close_account: could not alert owner for user %s", user_id)
+
+
 def close_account(user: User) -> None:
     """Cancel billing, scrub purchase history, and hard-delete the user row.
 
@@ -262,6 +310,7 @@ def close_account(user: User) -> None:
             "close_account: membership cleanup warnings for user %s: %s",
             uid, clear_info.get("errors"),
         )
+        _alert_owner_still_billing(email, uid, clear_info)
 
     try:
         from .listings import enforce_listing_limits

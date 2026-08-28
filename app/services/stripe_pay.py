@@ -497,6 +497,9 @@ def stripe_event_to_internal(event_type: str, obj: dict) -> tuple[str | None, di
         meta_out = dict(meta or {})
         if sub_id:
             meta_out["subscription_id"] = sub_id
+        reason = (obj.get("billing_reason") or "").strip()
+        if reason:
+            meta_out["billing_reason"] = reason
         return "payment.succeeded", {
             "payment_id": str(payment_id) if payment_id else "",
             "total_amount": amount or 0,
@@ -676,6 +679,19 @@ def _claim_membership_welcome(email: str, tier: str, order: Order) -> bool:
         )
         .first()
     )
+    # The email match breaks once an account is closed (we scrub the address off
+    # their orders), so also check the subscription: a renewal of a membership we
+    # already welcomed is never a new membership.
+    sub_id = (getattr(order, "stripe_subscription_id", None) or "").strip()
+    if prior is None and sub_id:
+        prior = (
+            Order.query
+            .filter(
+                Order.stripe_subscription_id == sub_id,
+                Order.welcome_sent_at.isnot(None),
+            )
+            .first()
+        )
     if prior is not None:
         return False
 
@@ -703,8 +719,11 @@ def upsert_order_from_payment(
     status: str,
     gift_to: str | None = None,
     membership_tier: str | None = None,
+    subscription_id: str | None = None,
 ) -> Order:
     """Insert or update an order; idempotent on payment_id (stored as ls_order_id)."""
+    from .privacy import is_closed_account_email
+
     order = Order.query.filter_by(ls_order_id=str(payment_id)).first()
     if order is None:
         order = Order(ls_order_id=str(payment_id))
@@ -712,10 +731,18 @@ def upsert_order_from_payment(
     if product_id and str(product_id).strip():
         order.ls_variant_id = str(product_id).strip()
     email_norm = (buyer_email or "").strip().lower()
-    if email_norm and "@" in email_norm and not email_norm.endswith("@invalid"):
+    if is_closed_account_email(order.buyer_email):
+        # This row was scrubbed when the buyer deleted their account. Re-running
+        # fulfillment (a late webhook, a dashboard sync) must not put their
+        # address back.
+        pass
+    elif email_norm and "@" in email_norm and not email_norm.endswith("@invalid"):
         order.buyer_email = email_norm
     elif not order.buyer_email:
         order.buyer_email = email_norm or "unknown@invalid"
+    sub_ref = (subscription_id or "").strip()
+    if sub_ref and not order.stripe_subscription_id:
+        order.stripe_subscription_id = sub_ref[:80]
     if gift_to:
         order.gift_to_email = gift_to.strip().lower()
     order.total_cents = int(total_cents or 0)
@@ -745,6 +772,67 @@ def upsert_order_from_payment(
     return order
 
 
+def _membership_is_orphaned(order: Order, sub_id: str | None) -> bool:
+    """True when this payment belongs to someone who deleted their account.
+
+    Closing an account scrubs the buyer email off their orders, so a charge that
+    keeps arriving afterwards is billing for an account that no longer exists.
+    """
+    from .privacy import is_closed_account_email
+
+    if is_closed_account_email(getattr(order, "buyer_email", None)):
+        return True
+    key = (sub_id or getattr(order, "stripe_subscription_id", None) or "").strip()
+    if not key:
+        return False
+    rows = Order.query.filter(Order.stripe_subscription_id == key).all()
+    return any(is_closed_account_email(row.buyer_email) for row in rows)
+
+
+def _handle_orphan_membership_payment(order: Order, sub_id: str | None) -> None:
+    """Stop billing a deleted account, and tell the owner it happened."""
+    from .privacy import CLOSED_ACCOUNT_EMAIL, is_closed_account_email
+
+    key = (sub_id or getattr(order, "stripe_subscription_id", None) or "").strip()
+    # A renewal arrives as a brand new order row, which would otherwise carry the
+    # address we deleted for them.
+    if not is_closed_account_email(order.buyer_email):
+        order.buyer_email = CLOSED_ACCOUNT_EMAIL
+    log.warning(
+        "stripe: membership payment %s belongs to a closed account "
+        "(subscription %s) — no welcome sent",
+        order.ls_order_id, key or "unknown",
+    )
+    cancelled = False
+    if key and configured() and not current_app.config.get("TESTING"):
+        try:
+            cancelled = _cancel_stripe_subscription_now(key)
+        except Exception:
+            log.exception("stripe: orphan cancel failed for %s", key)
+    if cancelled:
+        body = (
+            f"Subscription {key} was still charging after the member deleted "
+            "their account. We cancelled it just now.\n\n"
+            f"Payment {order.ls_order_id} may need refunding — that's your call."
+        )
+    else:
+        body = (
+            f"Payment {order.ls_order_id} came in for a membership whose account "
+            "was deleted"
+            + (f" (subscription {key})." if key else ".")
+            + "\n\nWe could not cancel it automatically. Please cancel it in "
+            "Stripe so they stop being charged."
+        )
+    try:
+        from .mailer import send_billing_alert
+        send_billing_alert("Deleted account was charged again", body)
+    except Exception:
+        log.exception(
+            "stripe: could not alert owner about orphan payment %s",
+            order.ls_order_id,
+        )
+
+
 def handle_payment_event(event_type: str, data: dict) -> Order | None:
     """Fulfill or refund from a normalized payment payload."""
     from datetime import timedelta
@@ -753,6 +841,7 @@ def handle_payment_event(event_type: str, data: dict) -> Order | None:
 
     from ..models import User, utcnow
     from .memberships import _plan_for_product_id, tier_for_price_id
+    from .privacy import is_closed_account_email
 
     payment_id = (
         data.get("payment_id")
@@ -767,6 +856,11 @@ def handle_payment_event(event_type: str, data: dict) -> Order | None:
     currency = (data.get("currency") or "USD").upper()
     meta = data.get("metadata") if isinstance(data.get("metadata"), dict) else {}
     gift_to = (meta or {}).get("gift_to") or (meta or {}).get("giftTo")
+    # Stripe tells us when an invoice continues an existing subscription rather
+    # than starting one. Only a first payment can be a new membership.
+    renewal = str((meta or {}).get("billing_reason") or "").strip().lower() in (
+        "subscription_cycle", "subscription_update", "subscription_threshold",
+    )
 
     if event_type in ("payment.succeeded", "payment.processing"):
         if event_type != "payment.succeeded":
@@ -802,6 +896,7 @@ def handle_payment_event(event_type: str, data: dict) -> Order | None:
         plan = MembershipPlan.query.filter_by(tier=grant_tier).first()
 
     prev_tier = "none"
+    buyer = None
     if email:
         buyer = (User.query
                  .filter(func.lower(User.email) == email.strip().lower(),
@@ -819,11 +914,31 @@ def handle_payment_event(event_type: str, data: dict) -> Order | None:
         status=status,
         gift_to=gift_to,
         membership_tier=grant_tier,
+        subscription_id=(meta or {}).get("subscription_id"),
     )
+
+    is_membership = bool(plan and plan.tier in ("healing", "creator", "full_bloom"))
+    orphaned = False
+    if status == "paid" and is_membership:
+        orphaned = _membership_is_orphaned(order, (meta or {}).get("subscription_id"))
+        # send_receipt marks a payment we haven't fulfilled before, so replaying
+        # old payments through a sync can't spam the owner with the same alert.
+        if orphaned and send_receipt:
+            _handle_orphan_membership_payment(
+                order, (meta or {}).get("subscription_id"),
+            )
+        elif renewal and buyer is None:
+            # Subscriptions predating the subscription_id column can't be tied
+            # back to a closed account, so leave a trail rather than guessing.
+            log.warning(
+                "stripe: membership renewal %s has no account behind it "
+                "(subscription %s)",
+                order.ls_order_id, (meta or {}).get("subscription_id") or "unknown",
+            )
 
     # New membership purchase replaces any prior membership immediately
     # (cancel old Stripe sub + revoke local access, keep only this order).
-    if (status == "paid" and plan and plan.tier in ("healing", "creator", "full_bloom")
+    if (status == "paid" and is_membership and not orphaned
             and order.buyer_email and "@" in order.buyer_email):
         keep_sub = (meta or {}).get("subscription_id") or ""
         if not keep_sub:
@@ -860,10 +975,18 @@ def handle_payment_event(event_type: str, data: dict) -> Order | None:
         or "Course purchase"
     )
 
+    # For a closed account, keep the scrubbed address rather than re-recording
+    # the real one on a fresh row.
+    record_email = (
+        order.buyer_email
+        if is_closed_account_email(order.buyer_email)
+        else (email or order.buyer_email)
+    )
+
     if status == "paid" and not addon_checkout:
         upsert_shop_purchase(
             lemon_squeezy_order_id=str(payment_id),
-            customer_email=email or order.buyer_email,
+            customer_email=record_email,
             product_name=name,
             product_id=str(product_id) if product_id else None,
             variant_id=str(product_id) if product_id else None,
@@ -873,7 +996,7 @@ def handle_payment_event(event_type: str, data: dict) -> Order | None:
     elif status == "refunded" and not addon_checkout:
         upsert_shop_purchase(
             lemon_squeezy_order_id=str(payment_id),
-            customer_email=email or order.buyer_email,
+            customer_email=record_email,
             product_name=name,
             product_id=str(product_id) if product_id else None,
             variant_id=str(product_id) if product_id else None,
@@ -898,7 +1021,7 @@ def handle_payment_event(event_type: str, data: dict) -> Order | None:
         except Exception:
             log.exception("Order receipt email failed for %s", order.ls_order_id)
 
-    if (send_receipt and plan and plan.tier in ("healing", "creator", "full_bloom")
+    if (send_receipt and is_membership and not orphaned
             and order.buyer_email and "@" in order.buyer_email):
         # Already on this tier (or higher) before this fulfill — renewals / no-ops.
         already = (
@@ -907,7 +1030,7 @@ def handle_payment_event(event_type: str, data: dict) -> Order | None:
             or (plan.tier == "full_bloom" and prev_tier == "full_bloom")
         )
         # Durable claim: one welcome per email+tier across checkout + invoice ids.
-        if (not already
+        if (not already and not renewal
                 and _claim_membership_welcome(order.buyer_email, plan.tier, order)):
             try:
                 from .mailer import (

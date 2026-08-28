@@ -1037,6 +1037,10 @@ class Order(db.Model):
     # Set when a membership welcome email is claimed/sent for this order.
     # Used to stop duplicate welcomes across checkout + invoice events.
     welcome_sent_at = db.Column(db.DateTime)
+    # Stripe subscription this payment belongs to; renewals share it. Survives
+    # account deletion (which scrubs buyer_email), so it is the only way to tell
+    # that a later charge continues a membership whose owner is gone.
+    stripe_subscription_id = db.Column(db.String(80), index=True)
     created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
 
     def total_display(self):
