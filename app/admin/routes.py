@@ -1548,7 +1548,7 @@ def set_membership(user_id):
 @bp.route("/members/<int:user_id>/remove", methods=["POST"])
 @admin_required
 def remove_member(user_id):
-    """Soft-delete a member/user account from the Members page."""
+    """Hard-delete a member/user account from the Members page."""
     from ..services.privacy import close_account
 
     member = db.session.get(User, user_id) or abort(404)
@@ -1572,7 +1572,7 @@ def remove_member(user_id):
 @bp.route("/members/bulk-remove", methods=["POST"])
 @admin_required
 def members_bulk_remove():
-    """Soft-delete multiple member accounts from the Members page."""
+    """Hard-delete multiple member accounts from the Members page."""
     from ..services.privacy import close_account
 
     back = url_for(
@@ -2258,7 +2258,7 @@ def community_revoke_access(user_id):
 @bp.route("/community/member/<int:user_id>/remove", methods=["POST"])
 @admin_required
 def community_remove_member(user_id):
-    """Soft-delete the account (same scrub as self-serve close account)."""
+    """Hard-delete the account (same scrub as self-serve close account)."""
     from ..services.privacy import close_account
 
     member = _community_member_for_moderation(user_id)

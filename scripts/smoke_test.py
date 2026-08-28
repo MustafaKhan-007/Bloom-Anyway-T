@@ -2664,14 +2664,12 @@ with app.app_context():
     doomed_post = db.session.get(ForumPost, doomed_post_id)
     paid = db.session.get(Order, paid_id)
     shop = db.session.get(ShopPurchase, shop_id)
-    ok("Closed account email scrubbed",
-       doomed.deleted_at is not None and doomed.email.startswith("deleted+"))
-    ok("Closed account profile scrubbed",
-       doomed.display_name == "Former member" and doomed.username is None
-       and doomed.bio is None and doomed.avatar_data is None
-       and doomed.password_hash is None
-       and (doomed.membership or "none") == "none")
-    ok("Closed account posts hidden", doomed_post.hidden is True)
+    from app.services.privacy import FORMER_MEMBER_EMAIL
+    former = User.query.filter_by(email=FORMER_MEMBER_EMAIL).first()
+    ok("Closed account row removed from database", doomed is None)
+    ok("Closed account posts hidden under former member",
+       doomed_post is not None and doomed_post.hidden is True
+       and former is not None and doomed_post.user_id == former.id)
     ok("Closed account membership orders ended",
        paid is not None and paid.status == "refunded"
        and (paid.buyer_email or "").startswith("closed+"))
