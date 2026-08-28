@@ -473,3 +473,81 @@
       });
     });
   })();
+
+/* ---- content tip: preview the member's reading page while writing ---- */
+(function () {
+  var panel = document.querySelector("[data-tip-preview]");
+  var toggle = document.querySelector("[data-tip-preview-toggle]");
+  if (!panel || !toggle) return;
+
+  var titleField = document.getElementById("title");
+  var summaryField = document.getElementById("description");
+  var bodyField = document.getElementById("body");
+  var videoField = document.getElementById("video_file");
+  var dropVideo = document.querySelector('input[name="remove_video"]');
+  var freeBox = document.querySelector('input[name="free_access"]');
+  var healingBox = document.querySelector('input[name="healing_access"]');
+  var hadVideo = panel.getAttribute("data-has-video") === "1";
+
+  var outCat = panel.querySelector("[data-tip-preview-cat]");
+  var outTitle = panel.querySelector("[data-tip-preview-title]");
+  var outRead = panel.querySelector("[data-tip-preview-read]");
+  var outVideo = panel.querySelector("[data-tip-preview-video]");
+  var outLede = panel.querySelector("[data-tip-preview-lede]");
+  var outBody = panel.querySelector("[data-tip-preview-body]");
+
+  function keepsVideo() {
+    if (videoField && videoField.files && videoField.files.length) return true;
+    return hadVideo && !(dropVideo && dropVideo.checked);
+  }
+
+  function paint() {
+    var title = (titleField && titleField.value || "").trim();
+    outTitle.textContent = title || "Untitled tip";
+
+    var summary = (summaryField && summaryField.value || "").trim();
+    outLede.textContent = summary;
+    outLede.hidden = !summary;
+
+    // Match the reading page: newlines become line breaks, nothing is markup.
+    var text = (bodyField && bodyField.value) || "";
+    outBody.textContent = "";
+    if (text.trim()) {
+      text.split("\n").forEach(function (line, i, all) {
+        outBody.appendChild(document.createTextNode(line));
+        if (i < all.length - 1) outBody.appendChild(document.createElement("br"));
+      });
+    } else {
+      outBody.textContent = "Nothing written yet.";
+    }
+
+    var words = text.trim() ? text.trim().split(/\s+/).length : 0;
+    var minutes = words ? Math.max(1, Math.round(words / 200)) : 0;
+    outRead.textContent = minutes ? minutes + " min read" : "";
+    outRead.hidden = !minutes;
+
+    outVideo.hidden = !keepsVideo();
+
+    outCat.textContent = freeBox && freeBox.checked
+      ? "Free pick"
+      : (healingBox && healingBox.checked ? "Healing tip" : "Creator tip");
+  }
+
+  toggle.addEventListener("click", function () {
+    var opening = panel.hidden;
+    if (opening) paint();
+    panel.hidden = !opening;
+    toggle.setAttribute("aria-expanded", opening ? "true" : "false");
+    toggle.textContent = opening ? "Hide preview" : "Preview";
+  });
+
+  [titleField, summaryField, bodyField, videoField, dropVideo, freeBox, healingBox]
+    .forEach(function (field) {
+      if (!field) return;
+      ["input", "change"].forEach(function (evt) {
+        field.addEventListener(evt, function () {
+          if (!panel.hidden) paint();
+        });
+      });
+    });
+})();

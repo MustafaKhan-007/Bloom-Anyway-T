@@ -1161,6 +1161,12 @@ with app.app_context():
     ok("Owner can drop the video and keep the tip",
        swapped.has_video() is False and swapped.body == "Words that stay.")
 
+form_html = admin.get(f"/admin/videos/{swap_id}/edit").get_data(as_text=True)
+ok("Tip editor offers a preview of the member's page",
+   "data-tip-preview-toggle" in form_html
+   and 'class="tip-read__body forum-body" data-tip-preview-body' in form_html
+   and f"/watch/{swap_id}" in form_html)
+
 r = free_client.get("/watch", follow_redirects=False)
 ok("Free member can open Content Hub (public reviews)",
    r.status_code == 200 and "Content Hub" in r.get_data(as_text=True)

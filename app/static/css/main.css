@@ -7116,6 +7116,21 @@ a.at-handle:hover { text-decoration: underline; }
   background: linear-gradient(rgba(255, 251, 245, 0), var(--dawn-ivory, #fffbf5));
 }
 .tip-read__more-head { margin-top: 48px; }
+
+/* Studio: the same reading view, rendered from the form as you write. */
+.tip-preview__bar { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+.tip-preview {
+  margin-top: 16px; padding: 22px; border-radius: 16px;
+  background: var(--dawn-ivory); border: 1px solid rgba(61, 20, 49, 0.1);
+}
+.tip-preview__label {
+  margin: 0 0 14px; font-size: 11px; font-weight: 800;
+  letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-soft);
+}
+/* Same comfortable measure as the real page, so line breaks look honest. */
+.tip-preview .tip-read { max-width: 720px; }
+.tip-preview .tip-read__head h1 { font-size: clamp(24px, 3vw, 32px); }
+.tip-preview .tip-read__body:empty { display: none; }
 @media (max-width: 640px) {
   .tip-read__body { padding: 20px 18px; }
 }
