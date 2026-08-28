@@ -12,7 +12,8 @@ import re
 
 from sqlalchemy import func, or_
 
-from ..models import MembershipPlan, Order, User, higher_membership
+from ..models import (MEMBERSHIP_RANK, MEMBERSHIPS, MembershipPlan, Order,
+                      User, higher_membership, utcnow)
 
 log = logging.getLogger(__name__)
 
@@ -144,10 +145,123 @@ def purchased_tier(email: str) -> str:
     return best
 
 
+def manual_tier(user: User) -> str:
+    """The tier an owner set by hand in Studio, or "" when following billing."""
+    tier = (getattr(user, "membership_manual", None) or "").strip().lower()
+    return tier if tier in MEMBERSHIPS else ""
+
+
+def billing_tier(email: str) -> str:
+    """Tier that Stripe / paid orders would grant this email right now."""
+    live = None
+    try:
+        from .stripe_pay import active_membership_tier_from_stripe
+        live = active_membership_tier_from_stripe(email)
+    except Exception:
+        log.exception("membership: stripe live lookup failed for %s", email)
+    if live is not None:
+        return live
+    return purchased_tier(email)
+
+
+def end_local_membership_orders(email: str) -> int:
+    """Mark this email's paid membership Orders refunded. Caller commits."""
+    email_norm = (email or "").strip().lower()
+    if not email_norm:
+        return 0
+    ended = 0
+    orders = (Order.query
+              .filter(Order.status == "paid",
+                      func.lower(Order.buyer_email) == email_norm)
+              .all())
+    for order in orders:
+        tier = (order.membership_tier or "").strip().lower()
+        if tier not in _PAID_TIERS:
+            tier = tier_for_price_id(order.ls_variant_id) or ""
+        if tier in _PAID_TIERS:
+            order.status = "refunded"
+            ended += 1
+    return ended
+
+
+def revoke_paid_membership(email: str) -> dict:
+    """Cancel Stripe membership billing and end paid membership orders.
+
+    Without this a Studio downgrade is undone by the next reconcile, because
+    the live subscription (or paid order) still grants the old tier.
+    """
+    out = {"cancelled": 0, "orders_ended": 0, "errors": []}
+    email_norm = (email or "").strip().lower()
+    if not email_norm or "@" not in email_norm or email_norm.endswith("@invalid.local"):
+        out["errors"].append("no_billable_email")
+        return out
+    try:
+        from . import stripe_pay as pay
+        if pay.configured():
+            result = pay.cancel_membership_subscriptions(
+                email_norm, at_period_end=False,
+            )
+            out["cancelled"] = len(result.get("cancelled") or [])
+            out["orders_ended"] = int(result.get("orders_ended") or 0)
+            # Report every problem Stripe mentioned, not only the ones that
+            # flipped ``ok`` — e.g. "no_membership_prices" leaves ok True while
+            # cancelling nothing at all.
+            out["errors"].extend(result.get("errors") or [])
+            if not result.get("ok") and not out["errors"]:
+                out["errors"].append("stripe_cancel_incomplete")
+    except Exception:
+        out["errors"].append("stripe_cancel_exception")
+        log.exception("membership: Stripe cancel failed for %s", email_norm)
+    # Local fallback: covers plans with no price id configured in Studio.
+    out["orders_ended"] += end_local_membership_orders(email_norm)
+    if not out["cancelled"] and not out["orders_ended"] and not out["errors"]:
+        # Billing says this member is paying, yet there was nothing to stop:
+        # the subscription lives under another customer/email in Stripe.
+        out["errors"].append("billing_not_found")
+    return out
+
+
+def set_manual_tier(user: User, tier: str) -> dict:
+    """Apply an owner-chosen tier from Studio → Members. Caller commits.
+
+    Downgrades also stop the billing behind the old tier, and the choice is
+    remembered so Stripe sync can't put the member back where they were.
+    """
+    out = {"ok": False, "revoked": False, "cancelled": 0,
+           "orders_ended": 0, "errors": []}
+    if user is None or tier not in MEMBERSHIPS or user.is_admin:
+        return out
+
+    billing = billing_tier(user.email)
+    if tier != billing and MEMBERSHIP_RANK.get(tier, 0) <= MEMBERSHIP_RANK.get(billing, 0):
+        info = revoke_paid_membership(user.email)
+        out["revoked"] = bool(info["cancelled"] or info["orders_ended"])
+        out["cancelled"] = info["cancelled"]
+        out["orders_ended"] = info["orders_ended"]
+        out["errors"] = info["errors"]
+
+    # Record the override against what billing granted *before* the cancel.
+    # Assuming the cancel worked and dropping the override here is what let a
+    # lingering Stripe subscription (or a replayed webhook) hand the old tier
+    # straight back on the next sync. Only a tier that already matches billing
+    # means "follow billing".
+    user.membership_manual = None if tier == billing else tier
+    user.membership_manual_at = None if user.membership_manual is None else utcnow()
+    user.membership = tier
+    user.membership_cancel_at = None
+    from .listings import enforce_listing_limits
+    enforce_listing_limits(user)
+    out["ok"] = True
+    log.info("membership: studio set user %s -> %s (billing=%s, manual=%s)",
+             user.id, tier, billing, user.membership_manual or "-")
+    return out
+
+
 def reconcile_user(user: User, downgrade: bool = False) -> bool:
     """Sync a user's membership column from Stripe / paid orders.
 
-    Prefer live Stripe (price/product → plan). Else paid local orders.
+    A tier set by hand in Studio wins until the member pays again. Otherwise
+    prefer live Stripe (price/product → plan), else paid local orders.
     Never touches the owner. The caller commits.
     """
     if user is None:
@@ -157,6 +271,16 @@ def reconcile_user(user: User, downgrade: bool = False) -> bool:
             user.membership = "full_bloom"
             return True
         return False
+
+    manual = manual_tier(user)
+    if manual:
+        if (user.membership or "none") == manual:
+            return False
+        user.membership = manual
+        log.info("membership: user %s kept on studio tier %s", user.id, manual)
+        from .listings import enforce_listing_limits
+        enforce_listing_limits(user)
+        return True
 
     live = None
     try:
@@ -210,4 +334,35 @@ def apply_from_order(order: Order) -> None:
             order.membership_tier = tier
     if tier not in _PAID_TIERS:
         return
+    if order.status == "paid":
+        # A fresh payment replaces whatever an owner set by hand in Studio —
+        # but a webhook replayed for an older payment must not.
+        clear_manual_tier(order.buyer_email,
+                          paid_at=getattr(order, "created_at", None))
     reconcile_email(order.buyer_email, downgrade=(order.status == "refunded"))
+
+
+def clear_manual_tier(email: str, paid_at=None) -> bool:
+    """Drop the Studio override for this email so billing decides again.
+
+    ``paid_at`` is when the payment behind the change was recorded. A payment
+    older than the Studio choice (a retried/late webhook for the membership the
+    owner just revoked) leaves the override in place.
+    """
+    if not email:
+        return False
+    user = (User.query
+            .filter(func.lower(User.email) == email.strip().lower(),
+                    User.deleted_at.is_(None))
+            .first())
+    if user is None or not manual_tier(user):
+        return False
+    set_at = getattr(user, "membership_manual_at", None)
+    if paid_at is not None and set_at is not None and paid_at <= set_at:
+        log.info("membership: kept studio tier for user %s (payment %s predates "
+                 "the studio change %s)", user.id, paid_at, set_at)
+        return False
+    user.membership_manual = None
+    user.membership_manual_at = None
+    log.info("membership: cleared studio tier for user %s after payment", user.id)
+    return True

@@ -91,6 +91,12 @@ class User(UserMixin, db.Model):
     membership = db.Column(db.String(20), nullable=False, default="none")
     # When set, Stripe cancel-at-period-end is scheduled; access until this UTC time.
     membership_cancel_at = db.Column(db.DateTime)
+    # Tier set by hand in Studio → Members. Wins over Stripe/orders until the
+    # member pays for a membership again.
+    membership_manual = db.Column(db.String(20))
+    # When that Studio choice was made, so a webhook replayed for an older
+    # payment can't undo it.
+    membership_manual_at = db.Column(db.DateTime)
 
     # showing-up streak ("I showed up today")
     last_checkin_date = db.Column(db.Date)

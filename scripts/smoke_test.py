@@ -1438,6 +1438,55 @@ with app.app_context():
     t = User.query.filter_by(email="buyer2@example.com").first().membership
 ok("Refunding a membership revokes it", t == "none", f"got {t}")
 
+# Studio tier changes stick: downgrading a paying member ends their billing
+with app.app_context():
+    paying = User(email="studio-downgrade@example.com", membership="none",
+                  email_verified_at=utcnow())
+    paying.set_password(USER_PW)
+    db.session.add(paying)
+    db.session.commit()
+    paying_id = paying.id
+_order_webhook("MEM-SD1", "studio-downgrade@example.com", "prod_creator_mem")
+with app.app_context():
+    t = db.session.get(User, paying_id).membership
+ok("Paid member starts on their purchased tier", t == "creator", f"got {t}")
+
+r = admin.post(f"/admin/members/{paying_id}/membership",
+               data={"membership": "none"}, follow_redirects=True)
+with app.app_context():
+    from app.services.memberships import reconcile_user
+    downgraded = db.session.get(User, paying_id)
+    sd_order = Order.query.filter_by(ls_order_id="MEM-SD1").first()
+    ok("Studio downgrade writes Free to the database",
+       downgraded.membership == "none", f"got {downgraded.membership}")
+    ok("Studio downgrade ends the paid membership order",
+       sd_order is not None and sd_order.status == "refunded",
+       f"got {getattr(sd_order, 'status', None)}")
+    ok("Studio downgrade is remembered as a manual tier",
+       downgraded.membership_manual == "none"
+       and downgraded.membership_manual_at is not None,
+       f"got {downgraded.membership_manual}")
+    reconcile_user(downgraded)
+    db.session.commit()
+    ok("Studio downgrade survives a membership re-sync",
+       db.session.get(User, paying_id).membership == "none")
+
+# a webhook replayed for the payment that was just revoked must not undo it
+_order_webhook("MEM-SD1", "studio-downgrade@example.com", "prod_creator_mem")
+with app.app_context():
+    replayed = db.session.get(User, paying_id)
+    ok("Replayed old payment webhook keeps the Studio downgrade",
+       replayed.membership == "none" and replayed.membership_manual == "none",
+       f"got {replayed.membership}/{replayed.membership_manual}")
+
+# paying again overrides the studio choice
+_order_webhook("MEM-SD2", "studio-downgrade@example.com", "prod_creator_mem")
+with app.app_context():
+    again = db.session.get(User, paying_id)
+    ok("Buying again clears the studio override",
+       again.membership == "creator" and again.membership_manual is None,
+       f"got {again.membership}/{again.membership_manual}")
+
 # buying before the account exists: tier is granted at first login
 _order_webhook("MEM-2", "prebuyer@example.com", "prod_creator_mem")
 with app.app_context():

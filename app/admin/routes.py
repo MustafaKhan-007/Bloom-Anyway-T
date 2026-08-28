@@ -1532,11 +1532,22 @@ def set_membership(user_id):
         return redirect(request.form.get("next") or url_for("admin.members"))
     tier = request.form.get("membership")
     if tier in MEMBERSHIPS:
-        member.membership = tier
-        from ..services.listings import enforce_listing_limits
-        enforce_listing_limits(member)
+        from ..services.memberships import set_manual_tier
+        info = set_manual_tier(member, tier)
         db.session.commit()
-        flash(f"{member.public_name()} \u2192 {member.membership_label()}.", "success")
+        msg = f"{member.public_name()} \u2192 {member.membership_label()}."
+        if info["revoked"]:
+            msg += " Their paid membership was cancelled in Stripe."
+        flash(msg, "success")
+        if info["errors"]:
+            log.warning("set_membership: billing cleanup issues for user %s: %s",
+                        member.id, info["errors"])
+            flash(
+                "Their tier was saved, but Stripe didn't confirm the "
+                "cancellation \u2014 check their subscription in the Stripe "
+                "dashboard so they aren't charged again.",
+                "error",
+            )
     next_url = request.form.get("next") or url_for(
         "admin.members",
         q=request.form.get("q") or None,
@@ -2222,24 +2233,17 @@ def community_pause_member(user_id):
 @admin_required
 def community_revoke_access(user_id):
     """Revoke membership (community + support groups) and pause forum posting."""
-    from ..services import stripe_pay as pay
-    from ..services.listings import enforce_listing_limits
+    from ..services.memberships import set_manual_tier
     from ..services.social_graph import notify
 
     member = _community_member_for_moderation(user_id)
     if member is None:
         return redirect(url_for("admin.community"))
-    if pay.configured() and member.email:
-        try:
-            pay.cancel_membership_subscriptions(
-                member.email, at_period_end=False,
-            )
-        except Exception:
-            log.exception("Stripe cancel failed while revoking user %s", member.id)
-
-    member.membership = "none"
+    info = set_manual_tier(member, "none")
+    if info["errors"]:
+        log.warning("revoke-access: billing cleanup issues for user %s: %s",
+                    member.id, info["errors"])
     member.forum_banned = True
-    enforce_listing_limits(member)
     notify(
         member.id,
         kind="moderation",
