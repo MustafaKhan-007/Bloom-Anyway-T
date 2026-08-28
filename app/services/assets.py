@@ -129,7 +129,13 @@ def process_upload(upload: FileStorage, *, title: str | None = None) -> dict:
     }
 
 
-def add_asset(product: Product, upload: FileStorage, *, title: str | None = None) -> ProductAsset:
+def add_asset(
+    product: Product,
+    upload: FileStorage,
+    *,
+    title: str | None = None,
+    module_index: int | None = None,
+) -> ProductAsset:
     fields = process_upload(upload, title=title)
     order = len(product.assets)
     asset = ProductAsset(
@@ -141,6 +147,7 @@ def add_asset(product: Product, upload: FileStorage, *, title: str | None = None
         size=fields["size"],
         data=fields["data"],
         sort_order=order,
+        module_index=module_index,
     )
     db.session.add(asset)
     return asset

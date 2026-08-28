@@ -11,7 +11,7 @@
          {% if asset %}
          data-asset-kind="{{ asset.kind }}"
          data-file-url="{{ url_for('main.course_file', purchase_id=purchase.id, asset_id=asset.id) }}"
-         data-progress-url="{{ url_for('main.course_progress', purchase_id=purchase.id) }}"
+         data-progress-url="{{ url_for('main.course_progress', purchase_id=purchase.id, module=active_module or None) }}"
          {% if download_url %}data-download-url="{{ download_url }}"{% endif %}
          {% if asset.kind == 'h5p' %}
          data-h5p-path="/account/courses/{{ purchase.id }}/h5p/{{ asset.id }}"
@@ -66,15 +66,71 @@
 
     <header class="reader__title-block">
       <h1 class="reader__title">{{ purchase.product_name }}</h1>
+      {% if active_module and modules %}
+      <p class="reader__module-tag">
+        Module {{ active_module }} of {{ modules|length }}
+        {%- for m in modules %}{% if m.number == active_module and m.title %} · {{ m.title }}{% endif %}{% endfor %}
+      </p>
+      {% endif %}
     </header>
+
+    {% if modules and modules|selectattr('asset')|list %}
+    <nav class="reader-modules" aria-label="Modules">
+      <div class="reader-modules__head">
+        <p class="reader-modules__title">Modules</p>
+        {% if next_locked %}
+        <p class="reader-modules__note">
+          Module {{ next_locked.number }} unlocks {{ next_locked.unlock_display }}
+          ({{ next_locked.days_away }} day{{ '' if next_locked.days_away == 1 else 's' }} away).
+        </p>
+        {% endif %}
+      </div>
+      <ol class="reader-modules__list">
+        {% for m in modules %}
+        <li class="reader-modules__item
+                   {{ 'is-active' if m.number == active_module }}
+                   {{ 'is-locked' if not m.unlocked }}">
+          {% if m.unlocked and m.asset %}
+          <a href="{{ url_for('main.course_reader', purchase_id=purchase.id, module=m.number) }}">
+            <span class="reader-modules__num">{{ m.number }}</span>
+            <span class="reader-modules__body">
+              <strong>{{ m.title }}</strong>
+              {% if m.description %}<small>{{ m.description }}</small>{% endif %}
+            </span>
+          </a>
+          {% else %}
+          <div aria-disabled="true">
+            <span class="reader-modules__num">{{ m.number }}</span>
+            <span class="reader-modules__body">
+              <strong>{{ m.title }}</strong>
+              <small>
+                {%- if not m.unlocked %}Unlocks {{ m.unlock_display }}
+                {%- else %}Coming soon{% endif -%}
+              </small>
+            </span>
+          </div>
+          {% endif %}
+        </li>
+        {% endfor %}
+      </ol>
+    </nav>
+    {% endif %}
 
     {% if not asset %}
     <div class="ms-card course-reader__empty">
+      {% if next_locked %}
+      <h2>Your next module is on its way</h2>
+      <p class="field-help">
+        This course is released a piece at a time. Module {{ next_locked.number }} opens
+        {{ next_locked.unlock_display }} — it will be waiting here for you.
+      </p>
+      {% else %}
       <h2>Content coming soon</h2>
       <p class="field-help">
         This purchase is linked to your account. The on-site file hasn’t been uploaded in Studio yet —
         check your Stripe receipt email, or come back once the guide is ready to read here.
       </p>
+      {% endif %}
       {% if download_url %}
       <a class="btn btn--primary" href="{{ download_url }}"{% if purchase.download_url %} target="_blank" rel="noopener"{% endif %}>Open download</a>
       {% endif %}

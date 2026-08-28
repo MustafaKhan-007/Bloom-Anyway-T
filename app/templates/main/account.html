@@ -281,7 +281,11 @@
             <li>Your plan’s included features</li>
             {% endfor %}
           </ul>
+          {% if perk_until %}
+          <p class="ms-exact__renews">Came free with a product you bought — yours until {{ perk_until }}.</p>
+          {% else %}
           <p class="ms-exact__renews">Renews with your {{ plan_perks.label() }} plan.</p>
+          {% endif %}
           <a class="btn btn--gold btn--sm" href="{{ url_for('main.membership', next=url_for('main.account')) }}">View membership</a>
           {% endif %}
           {% else %}

@@ -2733,6 +2733,189 @@ with app.app_context():
 ok("PageView has no IP field",
    not hasattr(PageView, "ip") and not hasattr(PageView, "ip_address"))
 
+# --- drip-fed modules + free membership perk ----------------------------------
+_drip_fields = {
+    "title": "Drip Course",
+    "track": "healing",
+    "type": "course",
+    "price": "39.00",
+    "promise": "One steady step at a time.",
+    "stripe": "price_drip_course",
+    "drip": "1",
+    "drip_interval_days": "7",
+    "perk_tier": "creator",
+    "perk_months": "3",
+    "live": "1",
+}
+r = admin.post(
+    "/admin/products/new",
+    data=dict(_drip_fields, **{
+        "mod1_title": "Week one",
+        "mod1_desc": "Start here",
+        "mod1_file": (BytesIO(b"%PDF-1.4 module one"), "week-one.pdf"),
+        "mod2_title": "Week two",
+        "mod2_desc": "Keep going",
+        "mod2_file": (BytesIO(b"%PDF-1.4 module two"), "week-two.pdf"),
+    }),
+    content_type="multipart/form-data",
+    follow_redirects=True,
+)
+ok("Studio creates a drip-fed product", r.status_code == 200)
+with app.app_context():
+    drip_prod = Product.query.filter_by(slug="drip-course").first()
+    ok("Drip schedule saved on the product",
+       drip_prod is not None and drip_prod.drip_enabled is True
+       and drip_prod.drip_interval_days == 7 and drip_prod.is_dripped())
+    ok("Membership perk saved on the product",
+       drip_prod.perk_tier() == "creator" and drip_prod.perk_months() == 3
+       and "3 months of Creator" in drip_prod.perk_summary())
+    drip_mods = drip_prod.modules()
+    ok("Each module keeps its own file",
+       len(drip_mods) == 2
+       and drip_mods[0]["asset"] is not None and drip_mods[1]["asset"] is not None
+       and drip_mods[0]["asset"].module_index == 1
+       and drip_mods[1]["asset"].module_index == 2)
+    drip_prod_id = drip_prod.id
+    mod1_asset_id = drip_mods[0]["asset"].id
+    mod2_asset_id = drip_mods[1]["asset"].id
+
+r = client.get("/courses/drip-course")
+_dbody = r.get_data(as_text=True)
+ok("Product page advertises the perk and the schedule",
+   r.status_code == 200 and "3 months of Creator membership, free" in _dbody
+   and "Released one module at a time" in _dbody
+   and "Available right away" in _dbody and "Day 8" in _dbody)
+
+with app.app_context():
+    dripper = User(email="dripper@example.com", email_verified_at=utcnow())
+    dripper.set_password(USER_PW)
+    db.session.add(dripper)
+    db.session.commit()
+drip_payload = _payment_payload(
+    "9100", "dripper@example.com", "price_drip_course",
+    amount=3900, product_name="Drip Course")
+r = client.post("/webhooks/stripe", data=drip_payload, headers=_stripe_headers(drip_payload))
+with app.app_context():
+    dripper = User.query.filter_by(email="dripper@example.com").first()
+    drip_purchase = ShopPurchase.query.filter_by(lemon_squeezy_order_id="9100").first()
+    ok("Buying the product grants the free membership",
+       r.status_code == 200 and drip_purchase is not None
+       and drip_purchase.status == "linked" and dripper.membership == "creator",
+       f"membership={getattr(dripper, 'membership', None)}")
+    drip_purchase_id = drip_purchase.id
+
+drip_client = app.test_client()
+drip_client.post("/login", data={"email": "dripper@example.com", "password": USER_PW})
+r = drip_client.get(f"/account/courses/{drip_purchase_id}")
+_rbody = r.get_data(as_text=True)
+ok("Reader opens module 1 the moment they buy",
+   r.status_code == 200 and "Week one" in _rbody
+   and f"/file/{mod1_asset_id}" in _rbody)
+ok("Reader shows the later module as locked",
+   "Week two" in _rbody and "Unlocks" in _rbody)
+r = drip_client.get(f"/account/courses/{drip_purchase_id}/file/{mod1_asset_id}")
+ok("Unlocked module file opens", r.status_code == 200 and b"module one" in r.data)
+r = drip_client.get(f"/account/courses/{drip_purchase_id}/file/{mod2_asset_id}")
+ok("Locked module file is refused even with a direct link", r.status_code == 404)
+r = drip_client.get(f"/account/courses/{drip_purchase_id}?module=2")
+ok("Asking for a locked module falls back to what they have",
+   r.status_code == 200 and f"/file/{mod2_asset_id}" not in r.get_data(as_text=True))
+
+
+def _backdate_drip(days):
+    with app.app_context():
+        row = db.session.get(ShopPurchase, drip_purchase_id)
+        row.purchased_at = utcnow() - timedelta(days=days)
+        db.session.commit()
+
+
+_backdate_drip(8)
+r = drip_client.get(f"/account/courses/{drip_purchase_id}?module=2")
+ok("Module 2 opens once its interval has passed",
+   r.status_code == 200 and f"/file/{mod2_asset_id}" in r.get_data(as_text=True))
+r = drip_client.get(f"/account/courses/{drip_purchase_id}/file/{mod2_asset_id}")
+ok("Module 2 file streams after unlocking", r.status_code == 200 and b"module two" in r.data)
+
+# owner adds a module after publishing — existing buyers get it on their schedule
+r = admin.post(
+    f"/admin/products/{drip_prod_id}/edit",
+    data=dict(_drip_fields, **{
+        "slug": "drip-course",
+        "mod1_title": "Week one",
+        "mod1_desc": "Start here",
+        "mod2_title": "Week two",
+        "mod2_desc": "Keep going",
+        "mod3_title": "Week three",
+        "mod3_desc": "Look back",
+        "mod3_file": (BytesIO(b"%PDF-1.4 module three"), "week-three.pdf"),
+    }),
+    content_type="multipart/form-data",
+    follow_redirects=True,
+)
+ok("Studio adds a module to a live product", r.status_code == 200)
+with app.app_context():
+    drip_prod = db.session.get(Product, drip_prod_id)
+    later = drip_prod.modules()
+    ok("Added module keeps the earlier files in place",
+       len(later) == 3 and later[0]["asset"].id == mod1_asset_id
+       and later[1]["asset"].id == mod2_asset_id and later[2]["asset"] is not None)
+    ok("Product stayed live through the edit", drip_prod.status == "published")
+    mod3_asset_id = later[2]["asset"].id
+r = drip_client.get(f"/account/courses/{drip_purchase_id}")
+_rbody = r.get_data(as_text=True)
+ok("New module reaches someone who already bought",
+   "Week three" in _rbody and "Unlocks" in _rbody)
+r = drip_client.get(f"/account/courses/{drip_purchase_id}/file/{mod3_asset_id}")
+ok("New module still waits its turn for existing buyers", r.status_code == 404)
+_backdate_drip(20)
+r = drip_client.get(f"/account/courses/{drip_purchase_id}/file/{mod3_asset_id}")
+ok("New module unlocks on the buyer's own schedule",
+   r.status_code == 200 and b"module three" in r.data)
+
+# the perk is still the owner's to override, and it ends on its own
+with app.app_context():
+    from app.services.memberships import reconcile_user, set_manual_tier
+    dripper = User.query.filter_by(email="dripper@example.com").first()
+    set_manual_tier(dripper, "none")
+    db.session.commit()
+    reconcile_user(dripper)
+    db.session.commit()
+    ok("Studio can still take a perk membership away",
+       dripper.membership == "none" and dripper.membership_manual == "none")
+    dripper.membership_manual = None
+    dripper.membership_manual_at = None
+    reconcile_user(dripper)
+    db.session.commit()
+    ok("Clearing the override hands the perk back", dripper.membership == "creator")
+_backdate_drip(200)
+with app.app_context():
+    from app.services.memberships import reconcile_user
+    dripper = User.query.filter_by(email="dripper@example.com").first()
+    reconcile_user(dripper)
+    db.session.commit()
+    ok("Perk membership ends by itself once the months run out",
+       dripper.membership == "none")
+
+_backdate_drip(1)
+with app.app_context():
+    from app.services.memberships import reconcile_user
+    dripper = User.query.filter_by(email="dripper@example.com").first()
+    reconcile_user(dripper)
+    db.session.commit()
+    ok("Perk is back while it is still running", dripper.membership == "creator")
+r = drip_client.get("/account")
+ok("Account says where the free membership came from",
+   r.status_code == 200
+   and "Came free with a product you bought" in r.get_data(as_text=True))
+drip_refund = _payment_payload(
+    "9100", "dripper@example.com", "price_drip_course",
+    event="refund.succeeded", amount=3900, product_name="Drip Course")
+client.post("/webhooks/stripe", data=drip_refund, headers=_stripe_headers(drip_refund))
+with app.app_context():
+    dripper = User.query.filter_by(email="dripper@example.com").first()
+    ok("Refunding the product takes the perk membership back",
+       dripper.membership == "none")
+
 r = client.get("/this-page-does-not-exist-xyz")
 ok("404 offers problem report", r.status_code == 404 and b"Report this problem" in r.data)
 

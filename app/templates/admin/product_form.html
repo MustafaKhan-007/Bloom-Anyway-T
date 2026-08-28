@@ -4,6 +4,7 @@
 {% block content %}
 {% set accent_default = '#5A3158' if product.track == 'healing' else '#B58A3F' %}
 {% set has_custom_accent = product.accent_hex() is not none %}
+{% set file_accept = '.pdf,.h5p,.zip,.png,.jpg,.jpeg,.webp,.gif,.mp4,.webm,.mp3,.wav,.txt,.md,.html,.doc,.docx' %}
 <div class="studio-page studio-product-form">
   <div class="page-head">
     <div>
@@ -131,6 +132,35 @@
           <p class="field-help">Required to publish and accept payments. Use a one-time Price from Stripe.</p>
         </div>
       </div>
+      <div class="form-row">
+        <div class="field">
+          <label for="perk_tier">Additional perk (optional)</label>
+          <select id="perk_tier" name="perk_tier">
+            <option value="">No membership perk</option>
+            {% for value, label in [('healing', 'Healing'), ('creator', 'Creator'), ('full_bloom', 'Full Bloom')] %}
+            <option value="{{ value }}" {{ 'selected' if product.perk_tier() == value }}>{{ label }} membership</option>
+            {% endfor %}
+          </select>
+          <p class="field-help">Buyers get this membership free, on top of the product.</p>
+        </div>
+        <div class="field">
+          <label for="perk_months">Free for</label>
+          <div class="studio-accent-row">
+            <input type="number" id="perk_months" name="perk_months" min="1" max="60"
+                   style="max-width:100px;"
+                   value="{{ product.perk_months() if product.perk_months() else 3 }}">
+            <span class="field-help" style="margin:0;">months</span>
+          </div>
+          <p class="field-help">Starts the day they buy, then drops back on its own.</p>
+        </div>
+        <div class="field" style="flex:2; padding-top:28px;">
+          {% if product.has_perk() %}
+          <p class="field-help"><strong>Included now:</strong> {{ product.perk_summary() }}.</p>
+          {% else %}
+          <p class="field-help">Shown on the product page as part of what they get.</p>
+          {% endif %}
+        </div>
+      </div>
     </section>
 
     <section class="admin-panel studio-card studio-section">
@@ -152,21 +182,54 @@
                   placeholder="One item per line">{{ product.contents_text or '' }}</textarea>
         <p class="field-help">One line per checklist item.</p>
       </div>
-      <div class="studio-modules" data-studio-modules data-modules-max="12">
+      <div class="studio-modules" data-studio-modules data-modules-max="{{ max_modules }}"
+           data-modules-accept="{{ file_accept }}">
         <p class="eyebrow" style="margin:0 0 10px;">What’s inside (optional modules)</p>
-        <p class="field-help" style="margin:0 0 12px;">Leave blank to skip. Start with two — add more only if you need them.</p>
+        <p class="field-help" style="margin:0 0 12px;">
+          Leave blank to skip. Start with two — add more whenever you like, including
+          after this is live. New modules reach everyone who already bought it.
+        </p>
+        <div class="form-row studio-modules__drip">
+          <div class="field" style="flex:2;">
+            <label class="checkline" style="margin:0;">
+              <input type="checkbox" name="drip" value="1" {{ 'checked' if product.drip_enabled }}>
+              Drip-feed these modules
+            </label>
+            <p class="field-help">
+              Module 1 opens the moment they buy; each one after it waits its turn.
+            </p>
+          </div>
+          <div class="field">
+            <label for="drip_interval_days">Release one every</label>
+            <div class="studio-accent-row">
+              <input type="number" id="drip_interval_days" name="drip_interval_days"
+                     min="1" max="365" style="max-width:96px;"
+                     value="{{ product.drip_interval_days or 7 }}">
+              <span class="field-help" style="margin:0;">days</span>
+            </div>
+            <p class="field-help">Counted from each buyer’s own purchase date.</p>
+          </div>
+        </div>
         <div data-modules-list>
-          {% for row in curriculum %}
+          {% for row in modules %}
           <div class="form-row studio-modules__row" data-module-row>
             <div class="field">
-              <label for="mod{{ loop.index }}_title">Module {{ loop.index }} title</label>
-              <input type="text" id="mod{{ loop.index }}_title" name="mod{{ loop.index }}_title"
+              <label for="mod{{ row.number }}_title">Module {{ row.number }} title</label>
+              <input type="text" id="mod{{ row.number }}_title" name="mod{{ row.number }}_title"
                      maxlength="160" value="{{ row.title or '' }}">
             </div>
             <div class="field" style="flex:2;">
-              <label for="mod{{ loop.index }}_desc">Short note</label>
-              <input type="text" id="mod{{ loop.index }}_desc" name="mod{{ loop.index }}_desc"
+              <label for="mod{{ row.number }}_desc">Short note</label>
+              <input type="text" id="mod{{ row.number }}_desc" name="mod{{ row.number }}_desc"
                      maxlength="500" value="{{ row.description or '' }}">
+            </div>
+            <div class="field">
+              <label for="mod{{ row.number }}_file">Module file</label>
+              <input type="file" id="mod{{ row.number }}_file" name="mod{{ row.number }}_file"
+                     accept="{{ file_accept }}">
+              {% if row.asset %}
+              <p class="field-help">Now: {{ row.asset.display_title() }} ({{ row.asset.kind|upper }}) — pick a file to replace it.</p>
+              {% endif %}
             </div>
           </div>
           {% endfor %}
@@ -268,7 +331,12 @@
       <li class="asset-list__row">
         <div class="asset-list__name">
           <strong>{{ a.display_title() }}</strong>
-          <small>{{ a.kind|upper }} · {{ a.size_mb() }} MB</small>
+          <small>
+            {{ a.kind|upper }} · {{ a.size_mb() }} MB
+            {%- if a.module_index %} · Module {{ a.module_index }}
+              {%- if product.is_dripped() %} (released on the drip schedule){% endif %}
+            {%- endif %}
+          </small>
         </div>
         <button class="btn btn--danger btn--sm" type="submit" form="del-asset-{{ a.id }}">Remove</button>
       </li>

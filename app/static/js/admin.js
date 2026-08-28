@@ -90,6 +90,8 @@
     var addBtn = root.querySelector("[data-modules-add]");
     if (!list || !addBtn) return;
     var max = parseInt(root.getAttribute("data-modules-max") || "12", 10) || 12;
+    var accept = root.getAttribute("data-modules-accept") || "";
+    var parts = ["title", "desc", "file"];
 
     function renumber() {
       var rows = list.querySelectorAll("[data-module-row]");
@@ -101,18 +103,20 @@
         });
         row.querySelectorAll("input").forEach(function (inp) {
           var name = inp.getAttribute("name") || "";
-          if (/^mod\d+_title$/.test(name)) {
-            inp.name = "mod" + n + "_title";
-            inp.id = "mod" + n + "_title";
-          } else if (/^mod\d+_desc$/.test(name)) {
-            inp.name = "mod" + n + "_desc";
-            inp.id = "mod" + n + "_desc";
-          }
+          parts.forEach(function (part) {
+            if (new RegExp("^mod\\d+_" + part + "$").test(name)) {
+              inp.name = "mod" + n + "_" + part;
+              inp.id = "mod" + n + "_" + part;
+            }
+          });
         });
         row.querySelectorAll("label[for]").forEach(function (lab) {
           var f = lab.getAttribute("for") || "";
-          if (/^mod\d+_title$/.test(f)) lab.setAttribute("for", "mod" + n + "_title");
-          if (/^mod\d+_desc$/.test(f)) lab.setAttribute("for", "mod" + n + "_desc");
+          parts.forEach(function (part) {
+            if (new RegExp("^mod\\d+_" + part + "$").test(f)) {
+              lab.setAttribute("for", "mod" + n + "_" + part);
+            }
+          });
         });
       });
       addBtn.hidden = rows.length >= max;
@@ -135,6 +139,11 @@
         '<label for="mod' + n + '_desc">Short note</label>' +
         '<input type="text" id="mod' + n + '_desc" name="mod' + n +
         '_desc" maxlength="500" value="">' +
+        "</div>" +
+        '<div class="field">' +
+        '<label for="mod' + n + '_file">Module file</label>' +
+        '<input type="file" id="mod' + n + '_file" name="mod' + n +
+        '_file" accept="' + accept + '">' +
         "</div>";
       list.appendChild(row);
       renumber();

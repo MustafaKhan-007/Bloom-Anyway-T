@@ -276,8 +276,20 @@ def _parse_price_cents(raw: str | None) -> int | None:
         return None
 
 
-def _apply_product_fields(product: Product, form) -> None:
-    """Map studio form fields onto a Product (caller commits)."""
+#: how many curriculum modules one product can carry
+MAX_MODULES = 24
+
+
+def _blank_module(number: int) -> dict:
+    return {"number": number, "title": "", "description": "", "asset": None}
+
+
+def _apply_product_fields(product: Product, form) -> dict[int, int]:
+    """Map studio form fields onto a Product (caller commits).
+
+    Returns ``{form row number: module number}`` — blank rows are dropped, so
+    the two can drift once an owner clears a module in the middle.
+    """
     from ..services.catalog import slugify_title, unique_product_slug
 
     title = (form.get("title") or "").strip()[:160]
@@ -295,7 +307,8 @@ def _apply_product_fields(product: Product, form) -> None:
     product.contents_text = (form.get("contents") or "").strip() or None
 
     curriculum_rows = []
-    for i in range(1, 13):
+    module_numbers: dict[int, int] = {}
+    for i in range(1, MAX_MODULES + 1):
         t = (form.get(f"mod{i}_title") or "").strip()
         if not t:
             continue
@@ -303,7 +316,29 @@ def _apply_product_fields(product: Product, form) -> None:
             "title": t[:160],
             "description": (form.get(f"mod{i}_desc") or "").strip()[:500],
         })
+        module_numbers[i] = len(curriculum_rows)
     product.set_curriculum(curriculum_rows)
+
+    product.drip_enabled = bool(form.get("drip"))
+    days = (form.get("drip_interval_days") or "").strip()
+    if days:
+        try:
+            product.drip_interval_days = max(1, min(365, int(days)))
+        except ValueError:
+            pass
+    if not product.drip_interval_days:
+        product.drip_interval_days = 7
+
+    perk_tier = (form.get("perk_tier") or "").strip().lower()
+    product.perk_membership_tier = (
+        perk_tier if perk_tier in ("healing", "creator", "full_bloom") else None)
+    try:
+        perk_months = max(0, min(60, int((form.get("perk_months") or "0").strip() or 0)))
+    except ValueError:
+        perk_months = 0
+    if product.perk_membership_tier and perk_months < 1:
+        perk_months = 1
+    product.perk_membership_months = perk_months if product.perk_membership_tier else 0
 
     product.stripe_price_id = (form.get("stripe") or "").strip() or None
     price = _parse_price_cents(form.get("price"))
@@ -339,6 +374,42 @@ def _apply_product_fields(product: Product, form) -> None:
         cleaned = slugify_title(new_slug)
         if cleaned and cleaned != product.slug:
             product.slug = unique_product_slug(cleaned, exclude_id=product.id)
+    return module_numbers
+
+
+def _remap_module_files(product: Product, module_numbers: dict[int, int]) -> None:
+    """Follow module files when rows shift; a deleted row leaves its file loose."""
+    for asset in product.assets:
+        if asset.module_index:
+            asset.module_index = module_numbers.get(asset.module_index)
+
+
+def _save_module_files(product: Product, form, files,
+                       module_numbers: dict[int, int]) -> int:
+    """Store the file uploaded against each module, replacing any it had."""
+    from ..services.assets import AssetError, add_asset
+
+    existing = product.module_files()
+    saved = 0
+    for row_number, module_number in module_numbers.items():
+        upload = files.get(f"mod{row_number}_file")
+        if not upload or not getattr(upload, "filename", None):
+            continue
+        title = (form.get(f"mod{row_number}_title") or "").strip()[:160] or None
+        try:
+            add_asset(product, upload, title=title, module_index=module_number)
+        except AssetError as exc:
+            flash(f"Module {module_number}: {exc}", "error")
+            continue
+        except Exception:
+            log.exception("module file upload failed")
+            flash(f"Module {module_number}: that file didn’t upload.", "error")
+            continue
+        replaced = existing.get(module_number)
+        if replaced is not None:
+            db.session.delete(replaced)
+        saved += 1
+    return saved
 
 
 @bp.route("/products")
@@ -370,11 +441,12 @@ def product_new():
             status="draft",
             currency="USD",
         )
-        _apply_product_fields(product, request.form)
+        module_numbers = _apply_product_fields(product, request.form)
         if not product.title:
             product.title = title
         db.session.add(product)
         db.session.flush()
+        _save_module_files(product, request.form, request.files, module_numbers)
         cover = request.files.get("cover")
         if cover and getattr(cover, "filename", None):
             try:
@@ -422,12 +494,14 @@ def product_new():
         return redirect(url_for("admin.product_edit", product_id=product.id))
 
     blank = Product(title="", slug="", type="guide", track="healing",
-                    status="draft", currency="USD")
+                    status="draft", currency="USD", drip_enabled=False,
+                    drip_interval_days=7, perk_membership_months=0)
     return render_template(
         "admin/product_form.html",
         product=blank,
         is_new=True,
-        curriculum=[{"title": "", "description": ""}] * 2,
+        modules=[_blank_module(1), _blank_module(2)],
+        max_modules=MAX_MODULES,
     )
 
 
@@ -445,7 +519,9 @@ def product_edit(product_id):
         from ..services.product_covers import CoverError, process_and_save as save_cover
 
         prev_status = product.status
-        _apply_product_fields(product, request.form)
+        module_numbers = _apply_product_fields(product, request.form)
+        _remap_module_files(product, module_numbers)
+        _save_module_files(product, request.form, request.files, module_numbers)
         cover = request.files.get("cover")
         if cover and getattr(cover, "filename", None):
             try:
@@ -469,14 +545,15 @@ def product_edit(product_id):
         db.session.commit()
         return redirect(url_for("admin.product_edit", product_id=product.id))
 
-    curriculum = product.curriculum() or []
-    while len(curriculum) < 2:
-        curriculum.append({"title": "", "description": ""})
+    modules = product.modules()
+    while len(modules) < 2:
+        modules.append(_blank_module(len(modules) + 1))
     return render_template(
         "admin/product_form.html",
         product=product,
         is_new=False,
-        curriculum=curriculum,
+        modules=modules,
+        max_modules=MAX_MODULES,
         blockers=product.publish_blockers(),
     )
 

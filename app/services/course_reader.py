@@ -41,6 +41,28 @@ def primary_asset(product: Product | None) -> ProductAsset | None:
     return product.assets[0]
 
 
+def general_asset(product: Product | None) -> ProductAsset | None:
+    """First file that isn't tied to a module, so it's always readable."""
+    if product is None:
+        return None
+    for asset in product.assets:
+        if not asset.module_index:
+            return asset
+    return None
+
+
+def open_module(modules: list[dict], wanted: int | None) -> dict | None:
+    """The module to open: the one asked for, else the first that's ready."""
+    ready = [m for m in modules if m.get("asset") and m.get("unlocked")]
+    if not ready:
+        return None
+    if wanted:
+        for row in ready:
+            if row["number"] == wanted:
+                return row
+    return ready[0]
+
+
 def owned_purchase(user, purchase_id: int) -> ShopPurchase | None:
     purchase = db.session.get(ShopPurchase, purchase_id)
     if (purchase is None
@@ -75,6 +97,7 @@ def save_progress(
     product_id: int | None,
     current_page: int,
     total_pages: int,
+    module_index: int | None = None,
 ) -> CourseProgress:
     page = max(1, int(current_page or 1))
     total = max(0, int(total_pages or 0))
@@ -94,6 +117,7 @@ def save_progress(
         )
         db.session.add(row)
     row.product_id = product_id or row.product_id
+    row.module_index = module_index or None
     row.current_page = page
     row.total_pages = total
     row.percent = percent

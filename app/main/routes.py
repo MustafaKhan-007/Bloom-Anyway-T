@@ -28,6 +28,7 @@ from ..services.catalog import remove_demo_catalog
 from ..services import stripe_pay as pay
 from ..services.journey import build_journey_pdf
 from ..services.mailer import send_contact_notification
+from ..services.perks import perk_end_display
 from ..services.recommend import INTENTS, valid_intent_keys
 from ..services.listings import (ListingError, can_add_listing, listing_limit,
                                  process_listing_image)
@@ -905,6 +906,7 @@ def account():
             MembershipPlan.query.filter_by(
                 tier=current_user.effective_membership()).first()
         ),
+        perk_until=perk_end_display(current_user),
         active_tab=tab,
         journal_entries=journal,
         today_entry=today_entry,
@@ -982,13 +984,26 @@ def course_reader(purchase_id):
     """Themed on-site reader for a purchased course/guide."""
     from ..services import course_reader as reader_svc
 
+    from ..services import drip as drip_svc
+
     purchase = reader_svc.owned_purchase(current_user, purchase_id)
     if purchase is None:
         abort(404)
     product = reader_svc.catalog_product_for_purchase(purchase)
-    asset = reader_svc.primary_asset(product)
+    modules = drip_svc.module_rows(product, purchase.purchased_at)
+    chosen = reader_svc.open_module(modules, request.args.get("module", type=int))
+    if chosen is not None:
+        asset = chosen["asset"]
+        active_module = chosen["number"]
+    else:
+        # No module files (or none ready yet) — fall back to the plain file.
+        asset = reader_svc.general_asset(product)
+        if asset is None and not any(m["asset"] for m in modules):
+            asset = reader_svc.primary_asset(product)
+        active_module = 0
     progress = reader_svc.get_progress(current_user.id, purchase.id)
     bookmarks = progress.bookmarks() if progress else []
+    resuming = progress is not None and (progress.module_index or 0) == active_module
     download_url = None
     if asset:
         download_url = url_for(
@@ -1002,11 +1017,14 @@ def course_reader(purchase_id):
         purchase=purchase,
         product=product,
         asset=asset,
+        modules=modules,
+        active_module=active_module,
+        next_locked=drip_svc.next_locked(modules),
         progress=progress,
         bookmarks=bookmarks,
         download_url=download_url,
-        start_page=(progress.current_page if progress and progress.current_page else 1),
-        start_percent=(progress.percent if progress else 0),
+        start_page=(progress.current_page if resuming and progress.current_page else 1),
+        start_percent=(progress.percent if resuming else 0),
     )
 
 
@@ -1019,9 +1037,13 @@ def course_file(purchase_id, asset_id):
     purchase = reader_svc.owned_purchase(current_user, purchase_id)
     if purchase is None:
         abort(404)
+    from ..services import drip as drip_svc
+
     product = reader_svc.catalog_product_for_purchase(purchase)
     asset = db.session.get(ProductAsset, asset_id)
     if product is None or asset is None or asset.product_id != product.id:
+        abort(404)
+    if not drip_svc.asset_unlocked(product, asset, purchase.purchased_at):
         abort(404)
     raw_name = (asset.filename or "file").replace('"', "")
     as_download = (request.args.get("download") or "").strip().lower() in ("1", "true", "yes")
@@ -1042,10 +1064,14 @@ def course_h5p_file(purchase_id, asset_id, filename):
     purchase = reader_svc.owned_purchase(current_user, purchase_id)
     if purchase is None:
         abort(404)
+    from ..services import drip as drip_svc
+
     product = reader_svc.catalog_product_for_purchase(purchase)
     asset = db.session.get(ProductAsset, asset_id)
     if (product is None or asset is None or asset.product_id != product.id
             or asset.kind != "h5p"):
+        abort(404)
+    if not drip_svc.asset_unlocked(product, asset, purchase.purchased_at):
         abort(404)
     try:
         reader_svc.ensure_h5p_extracted(asset)
@@ -1083,6 +1109,7 @@ def course_progress(purchase_id):
         product_id=product.id if product else None,
         current_page=page,
         total_pages=total,
+        module_index=request.args.get("module", type=int),
     )
     if percent_raw is not None and (not total or total <= 1):
         try:

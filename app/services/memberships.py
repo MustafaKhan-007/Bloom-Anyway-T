@@ -240,20 +240,23 @@ def set_manual_tier(user: User, tier: str) -> dict:
         out["orders_ended"] = info["orders_ended"]
         out["errors"] = info["errors"]
 
-    # Record the override against what billing granted *before* the cancel.
-    # Assuming the cancel worked and dropping the override here is what let a
-    # lingering Stripe subscription (or a replayed webhook) hand the old tier
-    # straight back on the next sync. Only a tier that already matches billing
-    # means "follow billing".
-    user.membership_manual = None if tier == billing else tier
+    # Record the override against everything that would otherwise grant a tier
+    # — billing *before* the cancel, plus any free membership perk from a
+    # product they bought. Assuming the cancel worked and dropping the override
+    # here is what let a lingering Stripe subscription (or a replayed webhook)
+    # hand the old tier straight back on the next sync. Only a tier that
+    # already matches what they'd get anyway means "follow billing".
+    from .perks import perk_state
+    granted = higher_membership(billing, perk_state(user)["tier"] or "none")
+    user.membership_manual = None if tier == granted else tier
     user.membership_manual_at = None if user.membership_manual is None else utcnow()
     user.membership = tier
     user.membership_cancel_at = None
     from .listings import enforce_listing_limits
     enforce_listing_limits(user)
     out["ok"] = True
-    log.info("membership: studio set user %s -> %s (billing=%s, manual=%s)",
-             user.id, tier, billing, user.membership_manual or "-")
+    log.info("membership: studio set user %s -> %s (granted=%s, manual=%s)",
+             user.id, tier, granted, user.membership_manual or "-")
     return out
 
 
@@ -261,8 +264,9 @@ def reconcile_user(user: User, downgrade: bool = False) -> bool:
     """Sync a user's membership column from Stripe / paid orders.
 
     A tier set by hand in Studio wins until the member pays again. Otherwise
-    prefer live Stripe (price/product → plan), else paid local orders.
-    Never touches the owner. The caller commits.
+    prefer live Stripe (price/product → plan), else paid local orders, and
+    keep whichever is better than a free membership perk from a product they
+    bought. Never touches the owner. The caller commits.
     """
     if user is None:
         return False
@@ -293,19 +297,25 @@ def reconcile_user(user: User, downgrade: bool = False) -> bool:
     purchased = purchased_tier(user.email)
     current = user.membership or "none"
 
+    from .perks import perk_state
+    perk = perk_state(user)
+
     if live is not None:
-        new = live
+        base = live
     elif purchased != "none":
-        new = purchased
-    elif downgrade:
-        new = "none"
+        base = purchased
+    elif downgrade or perk["expired"]:
+        # Nothing is paying for this tier any more, and a perk that has run
+        # out must not leave them parked on it.
+        base = "none"
     else:
-        new = current
+        base = current
+    new = higher_membership(base, perk["tier"] or "none")
 
     if new != current:
         user.membership = new
-        log.info("membership: user %s %s -> %s (live=%s purchased=%s)",
-                 user.id, current, new, live, purchased)
+        log.info("membership: user %s %s -> %s (live=%s purchased=%s perk=%s)",
+                 user.id, current, new, live, purchased, perk["tier"] or "-")
         from .listings import enforce_listing_limits
         enforce_listing_limits(user)
         return True

@@ -61,6 +61,28 @@ def is_addon_checkout(
     return any(k in addon_prices for k in keys)
 
 
+def sync_membership_perk(purchase, *, downgrade: bool = False) -> bool:
+    """Re-apply the buyer's tier when a purchase carrying a perk changes.
+
+    Some products hand out free membership months, so linking (or refunding)
+    one can change the tier its buyer should be on. Ordinary purchases are
+    left alone — a reconcile costs a Stripe lookup.
+    """
+    from .perks import purchase_has_perk
+
+    user_id = getattr(purchase, "user_id", None)
+    if not user_id or not purchase_has_perk(purchase):
+        return False
+    from .memberships import reconcile_user
+
+    # The purchase row is usually still pending in this session.
+    db.session.flush()
+    user = db.session.get(User, user_id)
+    if user is None:
+        return False
+    return reconcile_user(user, downgrade=downgrade)
+
+
 def upsert_shop_purchase(
     *,
     lemon_squeezy_order_id: str,
@@ -115,6 +137,7 @@ def upsert_shop_purchase(
             db.session.add(row)
         else:
             row.status = "refunded"
+        sync_membership_perk(row, downgrade=True)
         return row
 
     # Idempotency: keep an existing non-refunded row, but still try to link
@@ -132,6 +155,7 @@ def upsert_shop_purchase(
             if user:
                 row.user_id = user.id
                 row.status = "linked"
+                sync_membership_perk(row)
         return row
 
     user = (User.query
@@ -149,6 +173,8 @@ def upsert_shop_purchase(
         status="linked" if user else "pending_link",
     )
     db.session.add(row)
+    if user:
+        sync_membership_perk(row)
     return row
 
 
@@ -164,6 +190,10 @@ def link_pending_purchases(user: User) -> int:
     for row in pending:
         row.user_id = user.id
         row.status = "linked"
+    for row in pending:
+        # A guest checkout can carry a free membership perk with it.
+        if sync_membership_perk(row):
+            break
     return len(pending)
 
 

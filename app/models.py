@@ -339,6 +339,16 @@ class Product(db.Model):
     meta_title = db.Column(db.String(160))
     meta_description = db.Column(db.String(200))
 
+    # Drip-feed: hand out the modules below one at a time, each unlocking
+    # ``drip_interval_days`` after the one before it (counted from purchase).
+    drip_enabled = db.Column(db.Boolean, nullable=False, default=False)
+    drip_interval_days = db.Column(db.Integer, nullable=False, default=7)
+
+    # Additional perk: buying this also grants a membership tier, free, for
+    # ``perk_membership_months`` months.
+    perk_membership_tier = db.Column(db.String(20))
+    perk_membership_months = db.Column(db.Integer, nullable=False, default=0)
+
     # hidden recommendation tags (never shown to customers)
     tags_json = db.Column(db.Text)
 
@@ -457,6 +467,60 @@ class Product(db.Model):
             })
         self.curriculum_json = json.dumps(cleaned) if cleaned else None
 
+    # --- modules, drip-feed and the membership perk ---------------------------
+    def drip_days(self) -> int:
+        """Days between module releases (1–365)."""
+        try:
+            days = int(self.drip_interval_days or 0)
+        except (TypeError, ValueError):
+            days = 0
+        return max(1, min(365, days or 7))
+
+    def module_files(self) -> dict[int, "ProductAsset"]:
+        """Module number → the file uploaded for it."""
+        out: dict[int, ProductAsset] = {}
+        for asset in self.assets:
+            number = asset.module_index
+            if number and number not in out:
+                out[number] = asset
+        return out
+
+    def modules(self) -> list[dict]:
+        """Curriculum rows paired with their file, numbered from 1."""
+        by_number = self.module_files()
+        return [
+            {"number": i, "title": row["title"], "description": row["description"],
+             "asset": by_number.get(i)}
+            for i, row in enumerate(self.curriculum(), start=1)
+        ]
+
+    def is_dripped(self) -> bool:
+        """Drip-feed only kicks in once there is more than one module."""
+        return bool(self.drip_enabled) and len(self.curriculum()) > 1
+
+    def perk_tier(self) -> str:
+        tier = (self.perk_membership_tier or "").strip().lower()
+        return tier if tier in ("healing", "creator", "full_bloom") else ""
+
+    def perk_months(self) -> int:
+        try:
+            months = int(self.perk_membership_months or 0)
+        except (TypeError, ValueError):
+            return 0
+        return max(0, min(60, months))
+
+    def has_perk(self) -> bool:
+        return bool(self.perk_tier()) and self.perk_months() > 0
+
+    def perk_summary(self) -> str:
+        """e.g. "3 months of Creator membership, free" (empty when unset)."""
+        if not self.has_perk():
+            return ""
+        months = self.perk_months()
+        label = MEMBERSHIP_LABELS.get(self.perk_tier(), self.perk_tier())
+        unit = "month" if months == 1 else "months"
+        return f"{months} {unit} of {label} membership, free"
+
     def price_display(self):
         if self.price_cents is None:
             return ""
@@ -540,6 +604,9 @@ class ProductAsset(db.Model):
     size = db.Column(db.Integer, nullable=False, default=0)
     data = db.Column(db.LargeBinary, nullable=False)
     sort_order = db.Column(db.Integer, nullable=False, default=0)
+    # Curriculum module this file belongs to (1-based). None = general file,
+    # always available to buyers even when the product is drip-fed.
+    module_index = db.Column(db.Integer, index=True)
     created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
 
     def display_title(self):
@@ -562,6 +629,9 @@ class CourseProgress(db.Model):
     total_pages = db.Column(db.Integer, nullable=False, default=0)
     percent = db.Column(db.Integer, nullable=False, default=0)
     bookmarks_json = db.Column(db.Text)  # JSON list of page numbers
+    # Which module the saved position belongs to, so switching modules in a
+    # drip-fed course doesn't drop the reader mid-way through another file.
+    module_index = db.Column(db.Integer)
     updated_at = db.Column(db.DateTime, nullable=False, default=utcnow)
 
     purchase = db.relationship("ShopPurchase")
