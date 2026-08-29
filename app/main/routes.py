@@ -828,13 +828,8 @@ def account():
         db.session.commit()
     _sync_membership_cancel_flag(current_user)
 
-    hour = datetime.now().hour
-    if hour < 12:
-        greeting = "Good morning"
-    elif hour < 18:
-        greeting = "Good afternoon"
-    else:
-        greeting = "Good evening"
+    from ..services.timefmt import greeting as _greeting
+    greeting = _greeting(current_user.first_name())
 
     tab = (request.args.get("tab") or "profile").strip().lower()
     if tab not in ("profile", "saved", "journal", "activity", "settings"):

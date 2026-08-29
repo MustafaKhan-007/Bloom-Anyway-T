@@ -12,7 +12,7 @@
       <div class="account-head__who">
         {{ avatar(current_user, 'lg') }}
         <div>
-          <h1>{{ greeting }}{% if current_user.first_name() %}, {{ current_user.first_name() }}{% endif %}.</h1>
+          <h1>{{ greeting }}</h1>
           <div class="ms-exact__badges">
             {% if current_user.is_admin %}
             <span class="ms-exact__badge ms-exact__badge--gold">Owner</span>

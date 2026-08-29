@@ -3595,6 +3595,48 @@ with app.app_context():
     ok("A real refund does come back out of revenue",
        _stats.payment_insights(3650)["revenue"] == _rev_before)
 
+# --- My space greeting follows the member's own clock ----------------------
+with app.app_context():
+    from datetime import timezone as _tzone
+    from zoneinfo import ZoneInfo as _ZI
+
+    from app.services.timefmt import greeting as _greet
+    from app.services.timefmt import local_now as _local_now
+
+    def _at(hour, tz="UTC"):
+        return datetime(2026, 6, 15, hour, 30, tzinfo=_ZI(tz))
+
+    ok("Morning greeting before noon", _greet("Nadia", now=_at(9)) == "Good morning, Nadia.")
+    ok("Afternoon greeting after noon", _greet("Nadia", now=_at(13)) == "Good afternoon, Nadia.")
+    ok("Evening greeting after six", _greet("Nadia", now=_at(20)) == "Good evening, Nadia.")
+    ok("Small hours ask if they're still awake",
+       _greet("Nadia", now=_at(0)) == "Still awake, Nadia?"
+       and _greet("Nadia", now=_at(3)) == "Still awake, Nadia?")
+    ok("Five in the morning is morning again",
+       _greet("Nadia", now=_at(5)) == "Good morning, Nadia.")
+    ok("Greeting works for a member with no display name",
+       _greet("", now=_at(9)) == "Good morning."
+       and _greet(None, now=_at(2)) == "Still awake?")
+
+    # The same instant is a different time of day in different places.
+    _moment = datetime(2026, 6, 15, 2, 0, tzinfo=_tzone.utc)
+    ok("Greeting is read on the member's clock, not the server's",
+       _greet("Nadia", now=_moment.astimezone(_ZI("UTC"))) == "Still awake, Nadia?"
+       and _greet("Nadia", now=_moment.astimezone(_ZI("Asia/Karachi")))
+       == "Good morning, Nadia.")
+
+    ok("local_now returns a zone-aware time in the viewer's timezone",
+       _local_now("Asia/Karachi").tzinfo is not None)
+
+# the page itself carries whichever greeting is current
+r = buyer_client.get("/account")
+_gbody = r.get_data(as_text=True)
+ok("My space renders one of the four greetings",
+   r.status_code == 200
+   and any(g in _gbody for g in ("Good morning", "Good afternoon",
+                                 "Good evening", "Still awake")),
+   "no greeting found in the page")
+
 r = client.get("/this-page-does-not-exist-xyz")
 ok("404 offers problem report", r.status_code == 404 and b"Report this problem" in r.data)
 

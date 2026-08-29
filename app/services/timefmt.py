@@ -90,6 +90,32 @@ def format_local(dt: datetime | None, fmt: str = "%b %d, %Y · %I:%M %p",
     return local.strftime(fmt)
 
 
+def local_now(tz_name: str | None = None) -> datetime:
+    """Right now, in the viewer's timezone."""
+    tz = ZoneInfo(normalize_timezone(tz_name) or viewer_timezone())
+    return datetime.now(timezone.utc).astimezone(tz)
+
+
+def greeting(name: str | None = "", tz_name: str | None = None,
+             now: datetime | None = None) -> str:
+    """Time-of-day hello on the viewer's clock, not the server's.
+
+    The small hours get "Still awake?" rather than a cheery good morning —
+    someone opening My Space at 3am isn't starting their day.
+    """
+    hour = (now or local_now(tz_name)).hour
+    who = (name or "").strip()
+    if hour < 5:
+        return f"Still awake, {who}?" if who else "Still awake?"
+    if hour < 12:
+        label = "Good morning"
+    elif hour < 18:
+        label = "Good afternoon"
+    else:
+        label = "Good evening"
+    return f"{label}, {who}." if who else f"{label}."
+
+
 def _offset_label(tz_name: str, at: datetime | None = None) -> str:
     """Current UTC offset for a zone, e.g. ``UTC-04:00`` / ``UTC+05:30``."""
     try:
