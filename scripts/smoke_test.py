@@ -2047,6 +2047,79 @@ ok("Customer support email has a plain-text fallback",
    "You can join mid-month" in (_call.get("text") or "")
    and "Bloom Anyway" in (_call.get("text") or ""))
 
+# --- replying to a contact message from Studio ------------------------------
+with app.app_context():
+    _reply_msg = _CM(name="Tess Okafor", email="tess@example.com",
+                     body="Which plan includes the circles?\nAnd can I switch later?")
+    db.session.add(_reply_msg)
+    db.session.commit()
+    _reply_id = _reply_msg.id
+
+r = admin.get(f"/admin/inbox/messages/{_reply_id}/reply")
+_rbody = r.get_data(as_text=True)
+ok("Reply page opens with the sender's message quoted",
+   r.status_code == 200 and "Which plan includes the circles?" in _rbody
+   and "tess@example.com" in _rbody, f"status {r.status_code}")
+ok("Reply page offers all four verified senders",
+   all(addr in _rbody for addr in ("customersupport@bloomanyway.online",
+                                   "healing@bloomanyway.online",
+                                   "creator@bloomanyway.online",
+                                   "noreply@bloomanyway.online")))
+ok("Reply page defaults to customer support",
+   'value="support" selected' in _rbody, "support option not preselected")
+ok("Reply page carries a live preview pane",
+   "data-reply-preview" in _rbody
+   and 'data-reply-out="body"' in _rbody
+   and 'data-reply-field="body"' in _rbody)
+ok("Reply body is pre-filled with a greeting and their words quoted",
+   "Hi Tess," in _rbody and "&gt; Which plan includes the circles?" in _rbody)
+
+_brevo_calls.clear()
+r = admin.post(f"/admin/inbox/messages/{_reply_id}/reply",
+               data={"sender": "ayesha", "subject": "Re: circles and plans",
+                     "preview": "Healing includes them.", "header": "Bloom Anyway",
+                     "title": "Hi Tess,", "body": "Healing and up include circles."},
+               follow_redirects=True)
+_call = _brevo_calls[-1] if _brevo_calls else {}
+ok("Sending a reply reaches the person who wrote in",
+   _call.get("to") == "tess@example.com", f"got {_call.get('to')}")
+ok("The reply goes out on the customer support template",
+   _call.get("template_id") == 20)
+ok("The reply is sent from the chosen sender, not MAIL_FROM",
+   _call.get("sender") == "Ayesha <healing@bloomanyway.online>",
+   f"got {_call.get('sender')!r}")
+ok("The composed fields become the template params",
+   (_call.get("params") or {}).get("PREVIEW") == "Healing includes them."
+   and (_call.get("params") or {}).get("TITLE") == "Hi Tess,")
+with app.app_context():
+    ok("A replied-to message is marked handled",
+       db.session.get(_CM, _reply_id).status == "reviewed")
+ok("Studio confirms who the reply went to and from",
+   "tess@example.com" in r.get_data(as_text=True)
+   and "healing@bloomanyway.online" in r.get_data(as_text=True), flashes(r))
+
+_brevo_calls.clear()
+r = admin.post(f"/admin/inbox/messages/{_reply_id}/reply",
+               data={"sender": "support", "subject": "", "title": "", "body": ""},
+               follow_redirects=True)
+ok("An empty reply is refused rather than sent",
+   not _brevo_calls and "Your reply needs" in r.get_data(as_text=True), flashes(r))
+
+_brevo_calls.clear()
+r = admin.post(f"/admin/inbox/messages/{_reply_id}/reply",
+               data={"sender": "impostor@evil.example", "subject": "Hi",
+                     "title": "Hi", "body": "Hi"},
+               follow_redirects=True)
+ok("An unknown sender is refused, so nobody can forge a From",
+   not _brevo_calls and "which address" in r.get_data(as_text=True), flashes(r))
+
+with app.app_context():
+    ok("Unknown sender keys resolve to nothing",
+       _mailer.sender_from("impostor") is None
+       and _mailer.sender_from("") is None)
+    ok("Known sender keys resolve to a verified address",
+       _mailer.sender_from("saman") == "Saman <creator@bloomanyway.online>")
+
 _brevo_calls.clear()
 r = admin.post("/admin/settings/test-email",
                data={"to": "elsewhere@example.com", "template": "support"},
@@ -2073,6 +2146,17 @@ r = admin.post("/admin/settings/test-email", data={"to": "not-an-address"},
 ok("A junk address sends nothing and says so",
    not _brevo_calls and "address to send the test to" in r.get_data(as_text=True),
    flashes(r))
+
+# Automated mail must keep leaving from MAIL_FROM, whatever a reply picked.
+_brevo_calls.clear()
+with app.app_context():
+    _mailer.send_welcome_email("newbie@example.com", first_name="Ada")
+    _mailer.send_newsletter_welcome("reader@example.com")
+    _mailer.send_creator_welcome("member@example.com", plan_price="£12",
+                                 billing_interval="monthly")
+ok("Automated emails still send from MAIL_FROM, not a picked sender",
+   _brevo_calls and all(c.get("sender") is None for c in _brevo_calls),
+   f"got {[c.get('sender') for c in _brevo_calls]}")
 
 _mailer.send_email = _orig_send_email
 

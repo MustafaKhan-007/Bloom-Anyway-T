@@ -610,3 +610,65 @@
       });
     });
 })();
+
+/* ---- inbox reply: show the email as it's being written ---- */
+(function () {
+  var panel = document.querySelector("[data-reply-preview]");
+  if (!panel) return;
+
+  var fields = {};
+  ["sender", "subject", "preview", "header", "title", "body"].forEach(function (key) {
+    fields[key] = document.querySelector('[data-reply-field="' + key + '"]');
+  });
+
+  var out = {};
+  ["from", "subject", "preview", "header", "title", "body"].forEach(function (key) {
+    out[key] = panel.querySelector('[data-reply-out="' + key + '"]');
+  });
+
+  function value(key) {
+    return (fields[key] && fields[key].value || "").trim();
+  }
+
+  /** Placeholder text that reads as absent rather than as content. */
+  function orDash(el, text, fallback) {
+    el.textContent = text || fallback;
+    el.classList.toggle("is-empty", !text);
+  }
+
+  function paint() {
+    var picked = fields.sender && fields.sender.selectedOptions[0];
+    out.from.textContent = picked
+      ? picked.getAttribute("data-name") + " <" + picked.getAttribute("data-email") + ">"
+      : "";
+
+    var subject = value("subject");
+    orDash(out.subject, subject, "No subject yet");
+    // Blank preview text falls back to the subject, same as the send does.
+    orDash(out.preview, value("preview") || subject, "No preview text");
+    orDash(out.header, value("header"), "Bloom Anyway");
+    orDash(out.title, value("title"), "No title yet");
+
+    // The template renders plain text, so newlines are the only formatting.
+    var text = (fields.body && fields.body.value) || "";
+    out.body.textContent = "";
+    if (text.trim()) {
+      out.body.classList.remove("is-empty");
+      text.split("\n").forEach(function (line, i, all) {
+        out.body.appendChild(document.createTextNode(line));
+        if (i < all.length - 1) out.body.appendChild(document.createElement("br"));
+      });
+    } else {
+      out.body.classList.add("is-empty");
+      out.body.textContent = "Nothing written yet.";
+    }
+  }
+
+  Object.keys(fields).forEach(function (key) {
+    if (!fields[key]) return;
+    ["input", "change"].forEach(function (evt) {
+      fields[key].addEventListener(evt, paint);
+    });
+  });
+  paint();
+})();

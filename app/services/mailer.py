@@ -67,6 +67,38 @@ def _mail_from() -> str:
     return _strip_env_quotes(str(raw))
 
 
+#: Verified Brevo senders an owner may write as, keyed for form values.
+#: Automated mail (welcomes, receipts, session notices) ignores this and keeps
+#: using MAIL_FROM — only mail a person composes gets to pick a face.
+SENDERS: tuple[tuple[str, str, str], ...] = (
+    ("support", "Customer Support", "customersupport@bloomanyway.online"),
+    ("ayesha", "Ayesha", "healing@bloomanyway.online"),
+    ("saman", "Saman", "creator@bloomanyway.online"),
+    ("noreply", "Bloom Anyway", "noreply@bloomanyway.online"),
+)
+DEFAULT_SENDER_KEY = "support"
+
+
+def sender_choices() -> list[dict]:
+    """The sender list for a Studio dropdown."""
+    return [{"key": key, "name": name, "email": email,
+             "label": f"{name} <{email}>"}
+            for key, name, email in SENDERS]
+
+
+def sender_from(key: str | None) -> str | None:
+    """``Name <email>`` for a known sender key, else None.
+
+    Returning None rather than guessing keeps an unrecognised key from
+    silently sending as somebody else.
+    """
+    wanted = (key or "").strip().lower()
+    for skey, name, email in SENDERS:
+        if skey == wanted:
+            return f"{name} <{email}>"
+    return None
+
+
 def _parse_mail_from(raw: str) -> tuple[str, str]:
     """Return (display_name, email) from ``Name <email>`` or bare email."""
     value = (raw or "").strip()
@@ -106,19 +138,20 @@ def _brevo_error_hint(status: int, body: str) -> str:
 def _send_via_brevo(to: str, subject: str, text_body: str,
                     html_body: str | None = None,
                     template_id: int | None = None,
-                    params: dict | None = None) -> bool:
+                    params: dict | None = None,
+                    sender: str | None = None) -> bool:
     """Send through Brevo's transactional HTTP API."""
     key = _brevo_api_key()
     if not key:
         _set_error("BREVO_API_KEY is empty on the server. Set it in Render and redeploy.")
         return False
 
-    mail_from = _mail_from()
+    mail_from = (sender or "").strip() or _mail_from()
     name, email = _parse_mail_from(mail_from)
     if not email or "@" not in email or email.lower().endswith("@localhost"):
-        log.error("Brevo: MAIL_FROM is missing a real email address (got %r).", mail_from)
+        log.error("Brevo: sender is missing a real email address (got %r).", mail_from)
         _set_error(
-            "MAIL_FROM must be a real address on a Brevo-verified sender, "
+            "The From address must be a real Brevo-verified sender, "
             "e.g. Bloom Anyway <hello@yourdomain.com>."
         )
         return False
@@ -190,8 +223,13 @@ def _send_via_smtp(to: str, msg: EmailMessage) -> bool:
 
 
 def send_email(to: str, subject: str, text_body: str, html_body: str | None = None,
-               template_id: int | None = None, params: dict | None = None) -> bool:
-    """Send email. Prefer Brevo; fall back to SMTP; else console in local dev."""
+               template_id: int | None = None, params: dict | None = None,
+               sender: str | None = None) -> bool:
+    """Send email. Prefer Brevo; fall back to SMTP; else console in local dev.
+
+    ``sender`` overrides MAIL_FROM for this one send and must already be a
+    verified Brevo sender — see :func:`sender_from`.
+    """
     cfg = current_app.config
     to = (to or "").strip()
     if not to:
@@ -204,12 +242,13 @@ def send_email(to: str, subject: str, text_body: str, html_body: str | None = No
             html_body=html_body,
             template_id=template_id,
             params=params,
+            sender=sender,
         )
 
     if not cfg["SMTP_HOST"]:
         log.warning("No email transport configured; printing email to console.")
         print("\n===== EMAIL (console fallback) =====")
-        print(f"To: {to}\nSubject: {subject}\n\n{text_body}")
+        print(f"From: {sender or _mail_from()}\nTo: {to}\nSubject: {subject}\n\n{text_body}")
         if template_id:
             print(f"(Brevo template #{template_id} params={params!r})")
         print("====================================\n")
@@ -218,7 +257,11 @@ def send_email(to: str, subject: str, text_body: str, html_body: str | None = No
 
     msg = EmailMessage()
     msg["Subject"] = subject
+    # Most SMTP relays refuse to send as an arbitrary address, so the fallback
+    # transport stays on MAIL_FROM and puts the chosen face in Reply-To.
     msg["From"] = _mail_from()
+    if sender and sender.strip() != _mail_from():
+        msg["Reply-To"] = sender
     msg["To"] = to
     msg.set_content(text_body)
     if html_body:
@@ -303,6 +346,7 @@ def send_customer_support_email(
     header: str,
     title: str,
     body: str,
+    sender: str | None = None,
     extra_params: dict | None = None,
 ) -> bool:
     """Send via the Brevo customer support template (#20).
@@ -313,7 +357,7 @@ def send_customer_support_email(
     text = f"{title}\n\n{body}\n\n— Bloom Anyway"
     template_id = _int_config("BREVO_TEMPLATE_CUSTOMER_SUPPORT", 20) or None
     if not template_id:
-        return send_email(to, subject, text)
+        return send_email(to, subject, text, sender=sender)
 
     params = {
         "SUBJECT": subject,
@@ -324,7 +368,8 @@ def send_customer_support_email(
     }
     if extra_params:
         params.update({k: v for k, v in extra_params.items() if v is not None})
-    return send_email(to, subject, text, template_id=template_id, params=params)
+    return send_email(to, subject, text, template_id=template_id, params=params,
+                      sender=sender)
 
 
 def send_verification_code(to: str, code: str, purpose: str) -> bool:

@@ -30,6 +30,7 @@ from ..services import badges as badges_service
 from ..services import quotes as quotes_service
 from ..services import reel_reviews as reel_svc
 from ..services import stats
+from ..services import mailer
 from ..services.mailer import (last_send_error, send_customer_support_email,
                                send_styled_email)
 from ..services.settings import DEFAULTS as SETTING_DEFAULTS
@@ -2202,6 +2203,54 @@ def inbox():
         "admin/inbox.html", filter=filt, feedback_rows=feedback_rows,
         report_rows=enriched, message_rows=message_rows, counts=counts,
     )
+
+
+@bp.route("/inbox/messages/<int:message_id>/reply", methods=["GET", "POST"])
+@admin_required
+def inbox_message_reply(message_id):
+    """Write and send a reply to a contact message from inside Studio."""
+    msg = db.session.get(ContactMessage, message_id) or abort(404)
+    quoted = "\n".join(f"> {line}" for line in (msg.body or "").splitlines())
+    first_name = (msg.name or "").strip().split(" ")[0] or "there"
+    draft = {
+        "sender": mailer.DEFAULT_SENDER_KEY,
+        "subject": "Re: your message to Bloom Anyway",
+        "preview": "",
+        "header": "Bloom Anyway",
+        "title": f"Hi {first_name},",
+        "body": f"\n\n\nYou wrote:\n{quoted}",
+    }
+
+    if request.method == "POST":
+        draft = {k: (request.form.get(k) or "").strip() for k in draft}
+        missing = [label for key, label in (("subject", "a subject"),
+                                            ("title", "a title"),
+                                            ("body", "something to say"))
+                   if not draft[key]]
+        sender = mailer.sender_from(draft["sender"])
+        if missing:
+            flash("Your reply needs " + " and ".join(missing) + ".", "error")
+        elif not sender:
+            flash("Pick which address the reply should come from.", "error")
+        elif mailer.send_customer_support_email(
+            msg.email,
+            subject=draft["subject"],
+            preview=draft["preview"] or draft["subject"],
+            header=draft["header"] or "Bloom Anyway",
+            title=draft["title"],
+            body=draft["body"],
+            sender=sender,
+        ):
+            msg.status = "reviewed"
+            db.session.commit()
+            flash(f"Reply sent to {msg.email} from {sender}.", "success")
+            return redirect(url_for("admin.inbox", filter="messages"))
+        else:
+            hint = last_send_error() or "Check the Render logs for Brevo."
+            flash(f"The reply didn't send. {hint}", "error")
+
+    return render_template("admin/inbox_reply.html", msg=msg, draft=draft,
+                           senders=mailer.sender_choices())
 
 
 @bp.route("/inbox/messages/<int:message_id>/reviewed", methods=["POST"])

@@ -1,0 +1,111 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Reply to {{ msg.name }}{% endblock %}
+
+{% block content %}
+<div class="studio-page">
+  <div class="page-head">
+    <div>
+      <p class="eyebrow">Inbox</p>
+      <h1>Reply to {{ msg.name }}</h1>
+      <p class="field-help" style="margin: 6px 0 0; max-width: 62ch;">
+        Goes to <strong>{{ msg.email }}</strong> using the customer support
+        template. The preview on the right updates as you type.
+      </p>
+    </div>
+    <div class="page-head__actions">
+      <a class="btn btn--secondary btn--sm" href="{{ url_for('admin.inbox', filter='messages') }}">Back to inbox</a>
+    </div>
+  </div>
+
+  <section class="admin-panel studio-card reply-their-message">
+    <h2>What they wrote</h2>
+    <p class="reply-their-message__meta">
+      {{ msg.created_at.strftime('%b %d, %Y at %H:%M') }} · {{ msg.email }}
+    </p>
+    <blockquote class="reply-their-message__body">{{ msg.body }}</blockquote>
+  </section>
+
+  <form method="post" class="reply-compose">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    <section class="admin-panel studio-card reply-compose__form">
+      <h2>Your reply</h2>
+
+      <div class="field">
+        <label for="sender">From</label>
+        <select id="sender" name="sender" data-reply-field="sender">
+          {% for s in senders %}
+          <option value="{{ s.key }}" {% if draft.sender == s.key %}selected{% endif %}
+                  data-name="{{ s.name }}" data-email="{{ s.email }}">{{ s.label }}</option>
+          {% endfor %}
+        </select>
+        <p class="field-help">Automated emails always send from noreply — this only changes this reply.</p>
+      </div>
+
+      <div class="field">
+        <label for="subject">Subject</label>
+        <input type="text" id="subject" name="subject" maxlength="200"
+               value="{{ draft.subject }}" data-reply-field="subject" required>
+      </div>
+
+      <div class="field">
+        <label for="preview">Preview text</label>
+        <input type="text" id="preview" name="preview" maxlength="200"
+               value="{{ draft.preview }}" data-reply-field="preview">
+        <p class="field-help">The grey line inboxes show next to the subject. Blank reuses the subject.</p>
+      </div>
+
+      <div class="form-row">
+        <div class="field">
+          <label for="header">Header</label>
+          <input type="text" id="header" name="header" maxlength="120"
+                 value="{{ draft.header }}" data-reply-field="header">
+        </div>
+        <div class="field">
+          <label for="title">Title</label>
+          <input type="text" id="title" name="title" maxlength="200"
+                 value="{{ draft.title }}" data-reply-field="title" required>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="body">Message</label>
+        <textarea id="body" name="body" rows="14" data-reply-field="body" required>{{ draft.body }}</textarea>
+      </div>
+
+      <div class="reply-compose__actions">
+        <button class="btn btn--primary" type="submit">Send reply</button>
+        <a class="btn btn--secondary" href="{{ url_for('admin.inbox', filter='messages') }}">Cancel</a>
+      </div>
+    </section>
+
+    <aside class="reply-compose__preview" aria-label="Email preview">
+      <div class="reply-preview" data-reply-preview>
+        <p class="reply-preview__label">Preview</p>
+
+        <div class="reply-preview__envelope">
+          <p class="reply-preview__row">
+            <span>From</span><strong data-reply-out="from"></strong>
+          </p>
+          <p class="reply-preview__row">
+            <span>To</span><strong>{{ msg.email }}</strong>
+          </p>
+          <p class="reply-preview__row">
+            <span>Subject</span><strong data-reply-out="subject"></strong>
+          </p>
+          <p class="reply-preview__row reply-preview__row--muted">
+            <span>Preview</span><span data-reply-out="preview"></span>
+          </p>
+        </div>
+
+        <div class="reply-preview__mail">
+          <p class="reply-preview__header" data-reply-out="header"></p>
+          <h3 class="reply-preview__title" data-reply-out="title"></h3>
+          <div class="reply-preview__body" data-reply-out="body"></div>
+          <p class="reply-preview__sign">— Bloom Anyway</p>
+        </div>
+      </div>
+    </aside>
+  </form>
+</div>
+{% endblock %}
