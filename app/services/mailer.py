@@ -295,6 +295,38 @@ def send_styled_email(
     )
 
 
+def send_customer_support_email(
+    to: str,
+    *,
+    subject: str,
+    preview: str,
+    header: str,
+    title: str,
+    body: str,
+    extra_params: dict | None = None,
+) -> bool:
+    """Send via the Brevo customer support template (#20).
+
+    Params: SUBJECT, PREVIEW, HEADER, TITLE, BODY. No call-to-action button —
+    an answer to someone's question is the point, not a nudge elsewhere.
+    """
+    text = f"{title}\n\n{body}\n\n— Bloom Anyway"
+    template_id = _int_config("BREVO_TEMPLATE_CUSTOMER_SUPPORT", 20) or None
+    if not template_id:
+        return send_email(to, subject, text)
+
+    params = {
+        "SUBJECT": subject,
+        "PREVIEW": preview,
+        "HEADER": header,
+        "TITLE": title,
+        "BODY": body,
+    }
+    if extra_params:
+        params.update({k: v for k, v in extra_params.items() if v is not None})
+    return send_email(to, subject, text, template_id=template_id, params=params)
+
+
 def send_verification_code(to: str, code: str, purpose: str) -> bool:
     minutes = current_app.config["CODE_MAX_AGE_MINUTES"]
     if purpose == "reset":

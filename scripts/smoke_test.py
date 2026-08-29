@@ -2010,6 +2010,72 @@ r = admin.get("/admin/inbox")
 ok("Contact messages also appear in the unfiltered inbox",
    "Wren Aziz" in r.get_data(as_text=True))
 
+# --- Brevo customer support template (#20) ---------------------------------
+_brevo_calls = []
+_orig_send_email = _mailer.send_email
+_mailer.send_email = (
+    lambda to, subject, text, **kw: _brevo_calls.append(
+        dict(kw, to=to, subject=subject, text=text)) or True
+)
+
+with app.app_context():
+    _mailer.send_customer_support_email(
+        "asker@example.com",
+        subject="Re: your question about circles",
+        preview="Yes — you can join mid-month.",
+        header="Bloom Anyway",
+        title="You can join mid-month",
+        body="No need to wait for the next intake. Pick any open session.",
+    )
+_call = _brevo_calls[-1] if _brevo_calls else {}
+_params = _call.get("params") or {}
+ok("Customer support email uses Brevo template #20",
+   _call.get("template_id") == 20, f"got {_call.get('template_id')}")
+ok("Customer support email passes all five template params",
+   set(_params) == {"SUBJECT", "PREVIEW", "HEADER", "TITLE", "BODY"},
+   f"got {sorted(_params)}")
+ok("Customer support params carry the real copy",
+   _params.get("SUBJECT") == "Re: your question about circles"
+   and _params.get("PREVIEW") == "Yes — you can join mid-month."
+   and _params.get("HEADER") == "Bloom Anyway"
+   and _params.get("TITLE") == "You can join mid-month"
+   and "next intake" in (_params.get("BODY") or ""))
+ok("Customer support email sets the envelope subject too",
+   _call.get("to") == "asker@example.com"
+   and _call.get("subject") == "Re: your question about circles")
+ok("Customer support email has a plain-text fallback",
+   "You can join mid-month" in (_call.get("text") or "")
+   and "Bloom Anyway" in (_call.get("text") or ""))
+
+_brevo_calls.clear()
+r = admin.post("/admin/settings/test-email",
+               data={"to": "elsewhere@example.com", "template": "support"},
+               follow_redirects=True)
+_call = _brevo_calls[-1] if _brevo_calls else {}
+ok("Studio can send a support-template test to any address",
+   _call.get("to") == "elsewhere@example.com" and _call.get("template_id") == 20,
+   f"got {_call.get('to')} / {_call.get('template_id')}")
+ok("Studio says which address and template it used",
+   "elsewhere@example.com" in r.get_data(as_text=True)
+   and "#20" in r.get_data(as_text=True), flashes(r))
+
+_brevo_calls.clear()
+r = admin.post("/admin/settings/test-email", data={}, follow_redirects=True)
+_call = _brevo_calls[-1] if _brevo_calls else {}
+ok("A blank address falls back to the owner's own inbox",
+   _call.get("to") == "owner@example.com", f"got {_call.get('to')}")
+ok("The default test still uses the general template",
+   _call.get("template_id") == 10, f"got {_call.get('template_id')}")
+
+_brevo_calls.clear()
+r = admin.post("/admin/settings/test-email", data={"to": "not-an-address"},
+               follow_redirects=True)
+ok("A junk address sends nothing and says so",
+   not _brevo_calls and "address to send the test to" in r.get_data(as_text=True),
+   flashes(r))
+
+_mailer.send_email = _orig_send_email
+
 r = client.get("/healthz")
 ok("Health check", r.status_code == 200 and r.get_json()["status"] == "ok")
 

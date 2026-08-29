@@ -30,7 +30,8 @@ from ..services import badges as badges_service
 from ..services import quotes as quotes_service
 from ..services import reel_reviews as reel_svc
 from ..services import stats
-from ..services.mailer import last_send_error, send_styled_email
+from ..services.mailer import (last_send_error, send_customer_support_email,
+                               send_styled_email)
 from ..services.settings import DEFAULTS as SETTING_DEFAULTS
 from ..services.settings import all_settings, get_setting, set_setting
 from ..services.social import fetch_instagram_preview, instagram_handle
@@ -1251,25 +1252,46 @@ def spotlight():
 @admin_required
 def settings_test_email():
     """Send a one-off test via the live Brevo/SMTP config (Studio only)."""
-    to = (current_user.email or "").strip()
-    if not to:
-        flash("Your owner account has no email address.", "error")
+    to = ((request.form.get("to") or "").strip()
+          or (current_user.email or "").strip())
+    if not to or "@" not in to:
+        flash("Give me an address to send the test to.", "error")
         return redirect(url_for("admin.settings"))
-    ok = send_styled_email(
-        to,
-        subject="Bloom Anyway — test email",
-        preview="If you received this, email sending from the site is working.",
-        header="Bloom Anyway",
-        title="Test email",
-        body=(
-            "If you received this, email sending from the site is working.\n\n"
-            "This uses the general Brevo template (#10)."
-        ),
-        button_text="Open Studio",
-        button_url=url_for("admin.dashboard", _external=True),
-    )
-    if ok:
-        flash(f"Test email sent to {to}. Check inbox and spam.", "success")
+
+    if (request.form.get("template") or "").strip().lower() == "support":
+        label = "customer support template (#20)"
+        sent = send_customer_support_email(
+            to,
+            subject="Bloom Anyway — support test email",
+            preview="If you received this, the support template is working.",
+            header="Bloom Anyway",
+            title="Test support email",
+            body=(
+                "If you received this, the customer support template (#20) is "
+                "wired up and every placeholder resolved.\n\n"
+                "This is how a reply to someone's question will reach them: no "
+                "button, no upsell, just the answer."
+            ),
+        )
+    else:
+        label = "general template (#10)"
+        sent = send_styled_email(
+            to,
+            subject="Bloom Anyway — test email",
+            preview="If you received this, email sending from the site is working.",
+            header="Bloom Anyway",
+            title="Test email",
+            body=(
+                "If you received this, email sending from the site is working.\n\n"
+                "This uses the general Brevo template (#10)."
+            ),
+            button_text="Open Studio",
+            button_url=url_for("admin.dashboard", _external=True),
+        )
+
+    if sent:
+        flash(f"Test email sent to {to} using the {label}. Check inbox and spam.",
+              "success")
     else:
         hint = last_send_error() or "Unknown email error — check Render logs for Brevo."
         flash(f"Test email failed. {hint}", "error")

@@ -13,12 +13,27 @@
   <section class="admin-panel studio-card">
     <h2 style="margin-top: 0;">Email delivery</h2>
     <p class="field-help" style="margin-top: 0;">
-      Confirmation codes use Brevo. If sign-up emails fail, send a test to your owner inbox —
+      Confirmation codes use Brevo. If sign-up emails fail, send yourself a test —
       the error message will name the exact problem (API key, unverified domain, bad sender).
+      Leave the address blank to send to your own account.
     </p>
     <form method="post" action="{{ url_for('admin.settings_test_email') }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <button class="btn btn--secondary btn--sm" type="submit">Send test email to me</button>
+      <div class="form-row">
+        <div class="field">
+          <label for="test_email_to">Send to</label>
+          <input type="email" id="test_email_to" name="to"
+                 placeholder="{{ current_user.email }}" autocomplete="off">
+        </div>
+        <div class="field">
+          <label for="test_email_template">Template</label>
+          <select id="test_email_template" name="template">
+            <option value="general">General (#10) — with button</option>
+            <option value="support">Customer support (#20) — reply, no button</option>
+          </select>
+        </div>
+      </div>
+      <button class="btn btn--secondary btn--sm" type="submit">Send test email</button>
     </form>
   </section>
 
