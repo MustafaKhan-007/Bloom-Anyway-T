@@ -58,13 +58,18 @@ def _ensure_secret_key(app):
 
 
 def _ensure_brand(app):
-    """Rewrite a leftover 'First Light' site title to Bloom Anyway."""
-    from .services.settings import ensure_brand_title
+    """Rewrite a leftover 'First Light' site title, and seed the support address."""
+    from .services.settings import ensure_brand_title, ensure_support_email
+    log = logging.getLogger(__name__)
     with app.app_context():
         try:
             if ensure_brand_title():
-                logging.getLogger(__name__).info(
-                    "Renamed site title from a legacy brand to Bloom Anyway.")
+                log.info("Renamed site title from a legacy brand to Bloom Anyway.")
+        except Exception:
+            db.session.rollback()
+        try:
+            if ensure_support_email():
+                log.info("Filled in the public customer support email address.")
         except Exception:
             db.session.rollback()
 

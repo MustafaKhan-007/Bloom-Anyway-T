@@ -8,12 +8,16 @@ from ..models import Setting
 #: internal settings (prefixed "_") are never exposed to templates via `site`
 SECRET_KEY_SETTING = "_secret_key"
 
+#: set once the support address has been filled in, so clearing it in Studio
+#: sticks instead of being written back on the next boot
+SUPPORT_EMAIL_SEEDED = "_contact_email_seeded"
+
 DEFAULTS = {
     "site_title": "Bloom Anyway",
     "instagram_url": "https://instagram.com/",
     "hero_image_url": "",
     "portrait_url": "",
-    "contact_email": "",
+    "contact_email": "customersupport@bloomanyway.online",
     "announcement_text": "",
     "announcement_expires": "",   # ISO date (YYYY-MM-DD); blank = never expires
     "announcement_url": "",       # optional; whole card is the button (URL hidden)
@@ -204,6 +208,26 @@ def ensure_brand_title() -> bool:
         invalidate_cache()
         return True
     return False
+
+
+def ensure_support_email() -> bool:
+    """Fill in the public support address the first time, and only the first.
+
+    Sites that already had a blank ``contact_email`` row would otherwise never
+    pick up the new default. Guarded by a marker so an owner who deliberately
+    clears the field doesn't get it written back on the next deploy.
+    """
+    marker = db.session.get(Setting, SUPPORT_EMAIL_SEEDED)
+    if marker is not None:
+        return False
+    filled = False
+    if not (get_setting("contact_email") or "").strip():
+        set_setting("contact_email", DEFAULTS["contact_email"])
+        filled = True
+    db.session.add(Setting(key=SUPPORT_EMAIL_SEEDED, value="1"))
+    db.session.commit()
+    invalidate_cache()
+    return filled
 
 
 def invalidate_cache() -> None:

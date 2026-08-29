@@ -85,6 +85,12 @@
         <div>
           <div class="footer-brand">{{ site.site_title }}</div>
           <p style="color: var(--rose-soft); max-width: 32ch;">A space for women who are healing, building, or both.</p>
+          {% if site.contact_email %}
+          <p class="footer-support">
+            Need a hand?
+            <a href="mailto:{{ site.contact_email }}">{{ site.contact_email }}</a>
+          </p>
+          {% endif %}
         </div>
         <div class="footer-links">
           <a href="{{ url_for('main.courses') }}">Courses &amp; Guides</a>

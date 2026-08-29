@@ -661,6 +661,9 @@ details.faq-item .answer { padding: 0 22px 20px; }
 .footer-links { display: flex; flex-direction: column; gap: 10px; }
 .footer-meta { border-top: 1px solid rgba(250, 245, 238, 0.2); margin-top: 40px; padding-top: 24px;
   font-size: 14px; color: var(--rose-soft); display: flex; flex-wrap: wrap; gap: 12px; justify-content: space-between; }
+.footer-support { margin: 14px 0 0; font-size: 14px; color: var(--rose-soft); }
+.footer-support a { color: var(--dawn-ivory); text-decoration: underline;
+  text-underline-offset: 3px; overflow-wrap: anywhere; }
 @media (min-width: 640px) { .footer-grid { grid-template-columns: 2fr 1fr 1fr; } }
 
 /* --------------------------- scroll reveal -------------------------------- */
@@ -4967,6 +4970,23 @@ a.at-handle:hover { text-decoration: underline; }
 .page-remaster { background: #faf8f5; }
 .page-remaster h1 { color: #3d1431; }
 .page-remaster .eyebrow { color: #c79a41; letter-spacing: 0.12em; }
+
+/* Contact page: the direct support address, under the form. */
+.contact-direct {
+  margin-top: 36px;
+  padding: 20px 22px;
+  background: #fff;
+  border: 1px solid rgba(61, 20, 49, 0.08);
+  border-radius: 16px;
+  box-shadow: 0 6px 20px rgba(61, 20, 49, 0.04);
+}
+.contact-direct h2 {
+  margin: 0 0 6px;
+  font-size: 18px;
+  color: #3d1431;
+}
+.contact-direct p { margin: 0; font-size: 15px; line-height: 1.6; }
+.contact-direct a { overflow-wrap: anywhere; }
 
 .ms-journal {
   display: grid;

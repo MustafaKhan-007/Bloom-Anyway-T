@@ -164,9 +164,14 @@ def seed():
 
         # 7. brand rename (First Light → Bloom Anyway) if the stored title
         #    is still a legacy name. Custom titles the owner set are left alone.
-        from app.services.settings import ensure_brand_title
+        from app.services.settings import ensure_brand_title, ensure_support_email
         if ensure_brand_title():
             print("Site title updated to Bloom Anyway")
+
+        # 7a. Public customer support address, seeded once so a deliberate
+        #     clear in Studio isn't undone on the next run.
+        if ensure_support_email():
+            print("Public support email set to customersupport@bloomanyway.online")
 
         # 7b. Founder launch window — banner on /membership through end of Sept 2026
         #     (Sept has 30 days; active while founder_price_ends >= today).

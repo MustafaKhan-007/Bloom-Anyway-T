@@ -2076,6 +2076,60 @@ ok("A junk address sends nothing and says so",
 
 _mailer.send_email = _orig_send_email
 
+# --- the public support address is easy to find -----------------------------
+from app.services import settings as _settings  # noqa
+
+SUPPORT_EMAIL = "customersupport@bloomanyway.online"
+with app.app_context():
+    ok("Support address is the default out of the box",
+       _settings.DEFAULTS["contact_email"] == SUPPORT_EMAIL)
+
+# An older site: blank address, and no marker saying we've ever filled it.
+with app.app_context():
+    from app.models import Setting as _Setting
+    _settings.set_setting("contact_email", "")
+    _seed_marker = db.session.get(_Setting, _settings.SUPPORT_EMAIL_SEEDED)
+    if _seed_marker is not None:
+        db.session.delete(_seed_marker)
+        db.session.commit()
+    _settings.invalidate_cache()
+    ok("Boot fills the support address in for an existing site",
+       _settings.ensure_support_email() is True
+       and (_settings.get_setting("contact_email") or "").strip() == SUPPORT_EMAIL,
+       f"got {_settings.get_setting('contact_email')!r}")
+    ok("A second boot leaves the filled address alone",
+       _settings.ensure_support_email() is False)
+
+for _path, _where in (("/", "home page footer"),
+                      ("/contact", "contact page"),
+                      ("/faq", "FAQ")):
+    _html = client.get(_path).get_data(as_text=True)
+    ok(f"Support address shows on the {_where}",
+       f"mailto:{SUPPORT_EMAIL}" in _html and SUPPORT_EMAIL in _html)
+
+_html = client.get("/contact").get_data(as_text=True)
+ok("Contact page offers the address as an alternative to the form",
+   "Prefer your own inbox?" in _html)
+
+with app.app_context():
+    _settings.set_setting("contact_email", "")
+    _settings.invalidate_cache()
+_html = client.get("/").get_data(as_text=True)
+ok("Clearing the address hides it instead of leaving an empty link",
+   "mailto:" not in _html and "Need a hand?" not in _html)
+
+with app.app_context():
+    ok("A cleared address is not written back on the next boot",
+       _settings.ensure_support_email() is False
+       and (_settings.get_setting("contact_email") or "") == "")
+    _settings.set_setting("contact_email", SUPPORT_EMAIL)
+    _settings.invalidate_cache()
+
+r = admin.get("/admin/settings")
+ok("Studio explains where the support address appears",
+   SUPPORT_EMAIL in r.get_data(as_text=True)
+   and "Customer support email" in r.get_data(as_text=True))
+
 r = client.get("/healthz")
 ok("Health check", r.status_code == 200 and r.get_json()["status"] == "ok")
 
