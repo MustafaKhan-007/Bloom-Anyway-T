@@ -484,10 +484,14 @@
   var summaryField = document.getElementById("description");
   var bodyField = document.getElementById("body");
   var videoField = document.getElementById("video_file");
+  var thumbField = document.getElementById("thumb_file");
   var dropVideo = document.querySelector('input[name="remove_video"]');
+  var dropThumb = document.querySelector('input[name="remove_thumb"]');
   var freeBox = document.querySelector('input[name="free_access"]');
   var healingBox = document.querySelector('input[name="healing_access"]');
   var hadVideo = panel.getAttribute("data-has-video") === "1";
+  var savedVideo = panel.getAttribute("data-video-src") || "";
+  var savedCover = panel.getAttribute("data-cover-src") || "";
 
   var outCat = panel.querySelector("[data-tip-preview-cat]");
   var outTitle = panel.querySelector("[data-tip-preview-title]");
@@ -495,10 +499,49 @@
   var outVideo = panel.querySelector("[data-tip-preview-video]");
   var outLede = panel.querySelector("[data-tip-preview-lede]");
   var outBody = panel.querySelector("[data-tip-preview-body]");
+  var outPlayer = panel.querySelector("[data-tip-preview-player]");
+  var outPlayerEl = panel.querySelector("[data-tip-preview-video-el]");
+  var outCover = panel.querySelector("[data-tip-preview-cover]");
+
+  // Object URLs for files that only exist in the browser so far.
+  var localUrls = {};
+
+  function pickedFileUrl(key, field) {
+    var file = field && field.files && field.files[0];
+    if (!file) {
+      if (localUrls[key]) {
+        URL.revokeObjectURL(localUrls[key].url);
+        delete localUrls[key];
+      }
+      return "";
+    }
+    if (localUrls[key] && localUrls[key].file === file) return localUrls[key].url;
+    if (localUrls[key]) URL.revokeObjectURL(localUrls[key].url);
+    localUrls[key] = { file: file, url: URL.createObjectURL(file) };
+    return localUrls[key].url;
+  }
+
+  /** Set (or clear) a URL attribute. Returns true when it changed. */
+  function setSrc(el, attr, url) {
+    if ((el.getAttribute(attr) || "") === url) return false;
+    if (url) el.setAttribute(attr, url);
+    else el.removeAttribute(attr);
+    return true;
+  }
 
   function keepsVideo() {
     if (videoField && videoField.files && videoField.files.length) return true;
     return hadVideo && !(dropVideo && dropVideo.checked);
+  }
+
+  function videoSrc() {
+    return pickedFileUrl("video", videoField)
+      || (keepsVideo() ? savedVideo : "");
+  }
+
+  function coverSrc() {
+    return pickedFileUrl("cover", thumbField)
+      || (dropThumb && dropThumb.checked ? "" : savedCover);
   }
 
   function paint() {
@@ -528,6 +571,19 @@
 
     outVideo.hidden = !keepsVideo();
 
+    // Same order as the reading page: the video if there is one, otherwise
+    // the cover on its own.
+    var vsrc = videoSrc();
+    var csrc = coverSrc();
+    setSrc(outPlayerEl, "poster", csrc);
+    if (setSrc(outPlayerEl, "src", vsrc)) {
+      if (!vsrc) outPlayerEl.pause();
+      outPlayerEl.load();
+    }
+    outPlayer.hidden = !vsrc;
+    setSrc(outCover, "src", csrc);
+    outCover.hidden = !csrc || !!vsrc;
+
     outCat.textContent = freeBox && freeBox.checked
       ? "Free pick"
       : (healingBox && healingBox.checked ? "Healing tip" : "Creator tip");
@@ -536,12 +592,15 @@
   toggle.addEventListener("click", function () {
     var opening = panel.hidden;
     if (opening) paint();
+    else outPlayerEl.pause();
     panel.hidden = !opening;
     toggle.setAttribute("aria-expanded", opening ? "true" : "false");
     toggle.textContent = opening ? "Hide preview" : "Preview";
+    if (opening) panel.scrollIntoView({ behavior: "smooth", block: "nearest" });
   });
 
-  [titleField, summaryField, bodyField, videoField, dropVideo, freeBox, healingBox]
+  [titleField, summaryField, bodyField, videoField, thumbField,
+   dropVideo, dropThumb, freeBox, healingBox]
     .forEach(function (field) {
       if (!field) return;
       ["input", "change"].forEach(function (evt) {

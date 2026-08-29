@@ -7131,6 +7131,8 @@ a.at-handle:hover { text-decoration: underline; }
 .tip-preview .tip-read { max-width: 720px; }
 .tip-preview .tip-read__head h1 { font-size: clamp(24px, 3vw, 32px); }
 .tip-preview .tip-read__body:empty { display: none; }
+.tip-preview__player { max-width: 560px; }
+.tip-preview .tip-read__cover { max-width: 560px; }
 @media (max-width: 640px) {
   .tip-read__body { padding: 20px 18px; }
 }

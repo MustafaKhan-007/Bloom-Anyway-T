@@ -31,32 +31,6 @@
         <p class="field-help">Write it out in full &mdash; leave a blank line between paragraphs. Only members whose plan covers this tip can read it.</p>
       </div>
 
-      <div class="tip-preview__bar">
-        <button class="btn btn--secondary btn--sm" type="button"
-                data-tip-preview-toggle aria-expanded="false" aria-controls="tip-preview">Preview</button>
-        {% if video %}
-        <a class="btn btn--secondary btn--sm" href="{{ url_for('main.watch', video_id=video.id) }}"
-           target="_blank" rel="noopener">Open the saved page</a>
-        {% endif %}
-      </div>
-
-      <div class="tip-preview" id="tip-preview" data-tip-preview hidden
-           data-has-video="{{ '1' if video and video.has_video() else '0' }}">
-        <p class="tip-preview__label">How a member with access will see it</p>
-        <div class="tip-read">
-          <header class="tip-read__head">
-            <span class="tip-read__cat" data-tip-preview-cat>Creator tip</span>
-            <h1 data-tip-preview-title>Untitled tip</h1>
-            <p class="tip-read__meta">
-              <span>{{ video.created_at|localtime('%B %d, %Y') if video else 'Today' }}</span>
-              <span data-tip-preview-read hidden></span>
-              <span data-tip-preview-video hidden>Video included</span>
-            </p>
-            <p class="tip-read__lede" data-tip-preview-lede hidden></p>
-          </header>
-          <article class="tip-read__body forum-body" data-tip-preview-body></article>
-        </div>
-      </div>
     </section>
 
     <section class="admin-panel studio-card studio-section">
@@ -112,6 +86,40 @@
         </div>
       </div>
     </section>
+
+    <div class="tip-preview__bar">
+      <button class="btn btn--secondary btn--sm" type="button"
+              data-tip-preview-toggle aria-expanded="false" aria-controls="tip-preview">Preview</button>
+      {% if video %}
+      <a class="btn btn--secondary btn--sm" href="{{ url_for('main.watch', video_id=video.id) }}"
+         target="_blank" rel="noopener">Open the saved page</a>
+      {% endif %}
+    </div>
+
+    <div class="tip-preview" id="tip-preview" data-tip-preview hidden
+         data-has-video="{{ '1' if video and video.has_video() else '0' }}"
+         {% if video and video.has_video() %}data-video-src="{{ url_for('main.video_stream', video_id=video.id) }}"{% endif %}
+         {% if video and video.has_thumb() %}data-cover-src="{{ url_for('main.video_thumb', video_id=video.id) }}"{% endif %}>
+      <p class="tip-preview__label">How a member with access will see it</p>
+      <div class="tip-read">
+        <header class="tip-read__head">
+          <span class="tip-read__cat" data-tip-preview-cat>Creator tip</span>
+          <h1 data-tip-preview-title>Untitled tip</h1>
+          <p class="tip-read__meta">
+            <span>{{ video.created_at|localtime('%B %d, %Y') if video else 'Today' }}</span>
+            <span data-tip-preview-read hidden></span>
+            <span data-tip-preview-video hidden>Video included</span>
+          </p>
+          <p class="tip-read__lede" data-tip-preview-lede hidden></p>
+        </header>
+        <div class="video-player tip-preview__player" data-tip-preview-player hidden>
+          <video controls playsinline preload="metadata" data-tip-preview-video-el></video>
+        </div>
+        <img class="tip-read__cover" alt="" data-tip-preview-cover hidden>
+        <article class="tip-read__body forum-body" data-tip-preview-body></article>
+      </div>
+    </div>
+
     <button class="btn btn--primary" type="submit">Save tip</button>
   </form>
 </div>

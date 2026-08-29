@@ -1166,6 +1166,15 @@ ok("Tip editor offers a preview of the member's page",
    "data-tip-preview-toggle" in form_html
    and 'class="tip-read__body forum-body" data-tip-preview-body' in form_html
    and f"/watch/{swap_id}" in form_html)
+ok("Preview sits under the whole form, not in the middle of it",
+   form_html.index("data-tip-preview-toggle") > form_html.index('name="healing_access"'))
+ok("A tip with no video keeps a video out of the preview",
+   "data-video-src" not in form_html)
+
+with_video_html = admin.get(f"/admin/videos/{vid_id}/edit").get_data(as_text=True)
+ok("Preview plays the video that's already attached",
+   f'data-video-src="/watch/{vid_id}/stream"' in with_video_html
+   and "data-tip-preview-video-el" in with_video_html)
 
 r = free_client.get("/watch", follow_redirects=False)
 ok("Free member can open Content Hub (public reviews)",
