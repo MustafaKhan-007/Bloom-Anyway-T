@@ -667,6 +667,23 @@ def start_background_sync(*, days: int = 60, max_pages: int = 2) -> bool:
         "stripe-sync", sync_recent_payments, days=days, max_pages=max_pages)
 
 
+_last_cancel_sweep_mono = 0.0
+_CANCEL_SWEEP_GAP_SEC = 60 * 60
+
+
+def maybe_sweep_cancel_flags() -> bool:
+    """Hourly-at-most cancel-flag refresh, off the request thread."""
+    global _last_cancel_sweep_mono
+    if not configured():
+        return False
+    now_mono = time.monotonic()
+    if (now_mono - _last_cancel_sweep_mono) < _CANCEL_SWEEP_GAP_SEC:
+        return False
+    _last_cancel_sweep_mono = now_mono
+    from .background import run_in_background
+    return run_in_background("stripe-cancel-sweep", sweep_cancel_flags)
+
+
 def _claim_membership_welcome(email: str, tier: str, order: Order) -> bool:
     """Return True once per email+tier — claim before sending to stop duplicates.
 
@@ -1189,6 +1206,15 @@ def _subscription_id_from_payment_ref(payment_id: str) -> str | None:
     return None
 
 
+def _order_subscription_id(order) -> str | None:
+    """Subscription behind an Order, from the stored id before asking Stripe."""
+    stored = str(getattr(order, "stripe_subscription_id", "") or "").strip()
+    if stored:
+        return stored
+    oid = str(getattr(order, "ls_order_id", "") or "").strip()
+    return _subscription_id_from_payment_ref(oid) if oid else None
+
+
 def _cancel_stripe_subscription_now(sub_id: str) -> bool:
     """Immediately cancel a Stripe subscription (no remaining access period)."""
     sid = (sub_id or "").strip()
@@ -1363,10 +1389,10 @@ def replace_other_memberships(
         oid = str(order.ls_order_id or "").strip()
         if oid and oid == keep_oid:
             continue
-        sid = _subscription_id_from_payment_ref(oid) if oid else None
+        sid = _order_subscription_id(order)
         if sid and sid != keep_sub:
             cancel_subs.add(sid)
-        order.status = "refunded"
+        order.status = "ended"
         ended += 1
 
     # Also cancel any live Stripe membership sub that isn't the new one
@@ -1862,7 +1888,7 @@ def _heal_local_membership_orders(
     keep_subscription_ids: set[str],
     keep_price_ids: set[str],
 ) -> int:
-    """Refund local paid membership orders that don't match live Stripe subs."""
+    """End local paid membership orders that don't match live Stripe subs."""
     from sqlalchemy import func
 
     prices = _membership_price_ids()
@@ -1879,16 +1905,15 @@ def _heal_local_membership_orders(
     )
     ended = 0
     for order in paid:
-        oid = str(order.ls_order_id or "").strip()
         variant = str(order.ls_variant_id or "").strip()
-        sid = _subscription_id_from_payment_ref(oid) if oid else None
+        sid = _order_subscription_id(order)
         if sid and sid in keep_subscription_ids:
             continue
         if (not sid) and variant and variant in keep_price_ids:
             continue
         # Live Creator (etc.) exists — drop other local paid membership rows.
         # Or no live membership — drop all local membership rows.
-        order.status = "refunded"
+        order.status = "ended"
         ended += 1
     if ended:
         log.info(
@@ -2015,7 +2040,7 @@ def _end_paid_membership_orders(
     only_subscription_id: str | None = None,
     except_order_id: str | None = None,
 ) -> int:
-    """Mark paid membership Orders refunded and reconcile the member's tier.
+    """End paid membership Orders and reconcile the member's tier.
 
     ``only_subscription_id``: only end orders that resolve to that Stripe sub
     (used when a subscription is deleted so a plan-switch cannot revoke the
@@ -2045,11 +2070,9 @@ def _end_paid_membership_orders(
         oid = str(order.ls_order_id or "").strip()
         if keep and oid == keep:
             continue
-        if only_sub:
-            sid = _subscription_id_from_payment_ref(oid) if oid else None
-            if sid != only_sub:
-                continue
-        order.status = "refunded"
+        if only_sub and _order_subscription_id(order) != only_sub:
+            continue
+        order.status = "ended"
         ended += 1
     if ended:
         reconcile_email(email_norm, downgrade=True)
@@ -2076,6 +2099,155 @@ def _email_from_subscription(sub: dict) -> str:
         if email and "@" in email:
             return email
     return ""
+
+
+def _user_for_email(email: str):
+    from sqlalchemy import func
+
+    from ..models import User
+
+    email_norm = (email or "").strip().lower()
+    if not email_norm:
+        return None
+    return (User.query
+            .filter(func.lower(User.email) == email_norm,
+                    User.deleted_at.is_(None))
+            .first())
+
+
+def _subscription_is_membership(sub: dict) -> bool:
+    """True when any line on this subscription is one of our membership prices."""
+    prices = _membership_price_ids()
+    products = _membership_product_ids()
+    if not prices and not products:
+        return False
+    for item in ((sub.get("items") or {}).get("data") or []):
+        item_d = _as_dict(item)
+        pid = _stripe_id(item_d.get("price"))
+        if pid and pid in prices:
+            return True
+        price_obj = item_d.get("price")
+        if isinstance(price_obj, dict):
+            prod_id = _stripe_id(price_obj.get("product"))
+            if prod_id and prod_id in products:
+                return True
+    return False
+
+
+def _cancel_end_from_subscription(sub: dict) -> int | None:
+    """Unix time this subscription's access ends, when a cancel is scheduled."""
+    if not (sub.get("cancel_at_period_end") or sub.get("cancel_at")):
+        return None
+    raw = sub.get("cancel_at") or sub.get("current_period_end")
+    try:
+        return int(raw) if raw is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
+def apply_subscription_cancel_state(sub: dict) -> dict:
+    """Record (or clear) a scheduled cancel from one subscription. Caller commits.
+
+    Stripe only tells us "this ends on the 14th" through
+    ``customer.subscription.updated``. Without this, a member who cancels from
+    Stripe's billing portal — or whom you cancel from the Stripe dashboard —
+    keeps looking like a full-price member in Studio until the subscription
+    finally deletes itself weeks later.
+    """
+    sub = sub if isinstance(sub, dict) else _as_dict(sub)
+    out = {"email": "", "canceling": False, "changed": False}
+    if not _subscription_is_membership(sub):
+        return out
+
+    status = (sub.get("status") or "").strip().lower()
+    email = _email_from_subscription(sub)
+    out["email"] = email
+    user = _user_for_email(email)
+    if user is None:
+        return out
+
+    ends_unix = _cancel_end_from_subscription(sub)
+    scheduled = bool(ends_unix) and status in ("active", "trialing", "past_due")
+    out["canceling"] = scheduled
+
+    if scheduled:
+        before = user.membership_cancel_at
+        apply_cancel_at_to_user(user, ends_unix)
+        out["changed"] = user.membership_cancel_at != before
+    elif status in ("active", "trialing") and user.membership_cancel_at is not None:
+        # They resumed — Stripe is billing them again.
+        user.membership_cancel_at = None
+        out["changed"] = True
+    return out
+
+
+def sweep_cancel_flags(*, max_pages: int = 10) -> dict:
+    """Re-read every live membership subscription and fix the cancel flags.
+
+    Backfills anyone who cancelled before the site started listening for it,
+    and self-heals any webhook we missed. One listing call per status rather
+    than one lookup per member.
+    """
+    out = {"checked": 0, "canceling": 0, "changed": 0, "ok": True}
+    if not configured() or current_app.config.get("TESTING"):
+        out["ok"] = False
+        return out
+
+    seen_canceling: set[str] = set()
+    seen_live: set[str] = set()
+    try:
+        _configure_stripe()
+        for status in ("active", "trialing", "past_due"):
+            starting_after = None
+            for _ in range(max_pages):
+                page = stripe.Subscription.list(
+                    status=status, limit=100,
+                    expand=["data.customer"],
+                    **({"starting_after": starting_after} if starting_after else {}),
+                )
+                rows = list(page.data or [])
+                for sub in rows:
+                    sub_d = _as_dict(sub)
+                    res = apply_subscription_cancel_state(sub_d)
+                    if not res["email"]:
+                        continue
+                    out["checked"] += 1
+                    seen_live.add(res["email"])
+                    if res["canceling"]:
+                        seen_canceling.add(res["email"])
+                        out["canceling"] += 1
+                    if res["changed"]:
+                        out["changed"] += 1
+                if not rows or not getattr(page, "has_more", False):
+                    break
+                starting_after = _stripe_id(_as_dict(rows[-1]).get("id"))
+                if not starting_after:
+                    break
+    except Exception:
+        log.exception("stripe: cancel-flag sweep failed")
+        db.session.rollback()
+        out["ok"] = False
+        return out
+
+    # Anyone flagged locally whose subscription is live and no longer ending.
+    stale = seen_live - seen_canceling
+    if stale:
+        from sqlalchemy import func
+
+        from ..models import User
+        rows = (User.query
+                .filter(User.membership_cancel_at.isnot(None),
+                        User.deleted_at.is_(None),
+                        func.lower(User.email).in_(stale))
+                .all())
+        for user in rows:
+            user.membership_cancel_at = None
+            out["changed"] += 1
+
+    db.session.commit()
+    log.info("stripe: cancel sweep checked=%s canceling=%s changed=%s",
+             out["checked"], out["canceling"], out["changed"])
+    return out
 
 
 def handle_subscription_deleted(sub: dict) -> dict:

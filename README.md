@@ -92,7 +92,10 @@ Everything else is optional or auto-managed:
      will fail every delivery with HTTP 307)
    - Signing secret → `STRIPE_WEBHOOK_SECRET` (must match this endpoint)
    - Subscribe to: `checkout.session.completed`, `invoice.paid`,
-     `invoice.payment_failed`, `charge.refunded`, `customer.subscription.deleted`
+     `invoice.payment_failed`, `charge.refunded`, `customer.subscription.deleted`,
+     `customer.subscription.updated`
+     (`updated` is the only event that carries a scheduled cancel — without it
+     Studio can't show "cancelled, revoked on …" until the sub actually ends)
 3. **Products** — create each course/guide/membership in Stripe, then paste the
    product IDs in Studio → Courses & Guides / Plans.
 4. Paid webhooks create `Order` (+ `ShopPurchase` for non-membership products).

@@ -125,6 +125,7 @@ def dashboard():
         if should_sync and pay.start_background_sync(days=60, max_pages=2):
             set_setting("stripe_last_sync_at",
                         datetime.utcnow().isoformat(timespec="seconds"))
+        pay.maybe_sweep_cancel_flags()
     return render_template(
         "admin/dashboard.html",
         today_quote=quotes_service.quote_for(today),
@@ -1635,6 +1636,30 @@ def members():
                            memberships=MEMBERSHIPS,
                            membership_labels=MEMBERSHIP_LABELS, q=q,
                            membership_filter=membership)
+
+
+@bp.route("/members/refresh-cancellations", methods=["POST"])
+@admin_required
+def members_refresh_cancellations():
+    """Re-read scheduled cancels from Stripe and flag them on the member list."""
+    from ..services import stripe_pay as pay
+
+    if not pay.configured():
+        flash("Stripe isn't configured, so there's nothing to read.", "error")
+        return redirect(url_for("admin.members"))
+    result = pay.sweep_cancel_flags()
+    if not result.get("ok"):
+        flash("Couldn't reach Stripe just now — nothing was changed. Try again "
+              "in a minute.", "error")
+    elif result["changed"]:
+        flash(f"Checked {result['checked']} subscription(s). "
+              f"{result['canceling']} are ending; updated {result['changed']} "
+              "member(s).", "success")
+    else:
+        flash(f"Checked {result['checked']} subscription(s). "
+              f"{result['canceling']} are ending — the list was already right.",
+              "info")
+    return redirect(url_for("admin.members"))
 
 
 @bp.route("/members/audit")

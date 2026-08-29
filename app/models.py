@@ -1061,6 +1061,13 @@ class Video(db.Model):
         return round((self.size or 0) / 1024 / 1024, 1)
 
 
+# Order.status "ended" means the membership stopped (cancelled, revoked, or the
+# subscription ran out) but the money was still collected. Access checks look for
+# "paid" only; revenue counts both, so a cancellation can't rewrite past earnings
+# the way marking it "refunded" used to.
+COLLECTED_ORDER_STATUSES = ("paid", "ended")
+
+
 class Order(db.Model):
     __tablename__ = "orders"
 

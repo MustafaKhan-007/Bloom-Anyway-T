@@ -22,6 +22,9 @@ HANDLED = {
     "charge.refunded",
     "charge.refund.updated",
     "customer.subscription.deleted",
+    # Cancel-at-period-end is only ever announced here — without it a member who
+    # cancels in Stripe's portal still reads as a paying member in Studio.
+    "customer.subscription.updated",
 }
 
 
@@ -61,6 +64,21 @@ def stripe_webhook():
             log.info(
                 "stripe webhook: subscription.deleted email=%s orders_ended=%s",
                 result.get("email"), result.get("orders_ended"),
+            )
+            return {"status": "ok", "event": event_type}, 200
+        except Exception:
+            db.session.rollback()
+            log.exception("stripe webhook: failed to process %s", event_type)
+            return {"error": "processing failed"}, 500
+
+    # Scheduled cancel (or a resume): record when access actually ends.
+    if event_type == "customer.subscription.updated":
+        try:
+            result = pay.apply_subscription_cancel_state(obj)
+            db.session.commit()
+            log.info(
+                "stripe webhook: subscription.updated email=%s canceling=%s changed=%s",
+                result.get("email"), result.get("canceling"), result.get("changed"),
             )
             return {"status": "ok", "event": event_type}, 200
         except Exception:

@@ -1536,7 +1536,7 @@ with app.app_context():
     t = u.membership
 ok("Buying Healing while on Creator switches to Healing", t == "healing", f"got {t}")
 ok("Prior Creator order is ended on switch",
-   creator_order is not None and creator_order.status == "refunded",
+   creator_order is not None and creator_order.status == "ended",
    f"got {getattr(creator_order, 'status', None)}")
 ok("New Healing order stays paid",
    healing_order is not None and healing_order.status == "paid",
@@ -1571,7 +1571,7 @@ with app.app_context():
     ok("Studio downgrade writes Free to the database",
        downgraded.membership == "none", f"got {downgraded.membership}")
     ok("Studio downgrade ends the paid membership order",
-       sd_order is not None and sd_order.status == "refunded",
+       sd_order is not None and sd_order.status == "ended",
        f"got {getattr(sd_order, 'status', None)}")
     ok("Studio downgrade is remembered as a manual tier",
        downgraded.membership_manual == "none"
@@ -3149,7 +3149,7 @@ with app.app_context():
        doomed_post is not None and doomed_post.hidden is True
        and former is not None and doomed_post.user_id == former.id)
     ok("Closed account membership orders ended",
-       paid is not None and paid.status == "refunded"
+       paid is not None and paid.status == "ended"
        and (paid.buyer_email or "").startswith("closed+"))
     ok("Closed account shop purchases detached",
        shop is not None and shop.user_id is None
@@ -3445,6 +3445,109 @@ with app.app_context():
     dripper = User.query.filter_by(email="dripper@example.com").first()
     ok("Refunding the product takes the perk membership back",
        dripper.membership == "none")
+
+# --- scheduled cancels reach Studio ----------------------------------------
+# Stripe announces "this ends on the 14th" only through subscription.updated.
+# Without that hook a member who cancels in Stripe's portal keeps reading as a
+# full-price member in Studio until the subscription finally deletes itself.
+def _sub_updated_webhook(sub_id, email, price_id, *, canceling, status="active",
+                         ends_in_days=12):
+    ends = int((datetime.utcnow() + timedelta(days=ends_in_days)).timestamp())
+    body = json.dumps({
+        "id": f"evt_{sub_id}",
+        "type": "customer.subscription.updated",
+        "data": {"object": {
+            "id": sub_id,
+            "object": "subscription",
+            "status": status,
+            "cancel_at_period_end": bool(canceling),
+            "current_period_end": ends,
+            "customer_email": email,
+            "items": {"data": [{"price": {"id": price_id}}]},
+        }},
+    }).encode()
+    return client.post("/webhooks/stripe", data=body, headers=_stripe_headers(body)), ends
+
+
+with app.app_context():
+    from app.models import MembershipPlan as _MP
+    _creator_price = _MP.query.filter_by(tier="creator").first().stripe_price_id
+    _canceller = User(email="canceller@example.com", display_name="Quitter",
+                      membership="creator", email_verified_at=utcnow())
+    _canceller.set_password(USER_PW)
+    db.session.add(_canceller)
+    db.session.commit()
+
+r, _ends = _sub_updated_webhook("sub_cancelme", "canceller@example.com",
+                                _creator_price, canceling=True)
+with app.app_context():
+    _cx = User.query.filter_by(email="canceller@example.com").first()
+    ok("Stripe cancel-at-period-end is recorded on the member",
+       r.status_code == 200 and _cx.membership_cancel_at is not None
+       and _cx.membership_is_canceling(),
+       f"status={r.status_code} cancel_at={getattr(_cx, 'membership_cancel_at', None)}")
+    ok("Cancelling keeps their tier until the period ends",
+       _cx.membership == "creator", f"got {_cx.membership}")
+    _end_label = _cx.membership_access_end_display()
+
+r = admin.get("/admin/members")
+_mbody = r.get_data(as_text=True)
+ok("Studio members shows cancelled with the revoke date",
+   "cancelled, revoked on" in _mbody and _end_label in _mbody,
+   f"looking for {_end_label!r}")
+
+# a non-membership subscription must not clear (or invent) a membership flag
+_sub_updated_webhook("sub_notamembership", "canceller@example.com",
+                     "price_unrelated_thing", canceling=False)
+with app.app_context():
+    ok("Unrelated subscriptions don't touch membership flags",
+       User.query.filter_by(email="canceller@example.com").first().membership_cancel_at
+       is not None)
+
+# resuming clears it again
+_sub_updated_webhook("sub_cancelme", "canceller@example.com",
+                     _creator_price, canceling=False)
+with app.app_context():
+    _cx = User.query.filter_by(email="canceller@example.com").first()
+    ok("Resuming a subscription clears the cancelled badge",
+       _cx.membership_cancel_at is None and not _cx.membership_is_canceling())
+r = admin.get("/admin/members")
+ok("Studio members drops the badge after a resume",
+   "cancelled, revoked on" not in r.get_data(as_text=True))
+
+r = admin.post("/admin/members/refresh-cancellations", follow_redirects=True)
+ok("Refresh cancellations button lands back on the member list",
+   r.status_code == 200 and "Members" in r.get_data(as_text=True))
+
+# Ending a membership must not rewrite what was earned.
+with app.app_context():
+    from app.services import stats as _stats
+    from app.services.memberships import purchased_tier as _ptier
+    _rev_before = _stats.payment_insights(3650)["revenue"]
+    _paid_order = Order(ls_order_id="ENDME-1", ls_variant_id=_creator_price,
+                        membership_tier="creator", buyer_email="canceller@example.com",
+                        total_cents=250000, currency="USD", status="paid")
+    db.session.add(_paid_order)
+    db.session.commit()
+    _rev_paid = _stats.payment_insights(3650)["revenue"]
+    ok("A paid membership order counts towards revenue",
+       _rev_paid != _rev_before, f"{_rev_before} -> {_rev_paid}")
+    ok("A paid membership order grants the tier",
+       _ptier("canceller@example.com") == "creator")
+
+    _paid_order.status = "ended"
+    db.session.commit()
+    _rev_ended = _stats.payment_insights(3650)["revenue"]
+    ok("Cancelling keeps the money in the revenue figures",
+       _rev_ended == _rev_paid, f"{_rev_paid} -> {_rev_ended}")
+    ok("Cancelling still takes the tier away",
+       _ptier("canceller@example.com") == "none",
+       f"got {_ptier('canceller@example.com')}")
+
+    _paid_order.status = "refunded"
+    db.session.commit()
+    ok("A real refund does come back out of revenue",
+       _stats.payment_insights(3650)["revenue"] == _rev_before)
 
 r = client.get("/this-page-does-not-exist-xyz")
 ok("404 offers problem report", r.status_code == 404 and b"Report this problem" in r.data)

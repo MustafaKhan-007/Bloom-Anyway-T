@@ -248,10 +248,13 @@ def create_app(config_class=None):
         if token != secret:
             abort(404)
         from .services import spotlight as spot_svc
+        from .services import stripe_pay as pay
         from .services import support_groups as sg_svc
         n = sg_svc.dispatch_due_reminders()
         spotlight_notices = spot_svc.sweep_expiry_notices()
-        return {"ok": True, "reminders": n, "spotlight": spotlight_notices}, 200
+        cancels = pay.sweep_cancel_flags() if pay.configured() else {}
+        return {"ok": True, "reminders": n, "spotlight": spotlight_notices,
+                "cancel_flags": cancels}, 200
 
     # --- lightweight page-view counter (no cookies, no IPs) --------------------
     from .models import PageView

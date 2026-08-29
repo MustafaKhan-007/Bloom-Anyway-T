@@ -11,8 +11,16 @@
         <a href="{{ url_for('admin.membership_plans') }}">membership plans</a> page &mdash; buyers are
         upgraded automatically on payment. Buying a different plan cancels the previous subscription
         immediately. A refund removes access. Manual changes here always win.</p>
+      <p class="field-help" style="margin: 6px 0 0; max-width: 62ch;">Cancellations show up
+        here on their own &mdash; Stripe tells us the moment one is scheduled, and we
+        re-check hourly. <strong>Refresh cancellations</strong> asks Stripe right now
+        if you'd rather not wait.</p>
     </div>
     <div class="page-head__actions">
+      <form method="post" action="{{ url_for('admin.members_refresh_cancellations') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn btn--secondary btn--sm" type="submit">Refresh cancellations</button>
+      </form>
       <a class="btn btn--secondary btn--sm"
          href="{{ url_for('admin.members_audit', membership=membership_filter or none) }}">Where tiers come from</a>
       <a class="btn btn--secondary btn--sm"

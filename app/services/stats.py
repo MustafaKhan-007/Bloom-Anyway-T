@@ -5,9 +5,9 @@ from sqlalchemy import func, or_
 from sqlalchemy.orm import joinedload
 
 from ..extensions import db
-from ..models import (ForumPost, MarketplaceListing, MembershipPlan, Order,
-                      PageView, Product, ShopPurchase, SiteFeedback, User, Video,
-                      VisitEvent)
+from ..models import (COLLECTED_ORDER_STATUSES, ForumPost, MarketplaceListing,
+                      MembershipPlan, Order, PageView, Product, ShopPurchase,
+                      SiteFeedback, User, Video, VisitEvent)
 from . import support_groups as sg_svc
 
 
@@ -128,14 +128,14 @@ def payment_insights(days: int = 30) -> dict:
     revenue, count = (
         db.session.query(func.coalesce(func.sum(Order.total_cents), 0),
                          func.count(Order.id))
-        .filter(Order.status == "paid", Order.created_at >= start)
+        .filter(Order.status.in_(COLLECTED_ORDER_STATUSES), Order.created_at >= start)
         .one()
     )
     # Top products by order count in window
     top_rows = (
         db.session.query(Product.title, func.count(Order.id))
         .join(Order, Order.product_id == Product.id)
-        .filter(Order.status == "paid", Order.created_at >= start)
+        .filter(Order.status.in_(COLLECTED_ORDER_STATUSES), Order.created_at >= start)
         .group_by(Product.title)
         .order_by(func.count(Order.id).desc())
         .limit(3)
@@ -264,7 +264,7 @@ def member_activity(limit: int = 12) -> list[dict]:
 
     paid = (Order.query
             .options(joinedload(Order.product))
-            .filter(Order.status == "paid")
+            .filter(Order.status.in_(COLLECTED_ORDER_STATUSES))
             .order_by(Order.created_at.desc())
             .limit(max(8, limit))
             .all())
@@ -366,7 +366,7 @@ def purchases_over_time(days: int = 90) -> dict:
 
     paid = (Order.query
             .options(joinedload(Order.product))
-            .filter(Order.status == "paid", Order.created_at >= _dt(start))
+            .filter(Order.status.in_(COLLECTED_ORDER_STATUSES), Order.created_at >= _dt(start))
             .all())
 
     by_variant, by_payment = _chart_title_maps(paid)
@@ -408,7 +408,7 @@ def trending_product(window_days: int = 7) -> dict | None:
     rows = (
         db.session.query(Product.title, func.count(Order.id).label("n"))
         .join(Order, Order.product_id == Product.id)
-        .filter(Order.status == "paid", Order.created_at >= start)
+        .filter(Order.status.in_(COLLECTED_ORDER_STATUSES), Order.created_at >= start)
         .group_by(Product.title)
         .order_by(func.count(Order.id).desc())
         .limit(1)

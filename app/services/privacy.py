@@ -167,7 +167,7 @@ def _clear_membership_history(email: str, *, user_id: int) -> dict:
             if tier not in _PAID_TIERS:
                 tier = (tier_for_price_id(order.ls_variant_id) or "").strip().lower()
             if tier in _PAID_TIERS and order.status == "paid":
-                order.status = "refunded"
+                order.status = "ended"
                 out["orders_ended"] += 1
             # Detach from the real email so reconcile cannot revive access on re-signup.
             order.buyer_email = _scrub_email_token(user_id, order.id)

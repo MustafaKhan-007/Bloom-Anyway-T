@@ -165,7 +165,7 @@ def billing_tier(email: str) -> str:
 
 
 def end_local_membership_orders(email: str) -> int:
-    """Mark this email's paid membership Orders refunded. Caller commits."""
+    """Mark this email's paid membership Orders ended. Caller commits."""
     email_norm = (email or "").strip().lower()
     if not email_norm:
         return 0
@@ -179,7 +179,7 @@ def end_local_membership_orders(email: str) -> int:
         if tier not in _PAID_TIERS:
             tier = tier_for_price_id(order.ls_variant_id) or ""
         if tier in _PAID_TIERS:
-            order.status = "refunded"
+            order.status = "ended"
             ended += 1
     return ended
 
