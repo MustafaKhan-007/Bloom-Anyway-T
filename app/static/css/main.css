@@ -9049,3 +9049,115 @@ a.at-handle:hover { text-decoration: underline; }
 .ch2-waitlist__form input[type="email"]::placeholder {
   color: rgba(255, 255, 255, 0.55);
 }
+
+/* --- Studio tables on phones ------------------------------------------------
+   Six columns inside a 320px screen leaves each one about a character wide, so
+   emails and dates fall down the page one letter at a time. Below 760px each
+   row becomes its own card with the column heading printed above the value.
+   responsive-table.js copies those headings onto the cells; if it never runs
+   the table simply scrolls sideways instead of collapsing.                  */
+@media (max-width: 760px) {
+  .admin-table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .admin-table.is-stacked {
+    display: block;
+    overflow: visible;
+    background: transparent;
+    box-shadow: none;
+    border-radius: 0;
+  }
+  .admin-table.is-stacked thead { display: none; }
+  .admin-table.is-stacked tbody { display: block; }
+
+  .admin-table.is-stacked tbody tr {
+    display: block;
+    position: relative;
+    background: #fff;
+    border: 1px solid rgba(61, 20, 49, 0.08);
+    border-radius: 14px;
+    box-shadow: 0 6px 20px rgba(61, 20, 49, 0.04);
+    padding: 14px 16px;
+  }
+  .admin-table.is-stacked tbody tr + tr { margin-top: 12px; }
+
+  .admin-table.is-stacked tbody td {
+    display: block;
+    width: auto;
+    padding: 9px 0;
+    border: 0;
+    border-top: 1px solid rgba(61, 20, 49, 0.07);
+    text-align: left;
+    vertical-align: baseline;
+    overflow-wrap: anywhere;
+  }
+  .admin-table.is-stacked tbody td.is-first-visible { border-top: 0; padding-top: 0; }
+  .admin-table.is-stacked tbody td.is-last-visible { padding-bottom: 0; }
+
+  .admin-table.is-stacked tbody td::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: 4px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #8a7a86;
+  }
+  .admin-table.is-stacked tbody td[data-label=""]::before { content: none; }
+
+  /* Cells that are empty for this row (no Remove button for owners, say)
+     would otherwise leave a stray heading behind. */
+  .admin-table.is-stacked tbody td.is-empty { display: none; }
+
+  /* Full-width controls so they're actually tappable. */
+  .admin-table.is-stacked tbody td .btn,
+  .admin-table.is-stacked tbody td select,
+  .admin-table.is-stacked tbody td input[type="text"],
+  .admin-table.is-stacked tbody td input[type="number"] {
+    width: 100%;
+  }
+  .admin-table.is-stacked tbody td .inline-form,
+  .admin-table.is-stacked tbody td form { width: 100%; }
+  .admin-table.is-stacked tbody td .btn + .btn { margin-top: 8px; }
+
+  /* Row checkbox sits with its label rather than in a 2rem column. */
+  .admin-table.is-stacked tbody td.studio-bulk__check {
+    width: auto;
+    padding: 0 0 10px;
+    border-top: 0;
+  }
+  .admin-table.is-stacked tbody td.studio-bulk__check::before { content: none; }
+  .admin-table.is-stacked tbody td.studio-bulk__check::after {
+    content: "Select";
+    display: inline-block;
+    margin-left: 8px;
+    vertical-align: middle;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #8a7a86;
+  }
+  .admin-table.is-stacked tbody td.studio-bulk__check input {
+    width: 1.15rem;
+    height: 1.15rem;
+    vertical-align: middle;
+  }
+
+  /* Search and bulk bars stack instead of squeezing onto one line. */
+  .member-search {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .member-search input[type="search"] { flex: 1 1 100%; min-width: 0; }
+  .studio-bulk__bar { gap: 10px 12px; }
+  .studio-bulk__bar .btn { flex: 1 1 auto; }
+  .page-head__actions { flex-wrap: wrap; }
+  .page-head__actions > * { flex: 1 1 auto; }
+  .page-head__actions .btn { width: 100%; }
+}
