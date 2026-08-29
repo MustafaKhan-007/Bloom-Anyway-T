@@ -1693,15 +1693,20 @@ def members_audit_resync():
         tier = ""
     result = audit_svc.resync_from_stripe(tier)
     changed = result["changed"]
+    stuck = result.get("unreachable") or 0
     if changed:
         names = ", ".join(f"{c['name']} ({c['from']} → {c['to']})"
                           for c in changed[:6])
         more = f" and {len(changed) - 6} more" if len(changed) > 6 else ""
         flash(f"Checked {result['checked']} member(s). Corrected {len(changed)}: "
               f"{names}{more}.", "success")
-    else:
+    elif result["checked"]:
         flash(f"Checked {result['checked']} member(s) against Stripe — every "
               "tier already matched.", "info")
+    if stuck:
+        flash(f"Stripe didn't answer for {stuck} member(s), so they were left "
+              "alone rather than guessed at. Try again in a minute; if it keeps "
+              "happening the Stripe key or connection needs looking at.", "error")
     return redirect(url_for("admin.members_audit", membership=tier or None))
 
 

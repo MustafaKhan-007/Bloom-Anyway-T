@@ -1761,19 +1761,22 @@ def _list_customer_membership_subs(email_norm: str) -> list[dict] | None:
             found = stripe.Customer.search(query=f"email:'{safe}'", limit=20)
             customers_data = list(found.data or [])
         except Exception:
-            listed = stripe.Customer.list(limit=100)
-            customers_data = [
-                c for c in list(listed.data or [])
-                if (getattr(c, "email", None) or "").strip().lower() == email_norm
-            ]
+            # Filter server-side. Paging the whole customer list and matching
+            # locally silently misses anyone past the first page, and a member
+            # we fail to find here reads as "not paying" and loses their tier.
+            listed = stripe.Customer.list(email=email_norm, limit=20)
+            customers_data = list(listed.data or [])
         for cust in customers_data:
             cust_id = _stripe_id(cust) or getattr(cust, "id", None)
             if not cust_id:
                 continue
             for status in ("active", "trialing", "past_due"):
+                # No expand: subscription items already carry the full price,
+                # and Stripe rejects any expand string deeper than four
+                # properties — "data.items.data.price.product" is five, so it
+                # used to 400 and take the whole live lookup down with it.
                 page = stripe.Subscription.list(
                     customer=cust_id, status=status, limit=20,
-                    expand=["data.items.data.price.product"],
                 )
                 for sub in list(page.data or []):
                     sub_d = _as_dict(sub)

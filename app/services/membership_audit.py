@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import logging
 
+from flask import current_app
 from sqlalchemy import func
 
 from ..models import MEMBERSHIP_LABELS, Order, User
@@ -130,8 +131,14 @@ def resync_from_stripe(tier: str = "", limit: int = 400) -> dict:
     listening: Stripe is asked directly, and anyone who is no longer paying
     (and holds no manual grant or perk) drops back. Slow by nature — one Stripe
     lookup per member — so it only runs when an owner asks for it.
+
+    A member Stripe couldn't answer for is skipped rather than dropped, and
+    counted in ``unreachable``. Reconciling them anyway would fall back to
+    local orders, which is how a broken Stripe call could quietly report that
+    every tier already matched.
     """
     from ..extensions import db
+    from . import stripe_pay as pay
     from .memberships import reconcile_user
 
     query = User.query.filter(User.deleted_at.is_(None),
@@ -141,11 +148,27 @@ def resync_from_stripe(tier: str = "", limit: int = 400) -> dict:
         query = query.filter(User.membership == tier)
     people = query.order_by(User.created_at.desc()).limit(limit).all()
 
+    # Under TESTING the live lookup deliberately answers nothing, which is a
+    # decision rather than a failure — fall through to local orders there.
+    live_ready = pay.configured() and not current_app.config.get("TESTING")
     changed = []
+    unreachable = 0
     for u in people:
+        live = None
+        if live_ready:
+            try:
+                live = pay.active_membership_tier_from_stripe(u.email)
+            except Exception:
+                log.exception("membership audit: stripe lookup failed for user %s", u.id)
+                live = None
+            if live is None:
+                unreachable += 1
+                continue
+
         before = u.membership
         try:
-            if reconcile_user(u, downgrade=True) and u.membership != before:
+            if reconcile_user(u, downgrade=True, live_tier=live) \
+                    and u.membership != before:
                 changed.append({
                     "name": u.public_name(), "email": u.email,
                     "from": MEMBERSHIP_LABELS.get(before, before),
@@ -157,4 +180,5 @@ def resync_from_stripe(tier: str = "", limit: int = 400) -> dict:
         db.session.commit()
     else:
         db.session.rollback()
-    return {"checked": len(people), "changed": changed}
+    return {"checked": len(people) - unreachable, "changed": changed,
+            "unreachable": unreachable}

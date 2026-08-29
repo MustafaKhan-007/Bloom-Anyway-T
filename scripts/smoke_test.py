@@ -2821,6 +2821,52 @@ with app.app_context():
 r = admin.get("/admin/members/audit?membership=full_bloom")
 ok("Members audit filters by tier", r.status_code == 200)
 
+# A Stripe lookup that can't answer must not read as "everybody checks out".
+# A broken expand string used to fail every call, fall back to local orders,
+# and report that every tier already matched while nothing had been checked.
+with app.app_context():
+    from app.services import membership_audit as _audit
+    from app.services import stripe_pay as _pay
+
+    def _resync_with_stripe_saying(answer):
+        """Run the audit resync as if Stripe were live and gave this answer."""
+        real_cfg = _pay.configured
+        real_live = _pay.active_membership_tier_from_stripe
+        _pay.configured = lambda: True
+        _pay.active_membership_tier_from_stripe = lambda _email: answer
+        app.config["TESTING"] = False
+        try:
+            return _audit.resync_from_stripe("creator")
+        finally:
+            app.config["TESTING"] = True
+            _pay.configured = real_cfg
+            _pay.active_membership_tier_from_stripe = real_live
+
+    _blind = _resync_with_stripe_saying(None)
+    ok("Members Stripe can't answer for are counted, not silently skipped",
+       _blind["unreachable"] > 0 and _blind["checked"] == 0
+       and not _blind["changed"],
+       f"got {_blind}")
+
+    _dropped = _resync_with_stripe_saying("none")
+    ok("Stripe saying 'not a subscriber' drops the tier",
+       _dropped["unreachable"] == 0 and _dropped["checked"] > 0
+       and any(c["to"] == "Free" for c in _dropped["changed"]),
+       f"got {_dropped}")
+
+r = admin.post("/admin/members/audit/resync", data={"membership": "creator"},
+               follow_redirects=True)
+_rbody = r.get_data(as_text=True)
+ok("Resync with nobody left to check claims nothing at all",
+   r.status_code == 200 and "already matched" not in _rbody
+   and "Corrected" not in _rbody, flashes(r))
+
+r = admin.post("/admin/members/audit/resync", data={"membership": "full_bloom"},
+               follow_redirects=True)
+ok("Resync reports what it found on a tier that still has members",
+   r.status_code == 200 and "Checked 2 member(s)" in r.get_data(as_text=True),
+   flashes(r))
+
 # Content Hub: the tips library appears before reel reviews
 r = client.get("/watch")
 hub = r.get_data(as_text=True)

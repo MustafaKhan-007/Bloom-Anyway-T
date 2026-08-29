@@ -260,7 +260,12 @@ def set_manual_tier(user: User, tier: str) -> dict:
     return out
 
 
-def reconcile_user(user: User, downgrade: bool = False) -> bool:
+#: distinguishes "caller already asked Stripe" from "Stripe said nothing"
+_ASK_STRIPE = object()
+
+
+def reconcile_user(user: User, downgrade: bool = False,
+                   live_tier=_ASK_STRIPE) -> bool:
     """Sync a user's membership column from Stripe / paid orders.
 
     A tier set by hand in Studio wins until the member pays again. Otherwise
@@ -286,13 +291,16 @@ def reconcile_user(user: User, downgrade: bool = False) -> bool:
         enforce_listing_limits(user)
         return True
 
-    live = None
-    try:
-        from .stripe_pay import active_membership_tier_from_stripe
-        live = active_membership_tier_from_stripe(user.email)
-    except Exception:
-        log.exception("membership: stripe live sync failed for user %s", user.id)
+    if live_tier is _ASK_STRIPE:
         live = None
+        try:
+            from .stripe_pay import active_membership_tier_from_stripe
+            live = active_membership_tier_from_stripe(user.email)
+        except Exception:
+            log.exception("membership: stripe live sync failed for user %s", user.id)
+            live = None
+    else:
+        live = live_tier
 
     purchased = purchased_tier(user.email)
     current = user.membership or "none"
