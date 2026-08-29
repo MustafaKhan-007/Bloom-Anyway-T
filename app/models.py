@@ -1371,37 +1371,33 @@ MARKETPLACE_LIMITS = {
 }
 #: how many tags a single listing may carry
 MARKETPLACE_TAG_MAX = 24
-#: curated tag catalogue (authors pick from these; filters use the same list)
-MARKETPLACE_TAGS = (
-    # healing & growth
-    "Healing", "Trauma-informed", "Grief", "Divorce", "Custody", "Co-parenting",
-    "Single moms", "Starting over", "Confidence", "Boundaries", "Anxiety",
-    "Self-care", "Mindfulness", "Meditation", "Journaling", "Affirmations",
-    "Faith", "Spirituality", "Energy healing", "Reiki", "Astrology", "Tarot",
-    "LGBTQ+", "BIPOC", "Accountability", "Mentorship", "Coaching", "1:1",
-    "Group", "Workshop", "Community",
-    # body & home
-    "Fitness", "Yoga", "Pilates", "Personal training", "Nutrition", "Meal plans",
-    "Recipes", "Cooking", "Skincare", "Beauty", "Makeup", "Fashion", "Hair",
-    "Home", "Interior design", "Organizing", "Cleaning", "Pet care", "Childcare",
-    # creating & content
-    "Content creation", "Instagram", "TikTok", "YouTube", "UGC", "Influencer",
-    "Branding", "Canva", "Copywriting", "Ghostwriting", "Writing", "Editing",
-    "Photography", "Presets", "Videography", "CapCut", "Premiere", "Podcast",
-    "Speaking", "Public speaking",
-    # business & money
-    "Business", "Freelance", "Side hustle", "Money", "Budgeting", "Career",
-    "Resume", "Interview prep", "Marketing", "SEO", "Email marketing",
-    "Affiliate", "Etsy", "Shopify", "Amazon", "Dropshipping", "VA",
-    "Bookkeeping", "Legal", "Real estate", "Event planning",
-    # digital products & formats
-    "Course", "Ebook", "Workbook", "Planner", "Printable", "Template",
-    "Notion", "Spreadsheet", "Tracker", "Stickers", "Wall art", "Bundle",
-    "Freebie", "Subscription", "Membership", "Digital download", "Handmade",
-    "Jewelry", "Clothing", "Candles",
-    # delivery / format
-    "Online", "Remote", "In-person", "Hybrid", "Downloadable", "Live session",
-    "Async", "Beginner-friendly", "Advanced",
+#: Curated tag catalogue, grouped the way the site is: the healing track, the
+#: building track, and broad tags that suit either. Anything narrower than this
+#: (a single app, a single niche) belongs in a listing's own custom tags rather
+#: than in a list every member has to read through.
+MARKETPLACE_TAG_GROUPS = (
+    ("Healing", "Finding your feet again", (
+        "Healing", "Trauma-informed", "Divorce", "Custody & co-parenting",
+        "Single moms", "Grief", "Starting over", "Confidence", "Boundaries",
+        "Anxiety", "Self-care", "Mindfulness", "Journaling",
+        "Faith & spirituality",
+    )),
+    ("Building", "Making something of your own", (
+        "Building", "Content creation", "Social media", "Branding", "Writing",
+        "Photography", "Video", "Podcast", "Speaking", "Marketing",
+        "Selling online", "Business", "Freelance", "Money", "Career",
+    )),
+    ("Anything", "Broad tags that suit either side", (
+        "Coaching", "Mentorship", "1:1", "Group", "Workshop", "Community",
+        "Course", "Ebook", "Workbook", "Planner", "Template",
+        "Digital download", "Membership", "Online", "In-person",
+        "Beginner-friendly", "Free resource", "Wellness", "Home & family",
+        "Style & beauty",
+    )),
+)
+#: flat catalogue for lookups and filters
+MARKETPLACE_TAGS = tuple(
+    tag for _label, _hint, group in MARKETPLACE_TAG_GROUPS for tag in group
 )
 
 

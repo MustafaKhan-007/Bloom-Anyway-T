@@ -11,7 +11,8 @@ from ..extensions import db, limiter
 from sqlalchemy import func
 
 from ..models import (JOURNAL_PROMPTS, MARKETPLACE_KINDS, MARKETPLACE_KIND_LABELS,
-                      MARKETPLACE_TAG_MAX, MARKETPLACE_TAGS, MOOD_KEYS, MOODS,
+                      MARKETPLACE_TAG_GROUPS, MARKETPLACE_TAG_MAX,
+                      MARKETPLACE_TAGS, MOOD_KEYS, MOODS,
                       ContactMessage, FaqItem, JournalEntry,
                       ListingImage, MarketplaceListing, MembershipPlan,
                       Notification, Order, Page, Product, ProductAsset,
@@ -748,7 +749,7 @@ def listing_form(listing_id=None):
         back_from = "showcase"
     return render_template("marketplace/form.html", listing=listing,
                            kinds=MARKETPLACE_KIND_LABELS,
-                           tag_catalog=MARKETPLACE_TAGS,
+                           tag_groups=MARKETPLACE_TAG_GROUPS,
                            tag_max=MARKETPLACE_TAG_MAX,
                            chosen_tags=chosen,
                            tags_custom=", ".join(custom_existing),

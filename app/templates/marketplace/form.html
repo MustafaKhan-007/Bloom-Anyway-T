@@ -68,20 +68,32 @@
 
       <fieldset class="tag-picker">
         <legend>Tags <span class="field-help">(pick up to {{ tag_max }})</span></legend>
-        <p class="field-help">Tap everything that fits &mdash; readers filter by these.</p>
+        <p class="field-help">Tap everything that fits &mdash; readers filter by these.
+          The list is deliberately broad, so add your own below for the specifics.</p>
         <div class="tag-picker__grid" data-tag-grid>
-          {% for t in tag_catalog %}
-          <label class="tag-pick">
-            <input type="checkbox" name="tags" value="{{ t }}"
-                   {{ 'checked' if t in chosen_tags }}>
-            <span>{{ t }}</span>
-          </label>
+          {% for label, hint, group in tag_groups %}
+          <div class="tag-picker__group">
+            <p class="tag-picker__group-head">{{ label }}
+              <span>{{ hint }}</span></p>
+            <div class="tag-picker__row">
+              {% for t in group %}
+              <label class="tag-pick">
+                <input type="checkbox" name="tags" value="{{ t }}"
+                       {{ 'checked' if t in chosen_tags }}>
+                <span>{{ t }}</span>
+              </label>
+              {% endfor %}
+            </div>
+          </div>
           {% endfor %}
         </div>
         <div class="field" style="margin-top: 14px;">
-          <label for="tags_custom">Anything missing? Add your own</label>
+          <label for="tags_custom">Your own tags</label>
+          <p class="field-help">Whatever the list above doesn't cover &mdash; your niche,
+            your tools, your city. Separate them with commas. These get filtered on
+            just like the rest.</p>
           <input type="text" id="tags_custom" name="tags_custom"
-                 placeholder="comma, separated, extras"
+                 placeholder="e.g. meal plans, Notion, Etsy shop"
                  value="{{ tags_custom or '' }}">
         </div>
         <p class="field-help" data-tag-count>0 / {{ tag_max }} selected</p>

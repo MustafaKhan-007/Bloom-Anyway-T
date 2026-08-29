@@ -1703,6 +1703,46 @@ ok("Listing is live", hcount == 1)
 ok("Listing keeps curated + custom tags",
    "Healing" in saved_tags and "Ebook" in saved_tags and "my-custom-tag" in saved_tags)
 
+# --- tag catalogue: two tracks plus broad extras -----------------------------
+from app.models import MARKETPLACE_TAGS, MARKETPLACE_TAG_GROUPS
+_group_names = [label for label, _hint, _tags in MARKETPLACE_TAG_GROUPS]
+ok("Tags are grouped by the site's two tracks, plus broad extras",
+   _group_names == ["Healing", "Building", "Anything"])
+ok("Flat catalogue is exactly the groups, in order",
+   MARKETPLACE_TAGS == tuple(t for _l, _h, g in MARKETPLACE_TAG_GROUPS for t in g))
+ok("No tag is offered twice",
+   len(set(MARKETPLACE_TAGS)) == len(MARKETPLACE_TAGS))
+_retired = ["Reiki", "Tarot", "Astrology", "Dropshipping", "CapCut", "Premiere",
+            "Canva", "Notion", "Etsy", "Shopify", "Amazon", "Pilates", "Hair",
+            "Candles", "Jewelry", "Stickers", "Pet care", "Interview prep"]
+ok("Niche tags are gone from the catalogue",
+   not [t for t in _retired if t in MARKETPLACE_TAGS],
+   f"still listed: {[t for t in _retired if t in MARKETPLACE_TAGS]}")
+ok("The catalogue is short enough to read", len(MARKETPLACE_TAGS) <= 60,
+   f"got {len(MARKETPLACE_TAGS)}")
+ok("Both tracks are named in the catalogue itself",
+   "Healing" in MARKETPLACE_TAGS and "Building" in MARKETPLACE_TAGS)
+
+_form_html = banclient.get("/marketplace/new").get_data(as_text=True)
+ok("The picker shows the group headings",
+   "Finding your feet again" in _form_html
+   and "Making something of your own" in _form_html
+   and "Broad tags that suit either side" in _form_html)
+ok("The picker still invites custom tags",
+   'name="tags_custom"' in _form_html and "Your own tags" in _form_html)
+
+# A listing tagged before the prune keeps its tag, and stays filterable.
+with app.app_context():
+    _old = MarketplaceListing.query.filter_by(title="My ebook").first()
+    _old.set_tags(_old.tags() + ["Reiki"])
+    db.session.commit()
+    _old_id = _old.id
+_show = app.test_client().get("/showcase").get_data(as_text=True)
+ok("A retired tag already in use still shows up as a filter", "Reiki" in _show)
+_edit_html = banclient.get(f"/marketplace/{_old_id}/edit").get_data(as_text=True)
+ok("Editing an older listing keeps its retired tag in the custom box",
+   'name="tags_custom"' in _edit_html and "Reiki" in _edit_html)
+
 r = banclient.post("/marketplace/new", data={
     "kind": "product", "title": "Second ebook", "website_url": "example.com/2"},
     follow_redirects=True)
