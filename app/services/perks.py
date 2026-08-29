@@ -23,12 +23,30 @@ def add_months(start: datetime, months: int) -> datetime:
 
 
 def perk_products() -> list[Product]:
-    """Catalogue products that hand out free membership months."""
+    """Catalogue products that hand out free membership months.
+
+    Cached for the request: reconciling a page full of members would otherwise
+    re-read the same short list once per person.
+    """
+    try:
+        from flask import g, has_app_context
+        cached = getattr(g, "_perk_products", None) if has_app_context() else None
+    except Exception:
+        cached = None
+    if cached is not None:
+        return cached
     rows = (Product.query
             .filter(Product.perk_membership_tier.isnot(None),
                     Product.perk_membership_months > 0)
             .all())
-    return [p for p in rows if p.has_perk()]
+    out = [p for p in rows if p.has_perk()]
+    try:
+        from flask import g, has_app_context
+        if has_app_context():
+            g._perk_products = out
+    except Exception:
+        pass
+    return out
 
 
 def purchase_has_perk(purchase: ShopPurchase) -> bool:

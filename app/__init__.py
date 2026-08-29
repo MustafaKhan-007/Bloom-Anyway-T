@@ -154,15 +154,21 @@ def create_app(config_class=None):
     app.register_blueprint(forums_bp, url_prefix="/forums")
     csrf.exempt(webhooks_bp)  # webhook signature check replaces CSRF here
 
-    # Opportunistic support-group 24h reminders (also hit /cron/support-groups).
+    # Opportunistic 24h reminders (also hit /cron/support-groups): support-group
+    # sessions, and the heads-up before a home-page spotlight slot runs out.
     @app.before_request
-    def _support_group_reminders():
+    def _timed_reminders():
         path = request.path or ""
         if path.startswith(("/static/", "/healthz", "/cron/")):
             return None
         try:
             from .services import support_groups as sg_svc
             sg_svc.maybe_sweep_reminders()
+        except Exception:
+            pass
+        try:
+            from .services import spotlight as spot_svc
+            spot_svc.maybe_sweep()
         except Exception:
             pass
         return None
@@ -241,9 +247,11 @@ def create_app(config_class=None):
             token = (request.args.get("key") or "").strip()
         if token != secret:
             abort(404)
+        from .services import spotlight as spot_svc
         from .services import support_groups as sg_svc
         n = sg_svc.dispatch_due_reminders()
-        return {"ok": True, "reminders": n}, 200
+        spotlight_notices = spot_svc.sweep_expiry_notices()
+        return {"ok": True, "reminders": n, "spotlight": spotlight_notices}, 200
 
     # --- lightweight page-view counter (no cookies, no IPs) --------------------
     from .models import PageView

@@ -9,8 +9,9 @@ from flask_login import current_user, login_required
 
 from ..extensions import db, limiter
 from sqlalchemy import func
+from sqlalchemy.orm import joinedload, selectinload
 
-from ..models import (JOURNAL_PROMPTS, MARKETPLACE_KINDS, MARKETPLACE_KIND_LABELS,
+from ..models import (MARKETPLACE_KINDS, MARKETPLACE_KIND_LABELS,
                       MARKETPLACE_TAG_GROUPS, MARKETPLACE_TAG_MAX,
                       MARKETPLACE_TAGS, MOOD_KEYS, MOODS,
                       ContactMessage, FaqItem, JournalEntry,
@@ -450,7 +451,6 @@ def membership():
         _sync_membership_cancel_flag(current_user)
 
     all_plans = {p.tier: p for p in MembershipPlan.query.all()}
-    plans = {t: p for t, p in all_plans.items() if p.active}
     current = (current_user.effective_membership()
                if current_user.is_authenticated else None)
     checkout = {"monthly": {}, "annual": {}}
@@ -521,7 +521,13 @@ def _showcase_index():
     view = "list" if request.args.get("view") == "list" else "tiles"
 
     # One pass over active listings: filter, tag catalogue, and locations.
-    active = MarketplaceListing.query.filter_by(active=True).all()
+    # Authors and thumbnails come along for the ride — every card shows both,
+    # and lazy-loading them meant two queries per listing on the page.
+    active = (MarketplaceListing.query
+              .options(joinedload(MarketplaceListing.author),
+                       selectinload(MarketplaceListing.images))
+              .filter_by(active=True)
+              .all())
     used = set()
     locations = set()
     listings = []
@@ -874,9 +880,6 @@ def account():
     from ..services.participation import (community_participation_count,
                                           participation_bar_pct)
     followers_n, following_n = follow_counts(current_user)
-    owner_support_pending = (
-        sg_svc.pending_count() if current_user.is_admin else 0
-    )
     my_listings = []
     if current_user.is_member():
         from ..models import MarketplaceListing
@@ -924,7 +927,6 @@ def account():
         unread_notes=unread_notification_count(current_user),
         followers_n=followers_n,
         following_n=following_n,
-        owner_support_pending=owner_support_pending,
         my_listings=my_listings,
         listing_count=active_listing_count(current_user),
         listing_cap=listing_limit(current_user),
@@ -2510,29 +2512,6 @@ def support_session_report(meeting_id, user_id):
     )
     flash(msg, "success")
     return redirect(url_for("main.support_session_wrap", meeting_id=meeting_id))
-
-
-@bp.route("/support-groups/join", methods=["POST"])
-@login_required
-def join_support_circle():
-    """Legacy waitlist endpoint — peer sessions use schedule/join now."""
-    flash(
-        "Peer circles are join-as-you-go now. Open upcoming sessions below, or schedule a new one.",
-        "info",
-    )
-    return redirect(url_for("main.support_groups_page"))
-
-
-@bp.route("/support-groups/<int:app_id>/withdraw", methods=["POST"])
-@login_required
-def withdraw_support_group(app_id):
-    from ..services import support_groups as sg_svc
-    err = sg_svc.withdraw(current_user, app_id)
-    if err:
-        flash(err, "error")
-    else:
-        flash("You've left that session.", "success")
-    return redirect(url_for("main.support_groups_page"))
 
 
 @bp.route("/privacy")

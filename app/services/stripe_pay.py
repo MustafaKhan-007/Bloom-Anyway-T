@@ -653,6 +653,20 @@ def sync_recent_payments(*, days: int = 60, max_pages: int = 3) -> dict:
     }
 
 
+def start_background_sync(*, days: int = 60, max_pages: int = 2) -> bool:
+    """Kick off ``sync_recent_payments`` off the request thread.
+
+    Opening Studio used to wait on two pages of Stripe API calls whenever the
+    throttle expired, which is seconds of blank screen for the owner. The page
+    no longer waits: the pull happens behind it and shows up on the next load.
+    """
+    if not configured():
+        return False
+    from .background import run_in_background
+    return run_in_background(
+        "stripe-sync", sync_recent_payments, days=days, max_pages=max_pages)
+
+
 def _claim_membership_welcome(email: str, tier: str, order: Order) -> bool:
     """Return True once per email+tier — claim before sending to stop duplicates.
 

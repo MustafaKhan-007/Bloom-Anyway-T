@@ -267,12 +267,3 @@ def remove_from_library(user: User, purchase_id: int) -> bool:
         return False
     row.status = "removed"
     return True
-
-
-def admin_remove_purchase(purchase_id: int) -> ShopPurchase | None:
-    """Studio: hide a shop purchase from the buyer's library."""
-    row = db.session.get(ShopPurchase, purchase_id)
-    if row is None:
-        return None
-    row.status = "removed"
-    return row

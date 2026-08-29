@@ -1,0 +1,104 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Where tiers come from{% endblock %}
+
+{% block content %}
+<div class="studio-page">
+  <div class="page-head">
+    <div>
+      <p class="eyebrow"><a href="{{ url_for('admin.members') }}">Members</a></p>
+      <h1>Where tiers come from</h1>
+      <p class="field-help" style="margin: 6px 0 0; max-width: 68ch;">
+        Stripe counts who is <em>paying right now</em>. This page counts who
+        <em>holds</em> a tier. They're allowed to differ &mdash; comped members,
+        free months that came with a product, and one-off payments all show up
+        here but never in Stripe's subscriber list. Anything under
+        <strong>{{ source_labels['unexplained'] }}</strong> is the part worth
+        checking.
+      </p>
+    </div>
+  </div>
+
+  <div class="stat-row" style="margin-bottom: 20px;" role="group" aria-label="Filter by membership">
+    <a class="stat-chip studio-member-filter {{ 'is-active' if not tier }}"
+       href="{{ url_for('admin.members_audit') }}">
+      <span>{{ audit.total }}</span> All paid tiers
+    </a>
+    {% for key in ('healing', 'creator', 'full_bloom') %}
+    <a class="stat-chip studio-member-filter {{ 'is-active' if tier == key }}"
+       href="{{ url_for('admin.members_audit', membership=key) }}">
+      <span>{{ audit.by_tier.get(key, {}).values()|sum }}</span> {{ membership_labels.get(key, key) }}
+    </a>
+    {% endfor %}
+  </div>
+
+  <section class="admin-panel studio-card">
+    <h2 style="margin-top: 0;">The breakdown</h2>
+    <ul class="audit-sources">
+      {% for key, label in source_labels.items() %}
+      <li class="audit-source{% if key == 'unexplained' and audit.counts[key] %} is-flagged{% endif %}">
+        <span class="audit-source__n">{{ audit.counts[key] }}</span>
+        <div>
+          <strong>{{ label }}</strong>
+          <p class="field-help" style="margin: 2px 0 0;">{{ source_help[key] }}</p>
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+
+  <section class="admin-panel studio-card">
+    <h2 style="margin-top: 0;">Ask Stripe directly</h2>
+    <p class="field-help" style="margin-top: 0; max-width: 66ch;">
+      Checks every one of these accounts against Stripe and drops anyone who
+      isn't paying any more and has no manual grant or perk holding them up.
+      This is the fix for a subscription that ended while the site wasn't
+      listening. It's one Stripe lookup per member, so give it a moment.
+    </p>
+    <form method="post" action="{{ url_for('admin.members_audit_resync') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="membership" value="{{ tier }}">
+      <button class="btn btn--primary btn--sm" type="submit"
+              {% if not stripe_configured %}disabled{% endif %}
+              onclick="return confirm('Re-check {{ audit.total }} member(s) against Stripe and correct their tiers?');">
+        Re-check against Stripe
+      </button>
+      {% if not stripe_configured %}
+      <span class="field-help">Stripe isn't configured, so there's nothing to check against.</span>
+      {% endif %}
+    </form>
+  </section>
+
+  <section class="admin-panel studio-card">
+    <h2 style="margin-top: 0;">Every paid member</h2>
+    <table class="admin-table" style="margin-top: 16px;">
+      <thead>
+        <tr>
+          <th>Member</th><th>Tier</th><th>Why</th><th>Last payment</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in audit.rows %}
+        <tr class="{{ 'audit-row--flagged' if row.source == 'unexplained' }}">
+          <td>
+            <strong>{{ row.name }}</strong>
+            <span class="field-help" style="margin: 0; display: block;">{{ row.email }}</span>
+          </td>
+          <td>{{ row.tier_label }}</td>
+          <td>
+            {{ row.source_label }}
+            {% if row.source == 'perk' and row.perk_until %}
+            <span class="field-help" style="margin: 0; display: block;">until {{ row.perk_until.strftime('%b %d, %Y') }}</span>
+            {% elif row.source == 'order' %}
+            <span class="field-help" style="margin: 0; display: block;">{{ row.orders }} membership order{{ '' if row.orders == 1 else 's' }}</span>
+            {% endif %}
+          </td>
+          <td>{{ row.last_paid.strftime('%b %d, %Y') if row.last_paid else '—' }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4">No paid members yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+</div>
+{% endblock %}

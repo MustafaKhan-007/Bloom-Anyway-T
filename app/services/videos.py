@@ -59,28 +59,6 @@ def _validate_video_upload(file_storage):
     return name[:255], ext, stream, head
 
 
-def process_video_bytes(file_storage, max_bytes: int):
-    """Validate an upload and return ``(mime, filename, size, data)``.
-
-    Used for reel-review raw videos so they survive ephemeral disks (stored in
-    the database like course files). Cap ``max_bytes`` appropriately for DB size.
-    """
-    name, ext, stream, head = _validate_video_upload(file_storage)
-    chunks = [head]
-    size = len(head)
-    while True:
-        chunk = stream.read(_CHUNK)
-        if not chunk:
-            break
-        size += len(chunk)
-        if size > max_bytes:
-            raise VideoError(
-                f"That video is over {max_bytes // (1024 * 1024)} MB \u2014 "
-                "please trim or compress it.")
-        chunks.append(chunk)
-    return EXT_MIME[ext], name, size, b"".join(chunks)
-
-
 def process_video(file_storage, dest_dir: str, max_bytes: int):
     """Stream an uploaded video to ``dest_dir`` in chunks, enforcing the size
     cap as we go. Returns (disk_name, mime, original_filename, size)."""

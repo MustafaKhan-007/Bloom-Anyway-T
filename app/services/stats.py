@@ -7,7 +7,7 @@ from sqlalchemy.orm import joinedload
 from ..extensions import db
 from ..models import (ForumPost, MarketplaceListing, MembershipPlan, Order,
                       PageView, Product, ShopPurchase, SiteFeedback, User, Video,
-                      VisitEvent, utcnow)
+                      VisitEvent)
 from . import support_groups as sg_svc
 
 
@@ -125,9 +125,12 @@ def _order_chart_series(order: Order, by_variant: dict[str, str],
 def payment_insights(days: int = 30) -> dict:
     """Main payment numbers for Studio (not a full ledger)."""
     start = _dt(date.today() - timedelta(days=days - 1))
-    paid = Order.query.filter(Order.status == "paid", Order.created_at >= start).all()
-    revenue = sum(o.total_cents or 0 for o in paid)
-    count = len(paid)
+    revenue, count = (
+        db.session.query(func.coalesce(func.sum(Order.total_cents), 0),
+                         func.count(Order.id))
+        .filter(Order.status == "paid", Order.created_at >= start)
+        .one()
+    )
     # Top products by order count in window
     top_rows = (
         db.session.query(Product.title, func.count(Order.id))
@@ -204,16 +207,21 @@ def dashboard_cards() -> dict:
 
 
 def signups_by_week(weeks: int = 12) -> dict:
+    """Signups per week, bucketed in Python from one pass over the dates."""
     today = date.today()
     start = today - timedelta(weeks=weeks)
-    labels, users = [], []
-    for i in range(weeks):
-        week_start = start + timedelta(weeks=i)
-        week_end = week_start + timedelta(weeks=1)
-        labels.append(week_start.isoformat())
-        users.append(db.session.query(func.count(User.id)).filter(
-            User.created_at >= _dt(week_start), User.created_at < _dt(week_end)
-        ).scalar())
+    end = start + timedelta(weeks=weeks)
+    labels = [(start + timedelta(weeks=i)).isoformat() for i in range(weeks)]
+    users = [0] * weeks
+    rows = (db.session.query(User.created_at)
+            .filter(User.created_at >= _dt(start), User.created_at < _dt(end))
+            .all())
+    for (created,) in rows:
+        if not created:
+            continue
+        bucket = (created.date() - start).days // 7
+        if 0 <= bucket < weeks:
+            users[bucket] += 1
     return {"labels": labels, "users": users}
 
 
@@ -260,15 +268,20 @@ def member_activity(limit: int = 12) -> list[dict]:
             .order_by(Order.created_at.desc())
             .limit(max(8, limit))
             .all())
+    # One lookup for every buyer, rather than one per order.
+    buyer_emails = {(o.buyer_email or "").strip().lower()
+                    for o in paid if "@" in (o.buyer_email or "")}
+    names_by_email: dict[str, str] = {}
+    if buyer_emails:
+        for u in (User.query
+                  .filter(func.lower(User.email).in_(buyer_emails),
+                          User.deleted_at.is_(None))
+                  .all()):
+            names_by_email[(u.email or "").strip().lower()] = u.public_name()
     for o in paid:
         title = (o.product.title if o.product else None) or "a product"
         who = (o.buyer_email or "Someone").strip() or "Someone"
-        # Prefer a matching account display name when we have one.
-        user = (User.query
-                .filter(func.lower(User.email) == who.lower(),
-                        User.deleted_at.is_(None))
-                .first()) if "@" in who else None
-        display = user.public_name() if user else who
+        display = names_by_email.get(who.lower(), who)
         amount = _money(o.total_cents or 0, o.currency or "USD")
         out.append({
             "kind": "purchase",
@@ -282,6 +295,7 @@ def member_activity(limit: int = 12) -> list[dict]:
         })
 
     visits = (VisitEvent.query
+              .options(joinedload(VisitEvent.user))
               .order_by(VisitEvent.created_at.desc())
               .limit(max(6, limit // 2))
               .all())
@@ -314,9 +328,15 @@ def member_activity(limit: int = 12) -> list[dict]:
             .order_by(User.created_at.desc())
             .limit(limit)
             .all())
+    post_counts = dict(
+        db.session.query(ForumPost.user_id, func.count(ForumPost.id))
+        .filter(ForumPost.user_id.in_([u.id for u in rows] or [0]))
+        .group_by(ForumPost.user_id)
+        .all()
+    )
     for u in rows:
         streak = int(getattr(u, "current_streak", 0) or 0)
-        posts = ForumPost.query.filter_by(user_id=u.id).count()
+        posts = post_counts.get(u.id, 0)
         last = getattr(u, "last_checkin_date", None)
         if isinstance(last, date) and not isinstance(last, datetime):
             last = datetime.combine(last, time.min)
@@ -501,27 +521,3 @@ def founder_days_remaining() -> int | None:
     return max(0, (end - date.today()).days)
 
 
-def challenge_waitlist_insights() -> dict:
-    """Studio tile: waitlist totals and recent signups for the Creator Challenge."""
-    from ..models import ChallengeWaitlist
-
-    total = ChallengeWaitlist.query.count()
-    week_ago = utcnow() - timedelta(days=7)
-    week = (ChallengeWaitlist.query
-            .filter(ChallengeWaitlist.created_at >= week_ago)
-            .count())
-    latest = (ChallengeWaitlist.query
-              .order_by(ChallengeWaitlist.created_at.desc())
-              .limit(5)
-              .all())
-    return {
-        "total": total,
-        "week": week,
-        "latest": [
-            {
-                "email": row.email,
-                "when": row.created_at.strftime("%b %d") if row.created_at else "",
-            }
-            for row in latest
-        ],
-    }

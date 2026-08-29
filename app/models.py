@@ -73,9 +73,11 @@ class User(UserMixin, db.Model):
 
     # profile / personalization
     avatar_url = db.Column(db.String(500))   # legacy external URL (still shown if set)
-    avatar_data = db.Column(db.LargeBinary)  # uploaded avatar still (JPEG; survives deploys)
+    # Avatar bytes are deferred: a members list or a forum page reads dozens of
+    # user rows and never needs the images, only the URL to fetch them from.
+    avatar_data = db.deferred(db.Column(db.LargeBinary))  # JPEG still
     avatar_mime = db.Column(db.String(40))
-    avatar_anim_data = db.Column(db.LargeBinary)  # optional animated GIF for profile page
+    avatar_anim_data = db.deferred(db.Column(db.LargeBinary))  # optional GIF
     avatar_anim_mime = db.Column(db.String(40))
     bio = db.Column(db.String(400))
     links_json = db.Column(db.Text)          # JSON list of {"label","url"}
@@ -150,10 +152,12 @@ class User(UserMixin, db.Model):
         return base[0].upper()
 
     def has_avatar(self) -> bool:
-        return self.avatar_data is not None
+        # Checks the mime, not the bytes — the bytes are deferred, and asking
+        # for them here would load every avatar on a page full of members.
+        return bool(self.avatar_mime)
 
     def has_animated_avatar(self) -> bool:
-        return self.avatar_anim_data is not None
+        return bool(self.avatar_anim_mime)
 
     def is_owner(self) -> bool:
         """True for any Studio owner (full or view-only co-owner)."""
@@ -319,7 +323,8 @@ class Product(db.Model):
     curriculum_json = db.Column(db.Text)   # JSON: [{title, description}]
 
     cover_url = db.Column(db.String(500))
-    cover_data = db.Column(db.LargeBinary)  # JPEG bytes (survive redeploys)
+    # Deferred: catalogue pages read every product and link to the cover route.
+    cover_data = db.deferred(db.Column(db.LargeBinary))  # JPEG (survives redeploys)
     cover_mime = db.Column(db.String(40))
     gallery_json = db.Column(db.Text)      # JSON: [url, ...]
 
@@ -602,7 +607,8 @@ class ProductAsset(db.Model):
     mime = db.Column(db.String(120), nullable=False)
     kind = db.Column(db.String(20), nullable=False)   # pdf / h5p / image / …
     size = db.Column(db.Integer, nullable=False, default=0)
-    data = db.Column(db.LargeBinary, nullable=False)
+    # Deferred: course readers list every file and download one at a time.
+    data = db.deferred(db.Column(db.LargeBinary, nullable=False))
     sort_order = db.Column(db.Integer, nullable=False, default=0)
     # Curriculum module this file belongs to (1-based). None = general file,
     # always available to buyers even when the product is drip-fed.
@@ -989,8 +995,9 @@ class Video(db.Model):
     disk_name = db.Column(db.String(64))   # stored file name on disk
     mime = db.Column(db.String(120))       # None for tips with no video
     size = db.Column(db.Integer, nullable=False, default=0)
-    data = db.Column(db.LargeBinary)       # legacy DB-stored bytes (older rows)
-    thumb_data = db.Column(db.LargeBinary)
+    # Deferred: the hub lists every tip and only ever needs the text.
+    data = db.deferred(db.Column(db.LargeBinary))   # legacy DB-stored bytes
+    thumb_data = db.deferred(db.Column(db.LargeBinary))
     thumb_mime = db.Column(db.String(40))
     published = db.Column(db.Boolean, nullable=False, default=True)
     free_access = db.Column(db.Boolean, nullable=False, default=False)
@@ -1016,10 +1023,12 @@ class Video(db.Model):
         return "Included in Creator membership"
 
     def has_thumb(self) -> bool:
-        return self.thumb_data is not None
+        return bool(self.thumb_mime)
 
     def has_video(self) -> bool:
-        return bool(self.disk_name or self.data)
+        # ``mime`` is set for every row that carries video bytes, so this
+        # answers without pulling the (deferred) file out of the database.
+        return bool(self.disk_name or self.mime)
 
     def summary(self, limit: int = 150) -> str:
         """Card blurb: the owner's summary, else the opening of the tip."""
@@ -1126,7 +1135,11 @@ class Subscriber(db.Model):
 
 
 class ChallengeWaitlist(db.Model):
-    """Emails waiting for the 2-month Creator Challenge enrollment."""
+    """Round-1 signups for the 2-month Creator Challenge.
+
+    The challenge enrols directly now, so nothing writes here any more — the
+    table is kept so the emails collected before that change aren't lost.
+    """
     __tablename__ = "challenge_waitlist"
 
     id = db.Column(db.Integer, primary_key=True)
@@ -1446,7 +1459,8 @@ class ListingImage(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     listing_id = db.Column(db.Integer, db.ForeignKey("marketplace_listings.id"),
                            nullable=False, index=True)
-    data = db.Column(db.LargeBinary, nullable=False)
+    # Deferred: Showcase cards only need the image's id to build its URL.
+    data = db.deferred(db.Column(db.LargeBinary, nullable=False))
     mime = db.Column(db.String(40), nullable=False, default="image/jpeg")
     sort_order = db.Column(db.Integer, nullable=False, default=0)
 
@@ -1463,7 +1477,7 @@ class ProductGalleryImage(db.Model):
     product_id = db.Column(db.Integer, db.ForeignKey("products.id"),
                            nullable=False, index=True)
     filename = db.Column(db.String(80), nullable=False)
-    data = db.Column(db.LargeBinary, nullable=False)
+    data = db.deferred(db.Column(db.LargeBinary, nullable=False))
     mime = db.Column(db.String(40), nullable=False, default="image/jpeg")
     sort_order = db.Column(db.Integer, nullable=False, default=0)
     created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
@@ -1487,7 +1501,8 @@ class ReelReviewApplication(db.Model):
     week_key = db.Column(db.Date, nullable=False, index=True)  # Monday of the week
     reel_url = db.Column(db.String(500), nullable=False)
     disk_name = db.Column(db.String(64))   # raw video on VIDEO_STORAGE_DIR
-    data = db.Column(db.LargeBinary)       # legacy: old entries stored in Postgres
+    # Deferred: only the streaming route ever wants these legacy bytes.
+    data = db.deferred(db.Column(db.LargeBinary))  # legacy: stored in Postgres
     filename = db.Column(db.String(255))
     mime = db.Column(db.String(120), nullable=False, default="video/mp4")
     size = db.Column(db.Integer, nullable=False, default=0)
@@ -1499,7 +1514,8 @@ class ReelReviewApplication(db.Model):
                              cascade="all, delete-orphan")
 
     def has_raw_video(self) -> bool:
-        return bool(self.data) or bool(self.disk_name)
+        # ``size`` stands in for the deferred bytes on legacy DB-stored rows.
+        return bool(self.disk_name) or bool(self.size)
 
 
 class ReelReview(db.Model):

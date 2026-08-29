@@ -22,8 +22,13 @@ DEFAULTS = {
     "creator_instagram": "",
     "creator_image_url": "",
     "creator_blurb": "",
+    "creator_expires": "",        # ISO date the Creator of the month runs until
     "reel_url": "",
     "reel_description": "",
+    "reel_expires": "",           # ISO date the Reel of the week runs until
+    # last end-date each slot was warned about, so owners get one notice each
+    "spotlight_creator_notified": "",
+    "spotlight_reel_notified": "",
     # 1:1 coaching + facilitator booking (external calendars)
     "ayesha_booking_url": "",
     "saman_booking_url": "",

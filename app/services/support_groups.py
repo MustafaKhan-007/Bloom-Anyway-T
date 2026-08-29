@@ -260,19 +260,41 @@ def meeting_seat_count(meeting: SupportGroupMeeting) -> int:
             .count())
 
 
+def seat_counts(meetings) -> dict[int, int]:
+    """Taken seats for several meetings in one query (0 for empty ones)."""
+    ids = [m.id for m in meetings]
+    if not ids:
+        return {}
+    rows = (db.session.query(SupportGroupApplication.meeting_id,
+                             func.count(SupportGroupApplication.id))
+            .filter(SupportGroupApplication.meeting_id.in_(ids),
+                    SupportGroupApplication.status == "selected")
+            .group_by(SupportGroupApplication.meeting_id)
+            .all())
+    taken = dict(rows)
+    return {mid: int(taken.get(mid, 0)) for mid in ids}
+
+
 def meeting_spots_left(meeting: SupportGroupMeeting) -> int:
     cap = int(meeting.capacity or PEER_MEETING_CAP)
     return max(0, cap - meeting_seat_count(meeting))
 
 
-def open_peer_sessions(circle_id: int) -> list[SupportGroupMeeting]:
-    """Scheduled peer sessions for a topic, soonest first."""
+def _spots_left(meeting: SupportGroupMeeting, taken: int) -> int:
+    return max(0, int(meeting.capacity or PEER_MEETING_CAP) - taken)
+
+
+def open_peer_sessions_by_circle(circle_ids) -> dict[int, list[SupportGroupMeeting]]:
+    """Scheduled peer sessions for several topics at once, soonest first."""
+    ids = list(circle_ids)
+    if not ids:
+        return {}
     now = utcnow()
-    return (SupportGroupMeeting.query
+    rows = (SupportGroupMeeting.query
             .options(joinedload(SupportGroupMeeting.circle),
                      joinedload(SupportGroupMeeting.host))
             .filter(
-                SupportGroupMeeting.circle_id == circle_id,
+                SupportGroupMeeting.circle_id.in_(ids),
                 SupportGroupMeeting.kind == "peer",
                 SupportGroupMeeting.status == "scheduled",
                 SupportGroupMeeting.scheduled_at.isnot(None),
@@ -280,6 +302,10 @@ def open_peer_sessions(circle_id: int) -> list[SupportGroupMeeting]:
             )
             .order_by(SupportGroupMeeting.scheduled_at.asc())
             .all())
+    out: dict[int, list[SupportGroupMeeting]] = {cid: [] for cid in ids}
+    for m in rows:
+        out.setdefault(m.circle_id, []).append(m)
+    return out
 
 
 def open_facilitator_sessions(limit: int = 20) -> list[SupportGroupMeeting]:
@@ -297,29 +323,6 @@ def open_facilitator_sessions(limit: int = 20) -> list[SupportGroupMeeting]:
             .order_by(SupportGroupMeeting.scheduled_at.asc())
             .limit(limit)
             .all())
-
-
-def open_one_on_one_sessions(*, coach: str | None = None, limit: int = 20
-                            ) -> list[SupportGroupMeeting]:
-    """Upcoming 1:1 sessions (optionally filtered by coach note)."""
-    now = utcnow()
-    q = (SupportGroupMeeting.query
-         .options(joinedload(SupportGroupMeeting.host))
-         .filter(
-             SupportGroupMeeting.kind == "one_on_one",
-             SupportGroupMeeting.status == "scheduled",
-             SupportGroupMeeting.scheduled_at.isnot(None),
-             SupportGroupMeeting.scheduled_at > now,
-         )
-         .order_by(SupportGroupMeeting.scheduled_at.asc()))
-    rows = q.limit(limit * 3).all() if coach else q.limit(limit).all()
-    if coach:
-        key = normalize_custom_topic(coach).casefold()
-        rows = [
-            m for m in rows
-            if normalize_custom_topic(m.notes).casefold() == key
-        ][:limit]
-    return rows
 
 
 def open_peer_session_count(circle_id: int) -> int:
@@ -395,27 +398,32 @@ def can_schedule_peer(user: User) -> tuple[bool, str | None]:
 
 
 def circle_stats() -> list[dict]:
-    """Per-circle cards for the public page + Studio overview."""
+    """Per-circle cards for the public page + Studio overview.
+
+    Every circle's sessions and every session's seat count come from one query
+    each — counting seats per meeting was the single most expensive thing on
+    the Studio dashboard.
+    """
+    circles = circles_by_track()
+    by_circle = open_peer_sessions_by_circle([c.id for c in circles])
+    taken = seat_counts([m for rows in by_circle.values() for m in rows])
     out = []
-    for c in circles_by_track():
-        sessions = open_peer_sessions(c.id)
+    for c in circles:
+        sessions = by_circle.get(c.id, [])
+        seats = {m.id: taken.get(m.id, 0) for m in sessions}
+        spots = {m.id: _spots_left(m, seats[m.id]) for m in sessions}
         open_n = len(sessions)
-        joinable = sum(1 for m in sessions if meeting_spots_left(m) > 0)
+        joinable = sum(1 for n in spots.values() if n > 0)
+        seated = sum(seats.values())
         out.append({
             "circle": c,
             "open_sessions": open_n,
             "joinable_sessions": joinable,
             "sessions_full": open_n >= MAX_OPEN_SESSIONS_PER_CIRCLE,
             "sessions": sessions,
-            "session_seats": {m.id: meeting_seat_count(m) for m in sessions},
-            "session_spots": {m.id: meeting_spots_left(m) for m in sessions},
-            # Legacy keys used by older Studio occupancy widgets
-            "pending": 0,
-            "seated": sum(meeting_seat_count(m) for m in sessions),
-            "used": sum(meeting_seat_count(m) for m in sessions),
-            "spots_left": joinable,
-            "full": open_n >= MAX_OPEN_SESSIONS_PER_CIRCLE and joinable == 0,
-            "queue": [],
+            "session_seats": seats,
+            "session_spots": spots,
+            "seated": seated,
         })
     return out
 
@@ -473,6 +481,23 @@ def meeting_seats(meeting: SupportGroupMeeting):
             .all())
 
 
+def seats_for_meetings(meetings) -> dict[int, list]:
+    """Seat rows for several meetings in one query, keyed by meeting id."""
+    ids = [m.id for m in meetings if m is not None]
+    if not ids:
+        return {}
+    rows = (SupportGroupApplication.query
+            .options(joinedload(SupportGroupApplication.author))
+            .filter(SupportGroupApplication.meeting_id.in_(ids),
+                    SupportGroupApplication.status == "selected")
+            .order_by(SupportGroupApplication.created_at.asc())
+            .all())
+    out: dict[int, list] = {mid: [] for mid in ids}
+    for row in rows:
+        out.setdefault(row.meeting_id, []).append(row)
+    return out
+
+
 def wrap_peers(meeting: SupportGroupMeeting, viewer: User) -> list[User]:
     """Other seated members shown on the post-session wrap page."""
     peers = []
@@ -484,25 +509,11 @@ def wrap_peers(meeting: SupportGroupMeeting, viewer: User) -> list[User]:
     return peers
 
 
-def pending_count(circle_id: int | None = None) -> int:
-    """Legacy waitlist count (peer flow no longer uses pending)."""
-    q = SupportGroupApplication.query.filter_by(status="pending")
-    if circle_id is not None:
-        q = q.filter_by(circle_id=circle_id)
-    return q.count()
-
-
 def user_topic_alert_ids(user_id: int) -> set[int]:
     rows = (SupportGroupTopicAlert.query
             .filter_by(user_id=user_id)
             .all())
     return {r.circle_id for r in rows}
-
-
-def has_topic_alert(user_id: int, circle_id: int) -> bool:
-    return (SupportGroupTopicAlert.query
-            .filter_by(user_id=user_id, circle_id=circle_id)
-            .first()) is not None
 
 
 def toggle_topic_alert(user: User, circle_id: int
@@ -544,6 +555,21 @@ def _circle_browse_url(circle_id: int | None) -> str:
     if circle_id:
         return f"{base}#circle-{circle_id}"
     return base
+
+
+def _member_safe_error(err: str) -> str:
+    """Keep host-configuration wording out of a member's face.
+
+    Video-room failures come back phrased for whoever runs the site ("set
+    DAILY_API_KEY..."). A member can't act on that, and it reads like the site
+    is broken on purpose.
+    """
+    text = (err or "").strip()
+    if "DAILY_API_KEY" in text or "Daily" in text:
+        return ("We couldn't open a video room for that time — the booking "
+                "wasn't made. Try again in a minute, and let us know if it "
+                "keeps happening.")
+    return text or "Something went wrong scheduling that session."
 
 
 def schedule_peer_session(
@@ -624,9 +650,13 @@ def schedule_peer_session(
 
     err = schedule_meeting(meeting, scheduled_at=when, owner=user)
     if err:
-        # Roll the draft back so the member can try again.
-        cancel_meeting(meeting, owner=user, return_to_queue=False)
-        return None, err
+        # The room never existed, so drop the draft outright rather than
+        # leaving a cancelled shell in the member's history.
+        log.warning("peer session room failed for circle %s: %s", circle.id, err)
+        db.session.delete(seat)
+        db.session.delete(meeting)
+        db.session.commit()
+        return None, _member_safe_error(err)
     return meeting, None
 
 
@@ -708,7 +738,7 @@ def schedule_studio_session(
 
     err = schedule_meeting(meeting, scheduled_at=when, owner=owner)
     if err:
-        cancel_meeting(meeting, owner=owner, return_to_queue=False)
+        cancel_meeting(meeting, owner=owner)
         return None, err
     return meeting, None
 
@@ -771,7 +801,7 @@ def leave_peer_session(user: User, meeting_id: int) -> str | None:
 
     # Host leaving cancels the whole peer session.
     if meeting.scheduled_by_user_id == user.id and meeting.kind == "peer":
-        cancel_meeting(meeting, owner=user, return_to_queue=False)
+        cancel_meeting(meeting, owner=user)
         return None
 
     topic = _circle_name(meeting)
@@ -899,61 +929,6 @@ def _notify_joiner(meeting: SupportGroupMeeting, user: User) -> None:
     db.session.commit()
 
 
-# --- legacy waitlist helpers (kept for older rows / smoke migration) ---------
-
-def active_application(user_id: int, circle_id: int | None = None
-                       ) -> SupportGroupApplication | None:
-    q = (SupportGroupApplication.query
-         .options(joinedload(SupportGroupApplication.meeting),
-                  joinedload(SupportGroupApplication.circle))
-         .filter(
-             SupportGroupApplication.user_id == user_id,
-             SupportGroupApplication.status.in_(("pending", "selected")),
-         ))
-    if circle_id is not None:
-        q = q.filter(SupportGroupApplication.circle_id == circle_id)
-    row = q.order_by(SupportGroupApplication.created_at.desc()).first()
-    if row is None:
-        return None
-    if row.status == "selected" and row.meeting is not None:
-        if row.meeting.status in ("completed", "cancelled"):
-            return None
-    return row
-
-
-def pending_queue(circle_id: int | None = None, limit: int = 200):
-    q = (SupportGroupApplication.query
-         .options(joinedload(SupportGroupApplication.author),
-                  joinedload(SupportGroupApplication.circle))
-         .filter_by(status="pending"))
-    if circle_id is not None:
-        q = q.filter_by(circle_id=circle_id)
-    return q.order_by(SupportGroupApplication.created_at.asc()).limit(limit).all()
-
-
-def apply(user: User, message: str = "", *, circle_id: int | None = None,
-          circle_slug: str | None = None
-          ) -> tuple[SupportGroupApplication | None, str | None]:
-    """Deprecated waitlist apply — peer flow uses schedule/join instead."""
-    return None, (
-        "Peer circles are join-as-you-go now. Open upcoming sessions on the "
-        "Support Groups page, or schedule a new one."
-    )
-
-
-def withdraw(user: User, app_id: int) -> str | None:
-    row = db.session.get(SupportGroupApplication, app_id)
-    if row is None or row.user_id != user.id:
-        return "Application not found."
-    if row.status == "selected" and row.meeting_id:
-        return leave_peer_session(user, row.meeting_id)
-    if row.status != "pending":
-        return "Only pending applications can be withdrawn."
-    row.status = "cancelled"
-    db.session.commit()
-    return None
-
-
 def parse_owner_local(dt_local: str, tz_name: str | None) -> datetime | None:
     """Parse ``YYYY-MM-DDTHH:MM`` from the owner's calendar in their timezone → UTC naive."""
     raw = (dt_local or "").strip()
@@ -1076,18 +1051,14 @@ def schedule_meeting(meeting: SupportGroupMeeting, *, scheduled_at: datetime,
     return None
 
 
-def cancel_meeting(meeting: SupportGroupMeeting, *, owner: User | None = None,
-                   return_to_queue: bool = False) -> None:
+def cancel_meeting(meeting: SupportGroupMeeting, *,
+                   owner: User | None = None) -> None:
     seats = meeting_seats(meeting)
     was_live = meeting.status == "scheduled" and bool(meeting.booked_notified_at)
     room_name = (meeting.zoom_meeting_id or "").strip()
     meeting.status = "cancelled"
     for row in seats:
-        if return_to_queue:
-            row.status = "pending"
-            row.meeting_id = None
-        else:
-            row.status = "cancelled"
+        row.status = "cancelled"
     try:
         from .coaching_intake import intake_for_meeting
         intake = intake_for_meeting(meeting.id)
@@ -1546,12 +1517,7 @@ def dispatch_due_reminders(now: datetime | None = None) -> int:
     return sent
 
 
-def maybe_sweep_reminders(force: bool = False) -> int:
-    global _last_sweep_mono
-    now_mono = time.monotonic()
-    if not force and (now_mono - _last_sweep_mono) < _SWEEP_GAP_SEC:
-        return 0
-    _last_sweep_mono = now_mono
+def _sweep_reminders() -> int:
     try:
         expire_past_meetings()
         return dispatch_due_reminders()
@@ -1562,3 +1528,19 @@ def maybe_sweep_reminders(force: bool = False) -> int:
         except Exception:
             pass
         return 0
+
+
+def maybe_sweep_reminders(force: bool = False) -> int:
+    """Throttled reminder sweep, run behind the response.
+
+    Each due session emails every seated member in turn, so doing this inline
+    made one unlucky page load wait on the whole batch.
+    """
+    global _last_sweep_mono
+    now_mono = time.monotonic()
+    if not force and (now_mono - _last_sweep_mono) < _SWEEP_GAP_SEC:
+        return 0
+    _last_sweep_mono = now_mono
+    from .background import run_in_background
+    run_in_background("support-group-reminders", _sweep_reminders)
+    return 0

@@ -96,19 +96,41 @@ def upsert_instagram_link(links, raw: str, *, limit: int = 6) -> list:
     return existing[:limit]
 
 
+#: handle -> (fetched_at_monotonic, result). Instagram rarely gives us anything
+#: and the request costs seconds, so don't ask twice for the same person.
+_PREVIEW_CACHE: dict[str, tuple[float, dict]] = {}
+_PREVIEW_TTL_SEC = 60 * 60
+
+
 def fetch_instagram_preview(handle: str) -> dict:
     """Best-effort public preview for a profile (photo + a short blurb).
 
     Instagram often walls this off, so callers must treat an empty result as
-    normal — the owner can always paste a bio/photo by hand in Studio.
+    normal — the owner can always paste a bio/photo by hand in Studio. This
+    blocks a Studio save, so it's cached and skipped entirely under test.
     """
     import logging
+    import time
+
     import requests
     from html import unescape
 
     h = instagram_handle(handle)
     if not h:
         return {}
+
+    try:
+        from flask import current_app
+        if current_app.config.get("TESTING"):
+            return {}
+    except Exception:
+        pass
+
+    now = time.monotonic()
+    hit = _PREVIEW_CACHE.get(h)
+    if hit and (now - hit[0]) < _PREVIEW_TTL_SEC:
+        return dict(hit[1])
+
     url = instagram_profile_url(h)
     try:
         resp = requests.get(
@@ -120,15 +142,17 @@ def fetch_instagram_preview(handle: str) -> dict:
                 ),
                 "Accept": "text/html",
             },
-            timeout=6,
+            timeout=4,
             allow_redirects=True,
         )
         if resp.status_code != 200 or not resp.text:
+            _PREVIEW_CACHE[h] = (now, {})
             return {}
         html = resp.text
     except requests.RequestException:
         logging.getLogger(__name__).info(
             "instagram preview: could not reach %s", h)
+        _PREVIEW_CACHE[h] = (now, {})
         return {}
 
     def _meta(prop):
@@ -153,4 +177,5 @@ def fetch_instagram_preview(handle: str) -> dict:
         out["image"] = image
     if blurb:
         out["blurb"] = blurb
-    return out
+    _PREVIEW_CACHE[h] = (now, out)
+    return dict(out)

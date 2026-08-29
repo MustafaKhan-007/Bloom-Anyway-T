@@ -31,9 +31,8 @@
             Member since {{ current_user.created_at|localtime('%B %Y') }}
             {% endif %}
             <span class="ms-exact__meta-dot" aria-hidden="true">·</span>
-            {{ owner_support_pending if owner_support_pending is defined and owner_support_pending else 0 }} groups
-            <span class="ms-exact__meta-dot" aria-hidden="true">·</span>
-            0 upcoming
+            {% set upcoming_n = support_upcoming|length %}
+            {{ upcoming_n }} upcoming session{{ '' if upcoming_n == 1 else 's' }}
             <span class="ms-exact__meta-dot" aria-hidden="true">·</span>
             {{ followers_n }} follower{{ '' if followers_n == 1 else 's' }}
             &middot; {{ following_n }} following

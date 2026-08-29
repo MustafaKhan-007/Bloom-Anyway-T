@@ -17,7 +17,6 @@ from ..models import (
     User,
     utcnow,
 )
-from . import daily as daily_svc
 from . import support_groups as sg_svc
 from .timefmt import format_local, normalize_timezone, to_local
 

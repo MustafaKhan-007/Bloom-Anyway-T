@@ -586,27 +586,6 @@ def send_newsletter_welcome(to: str) -> bool:
     )
 
 
-def send_challenge_waitlist_confirm(to: str) -> bool:
-    """Confirm waitlist signup for the 2-month Creator Challenge (general template)."""
-    return send_styled_email(
-        to,
-        subject="You're on the 2-Month Creator Challenge waitlist",
-        preview="Early access when Round 2 opens — no charge yet.",
-        header="Bloom Anyway",
-        title="You're on the waitlist",
-        body=(
-            "Thanks for joining the waitlist for the 2-Month Creator Challenge "
-            "(Round 2).\n\n"
-            "You'll be first to know when enrollment opens — plus early access "
-            "before it goes public. No payment is needed to stay on this list.\n\n"
-            "In the meantime, you can still explore Bloom Anyway memberships "
-            "and community anytime."
-        ),
-        button_text="See the challenge",
-        button_url=_public_href("/challenge"),
-    )
-
-
 def send_support_group_booked(
     to: str,
     *,

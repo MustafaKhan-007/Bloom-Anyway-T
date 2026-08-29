@@ -73,9 +73,28 @@
                 {% if r.target_type == 'post' %}
                   · <a href="{{ url_for('forums.post', post_id=r.target_id) }}" target="_blank" rel="noopener">View post</a>
                 {% elif r.target_type == 'comment' %}
-                  · comment #{{ r.target_id }}
+                  · on a comment
                 {% endif %}
               </p>
+              {% if r.target_type == 'comment' %}
+              {% set flagged_comment = item.comments.get(r.target_id) %}
+              {% if flagged_comment %}
+              <blockquote class="flagged-report__quote">{{ flagged_comment.body|truncate(320) }}</blockquote>
+              <div class="flagged-report__actions">
+                <a class="btn btn--quiet btn--sm"
+                   href="{{ url_for('forums.post', post_id=flagged_comment.post_id) }}#comment-{{ flagged_comment.id }}"
+                   target="_blank" rel="noopener">View in thread</a>
+                <form method="post"
+                      action="{{ url_for('admin.community_delete_comment', comment_id=flagged_comment.id) }}"
+                      data-confirm="Remove this comment?">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <button class="btn btn--secondary btn--sm" type="submit">Remove comment</button>
+                </form>
+              </div>
+              {% else %}
+              <p class="field-help">That comment has already been removed.</p>
+              {% endif %}
+              {% endif %}
               {% if r.note %}
               <p class="flagged-report__note">{{ r.note }}</p>
               {% endif %}

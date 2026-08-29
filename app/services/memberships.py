@@ -271,9 +271,9 @@ def reconcile_user(user: User, downgrade: bool = False) -> bool:
     if user is None:
         return False
     if user.is_admin:
-        if user.membership != "full_bloom":
-            user.membership = "full_bloom"
-            return True
+        # Owners already rank as Full Bloom through effective_membership(), so
+        # stamping the column adds nothing — and it used to leave a removed
+        # co-owner sitting on a paid tier they never bought.
         return False
 
     manual = manual_tier(user)

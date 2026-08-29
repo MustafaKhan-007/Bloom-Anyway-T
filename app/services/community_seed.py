@@ -13,7 +13,7 @@ from datetime import timedelta
 
 from ..extensions import db
 from ..models import (ForumCategory, ForumComment, ForumCommentLike, ForumPost,
-                      ForumPostLike, ForumTag, User, utcnow)
+                      ForumPostLike, User, utcnow)
 
 SEED_EMAIL_DOMAIN = "bloomanyway.seed"
 #: Bump to refresh post/comment copy on already-seeded sites (keeps members).

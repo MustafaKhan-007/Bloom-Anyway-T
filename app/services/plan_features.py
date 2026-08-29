@@ -218,36 +218,29 @@ def feature_enabled(tier: str | None, key: str) -> bool:
 
 
 def _plan_for_tier(tier: str):
+    """The stored plan for a tier, looked up once per request.
+
+    Every ``user.has_feature(...)`` call lands here, and pages that gate row by
+    row were re-running the same query dozens of times. Plans only change from
+    Studio, which is a different request, so caching for the life of this one
+    is safe.
+    """
     if tier in ("", "none"):
         return None
     try:
-        from flask import has_app_context
+        from flask import g, has_app_context
         if not has_app_context():
             return None
         from ..models import MembershipPlan
-        return MembershipPlan.query.filter_by(tier=tier).first()
+        cache = getattr(g, "_membership_plan_cache", None)
+        if cache is None:
+            # There are only ever a handful of plans, and a page that gates by
+            # tier asks about several — read them all in one go.
+            cache = {p.tier: p for p in MembershipPlan.query.all()}
+            g._membership_plan_cache = cache
+        return cache.get(tier)
     except Exception:
         return None
-
-
-def features_from_form(form, prefix: str, tier: str) -> dict[str, Any]:
-    """Read Studio checkboxes / ints for one plan (``prefix`` = tier)."""
-    out = dict(DEFAULT_FEATURES.get(tier, DEFAULT_FEATURES["none"]))
-    for meta in FEATURE_DEFS:
-        key = meta["key"]
-        field = f"{prefix}_feat_{key}"
-        if meta["kind"] == "int":
-            raw = (form.get(field) or "").strip()
-            try:
-                n = int(raw) if raw else 0
-            except ValueError:
-                n = int(out.get(key) or 0)
-            lo = int(meta.get("min", 0))
-            hi = int(meta.get("max", 50))
-            out[key] = max(lo, min(hi, n))
-        else:
-            out[key] = bool(form.get(field))
-    return out
 
 
 def perk_labels(features: dict[str, Any]) -> list[str]:

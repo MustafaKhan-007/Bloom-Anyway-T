@@ -1090,7 +1090,7 @@
           rotw.classList.add("is-revealed");
         });
       });
-      if (window.location.hash === "#reel-of-the-week" && isHand()) {
+      if (window.location.hash === "#reel-review" && isHand()) {
         rotw.classList.add("is-revealed");
       }
     }

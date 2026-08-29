@@ -260,7 +260,7 @@
       <p class="home-eyebrow"><span></span> In the spotlight <span></span></p>
       <h2 id="spotlight-heading" class="text-center">Faces &amp; moments we love</h2>
       <p class="home-section__lede">
-        Exclusive to Creator Members — apply through your membership dashboard
+        Creator Members only — picked by hand, no application needed
       </p>
     </header>
     <div class="spotlight-grid">
@@ -291,7 +291,7 @@
         <div class="spotlight-creator spotlight-creator--empty">
           <span class="spotlight-creator__photo spotlight-creator__photo--ph" aria-hidden="true">&#127803;</span>
           <h3>Coming soon</h3>
-          <p class="spotlight-creator__bio">Our next Creator of the Month will land here. Creator members are eligible to be featured.</p>
+          <p class="spotlight-creator__bio">Our next Creator of the Month will land here. Every Creator member with an Instagram link on her profile is in the draw.</p>
           <a class="btn btn--primary btn--sm spotlight-creator__cta"
              href="{{ url_for('main.membership', next=url_for('main.index') + '#spotlight-heading') }}">See Creator membership &rarr;</a>
           <p class="spotlight-card__foot">★ Creator Member perk</p>
@@ -313,7 +313,7 @@
         <p class="spotlight-card__foot">★ Creator Member</p>
         {% else %}
         <div class="spotlight-reel-empty">
-          <p>This week’s featured reel will show up here. Creator members can submit for Reel of the Week.</p>
+          <p>This week’s featured reel will show up here — hand-picked from what Creator members are posting.</p>
           <a class="btn btn--secondary btn--sm" href="{{ url_for('main.videos') }}">Open Content Hub &rarr;</a>
           <p class="spotlight-card__foot">★ Creator Member perk</p>
         </div>

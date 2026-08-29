@@ -31,9 +31,8 @@ from ..services import reel_reviews as reel_svc
 from ..services import stats
 from ..services.mailer import last_send_error, send_styled_email
 from ..services.settings import DEFAULTS as SETTING_DEFAULTS
-from ..services.settings import all_settings, set_setting
-from ..services.social import (fetch_instagram_preview, instagram_handle,
-                               instagram_profile_url, platform_for)
+from ..services.settings import all_settings, get_setting, set_setting
+from ..services.social import fetch_instagram_preview, instagram_handle
 from ..services.videos import (VideoError, delete_stored, process_thumb,
                                process_video)
 from . import bp
@@ -104,41 +103,16 @@ def _form_ids(name: str = "ids") -> list[int]:
     return out
 
 
-def _spotlight_candidates():
-    """Current Creator-tier members (and owners) for Creator of the Month."""
-    creators = (User.query.filter(
-                    User.deleted_at.is_(None),
-                    db.or_(User.membership == "creator", User.is_admin.is_(True)))
-                .order_by(User.display_name).all())
-    out = []
-    for u in creators:
-        # Skip demoted accounts that somehow still have a stale Creator column
-        # without admin rights or a real Creator tier.
-        if not u.is_admin and not u.is_creator():
-            continue
-        if not u.is_admin and u.membership != "creator":
-            continue
-        handle = None
-        for link in u.links():
-            if platform_for(link["url"]) == "Instagram":
-                handle = instagram_handle(link["url"]) or link["url"]
-                break
-        out.append({"name": u.public_name(), "email": u.email,
-                    "instagram": f"@{handle}" if handle and not str(handle).startswith("http") else handle,
-                    "profile_url": instagram_profile_url(handle) if handle else None})
-    return out
-
-
 # =============================== DASHBOARD ===================================
 
 @bp.route("/")
 @admin_required
 def dashboard():
     today = date.today()
-    # Throttled Stripe pull so opening Studio isn't a multi-second API round-trip
-    # every time. Manual sync remains at /admin/sync-purchases.
+    # Throttled Stripe pull, started behind the page rather than in front of it
+    # — the owner shouldn't wait on Stripe's API to see her own numbers. New
+    # purchases appear on the next load. Manual sync: /admin/sync-purchases.
     from ..services import stripe_pay as pay
-    from ..services.settings import get_setting
     if pay.configured():
         last_raw = (get_setting("stripe_last_sync_at") or "").strip()
         should_sync = True
@@ -148,21 +122,9 @@ def dashboard():
                 should_sync = (datetime.utcnow() - last_dt).total_seconds() >= 15 * 60
             except ValueError:
                 should_sync = True
-        if should_sync:
-            try:
-                sync_info = pay.sync_recent_payments(days=60, max_pages=2)
-                set_setting(
-                    "stripe_last_sync_at",
-                    datetime.utcnow().isoformat(timespec="seconds"),
-                )
-                if sync_info.get("imported"):
-                    flash(
-                        f"Synced {sync_info['imported']} purchase"
-                        f"{'' if sync_info['imported'] == 1 else 's'} from Stripe.",
-                        "success",
-                    )
-            except Exception:
-                log.exception("dashboard: stripe purchase sync failed")
+        if should_sync and pay.start_background_sync(days=60, max_pages=2):
+            set_setting("stripe_last_sync_at",
+                        datetime.utcnow().isoformat(timespec="seconds"))
     return render_template(
         "admin/dashboard.html",
         today_quote=quotes_service.quote_for(today),
@@ -1131,12 +1093,6 @@ def subscribers():
     return redirect(url_for("admin.dashboard"))
 
 
-@bp.route("/subscribers/<int:sub_id>/delete", methods=["POST"])
-@admin_required
-def subscriber_delete(sub_id):
-    return redirect(url_for("admin.dashboard"))
-
-
 @bp.route("/orders")
 @bp.route("/orders/export.csv")
 @admin_required
@@ -1147,37 +1103,77 @@ def orders():
 
 # =============================== SPOTLIGHT ===================================
 
-_SPOTLIGHT_KEYS = (
+#: fields the spotlight form posts
+_SPOTLIGHT_FORM_KEYS = (
     "creator_name",
     "creator_instagram",
     "creator_image_url",
     "creator_blurb",
+    "creator_expires",
     "reel_url",
     "reel_description",
+    "reel_expires",
 )
+#: everything this page owns — the general Settings save must leave these alone
+_SPOTLIGHT_KEYS = _SPOTLIGHT_FORM_KEYS + (
+    "spotlight_creator_notified",
+    "spotlight_reel_notified",
+)
+
+
+def _spotlight_end_date(kind: str, raw: str, filled: bool):
+    """Run-until date for a slot: the owner's date, else the default run."""
+    from ..services import spotlight as spot
+
+    if not filled:
+        return None
+    try:
+        return date.fromisoformat((raw or "").strip()[:10])
+    except ValueError:
+        return spot.default_end(kind)
 
 
 @bp.route("/spotlight", methods=["GET", "POST"])
 @admin_required
 def spotlight():
     """Home-page Creator of the Month + Reel of the Week."""
+    from ..services import spotlight as spot
+
     if request.method == "POST":
+        if request.form.get("pick_creator"):
+            pick = spot.pick_random_creator(
+                get_setting("creator_instagram") or "")
+            if pick is None:
+                flash(
+                    "No one is eligible yet — Creator members need an Instagram "
+                    "link on their Bloom Anyway profile to go in the draw.",
+                    "info",
+                )
+                return redirect(url_for("admin.spotlight"))
+            flash(
+                f"Drew {pick['name']} out of the hat. Check the details below "
+                "and hit Save spotlight to put them on the home page.",
+                "success",
+            )
+            return redirect(url_for("admin.spotlight", draft=pick["user_id"]))
         if request.form.get("clear_spotlight_creator"):
             for key in ("creator_name", "creator_instagram", "creator_image_url",
-                        "creator_blurb"):
+                        "creator_blurb", "creator_expires",
+                        "spotlight_creator_notified"):
                 set_setting(key, "")
             from ..services.site_images import clear as clear_site_image
             clear_site_image("creator")
             flash("Creator of the month cleared from the home page.", "success")
             return redirect(url_for("admin.spotlight"))
         if request.form.get("clear_spotlight_reel"):
-            set_setting("reel_url", "")
-            set_setting("reel_description", "")
+            for key in ("reel_url", "reel_description", "reel_expires",
+                        "spotlight_reel_notified"):
+                set_setting(key, "")
             flash("Reel of the week cleared from the home page.", "success")
             return redirect(url_for("admin.spotlight"))
 
         values = {key: (request.form.get(key) or "").strip()
-                  for key in _SPOTLIGHT_KEYS}
+                  for key in _SPOTLIGHT_FORM_KEYS}
         handle = instagram_handle(values.get("creator_instagram") or "")
         values["creator_instagram"] = handle
         from ..services.site_images import (SiteImageError, clear as clear_site_image,
@@ -1199,19 +1195,51 @@ def spotlight():
                 values["creator_image_url"] = preview["image"]
             if preview.get("blurb") and not values.get("creator_blurb"):
                 values["creator_blurb"] = preview["blurb"]
+
+        creator_end = _spotlight_end_date(
+            "creator", values["creator_expires"], bool(values["creator_name"]))
+        reel_end = _spotlight_end_date(
+            "reel", values["reel_expires"], bool(values["reel_url"]))
+        values.pop("creator_expires")
+        values.pop("reel_expires")
         for key, val in values.items():
             set_setting(key, val)
+        spot.mark_slot_saved("creator", filled=bool(values["creator_name"]),
+                             end=creator_end)
+        spot.mark_slot_saved("reel", filled=bool(values["reel_url"]),
+                             end=reel_end)
         flash("Home spotlight saved.", "success")
         return redirect(url_for("admin.spotlight"))
 
     values = all_settings()
+    ready, missing = spot.eligible_split()
+    draft = None
+    draft_id = (request.args.get("draft") or "").strip()
+    if draft_id.isdigit():
+        draft = spot.candidate(int(draft_id))
+    if draft:
+        # Prefill from the drawn member, but don't publish until she saves.
+        values = dict(values)
+        values["creator_name"] = draft["name"]
+        values["creator_instagram"] = draft["handle"]
+        values["creator_blurb"] = draft["bio"] or values.get("creator_blurb") or ""
+        if draft["has_photo"]:
+            values["creator_image_url"] = url_for(
+                "main.avatar", user_id=draft["user_id"], _external=True)
     if values.get("creator_instagram"):
         h = instagram_handle(values["creator_instagram"])
         values["creator_instagram"] = f"@{h}" if h else values["creator_instagram"]
+    if not values.get("creator_expires") and values.get("creator_name"):
+        values["creator_expires"] = spot.default_end("creator").isoformat()
+    if not values.get("reel_expires") and values.get("reel_url"):
+        values["reel_expires"] = spot.default_end("reel").isoformat()
     return render_template(
         "admin/spotlight.html",
         values=values,
-        spotlight=_spotlight_candidates(),
+        eligible=ready,
+        no_instagram=missing,
+        draft=draft,
+        slots=spot.spotlight_slots(),
     )
 
 
@@ -1606,8 +1634,50 @@ def members():
     return render_template("admin/members.html", people=people, counts=counts,
                            memberships=MEMBERSHIPS,
                            membership_labels=MEMBERSHIP_LABELS, q=q,
-                           membership_filter=membership,
-                           spotlight=_spotlight_candidates())
+                           membership_filter=membership)
+
+
+@bp.route("/members/audit")
+@admin_required
+def members_audit():
+    """Why each paid member holds their tier — and which ones Stripe can't explain."""
+    from ..services import membership_audit as audit_svc
+    from ..services import stripe_pay as pay
+
+    tier = (request.args.get("membership") or "").strip().lower()
+    if tier not in MEMBERSHIPS:
+        tier = ""
+    return render_template(
+        "admin/members_audit.html",
+        audit=audit_svc.audit(tier),
+        tier=tier,
+        membership_labels=MEMBERSHIP_LABELS,
+        source_labels=audit_svc.SOURCE_LABELS,
+        source_help=audit_svc.SOURCE_HELP,
+        stripe_configured=pay.configured(),
+    )
+
+
+@bp.route("/members/audit/resync", methods=["POST"])
+@admin_required
+def members_audit_resync():
+    from ..services import membership_audit as audit_svc
+
+    tier = (request.form.get("membership") or "").strip().lower()
+    if tier not in MEMBERSHIPS:
+        tier = ""
+    result = audit_svc.resync_from_stripe(tier)
+    changed = result["changed"]
+    if changed:
+        names = ", ".join(f"{c['name']} ({c['from']} → {c['to']})"
+                          for c in changed[:6])
+        more = f" and {len(changed) - 6} more" if len(changed) > 6 else ""
+        flash(f"Checked {result['checked']} member(s). Corrected {len(changed)}: "
+              f"{names}{more}.", "success")
+    else:
+        flash(f"Checked {result['checked']} member(s) against Stripe — every "
+              "tier already matched.", "info")
+    return redirect(url_for("admin.members_audit", membership=tier or None))
 
 
 @bp.route("/members/export.csv")
@@ -2105,51 +2175,65 @@ def inbox_report_dismiss(report_id):
 
 # =============================== COMMUNITY ===================================
 
-def _member_reports(member_id: int) -> list:
-    """Reports about this member (peer flags) or their posts/comments."""
-    post_ids = [
-        pid for (pid,) in
-        db.session.query(ForumPost.id).filter_by(user_id=member_id).all()
-    ]
-    comment_ids = [
-        cid for (cid,) in
-        db.session.query(ForumComment.id).filter_by(user_id=member_id).all()
-    ]
-    clauses = [
-        db.and_(
-            ContentReport.target_type == "user",
-            ContentReport.target_id == member_id,
-        )
-    ]
-    if post_ids:
-        clauses.append(db.and_(
-            ContentReport.target_type == "post",
-            ContentReport.target_id.in_(post_ids),
-        ))
-    if comment_ids:
-        clauses.append(db.and_(
-            ContentReport.target_type == "comment",
-            ContentReport.target_id.in_(comment_ids),
-        ))
-    return (
-        ContentReport.query.options(joinedload(ContentReport.reporter))
-        .filter(db.or_(*clauses))
-        .order_by(ContentReport.created_at.desc())
-        .limit(30)
-        .all()
-    )
-
-
 def _enrich_flagged_members(members: list) -> list:
-    rows = []
-    for member in members:
-        reports = _member_reports(member.id)
-        rows.append({
-            "member": member,
-            "reports": reports,
-            "open_reports": sum(1 for r in reports if r.status == "open"),
-        })
-    return rows
+    """Attach each member's reports — theirs, their posts', their comments'.
+
+    Batched across the whole list: doing it per member meant three queries a
+    head, and this page shows everyone who has ever been flagged.
+    """
+    ids = [m.id for m in members]
+    if not ids:
+        return []
+
+    owner_of_post = dict(
+        db.session.query(ForumPost.id, ForumPost.user_id)
+        .filter(ForumPost.user_id.in_(ids)).all()
+    )
+    owner_of_comment = dict(
+        db.session.query(ForumComment.id, ForumComment.user_id)
+        .filter(ForumComment.user_id.in_(ids)).all()
+    )
+    clauses = [db.and_(ContentReport.target_type == "user",
+                       ContentReport.target_id.in_(ids))]
+    if owner_of_post:
+        clauses.append(db.and_(ContentReport.target_type == "post",
+                               ContentReport.target_id.in_(owner_of_post)))
+    if owner_of_comment:
+        clauses.append(db.and_(ContentReport.target_type == "comment",
+                               ContentReport.target_id.in_(owner_of_comment)))
+    reports = (ContentReport.query
+               .options(joinedload(ContentReport.reporter))
+               .filter(db.or_(*clauses))
+               .order_by(ContentReport.created_at.desc())
+               .all())
+
+    by_member: dict[int, list] = {mid: [] for mid in ids}
+    for r in reports:
+        if r.target_type == "user":
+            owner = r.target_id
+        elif r.target_type == "post":
+            owner = owner_of_post.get(r.target_id)
+        else:
+            owner = owner_of_comment.get(r.target_id)
+        if owner in by_member and len(by_member[owner]) < 30:
+            by_member[owner].append(r)
+
+    # the reported comment itself, so owners can read it and take it down
+    flagged_comment_ids = {r.target_id for r in reports
+                           if r.target_type == "comment"}
+    comments = {}
+    if flagged_comment_ids:
+        comments = {
+            c.id: c for c in ForumComment.query
+            .filter(ForumComment.id.in_(flagged_comment_ids)).all()
+        }
+
+    return [{
+        "member": m,
+        "reports": by_member[m.id],
+        "open_reports": sum(1 for r in by_member[m.id] if r.status == "open"),
+        "comments": comments,
+    } for m in members]
 
 
 @bp.route("/community")
@@ -2561,7 +2645,10 @@ def reel_reviews_unpublish(review_id):
 def support_groups():
     from ..services import coaching_intake as intake_svc
     from ..services import support_groups as sg_svc
-    sg_svc.maybe_sweep_reminders(force=True)
+    # The sweep sends member emails one at a time. Forcing it here meant
+    # opening this page waited on every one of them; the throttled sweep in
+    # before_request (and /cron/support-groups) covers it either way.
+    sg_svc.maybe_sweep_reminders()
     stats = sg_svc.circle_stats()
     open_rows = sg_svc.open_meetings()
     past = sg_svc.recent_meetings()
@@ -2582,10 +2669,10 @@ def support_groups():
     intake_meeting_ids = {i.meeting_id for i in saman_intakes if i.meeting_id}
     # Intake-linked 1:1s live only in the intakes panel (not duplicated below).
     open_rows = [m for m in open_rows if m.id not in intake_meeting_ids]
-    seat_map = {m.id: sg_svc.meeting_seats(m) for m in open_rows + past}
-    for intake in saman_intakes:
-        if intake.meeting_id and intake.meeting_id not in seat_map and intake.meeting:
-            seat_map[intake.meeting_id] = sg_svc.meeting_seats(intake.meeting)
+    seat_map = sg_svc.seats_for_meetings(
+        open_rows + past
+        + [i.meeting for i in saman_intakes if i.meeting_id and i.meeting]
+    )
     intake_rows = []
     for intake in saman_intakes:
         answers = intake_svc.answer_rows(intake)
@@ -2613,7 +2700,6 @@ def support_groups():
         past_meetings=past,
         seat_map=seat_map,
         owner_tz=owner_tz,
-        pending_total=sg_svc.pending_count(),
         saman_windows=saman_windows,
         window_rows=window_rows,
         intake_rows=intake_rows,

@@ -125,37 +125,54 @@ def _iana_names() -> tuple[str, ...]:
     return tuple(sorted(names))
 
 
+@lru_cache(maxsize=2)
+def _tz_option_shapes(hour_bucket: int) -> tuple[tuple, ...]:
+    """``(value, label, region)`` for every zone, built at most once an hour.
+
+    Labelling ~600 zones means ~600 ZoneInfo lookups, which was the slowest
+    thing on any Studio page carrying a timezone picker. The offsets only move
+    at DST boundaries, so an hourly rebuild keeps them honest.
+    """
+    now = datetime.now(timezone.utc)
+    names = list(_iana_names())
+    if "UTC" not in names:
+        names.insert(0, "UTC")
+    out = []
+    for name in names:
+        city = name.split("/")[-1].replace("_", " ")
+        region = name.split("/")[0] if "/" in name else "Other"
+        out.append((
+            name,
+            f"{city} — {name} ({_offset_label(name, now)})",
+            region if name != "UTC" else "UTC",
+        ))
+    return tuple(out)
+
+
 def timezone_groups(*, selected: str | None = None) -> list[dict]:
     """Grouped timezone options for Studio selects, with live UTC offsets.
 
-    Offsets are computed for *now* so DST is reflected automatically; the
+    Offsets are computed hourly so DST is reflected automatically; the
     underlying IANA IDs never change and stay correct across seasons.
     """
-    now = datetime.now(timezone.utc)
     selected_n = normalize_timezone(selected) or DEFAULT_TZ
-    all_names = list(_iana_names())
-    if "UTC" not in all_names:
-        all_names.insert(0, "UTC")
+    bucket = int(datetime.now(timezone.utc).timestamp()) // 3600
+    shapes = _tz_option_shapes(bucket)
+    by_name = {value: (value, label, region) for value, label, region in shapes}
 
-    def option(name: str) -> dict:
-        city = name.split("/")[-1].replace("_", " ")
-        region = name.split("/")[0] if "/" in name else "Other"
-        return {
-            "value": name,
-            "label": f"{city} — {name} ({_offset_label(name, now)})",
-            "region": region if name != "UTC" else "UTC",
-            "selected": name == selected_n,
-        }
+    def option(row) -> dict:
+        value, label, region = row
+        return {"value": value, "label": label, "region": region,
+                "selected": value == selected_n}
 
-    common_set = {n for n in _COMMON_TZ if n in all_names or n == "UTC"}
-    common_opts = [option(n) for n in _COMMON_TZ if n in common_set or n == "UTC"]
+    common_opts = [option(by_name[n]) for n in _COMMON_TZ if n in by_name]
     # Ensure selected appears in Common if it's not already.
-    if selected_n not in {o["value"] for o in common_opts}:
-        common_opts.insert(1, option(selected_n))
+    if selected_n not in {o["value"] for o in common_opts} and selected_n in by_name:
+        common_opts.insert(1, option(by_name[selected_n]))
 
     by_region: dict[str, list[dict]] = {}
-    for name in all_names:
-        opt = option(name)
+    for row in shapes:
+        opt = option(row)
         by_region.setdefault(opt["region"], []).append(opt)
 
     groups = [{"label": "Common", "options": common_opts}]

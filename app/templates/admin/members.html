@@ -12,8 +12,12 @@
         upgraded automatically on payment. Buying a different plan cancels the previous subscription
         immediately. A refund removes access. Manual changes here always win.</p>
     </div>
-    <a class="btn btn--secondary btn--sm"
-       href="{{ url_for('admin.members_export_csv', q=q or none, membership=membership_filter or none) }}">Export emails (CSV)</a>
+    <div class="page-head__actions">
+      <a class="btn btn--secondary btn--sm"
+         href="{{ url_for('admin.members_audit', membership=membership_filter or none) }}">Where tiers come from</a>
+      <a class="btn btn--secondary btn--sm"
+         href="{{ url_for('admin.members_export_csv', q=q or none, membership=membership_filter or none) }}">Export emails (CSV)</a>
+    </div>
   </div>
 
   <div class="stat-row studio-member-filters" style="margin-bottom: 20px;" role="group" aria-label="Filter by membership">
@@ -113,21 +117,10 @@
     </table>
   </section>
 
-  <section class="admin-panel studio-card">
-    <h2 style="margin-top: 0;">Spotlight pick-list</h2>
-    <p class="field-help" style="margin-top: 0;">Creator members and their Instagram handles &mdash; choose one for Creator of the Month or Reel of the Week over in <a href="{{ url_for('admin.settings') }}">Settings</a>.</p>
-    {% if spotlight %}
-    <ul class="spotlight-list">
-      {% for c in spotlight %}
-      <li>
-        <strong>{{ c.name }}</strong> <span class="field-help">{{ c.email }}</span>
-        {% if c.instagram %}&mdash; <a href="{{ c.instagram }}" target="_blank" rel="noopener">{{ c.instagram }}</a>{% else %}&mdash; <span class="field-help">no Instagram link yet</span>{% endif %}
-      </li>
-      {% endfor %}
-    </ul>
-    {% else %}
-    <p class="field-help">No Creator members yet.</p>
-    {% endif %}
-  </section>
+  <p class="field-help">
+    Looking for the spotlight pick-list? Creator members and their Instagram
+    handles now live on <a href="{{ url_for('admin.spotlight') }}">Spotlight</a>,
+    next to the Creator of the Month draw.
+  </p>
 </div>
 {% endblock %}

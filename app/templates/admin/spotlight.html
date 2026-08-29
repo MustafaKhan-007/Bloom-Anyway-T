@@ -8,8 +8,9 @@
       <p class="eyebrow">Home page</p>
       <h1>Spotlight</h1>
       <p class="field-help" style="margin: 6px 0 0;">
-        Creator of the month and Reel of the week on the home page.
-        Use Clear to hide a card, or leave fields blank when saving.
+        Both cards on the home page are your own pick &mdash; nobody applies for
+        these. (The <a href="{{ url_for('admin.reel_reviews') }}">Reel reviews</a>
+        queue is the one members apply to.)
       </p>
     </div>
     <a class="btn btn--secondary btn--sm" href="{{ url_for('main.index') }}#spotlight-heading" target="_blank" rel="noopener">
@@ -17,12 +18,87 @@
     </a>
   </div>
 
+  <section class="admin-panel studio-card spotlight-status">
+    {% for slot in slots %}
+    <div class="spotlight-status__item{% if slot.expired %} is-expired{% elif slot.ending_soon %} is-soon{% endif %}">
+      <p class="spotlight-status__label">{{ slot.label }}</p>
+      {% if not slot.filled %}
+      <p class="spotlight-status__note">Empty &mdash; the home page shows a placeholder.</p>
+      {% elif not slot.ends %}
+      <p class="spotlight-status__note">Live, with no end date set.</p>
+      {% elif slot.expired %}
+      <p class="spotlight-status__note">Ran out on {{ slot.ends.strftime('%b %d') }} &mdash; time for a new one.</p>
+      {% elif slot.days_left == 0 %}
+      <p class="spotlight-status__note">Last day &mdash; ends today.</p>
+      {% else %}
+      <p class="spotlight-status__note">{{ slot.days_left }} day{{ '' if slot.days_left == 1 else 's' }} left
+        &mdash; runs until {{ slot.ends.strftime('%b %d') }}.</p>
+      {% endif %}
+    </div>
+    {% endfor %}
+    <p class="field-help spotlight-status__foot">
+      You'll get a Bloom Anyway notification the day before either one runs out.
+    </p>
+  </section>
+
   <form method="post" enctype="multipart/form-data">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
     <section class="admin-panel studio-card">
+      <div class="spotlight-candidates">
+        <h2 style="margin-top: 0;">Who can be Creator of the Month</h2>
+        <p class="field-help" style="margin-top: 0;">
+          Creator and Full Bloom members who put an Instagram link on their
+          Bloom Anyway profile (My space &rarr; Settings). That link is what
+          makes someone eligible, so this list is the whole draw.
+        </p>
+        <div class="spotlight-draw">
+          <button class="btn btn--primary btn--sm" type="submit" name="pick_creator" value="1"
+                  {% if not eligible %}disabled{% endif %}>
+            Pick one at random
+          </button>
+          <span class="field-help">
+            {{ eligible|length }} eligible right now.
+            {% if eligible %}We'll fill in their details below &mdash; edit anything, then save.{% endif %}
+          </span>
+        </div>
+        {% if eligible %}
+        <ul class="spotlight-list">
+          {% for c in eligible %}
+          <li{% if draft and draft.user_id == c.user_id %} class="is-drawn"{% endif %}>
+            <strong>{{ c.name }}</strong>
+            <span class="field-help">{{ c.tier }}</span>
+            &mdash; <a href="{{ c.profile_url }}" target="_blank" rel="noopener">&#64;{{ c.handle }}</a>
+            {% if draft and draft.user_id == c.user_id %}<span class="spotlight-drawn-tag">drawn</span>{% endif %}
+          </li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <p class="field-help">Nobody's eligible yet &mdash; Creator members need an
+          Instagram link on their profile first.</p>
+        {% endif %}
+        {% if no_instagram %}
+        <details class="spotlight-missing">
+          <summary>{{ no_instagram|length }} Creator member{{ '' if no_instagram|length == 1 else 's' }} with no Instagram link</summary>
+          <ul class="spotlight-list">
+            {% for c in no_instagram %}
+            <li><strong>{{ c.name }}</strong> <span class="field-help">{{ c.email }}</span></li>
+            {% endfor %}
+          </ul>
+        </details>
+        {% endif %}
+      </div>
+    </section>
+
+    <section class="admin-panel studio-card">
       <fieldset class="spotlight-fieldset">
         <legend>Creator of the month</legend>
+        {% if draft %}
+        <p class="spotlight-draft-note">
+          Drawn at random: <strong>{{ draft.name }}</strong>. Nothing is live until
+          you press <strong>Save spotlight</strong>.
+        </p>
+        {% endif %}
         <div class="form-row">
           <div class="field">
             <label for="creator_name">Display name</label>
@@ -59,6 +135,12 @@
                     placeholder="Paste their Instagram bio (or write a short intro). This fills the card.">{{ values.creator_blurb }}</textarea>
           <p class="field-help">Instagram rarely shares bios publicly &mdash; pasting it here is the reliable way to fill the card.</p>
         </div>
+        <div class="field">
+          <label for="creator_expires">Runs until</label>
+          <input type="date" id="creator_expires" name="creator_expires" value="{{ values.creator_expires }}">
+          <p class="field-help">A month from today unless you change it. You'll be
+            notified the day before, so this card never goes stale unnoticed.</p>
+        </div>
         <div class="spotlight-clear">
           <button class="btn btn--secondary btn--sm" type="submit" name="clear_spotlight_creator" value="1"
                   {% if not (values.creator_name or values.creator_instagram or values.creator_image_url or values.creator_blurb) %}disabled{% endif %}
@@ -73,6 +155,10 @@
     <section class="admin-panel studio-card">
       <fieldset class="spotlight-fieldset">
         <legend>Reel of the week</legend>
+        <p class="field-help" style="margin-top: 0;">
+          Your own pick of the week &mdash; go through the reels, paste the link.
+          There's no application for this one.
+        </p>
         <div class="field">
           <label for="reel_url">Instagram reel URL</label>
           <input type="url" id="reel_url" name="reel_url" value="{{ values.reel_url }}" placeholder="https://instagram.com/reel/...">
@@ -81,6 +167,11 @@
         <div class="field">
           <label for="reel_description">Why you love it (optional)</label>
           <input type="text" id="reel_description" name="reel_description" value="{{ values.reel_description }}">
+        </div>
+        <div class="field">
+          <label for="reel_expires">Runs until</label>
+          <input type="date" id="reel_expires" name="reel_expires" value="{{ values.reel_expires }}">
+          <p class="field-help">A week from today unless you change it.</p>
         </div>
         <div class="spotlight-clear">
           <button class="btn btn--secondary btn--sm" type="submit" name="clear_spotlight_reel" value="1"
@@ -92,29 +183,6 @@
         </div>
       </fieldset>
     </section>
-
-    {% if spotlight %}
-    <section class="admin-panel studio-card">
-      <div class="spotlight-candidates">
-        <h2 style="margin-top: 0;">Creator members to feature</h2>
-        <p class="field-help" style="margin-top: 0;">
-          Current Creator-tier members (and owners). Instagram comes from each member’s
-          <strong>My space → Settings → Instagram for Creator of the Month</strong> field — copy one into the fields above.
-        </p>
-        <ul>
-          {% for c in spotlight %}
-          <li>
-            <strong>{{ c.name }}</strong>
-            {% if c.instagram %}&mdash;
-              {% if c.profile_url %}<a href="{{ c.profile_url }}" target="_blank" rel="noopener">{{ c.instagram }}</a>
-              {% else %}{{ c.instagram }}{% endif %}
-            {% else %}<span class="field-help">(no Instagram link yet)</span>{% endif %}
-          </li>
-          {% endfor %}
-        </ul>
-      </div>
-    </section>
-    {% endif %}
 
     <div class="form-actions" style="margin-top: 8px;">
       <button class="btn btn--primary" type="submit">Save spotlight</button>

@@ -118,6 +118,14 @@ class TestConfig(DevConfig):
 PASS = 0
 
 
+def flashes(resp) -> str:
+    """The flash banners on a rendered page — the useful half of a failure."""
+    import re as _re
+    text = resp.get_data(as_text=True)
+    found = _re.findall(r'class="flash flash--\w+"[^>]*>(.*?)</div>', text, _re.S)
+    return " | ".join(" ".join(f.split()) for f in found) or "(no flash)"
+
+
 def ok(name, condition, detail=""):
     global PASS
     status = "PASS" if condition else "FAIL"
@@ -886,8 +894,13 @@ client.post("/account/checkin",
 with app.app_context():
     m = User.query.filter_by(email="newperson@example.com").first()
     from app.models import JournalEntry
-    je = JournalEntry.query.filter_by(user_id=m.id, day=date.today()).first()
-ok("Mood and journal body stay on the same day entry",
+    # writing starts a fresh page rather than overwriting an earlier mood-only
+    # one, so the newest row for today is the one that just got saved
+    je = (JournalEntry.query
+          .filter_by(user_id=m.id, day=date.today())
+          .order_by(JournalEntry.created_at.desc(), JournalEntry.id.desc())
+          .first())
+ok("A written entry keeps the mood picked with it",
    je is not None and je.mood == "bloom"
    and "Blooming a little today." in (je.body or ""),
    f"mood={getattr(je, 'mood', None)} body={getattr(je, 'body', None)!r}")
@@ -895,11 +908,13 @@ r = client.get("/account?tab=journal")
 jbody = r.get_data(as_text=True)
 ok("Journal tab shows clickable prompt ideas",
    r.status_code == 200
-   and "ms-prompt-list__btn" in jbody
-   and "journal-prompt-ideas" in jbody
-   and jbody.count("ms-prompt-list__btn") == 4)
-ok("Journal previous entries use a stretch grid",
-   "journal-list" in jbody and "ms-journal__prev" in jbody)
+   and 'id="journal-prompt-ideas"' in jbody
+   # four sampled prompts plus the "write freely" option
+   and jbody.count("data-prompt-key=") == 5,
+   f"buttons={jbody.count('data-prompt-key=')}")
+ok("Journal past entries sit behind today's page in the notebook",
+   "jn-page--past" in jbody and "jn-page--today" in jbody
+   and 'data-jn-book' in jbody)
 with app.app_context():
     from app.models import sample_journal_prompts
     ideas = sample_journal_prompts(4)
@@ -1304,7 +1319,8 @@ admin.post("/admin/spotlight", data={"clear_spotlight_creator": "1"}, follow_red
 r = client.get("/")
 hbody = r.get_data(as_text=True)
 ok("Clear creator removes Creator of the month",
-   "Maya R." not in hbody and "In the spotlight" not in hbody)
+   "Maya R." not in hbody
+   and "Our next Creator of the Month will land here" in hbody)
 
 # studio: members management
 r = admin.get("/admin/members")
@@ -2132,10 +2148,35 @@ from app.models import (Notification, SupportGroupApplication, SupportGroupCircl
 from app.services import support_groups as sg_svc
 
 _sent_mail = []
-sg_svc.send_email = (
-    lambda to, subject, text_body, html_body=None:
-    _sent_mail.append({"to": to, "subject": subject, "text": text_body}) or True
-)
+
+
+def _capture_sg_mail(subject: str):
+    """Stand in for one of the mailer helpers support groups calls.
+
+    Each helper has its own signature and builds its own copy, so record the
+    subject we know it sends plus whatever URL it was handed — that's all the
+    assertions below need.
+    """
+    def send(to, **kw):
+        text = "\n".join(str(v) for v in kw.values() if v)
+        _sent_mail.append({"to": to, "subject": kw.get("subject") or subject,
+                           "text": text})
+        return True
+    return send
+
+
+for _name, _subject in (
+    ("send_support_group_booked", "Your seat is saved"),
+    ("send_support_group_reminder", "Your session is tomorrow"),
+    ("send_support_group_host_cancelled", "That session won't be happening"),
+    ("send_support_group_left", "You left the circle"),
+    ("send_facilitator_booked", "Your guided session is booked"),
+    ("send_facilitator_cancelled", "That session was cancelled"),
+    ("send_one_on_one_booked", "Your 1:1 is booked"),
+    ("send_one_on_one_cancelled", "Your 1:1 was cancelled"),
+    ("send_styled_email", ""),
+):
+    setattr(sg_svc, _name, _capture_sg_mail(_subject))
 
 with app.app_context():
     sg_svc.ensure_circles()
@@ -2147,25 +2188,42 @@ with app.app_context():
     heal_cid = _heal_circle.id
     build_cid = _build_circle.id
 
-_when = datetime.utcnow() + timedelta(hours=36)
+# an odd offset keeps this out of the way of slots booked earlier in the suite
+# — a clash here is a scheduling conflict, not a scheduling bug
+_when = datetime.utcnow() + timedelta(hours=37)
 _sg_date = _when.strftime("%Y-%m-%d")
 _sg_time = _when.strftime("%H:%M")
 
-r = free_client.post("/support-groups/schedule",
-                     data={"circle_id": heal_cid, "meeting_date": _sg_date,
-                           "meeting_time": _sg_time, "timezone": "UTC"},
-                     follow_redirects=True)
+# free_client was granted Healing earlier in the suite, so this needs its own
+# account — otherwise the check passes while proving nothing
+with app.app_context():
+    nofree = User(email="really-free@example.com", display_name="Really Free",
+                  username="reallyfree", membership="none",
+                  email_verified_at=datetime.utcnow())
+    nofree.set_password(USER_PW)
+    db.session.add(nofree)
+    db.session.commit()
+nofree_client = app.test_client()
+nofree_client.post("/login", data={"email": "really-free@example.com",
+                                   "password": USER_PW})
+r = nofree_client.post("/support-groups/schedule",
+                       data={"circle_id": heal_cid, "meeting_date": _sg_date,
+                             "meeting_time": _sg_time, "timezone": "UTC"},
+                       follow_redirects=True)
+with app.app_context():
+    _booked_by_free = (SupportGroupMeeting.query
+                       .filter_by(circle_id=heal_cid, kind="peer").count())
 ok("Free members cannot schedule peer sessions",
    "Healing, Creator, and Full Bloom" in r.get_data(as_text=True)
-   or free_client.get("/membership").status_code == 200)
+   and _booked_by_free == 0,
+   f"{flashes(r)} | meetings={_booked_by_free}")
 
 r = stranger_client.post("/support-groups/schedule",
                          data={"circle_id": heal_cid, "meeting_date": _sg_date,
                                "meeting_time": _sg_time, "timezone": "UTC"},
                          follow_redirects=True)
 ok("Healing member can schedule a peer session",
-   "Session scheduled" in r.get_data(as_text=True),
-   r.get_data(as_text=True)[:500])
+   "Session scheduled" in r.get_data(as_text=True), flashes(r))
 with app.app_context():
     peer = (SupportGroupMeeting.query
             .filter_by(circle_id=heal_cid, kind="peer", status="scheduled")
@@ -2260,6 +2318,11 @@ with app.app_context():
     restore.status = "scheduled"
     restore.scheduled_at = utcnow() + timedelta(hours=20)
     restore.reminded_at = None
+    # opening the live room marked everyone "attended" — put the seats back
+    # too, or the later reminder and cancel tests have nobody to talk to
+    for _seat in SupportGroupApplication.query.filter_by(meeting_id=mid).all():
+        if _seat.status == "attended":
+            _seat.status = "selected"
     db.session.commit()
 
 # Topic notify-me alerts
@@ -2295,7 +2358,7 @@ with app.app_context():
        alert_notes >= 1)
     # Clean up so later caps tests stay stable
     if m_alert:
-        sg_svc.cancel_meeting(m_alert, return_to_queue=False)
+        sg_svc.cancel_meeting(m_alert)
 
 r = client.get("/support-groups")
 sg_body = r.get_data(as_text=True)
@@ -2469,7 +2532,7 @@ with app.app_context():
     # Clear any leftover open peer sessions on this topic from earlier steps.
     for leftover in SupportGroupMeeting.query.filter_by(
             circle_id=heal_cid, kind="peer", status="scheduled").all():
-        sg_svc.cancel_meeting(leftover, return_to_queue=False)
+        sg_svc.cancel_meeting(leftover)
     hosts = []
     for i in range(4):
         u = User(email=f"sg-host{i}@example.com", username=f"sghost{i}",
@@ -2509,7 +2572,7 @@ with app.app_context():
 with app.app_context():
     for leftover in SupportGroupMeeting.query.filter_by(
             circle_id=heal_cid, kind="peer", status="scheduled").all():
-        sg_svc.cancel_meeting(leftover, return_to_queue=False)
+        sg_svc.cancel_meeting(leftover)
     wrap_host = User(email="sg-wrap-host@example.com", username="sgwraphost",
                      membership="healing", email_verified_at=utcnow())
     wrap_host.set_password(USER_PW)
@@ -2632,14 +2695,31 @@ ok("Home uses the split healing / building hero",
 _buf2 = BytesIO()
 _PILImage.new("RGB", (100, 100), (239, 167, 51)).save(_buf2, format="JPEG")
 _buf2.seek(0)
+# the creator photo belongs to the Spotlight page — general Settings must not
+# touch it, so posting it there should be ignored
 with app.app_context():
     _portrait_url = get_setting("portrait_url")
-r = admin.post(
+_stray = BytesIO()
+_PILImage.new("RGB", (60, 60), (10, 10, 10)).save(_stray, format="JPEG")
+_stray.seek(0)
+admin.post(
     "/admin/settings",
     data={
         "site_title": "Bloom Anyway", "instagram_url": "",
         "hero_image_url": "", "portrait_url": _portrait_url,
         "contact_email": "", "announcement_text": "", "announcement_expires": "",
+        "creator_name": "Wiped By Settings", "creator_file": (_stray, "stray.jpg"),
+    },
+    content_type="multipart/form-data",
+    follow_redirects=True,
+)
+with app.app_context():
+    ok("General Settings leaves spotlight fields alone",
+       get_setting("creator_name") != "Wiped By Settings")
+
+r = admin.post(
+    "/admin/spotlight",
+    data={
         "creator_name": "Featured", "creator_instagram": "",
         "creator_image_url": "", "creator_blurb": "Hello",
         "reel_url": "", "reel_description": "",
@@ -2655,6 +2735,91 @@ ok("Uploaded creator photo is served",
 with app.app_context():
     ok("Creator photo setting points at media route",
        get_setting("creator_image_url") == "/media/site/creator")
+
+# --- spotlight: eligible list, random draw, expiry notices ------------------
+from app.services import spotlight as _spot   # noqa: E402
+
+with app.app_context():
+    _drawable = User(email="drawme@example.com", display_name="Draw Me",
+                     username="drawme", membership="creator",
+                     email_verified_at=datetime.utcnow())
+    _drawable.set_password("memberpass123")
+    _drawable.set_links([{"label": "Instagram",
+                          "url": "https://instagram.com/drawmeplease"}])
+    _quiet = User(email="quiet@example.com", display_name="No Links",
+                  username="nolinks", membership="creator",
+                  email_verified_at=datetime.utcnow())
+    _quiet.set_password("memberpass123")
+    db.session.add_all([_drawable, _quiet])
+    db.session.commit()
+
+    _ready, _missing = _spot.eligible_split()
+    ok("Spotlight eligibility needs an Instagram link on the profile",
+       any(c["handle"] == "drawmeplease" for c in _ready)
+       and any(c["email"] == "quiet@example.com" for c in _missing)
+       and not any(c["email"] == "quiet@example.com" for c in _ready))
+    ok("Spotlight eligibility skips owners and non-Creator members",
+       not any(c["email"] in ("owner@example.com", "free@example.com")
+               for c in _ready + _missing))
+
+r = admin.get("/admin/spotlight")
+sbody = r.get_data(as_text=True)
+ok("Spotlight page lists who can be Creator of the month",
+   r.status_code == 200 and "Draw Me" in sbody
+   and 'name="pick_creator"' in sbody
+   and "Reel reviews" in sbody)
+
+r = admin.post("/admin/spotlight", data={"pick_creator": "1"},
+               follow_redirects=True)
+dbody = r.get_data(as_text=True)
+ok("Random draw pre-fills the Creator of the month form",
+   'value="Draw Me"' in dbody and "Drawn at random" in dbody)
+with app.app_context():
+    ok("Random draw doesn't publish anything by itself",
+       get_setting("creator_name") != "Draw Me")
+
+with app.app_context():
+    from datetime import date as _date
+
+    from app.services.settings import set_setting
+    set_setting("creator_name", "Draw Me")
+    set_setting("creator_expires", (_date.today() + timedelta(days=1)).isoformat())
+    set_setting("spotlight_creator_notified", "")
+    _before = Notification.query.filter_by(kind="spotlight_expiry").count()
+    _sent = _spot.sweep_expiry_notices()
+    _again = _spot.sweep_expiry_notices()
+    _notes = (Notification.query.filter_by(kind="spotlight_expiry")
+              .order_by(Notification.id.desc()).all())
+    ok("Owners are warned the day before a spotlight slot expires",
+       _sent == 1 and len(_notes) > _before
+       and "tomorrow" in (_notes[0].body or ""),
+       f"sent={_sent} before={_before} now={len(_notes)} "
+       f"body={(_notes[0].body if _notes else '')!r}")
+    ok("Spotlight expiry warning is sent once, not on every sweep", _again == 0)
+
+    set_setting("creator_expires", (_date.today() + timedelta(days=20)).isoformat())
+    _slots = {s["kind"]: s for s in _spot.spotlight_slots()}
+    ok("Spotlight status reports days left per slot",
+       _slots["creator"]["filled"] and _slots["creator"]["days_left"] == 20
+       and not _slots["creator"]["expired"])
+
+# --- studio: where each paid tier came from --------------------------------
+r = admin.get("/admin/members/audit")
+abody = r.get_data(as_text=True)
+ok("Members audit explains where each paid tier came from",
+   r.status_code == 200 and "Set by hand in Studio" in abody
+   and "Nothing on file explains it" in abody
+   and "Free months from a purchase" in abody)
+with app.app_context():
+    from app.services import membership_audit as _audit
+    _res = _audit.audit("creator")
+    _sources = {row["email"]: row["source"] for row in _res["rows"]}
+    ok("Audit files a comped member under 'set by hand'",
+       all(t == "creator" for t in (r["tier"] for r in _res["rows"])))
+    ok("Audit flags a tier with no order, grant, or perk behind it",
+       _sources.get("drawme@example.com") == "unexplained")
+r = admin.get("/admin/members/audit?membership=full_bloom")
+ok("Members audit filters by tier", r.status_code == 200)
 
 # Content Hub: the tips library appears before reel reviews
 r = client.get("/watch")

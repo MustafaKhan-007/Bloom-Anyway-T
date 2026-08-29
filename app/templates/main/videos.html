@@ -31,8 +31,8 @@
       <p class="hub-exact__eyebrow">Content Hub</p>
       <h1>Content Hub</h1>
       <p class="hub-exact__lede">
-        Written tips for showing up online (with video when it helps), daily reel reviews
-        from the community, and a weekly Reel of the Week draw — open to Creator and
+        Written tips for showing up online (with video when it helps) and reel
+        reviews — send us a reel, get it looked at properly. Open to Creator and
         Full Bloom members.
       </p>
     </div>
@@ -46,14 +46,14 @@
           <h2>Content Tips</h2>
           <span class="hub-exact__action-link">Browse Tips &rarr;</span>
         </a>
-        <a class="hub-exact__action hub-exact__action--plum" href="#reel-of-the-week" data-reveal-rotw>
+        <a class="hub-exact__action hub-exact__action--plum" href="#reel-review" data-reveal-rotw>
           <h2>Submit Your Reel for Review</h2>
           <span class="hub-exact__action-link hub-exact__action-link--gold">Submit your reel &rarr;</span>
         </a>
-        <a class="hub-exact__action hub-exact__action--white" href="#reel-of-the-week" data-reveal-rotw>
-          <h2>Reel of the Week</h2>
-          <p>Minimum 100 shares</p>
-          <span class="hub-exact__action-link">Submit for Reel of the Week &rarr;</span>
+        <a class="hub-exact__action hub-exact__action--white" href="#reviews">
+          <h2>Published Reviews</h2>
+          <p>Read what the founders sent back</p>
+          <span class="hub-exact__action-link">Browse reviews &rarr;</span>
         </a>
       </div>
     </div>
@@ -123,7 +123,7 @@
           <h2>Daily Reel Reviews</h2>
           <p class="sr-only">Reel reviews</p>
         </div>
-        <a class="btn btn--gold btn--sm" href="#reel-of-the-week" data-reveal-rotw>Submit your reel</a>
+        <a class="btn btn--gold btn--sm" href="#reel-review" data-reveal-rotw>Submit your reel</a>
       </div>
 
       <div class="hub-exact__status" role="status">
@@ -151,16 +151,19 @@
       </div>
       {% endif %}
 
-      <div class="hub-exact__rotw" id="reel-of-the-week" data-rotw-panel>
+      <div class="hub-exact__rotw" id="reel-review" data-rotw-panel>
         <div class="hub-exact__rotw-copy">
-          <p class="hub-exact__eyebrow">Weekly draw</p>
-          <h2>Reel of the Week</h2>
+          <p class="hub-exact__eyebrow">Get your reel reviewed</p>
+          <h2>Submit your reel</h2>
           <ul>
             <li>Post your Instagram reel and aim for <strong>100 shares</strong></li>
             <li>Submit the posted link + raw video file</li>
-            <li>One Creator entry is picked at random each week</li>
+            <li>One entry is reviewed each week, picked at random</li>
             <li>A fresh round opens every Monday</li>
           </ul>
+          <p class="field-help">Not the same as Creator of the Month or Reel of
+            the Week on the home page &mdash; those two are hand-picked, nothing
+            to enter.</p>
         </div>
         <div class="hub-exact__rotw-form">
           {% if can_reel %}
@@ -214,7 +217,7 @@
             {% endif %}
           {% elif current_user.is_authenticated %}
           <div class="hub-exact__notice">
-            <p>Reel of the Week entries aren’t included in your plan.
+            <p>Reel reviews aren’t included in your plan.
               <a href="{{ url_for('main.membership', next=url_for('main.videos') + '#reviews') }}">See memberships</a>
               to unlock weekly reviews.</p>
           </div>
@@ -262,7 +265,7 @@
           <li class="hub-exact__queue-item hub-exact__queue-item--empty">
             <span class="hub-exact__queue-n">—</span>
             <div>
-              <p>No queue details to show yet. Enter the Reel of the Week draw above when it’s open.</p>
+              <p>No queue details to show yet. Send in a reel above when the round is open.</p>
             </div>
           </li>
         </ol>

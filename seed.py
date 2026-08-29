@@ -195,6 +195,23 @@ def seed():
                 f"{buzz['posts']} posts, {buzz['comments']} comments"
             )
 
+        # 9. Backfill mime types for stored images. Avatar/thumbnail bytes are
+        #    deferred columns now, and "do they have one?" is answered from the
+        #    mime — old rows saved before the mime was recorded need it filled.
+        patched = 0
+        for sql in (
+            "UPDATE users SET avatar_mime = 'image/jpeg' "
+            "WHERE avatar_data IS NOT NULL AND (avatar_mime IS NULL OR avatar_mime = '')",
+            "UPDATE users SET avatar_anim_mime = 'image/gif' "
+            "WHERE avatar_anim_data IS NOT NULL "
+            "AND (avatar_anim_mime IS NULL OR avatar_anim_mime = '')",
+            "UPDATE videos SET thumb_mime = 'image/jpeg' "
+            "WHERE thumb_data IS NOT NULL AND (thumb_mime IS NULL OR thumb_mime = '')",
+        ):
+            patched += db.session.execute(db.text(sql)).rowcount or 0
+        if patched:
+            print(f"Backfilled {patched} image mime type(s)")
+
         db.session.commit()
         print("Seed complete.")
 
