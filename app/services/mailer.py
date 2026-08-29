@@ -922,26 +922,56 @@ def send_one_on_one_cancelled(
     )
 
 
-def _owner_email() -> str | None:
+def owner_emails() -> list[str]:
+    """Every active owner's address, de-duplicated, oldest account first.
+
+    Anything addressed to "the owner" goes to all of them — a co-owner who
+    never sees a contact message can't answer it.
+    """
     from ..models import User
-    owner = (User.query.filter_by(is_admin=True)
-             .filter(User.deleted_at.is_(None)).order_by(User.id).first())
-    return owner.email if owner else None
+    rows = (User.query
+            .filter(User.is_admin.is_(True), User.deleted_at.is_(None))
+            .order_by(User.id)
+            .all())
+    seen: set[str] = set()
+    out: list[str] = []
+    for owner in rows:
+        addr = (owner.email or "").strip().lower()
+        if addr and "@" in addr and addr not in seen:
+            seen.add(addr)
+            out.append(addr)
+    return out
+
+
+def _owner_email() -> str | None:
+    addrs = owner_emails()
+    return addrs[0] if addrs else None
+
+
+def _send_to_owners(what: str, **kwargs) -> bool:
+    """Send one styled email to every owner. True when they all went out."""
+    addrs = owner_emails()
+    if not addrs:
+        log.warning("No owner account to notify about %s", what)
+        _set_error("No owner account email to notify.")
+        return False
+    sent = 0
+    for addr in addrs:
+        if send_styled_email(addr, **kwargs):
+            sent += 1
+        else:
+            log.warning("Could not email owner %s about %s", addr, what)
+    return sent == len(addrs)
 
 
 def send_billing_alert(title: str, body: str) -> bool:
-    """Tell the owner about billing that needs to be sorted out in Stripe.
+    """Tell the owners about billing that needs to be sorted out in Stripe.
 
     Used when we could not stop a subscription ourselves, so a silent failure
     can't leave someone being charged after they've left.
     """
-    admin = _owner_email()
-    if not admin:
-        log.warning("No owner account to notify about billing: %s", title)
-        _set_error("No owner account email to notify.")
-        return False
-    return send_styled_email(
-        admin,
+    return _send_to_owners(
+        f"billing: {title}",
         subject=f"Action needed: {title}",
         preview=title,
         header="Billing",
@@ -953,18 +983,13 @@ def send_billing_alert(title: str, body: str) -> bool:
 
 
 def send_contact_notification(name: str, email: str, body: str) -> bool:
-    admin = _owner_email()
-    if not admin:
-        log.warning("No owner account to notify; contact message stored but not emailed.")
-        _set_error("No owner account email to notify.")
-        return False
-    return send_styled_email(
-        admin,
+    return _send_to_owners(
+        f"contact form from {name}",
         subject=f"Contact form: {name}",
         preview=f"New message from {name}",
         header="Contact form",
         title=f"Message from {name}",
         body=f"From: {name} <{email}>\n\n{body}",
         button_text="Open Studio inbox",
-        button_url=_public_href("/admin/inbox"),
+        button_url=_public_href("/admin/inbox?filter=messages"),
     )

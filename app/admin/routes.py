@@ -19,7 +19,8 @@ from sqlalchemy import func
 from sqlalchemy.orm import joinedload
 
 from ..extensions import db
-from ..models import (Announcement, ContentReport, FaqItem, ForumComment,
+from ..models import (Announcement, ContactMessage, ContentReport, FaqItem,
+                      ForumComment,
                       ForumPost, MEMBERSHIPS, MEMBERSHIP_LABELS, MarketplaceListing,
                       MembershipPlan,
                       Page, Product, ProductAsset, Quote, QuoteFavorite, QuotePin,
@@ -2104,11 +2105,18 @@ def badges():
 @bp.route("/inbox")
 @admin_required
 def inbox():
-    """Unified inbox: star feedback, complaints, error reports, content reports."""
+    """Unified inbox: contact messages, feedback, complaints, error and content reports."""
     filt = (request.args.get("filter") or "all").strip().lower()
-    allowed = {"all", "feedback", "complaint", "error", "reports", "open", "resolved"}
+    allowed = {"all", "messages", "feedback", "complaint", "error",
+               "reports", "open", "resolved"}
     if filt not in allowed:
         filt = "all"
+
+    message_rows = []
+    if filt in ("all", "messages"):
+        message_rows = (ContactMessage.query
+                        .order_by(ContactMessage.created_at.desc())
+                        .limit(100).all())
 
     feedback_q = (SiteFeedback.query.options(joinedload(SiteFeedback.author))
                   .order_by(SiteFeedback.created_at.desc()))
@@ -2160,6 +2168,7 @@ def inbox():
         enriched.append({"report": r, "target": target, "snippet": snippet})
 
     counts = {
+        "messages": ContactMessage.query.filter_by(status="new").count(),
         "feedback": SiteFeedback.query.filter_by(kind="feedback").count(),
         "complaint": SiteFeedback.query.filter_by(kind="complaint").count(),
         "error": SiteFeedback.query.filter_by(kind="error").count(),
@@ -2169,8 +2178,19 @@ def inbox():
     }
     return render_template(
         "admin/inbox.html", filter=filt, feedback_rows=feedback_rows,
-        report_rows=enriched, counts=counts,
+        report_rows=enriched, message_rows=message_rows, counts=counts,
     )
+
+
+@bp.route("/inbox/messages/<int:message_id>/reviewed", methods=["POST"])
+@admin_required
+def inbox_message_reviewed(message_id):
+    row = db.session.get(ContactMessage, message_id) or abort(404)
+    row.status = "reviewed"
+    db.session.commit()
+    flash(f"Marked {row.name}'s message reviewed.", "success")
+    return redirect(url_for("admin.inbox",
+                            filter=request.form.get("filter") or "messages"))
 
 
 @bp.route("/inbox/feedback/<int:item_id>/reviewed", methods=["POST"])

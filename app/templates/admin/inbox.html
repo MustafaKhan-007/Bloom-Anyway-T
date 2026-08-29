@@ -8,13 +8,16 @@
       <p class="eyebrow">Moderation</p>
       <h1>Inbox</h1>
       <p class="field-help" style="margin: 6px 0 0; max-width: 62ch;">
-        Star feedback, complaints, error reports, community content reports, and peer-session flags in one place.
+        Contact form messages, star feedback, complaints, error reports, community
+        content reports, and peer-session flags in one place. Every owner is
+        emailed a copy of each contact message as it arrives.
       </p>
     </div>
   </div>
 
   <nav class="filter-tabs" style="margin: 0 0 24px;" aria-label="Inbox filters">
     <a href="{{ url_for('admin.inbox', filter='all') }}" class="{{ 'active' if filter == 'all' }}">All</a>
+    <a href="{{ url_for('admin.inbox', filter='messages') }}" class="{{ 'active' if filter == 'messages' }}">Messages ({{ counts.messages }})</a>
     <a href="{{ url_for('admin.inbox', filter='feedback') }}" class="{{ 'active' if filter == 'feedback' }}">Feedback ({{ counts.feedback }})</a>
     <a href="{{ url_for('admin.inbox', filter='complaint') }}" class="{{ 'active' if filter == 'complaint' }}">Complaints ({{ counts.complaint }})</a>
     <a href="{{ url_for('admin.inbox', filter='error') }}" class="{{ 'active' if filter == 'error' }}">Error reports ({{ counts.error }})</a>
@@ -22,6 +25,41 @@
     <a href="{{ url_for('admin.inbox', filter='open') }}" class="{{ 'active' if filter == 'open' }}">Open ({{ counts.reports_open }})</a>
     <a href="{{ url_for('admin.inbox', filter='resolved') }}" class="{{ 'active' if filter == 'resolved' }}">Resolved ({{ counts.reports_resolved }})</a>
   </nav>
+
+  {% if message_rows %}
+  <section class="admin-panel studio-card">
+    <h2>Contact form messages</h2>
+    <table class="admin-table inbox-feedback-table" data-collapsible="12">
+      <thead>
+        <tr><th>When</th><th>From</th><th>Message</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for m in message_rows %}
+        <tr>
+          <td class="inbox-cell--when">{{ m.created_at.strftime('%b %d, %H:%M') }}</td>
+          <td>
+            {{ m.name }}
+            <div class="field-help"><a href="mailto:{{ m.email }}">{{ m.email }}</a></div>
+            {% if m.status == 'reviewed' %}<div class="field-help">reviewed</div>{% endif %}
+          </td>
+          <td class="inbox-cell--note">{{ m.body }}</td>
+          <td class="inbox-cell--actions">
+            <a class="btn btn--secondary btn--sm"
+               href="mailto:{{ m.email }}?subject={{ ('Re: your message to Bloom Anyway')|urlencode }}">Reply</a>
+            {% if m.status != 'reviewed' %}
+            <form method="post" action="{{ url_for('admin.inbox_message_reviewed', message_id=m.id) }}" class="inline-form">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="filter" value="{{ filter }}">
+              <button class="btn btn--secondary btn--sm" type="submit">Mark reviewed</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+  {% endif %}
 
   {% if feedback_rows %}
   <section class="admin-panel studio-card">
@@ -158,7 +196,7 @@
   </section>
   {% endif %}
 
-  {% if not feedback_rows and not report_rows %}
+  {% if not message_rows and not feedback_rows and not report_rows %}
   <section class="admin-panel studio-card">
     <p class="field-help" style="margin:0;">Nothing in this filter yet.</p>
   </section>

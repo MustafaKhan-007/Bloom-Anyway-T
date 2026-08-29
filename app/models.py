@@ -1220,12 +1220,15 @@ class VisitEvent(db.Model):
 
 
 class ContactMessage(db.Model):
+    """A message from the public contact form. Shown in Studio → Inbox."""
     __tablename__ = "contact_messages"
 
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(120), nullable=False)
     email = db.Column(db.String(255), nullable=False)
     body = db.Column(db.Text, nullable=False)
+    # new / reviewed, mirroring SiteFeedback so the Inbox can triage both.
+    status = db.Column(db.String(20), nullable=False, default="new", index=True)
     created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
 
 

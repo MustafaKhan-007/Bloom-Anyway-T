@@ -1944,6 +1944,72 @@ r = client.post("/contact", data={"name": "x", "email": "x@y.com", "message": "h
                 follow_redirects=False)
 ok("Contact honeypot silently redirects", r.status_code == 302)
 
+# --- contact form: every owner hears about it, and it lands in the Inbox ----
+from app.models import ContactMessage as _CM
+from app.services import mailer as _mailer
+
+with app.app_context():
+    _second_owner = User(email="coowner@example.com", display_name="Second Owner",
+                         is_admin=True, email_verified_at=utcnow())
+    _second_owner.set_password(USER_PW)
+    db.session.add(_second_owner)
+    db.session.commit()
+    _owner_list = _mailer.owner_emails()
+ok("Owner email list covers every owner account",
+   "coowner@example.com" in _owner_list and len(_owner_list) >= 2,
+   f"got {_owner_list}")
+
+_contact_mail = []
+_orig_contact_send = _mailer.send_styled_email
+_mailer.send_styled_email = (
+    lambda to, **kw: _contact_mail.append(dict(kw, to=to)) or True
+)
+r = client.post("/contact", data={"name": "Wren Aziz", "email": "wren@example.com",
+                                  "message": "Can I join a circle mid-month?"},
+                follow_redirects=True)
+_mailer.send_styled_email = _orig_contact_send
+
+ok("Contact form accepts a real message",
+   r.status_code == 200 and "hear back soon" in r.get_data(as_text=True))
+ok("Every owner is emailed the contact message",
+   {m["to"] for m in _contact_mail} >= set(_owner_list),
+   f"sent to {[m['to'] for m in _contact_mail]}, owners {_owner_list}")
+ok("The contact email carries the sender and their words",
+   all("wren@example.com" in (m.get("body") or "")
+       and "join a circle mid-month" in (m.get("body") or "")
+       for m in _contact_mail))
+ok("The contact email links straight to the Inbox messages tab",
+   all("/admin/inbox?filter=messages" in (m.get("button_url") or "")
+       for m in _contact_mail))
+
+with app.app_context():
+    _msg = (_CM.query.filter_by(email="wren@example.com")
+            .order_by(_CM.id.desc()).first())
+    ok("Contact message is stored as new work",
+       _msg is not None and _msg.status == "new")
+    _msg_id = _msg.id
+
+r = admin.get("/admin/inbox?filter=messages")
+_ibody = r.get_data(as_text=True)
+ok("Studio inbox shows the contact message",
+   r.status_code == 200 and "Contact form messages" in _ibody
+   and "Wren Aziz" in _ibody and "join a circle mid-month" in _ibody
+   and "wren@example.com" in _ibody, f"status {r.status_code}")
+ok("Inbox counts unanswered messages in the tab",
+   "Messages (1)" in _ibody)
+
+r = admin.post(f"/admin/inbox/messages/{_msg_id}/reviewed", follow_redirects=True)
+_ibody = r.get_data(as_text=True)
+with app.app_context():
+    ok("Marking a message reviewed sticks",
+       db.session.get(_CM, _msg_id).status == "reviewed")
+ok("A reviewed message stops counting against the owner",
+   "Messages (0)" in _ibody, flashes(r))
+
+r = admin.get("/admin/inbox")
+ok("Contact messages also appear in the unfiltered inbox",
+   "Wren Aziz" in r.get_data(as_text=True))
+
 r = client.get("/healthz")
 ok("Health check", r.status_code == 200 and r.get_json()["status"] == "ok")
 

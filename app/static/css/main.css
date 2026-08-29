@@ -9124,6 +9124,15 @@ a.at-handle:hover { text-decoration: underline; }
   .admin-table.is-stacked tbody td form { width: 100%; }
   .admin-table.is-stacked tbody td .btn + .btn { margin-top: 8px; }
 
+  /* Action cells mix bare links with little forms, so .btn + .btn can't space
+     them and the desktop nowrap pushes the last one off the card. */
+  .admin-table.is-stacked tbody td.inbox-cell--actions:not(.is-empty) {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    white-space: normal;
+  }
+
   /* Row checkbox sits with its label rather than in a 2rem column. */
   .admin-table.is-stacked tbody td.studio-bulk__check {
     width: auto;
