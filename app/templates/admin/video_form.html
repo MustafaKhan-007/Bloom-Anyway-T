@@ -65,25 +65,35 @@
 
     <section class="admin-panel studio-card studio-section">
       <h2>3. Who it's for</h2>
-      <p class="field-help studio-section__lede">Everyone signed in sees the title and summary. The tip itself is Creator / Full Bloom unless you open it up.</p>
-      <div class="form-row">
-        <div class="field">
-          <label for="sort_order">Sort order</label>
-          <input type="number" id="sort_order" name="sort_order" value="{{ video.sort_order if video else 0 }}">
-        </div>
-        <div class="field" style="padding-top: 22px;">
-          <label class="checkline checkline--sm checkline--stack">
-            <input type="checkbox" name="published" value="1" {{ 'checked' if not video or video.published }}> Live in the Content Hub
-          </label>
-          <label class="checkline checkline--sm checkline--stack">
-            <input type="checkbox" name="free_access" value="1" {{ 'checked' if video and video.free_access }}>
-            Open to Free members
-          </label>
-          <label class="checkline checkline--sm checkline--stack">
-            <input type="checkbox" name="healing_access" value="1" {{ 'checked' if video and video.healing_access }}>
-            Open to Healing members
-          </label>
-        </div>
+      <p class="field-help studio-section__lede">Everyone signed in sees the title and summary on the Content Hub. These switches decide who can open the tip and read it &mdash; tap one to turn it on, and it fills in.</p>
+
+      <div class="field">
+        <label class="checkline checkline--sm checkline--block checkline--mark">
+          <input type="checkbox" name="published" value="1" {{ 'checked' if not video or video.published }}> Live in the Content Hub
+        </label>
+        <p class="field-help">Off keeps it a draft that only you can see.</p>
+      </div>
+
+      <div class="field">
+        <label class="checkline checkline--sm checkline--block checkline--mark">
+          <input type="checkbox" name="free_access" value="1" {{ 'checked' if video and video.free_access }}>
+          Open to Free members
+        </label>
+        <p class="field-help">On means anyone with an account reads it, no membership needed.</p>
+      </div>
+
+      <div class="field">
+        <label class="checkline checkline--sm checkline--block checkline--mark">
+          <input type="checkbox" name="healing_access" value="1" {{ 'checked' if video and video.healing_access }}>
+          Open to Healing members
+        </label>
+        <p class="field-help">With both switches off, only Creator and Full Bloom can read it &mdash; everyone else sees the opening lines and an invitation to upgrade.</p>
+      </div>
+
+      <div class="field">
+        <label for="sort_order">Sort order</label>
+        <input type="number" id="sort_order" name="sort_order" value="{{ video.sort_order if video else 0 }}">
+        <p class="field-help">Lower numbers sit earlier in the hub. Leave everything at 0 and the newest tip leads.</p>
       </div>
     </section>
 

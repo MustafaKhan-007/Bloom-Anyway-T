@@ -1215,6 +1215,17 @@ html.is-page-loading { cursor: progress; }
 .checkline--compose {
   margin: 4px 0 16px;
 }
+/* A row of these pills reads as a button group when they're all off. The mark
+   says "switch" before you've touched anything. */
+.checkline--mark { gap: 9px; }
+.checkline--mark::before {
+  content: ""; flex: none; width: 14px; height: 14px; border-radius: 50%;
+  border: 1.5px solid currentColor; opacity: 0.4;
+}
+.checkline--mark:has(input:checked)::before {
+  opacity: 1; border-color: #fff; background: #fff;
+  box-shadow: inset 0 0 0 3px var(--plum);
+}
 
 /* screen-reader-only (also hides the raw file input behind the avatar) */
 .sr-only {
