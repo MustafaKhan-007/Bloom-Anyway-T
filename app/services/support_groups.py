@@ -789,6 +789,105 @@ def leave_peer_session(user: User, meeting_id: int) -> str | None:
     return None
 
 
+#: A 1:1 cancelled with less notice than this is not refundable.
+ONE_ON_ONE_REFUND_HOURS = 24
+
+
+def one_on_one_refundable(meeting: SupportGroupMeeting,
+                          now: datetime | None = None) -> bool:
+    """True when there's still at least a day before the session starts."""
+    if meeting is None or not meeting.scheduled_at:
+        return False
+    now = now or utcnow()
+    return meeting.scheduled_at - now >= timedelta(hours=ONE_ON_ONE_REFUND_HOURS)
+
+
+def cancel_one_on_one(user: User, meeting_id: int) -> tuple[str | None, bool]:
+    """Member cancels their own 1:1. Returns ``(error, refundable)``.
+
+    A 1:1 has one member in it, so dropping the seat ends the session: the
+    room goes away and the founder's slot frees up. Refunds are the owner's
+    to issue, so the alert says plainly whether one is owed.
+    """
+    meeting = db.session.get(SupportGroupMeeting, meeting_id)
+    if meeting is None or (meeting.kind or "").strip().lower() != "one_on_one":
+        return "Session not found.", False
+    seat = user_selected_on_meeting(user.id, meeting.id)
+    if seat is None:
+        return "That isn't your session.", False
+    if meeting.status != "scheduled":
+        return "That session is already cancelled.", False
+    if meeting.scheduled_at and meeting.scheduled_at <= utcnow():
+        return "That session has already started — reach out to us instead.", False
+
+    refundable = one_on_one_refundable(meeting)
+    coach = normalize_custom_topic(meeting.notes) or "a founder"
+    day, at_time = _session_date_and_time(user, meeting.scheduled_at)
+    room_name = (meeting.zoom_meeting_id or "").strip()
+
+    meeting.status = "cancelled"
+    seat.status = "cancelled"
+    try:
+        from .coaching_intake import intake_for_meeting
+        intake = intake_for_meeting(meeting.id)
+        if intake is not None and intake.status in ("paid", "scheduled",
+                                                    "pending_payment"):
+            intake.status = "cancelled"
+    except Exception:
+        log.exception("Failed syncing cancelled intake for meeting %s", meeting.id)
+    db.session.commit()
+
+    if room_name:
+        try:
+            daily_svc.delete_room(room_name)
+        except Exception:
+            log.exception("Failed to delete Daily room %s", room_name)
+
+    from .social_graph import notify_owners
+    money = ("A refund is due — they cancelled more than "
+             f"{ONE_ON_ONE_REFUND_HOURS} hours ahead."
+             if refundable else
+             f"No refund is due — cancelled inside {ONE_ON_ONE_REFUND_HOURS} hours.")
+    notify_owners(
+        kind="support_group_alert",
+        body=f"{user.public_name()} cancelled their 1:1 with {coach} "
+             f"on {day} at {at_time}. {money}"[:300],
+        url=url_for("admin.support_groups"),
+        actor_id=user.id,
+    )
+    db.session.commit()
+
+    # Template #18 tells people the founder cancelled and a refund is coming,
+    # which is wrong both ways here, so this one is written out in full.
+    if refundable:
+        money_line = (
+            f"Because you cancelled more than {ONE_ON_ONE_REFUND_HOURS} hours "
+            "ahead, your payment is being refunded to the card you used. "
+            "It usually lands within 5-10 business days."
+        )
+    else:
+        money_line = (
+            f"This one was inside the {ONE_ON_ONE_REFUND_HOURS}-hour window, "
+            "so it isn't refundable — that time was being held for you."
+        )
+    try:
+        send_styled_email(
+            user.email,
+            subject=f"Your 1:1 with {coach} is cancelled",
+            preview=f"Your session on {day} is cancelled.",
+            header="1:1 coaching",
+            title=f"Your 1:1 with {coach} is cancelled",
+            body=(f"You cancelled your session on {day} at {at_time}. "
+                  f"{money_line}\n\n"
+                  "Whenever you're ready, you can book a new time."),
+            button_text="Book another time",
+            button_url=_circle_browse_url(None) + "#coaching",
+        )
+    except Exception:
+        log.exception("1:1 cancel email failed for user %s", user.id)
+    return None, refundable
+
+
 def _notify_joiner(meeting: SupportGroupMeeting, user: User) -> None:
     room = _meeting_room_url(meeting)
     group = _circle_name(meeting)

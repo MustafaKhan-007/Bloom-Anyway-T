@@ -1122,8 +1122,25 @@ r = admin.post("/admin/videos/new", data={
     "video_file": (io.BytesIO(minimal_mp4), "clip.mp4"),
 }, content_type="multipart/form-data", follow_redirects=True)
 ok("Owner writes a tip with a video", "Tip saved" in r.get_data(as_text=True))
+ok("Studio confirms the tip went out to members",
+   "notified" in r.get_data(as_text=True))
 with app.app_context():
+    from app.models import Notification as _Note
     vid_id = Video.query.filter_by(title="Morning pages walkthrough").first().id
+    tip_notes = _Note.query.filter_by(kind="content_hub").all()
+    ok("Publishing a tip notifies members",
+       len(tip_notes) >= 1
+       and all("Morning pages walkthrough" in (n.body or "") for n in tip_notes)
+       and all(f"/watch/{vid_id}" == (n.url or "") for n in tip_notes))
+    owner_row = User.query.filter_by(email="owner@example.com").first()
+    ok("The owner isn't notified about their own tip",
+       all(n.user_id != owner_row.id for n in tip_notes))
+
+# The home-page notice must follow the newest tip, not the hub's sort order.
+_notice_html = client.get("/").get_data(as_text=True)
+ok("New tip is announced on the home page",
+   "New in the Content Hub" in _notice_html
+   and "Morning pages walkthrough" in _notice_html)
 
 # the whole point: a tip is writing, so the video is optional
 r = admin.post("/admin/videos/new", data={
@@ -1138,6 +1155,21 @@ with app.app_context():
        text_tip is not None and text_tip.has_video() is False
        and "ten first lines" in (text_tip.body or ""))
     text_tip_id = text_tip.id
+
+# One tip pinned to the top of the hub used to swallow the notice for every
+# tip published after it.
+with app.app_context():
+    pinned = db.session.get(Video, vid_id)
+    pinned.sort_order = -5
+    db.session.commit()
+_pinned_html = client.get("/").get_data(as_text=True)
+ok("A pinned older tip no longer hides the newest one",
+   "Batch a week of hooks" in _pinned_html)
+ok("Free members hear about new tips too",
+   "New in the Content Hub" in free_client.get("/").get_data(as_text=True))
+with app.app_context():
+    db.session.get(Video, vid_id).sort_order = 0
+    db.session.commit()
 
 r = admin.post("/admin/videos/new", data={
     "title": "Nothing to say", "published": "1",
@@ -2308,6 +2340,90 @@ with app.app_context():
         meeting_id=mid, status="cancelled").count()
     ok("Peer cancel marks seats cancelled (no waitlist return)", cancelled_seats == 2)
 
+# --- member cancels their own 1:1 (refund only 24h+ ahead) -------------------
+def _seat_one_on_one(email, hours_ahead):
+    """A booked founder 1:1 for `email`, starting `hours_ahead` from now."""
+    with app.app_context():
+        member = User.query.filter_by(email=email).first()
+        meeting = SupportGroupMeeting(
+            kind="one_on_one", capacity=2, status="scheduled",
+            scheduled_at=utcnow() + timedelta(hours=hours_ahead),
+            notes="Saman", booked_notified_at=utcnow(),
+        )
+        db.session.add(meeting)
+        db.session.flush()
+        db.session.add(SupportGroupApplication(
+            user_id=member.id, meeting_id=meeting.id, status="selected"))
+        db.session.commit()
+        return meeting.id
+
+_ooo_far = _seat_one_on_one("newperson@example.com", 72)
+r = client.get("/support-groups")
+_sg_html = r.get_data(as_text=True)
+ok("A booked 1:1 offers a cancel button",
+   f"/support-groups/one-on-one/{_ooo_far}/cancel" in _sg_html
+   and "Cancel session" in _sg_html)
+ok("The 1:1 says refunds need 24 hours' notice",
+   "refunds only apply if you" in _sg_html.lower()
+   and "24 hours before the session" in _sg_html)
+
+_styled_mail = []
+_orig_styled = sg_svc.send_styled_email
+sg_svc.send_styled_email = (
+    lambda to, **kw: _styled_mail.append(dict(kw, to=to)) or True
+)
+
+r = client.post(f"/support-groups/one-on-one/{_ooo_far}/cancel",
+                follow_redirects=True)
+_body = r.get_data(as_text=True)
+ok("Cancelling early promises the refund",
+   "refund is on its way" in _body)
+with app.app_context():
+    _m = db.session.get(SupportGroupMeeting, _ooo_far)
+    ok("Cancelled 1:1 is off the schedule", _m.status == "cancelled")
+    ok("Cancelled 1:1 releases the seat",
+       SupportGroupApplication.query.filter_by(
+           meeting_id=_ooo_far, status="selected").count() == 0)
+    _owner = User.query.filter_by(email="owner@example.com").first()
+    _alert = (Notification.query
+              .filter_by(user_id=_owner.id, kind="support_group_alert")
+              .order_by(Notification.id.desc()).first())
+    ok("Studio is told a refund is due",
+       _alert is not None and "refund is due" in (_alert.body or "").lower()
+       and "cancelled their 1:1" in (_alert.body or ""))
+ok("Member's email confirms the refund is coming",
+   any("refunded to the card" in (m.get("body") or "") for m in _styled_mail))
+
+_ooo_soon = _seat_one_on_one("newperson@example.com", 5)
+_soon_html = client.get("/support-groups").get_data(as_text=True)
+ok("A session inside the window warns there's no refund",
+   "won't be refunded" in _soon_html)
+_styled_mail.clear()
+r = client.post(f"/support-groups/one-on-one/{_ooo_soon}/cancel",
+                follow_redirects=True)
+ok("Cancelling late says so plainly",
+   "inside the 24-hour window" in r.get_data(as_text=True))
+ok("Late-cancel email doesn't promise a refund",
+   any("isn't refundable" in (m.get("body") or "") for m in _styled_mail)
+   and not any("refunded to the card" in (m.get("body") or "")
+               for m in _styled_mail))
+sg_svc.send_styled_email = _orig_styled
+with app.app_context():
+    _alert = (Notification.query.filter_by(kind="support_group_alert")
+              .order_by(Notification.id.desc()).first())
+    ok("Studio is told no refund is owed",
+       _alert is not None and "no refund is due" in (_alert.body or "").lower())
+
+_ooo_other = _seat_one_on_one("newperson@example.com", 48)
+r = stranger_client.post(f"/support-groups/one-on-one/{_ooo_other}/cancel",
+                         follow_redirects=True)
+_deny = r.get_data(as_text=True)
+ok("Nobody can cancel someone else's 1:1",
+   "isn&#39;t your session" in _deny or "isn't your session" in _deny)
+with app.app_context():
+    ok("Someone else's 1:1 stays booked",
+       db.session.get(SupportGroupMeeting, _ooo_other).status == "scheduled")
+
 # Cap: max 4 open peer sessions per topic
 with app.app_context():
     # Clear any leftover open peer sessions on this topic from earlier steps.
@@ -2960,6 +3076,16 @@ r = admin.post(
     follow_redirects=True,
 )
 ok("Studio creates a drip-fed product", r.status_code == 200)
+ok("Studio confirms the new product went out to members",
+   "notified" in r.get_data(as_text=True))
+with app.app_context():
+    from app.models import Notification as _Note
+    course_note = (_Note.query.filter_by(kind="course")
+                   .order_by(_Note.id.desc()).first())
+    ok("Publishing a product announces it",
+       course_note is not None
+       and "Drip Course" in (course_note.body or "")
+       and (course_note.url or "") == "/courses/drip-course")
 with app.app_context():
     drip_prod = Product.query.filter_by(slug="drip-course").first()
     ok("Drip schedule saved on the product",

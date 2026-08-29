@@ -114,12 +114,16 @@ def _spotlight_context():
 
 
 def _video_notice():
-    """Newest published video, only for the first day after it goes live."""
-    if not (getattr(current_user, "is_authenticated", False)
-            and current_user.has_feature("content_hub_creator")):
+    """Newest published tip, only for the first day after it goes live.
+
+    Ordering here is by date alone. Sorting by ``sort_order`` first (the hub's
+    own order) meant one pinned older tip became "the latest" and swallowed the
+    notice for everything published after it.
+    """
+    if not getattr(current_user, "is_authenticated", False):
         return None
     video = (Video.query.filter_by(published=True)
-             .order_by(Video.sort_order, Video.created_at.desc()).first())
+             .order_by(Video.created_at.desc()).first())
     if video is None or not video.created_at:
         return None
     # hide after ~24 hours
@@ -2013,6 +2017,10 @@ def support_groups_page():
         facilitator_cap=sg_svc.FACILITATOR_MEETING_CAP,
         my_one_on_ones=my_one_on_ones,
         one_on_one_minutes=sg_svc.ONE_ON_ONE_DURATION_MINUTES,
+        one_on_one_refundable={
+            m.id: sg_svc.one_on_one_refundable(m) for m in my_one_on_ones
+        },
+        refund_hours=sg_svc.ONE_ON_ONE_REFUND_HOURS,
     )
 
 
@@ -2023,6 +2031,7 @@ def coaching_book(coach):
     """Questionnaire + availability slot, then Stripe Checkout for a founder 1:1."""
     from ..services import coaching_intake as intake_svc
     from ..services import settings as settings_service
+    from ..services import support_groups as sg_svc
     from ..services.timefmt import viewer_timezone
 
     key = intake_svc.normalize_coach(coach)
@@ -2074,6 +2083,7 @@ def coaching_book(coach):
         slots=slots,
         viewer_tz=viewer_tz,
         duration_min=60,
+        refund_hours=sg_svc.ONE_ON_ONE_REFUND_HOURS,
     )
 
 
@@ -2234,6 +2244,23 @@ def leave_support_session(meeting_id):
     else:
         flash("You've left that session.", "success")
     return redirect(url_for("main.support_groups_page"))
+
+
+@bp.route("/support-groups/one-on-one/<int:meeting_id>/cancel", methods=["POST"])
+@login_required
+def cancel_one_on_one(meeting_id):
+    from ..services import support_groups as sg_svc
+    err, refundable = sg_svc.cancel_one_on_one(current_user, meeting_id)
+    if err:
+        flash(err, "error")
+    elif refundable:
+        flash("Your 1:1 is cancelled. You cancelled more than 24 hours ahead, "
+              "so your refund is on its way — allow a few days for it to land.",
+              "success")
+    else:
+        flash("Your 1:1 is cancelled. It was inside the 24-hour window, so "
+              "this one isn't refundable.", "info")
+    return redirect(url_for("main.support_groups_page") + "#coaching")
 
 
 @bp.route("/support-groups/meetings/<int:meeting_id>/room")

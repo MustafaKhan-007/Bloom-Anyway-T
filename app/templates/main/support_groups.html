@@ -309,16 +309,33 @@
       {% if my_one_on_ones %}
       <ul class="sg-upcoming__list" style="margin: 0 0 28px; max-width: 720px;">
         {% for m in my_one_on_ones %}
-        <li class="sg-upcoming__item">
+        {% set refundable = one_on_one_refundable.get(m.id) %}
+        <li class="sg-upcoming__item sg-upcoming__item--ooo">
           <div>
             <strong>1:1 with {{ m.notes or 'a founder' }}</strong>
             <p class="field-help" style="margin:2px 0 0;">
               {{ m.scheduled_at|localtime('%a %b %d · %I:%M %p') }}
               · {{ one_on_one_minutes }} min · in-site video
             </p>
+            <p class="field-help sg-refund{% if not refundable %} sg-refund--closed{% endif %}"
+               style="margin:6px 0 0;">
+              {% if refundable %}
+              Cancel now and you'll be refunded — refunds only apply if you
+              cancel at least {{ refund_hours }} hours before the session.
+              {% else %}
+              Inside the {{ refund_hours }}-hour window, so cancelling this one
+              won't be refunded.
+              {% endif %}
+            </p>
           </div>
           <div class="sg-upcoming__actions">
             <a class="btn btn--primary btn--sm" href="{{ url_for('main.support_session_room', meeting_id=m.id) }}">Join session</a>
+            <form method="post"
+                  action="{{ url_for('main.cancel_one_on_one', meeting_id=m.id) }}"
+                  onsubmit="return confirm({% if refundable %}'Cancel this 1:1? You\'re outside the {{ refund_hours }}-hour window, so you\'ll be refunded.'{% else %}'Cancel this 1:1? It\'s within {{ refund_hours }} hours of the session, so it won\'t be refunded.'{% endif %});">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button class="btn btn--quiet btn--sm" type="submit">Cancel session</button>
+            </form>
           </div>
         </li>
         {% endfor %}
@@ -340,7 +357,8 @@
             <li>Focused on your situation</li>
             <li>In-site video once Studio books you</li>
           </ul>
-          <p class="field-help" style="margin: 0 0 12px;">Limited availability · price shown at checkout</p>
+          <p class="field-help" style="margin: 0 0 12px;">Limited availability · price shown at checkout
+            · refundable if you cancel {{ refund_hours }}+ hours ahead</p>
           <a class="btn btn--primary" href="{{ ayesha_url }}"
              {% if ayesha_external %}target="_blank" rel="noopener"{% endif %}>
             Book with Ayesha &rarr;
@@ -361,7 +379,8 @@
             <li>Content &amp; growth strategy</li>
             <li>In-site video once Studio books you</li>
           </ul>
-          <p class="field-help" style="margin: 0 0 12px;">Limited availability · price shown at checkout</p>
+          <p class="field-help" style="margin: 0 0 12px;">Limited availability · price shown at checkout
+            · refundable if you cancel {{ refund_hours }}+ hours ahead</p>
           <a class="btn btn--gold" href="{{ saman_url }}"
              {% if saman_external %}target="_blank" rel="noopener"{% endif %}>
             Book with Saman &rarr;

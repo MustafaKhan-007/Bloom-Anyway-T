@@ -261,13 +261,23 @@ def notify_mentions(actor: User, text: str, post_id: int | None = None):
 
 
 def notify_everyone(*, kind: str, body: str, url: str | None = None,
-                    actor_id: int | None = None, exclude_id: int | None = None):
-    """Fan out a broadcast notification (Content Hub, new course, etc.)."""
+                    actor_id: int | None = None, exclude_id: int | None = None) -> int:
+    """Fan out a broadcast notification (Content Hub, new course, etc.).
+
+    Returns how many people it reached, so the owner can be told — they are
+    the actor, so they never receive their own broadcast and otherwise have
+    no way of seeing that it went out.
+    """
     q = User.query.filter(User.deleted_at.is_(None))
     if exclude_id:
         q = q.filter(User.id != exclude_id)
+    sent = 0
     for u in q.yield_per(200):
+        if actor_id and u.id == actor_id:
+            continue  # notify() drops these anyway; don't count them
         notify(u.id, kind=kind, body=body, url=url, actor_id=actor_id)
+        sent += 1
+    return sent
 
 
 def notify_owners(*, kind: str, body: str, url: str | None = None,

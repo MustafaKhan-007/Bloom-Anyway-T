@@ -377,6 +377,28 @@ def _apply_product_fields(product: Product, form) -> dict[int, int]:
     return module_numbers
 
 
+def _told_suffix(told: int) -> str:
+    """Owners never receive their own broadcast, so say it went out."""
+    if not told:
+        return ""
+    who = "member was" if told == 1 else "members were"
+    return f" {told} {who} notified."
+
+
+def _announce_product(product: Product) -> int:
+    """Tell members when a product goes live. No-op for drafts."""
+    if product.status != "published":
+        return 0
+    from ..services.social_graph import notify_everyone
+    return notify_everyone(
+        kind="course",
+        body=f"New in Courses & Guides: “{(product.title or '')[:80]}”",
+        url=url_for("main.course_detail", slug=product.slug),
+        actor_id=current_user.id,
+        exclude_id=current_user.id,
+    )
+
+
 def _remap_module_files(product: Product, module_numbers: dict[int, int]) -> None:
     """Follow module files when rows shift; a deleted row leaves its file loose."""
     for asset in product.assets:
@@ -489,8 +511,9 @@ def product_new():
                 "Saved as draft — still need: " + ", ".join(blockers) + ".",
                 "info",
             )
+        told = _announce_product(product)
         db.session.commit()
-        flash(f"“{product.title}” created.", "success")
+        flash(f"“{product.title}” created." + _told_suffix(told), "success")
         return redirect(url_for("admin.product_edit", product_id=product.id))
 
     blank = Product(title="", slug="", type="guide", track="healing",
@@ -539,7 +562,9 @@ def product_edit(product_id):
                 "info",
             )
         elif product.status == "published" and prev_status != "published":
-            flash(f"“{product.title}” is now live on Courses.", "success")
+            told = _announce_product(product)
+            flash(f"“{product.title}” is now live on Courses." + _told_suffix(told),
+                  "success")
         else:
             flash("Product saved.", "success")
         db.session.commit()
@@ -1245,7 +1270,7 @@ def settings():
                 link = sanitize_announcement_url(request.form.get("ann_url"))
                 db.session.add(Announcement(body=body, expires=expires, link_url=link or None))
                 from ..services.social_graph import notify_everyone
-                notify_everyone(
+                told = notify_everyone(
                     kind="announcement",
                     body=f"Site update: {body[:120]}",
                     url=link or url_for("main.index"),
@@ -1253,7 +1278,7 @@ def settings():
                     exclude_id=current_user.id,
                 )
                 db.session.commit()
-                flash("Announcement added.", "success")
+                flash("Announcement added." + _told_suffix(told), "success")
             else:
                 flash("Write something first.", "error")
             return redirect(url_for("admin.settings"))
@@ -1468,9 +1493,10 @@ def video_form(video_id=None):
                     video.thumb_data = None
                     video.thumb_mime = None
                 db.session.flush()
+                told = 0
                 if published and not was_live:
                     from ..services.social_graph import notify_everyone
-                    notify_everyone(
+                    told = notify_everyone(
                         kind="content_hub",
                         body=f"New on Content Hub: “{title[:80]}”",
                         url=url_for("main.watch", video_id=video.id),
@@ -1489,7 +1515,13 @@ def video_form(video_id=None):
             else:
                 if old_disk:
                     delete_stored(current_app.config["VIDEO_STORAGE_DIR"], old_disk)
-                flash("Tip saved.", "success")
+                if told:
+                    flash(f"Tip saved, and {told} "
+                          f"{'member was' if told == 1 else 'members were'} "
+                          "notified. It's on the home page for a day too.",
+                          "success")
+                else:
+                    flash("Tip saved.", "success")
                 return redirect(url_for("admin.videos"))
 
     return render_template("admin/video_form.html", video=video,
@@ -2499,7 +2531,7 @@ def reel_reviews_publish(app_id):
     application.selected = True
     db.session.flush()
     from ..services.social_graph import notify_everyone
-    notify_everyone(
+    told = notify_everyone(
         kind="content_hub",
         body=f"New reel review on Content Hub: “{title[:80]}”",
         url=url_for("main.reel_review", review_id=review.id),
@@ -2507,7 +2539,8 @@ def reel_reviews_publish(app_id):
         exclude_id=current_user.id,
     )
     db.session.commit()
-    flash("Reel review published to the Content Hub.", "success")
+    flash("Reel review published to the Content Hub." + _told_suffix(told),
+          "success")
     return redirect(url_for("admin.reel_reviews"))
 
 
