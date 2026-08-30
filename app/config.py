@@ -46,6 +46,19 @@ class Config:
     VIDEO_STORAGE_DIR = os.environ.get("VIDEO_STORAGE_DIR", "").strip()
     MAX_CONTENT_LENGTH = (MAX_VIDEO_MB + 32) * 1024 * 1024
 
+    # Course module files (lesson videos, worksheets, slides). These stream to
+    # their own directory on the media disk rather than into Postgres, so a
+    # module can hold a full-length video without bloating the database or a
+    # worker's memory.
+    COURSE_FILES_DIR = os.environ.get("COURSE_FILES_DIR", "").strip()
+    # Studio uploads a big file in pieces, so the per-file ceiling is not the
+    # request body limit any more. Cloudflare Free still rejects a single body
+    # over ~100 MB, which is why COURSE_CHUNK_MB stays well under it.
+    COURSE_UPLOAD_MAX_MB = int(
+        os.environ.get("COURSE_UPLOAD_MAX_MB", "2048") or 2048)
+    COURSE_CHUNK_MB = max(1, min(
+        32, int(os.environ.get("COURSE_CHUNK_MB", "8") or 8)))
+
     # Sessions / auth
     SESSION_COOKIE_NAME = "firstlight_session"
     SESSION_COOKIE_HTTPONLY = True

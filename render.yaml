@@ -29,6 +29,16 @@ services:
         value: "95"
       - key: REEL_RAW_MAX_MB
         value: "90"
+      # Course module content (lesson videos, worksheets) on the media disk,
+      # not in Postgres. Studio sends big files up in slices, so this cap is
+      # not bound by Cloudflare's ~100 MB request body limit — COURSE_CHUNK_MB
+      # is what has to stay under it.
+      - key: COURSE_FILES_DIR
+        value: /var/media/course_files
+      - key: COURSE_UPLOAD_MAX_MB
+        value: "2048"
+      - key: COURSE_CHUNK_MB
+        value: "8"
       - key: FLASK_APP
         value: "app:create_app"
       - key: DATABASE_URL

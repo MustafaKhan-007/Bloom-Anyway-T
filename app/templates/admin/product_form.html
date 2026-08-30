@@ -193,11 +193,19 @@
         <p class="field-help">One line per checklist item.</p>
       </div>
       <div class="studio-modules" data-studio-modules data-modules-max="{{ max_modules }}"
-           data-modules-accept="{{ file_accept }}">
+           data-modules-accept="{{ file_accept }}"
+           {%- if not is_new %}
+           data-upload-begin="{{ url_for('admin.product_upload_begin', product_id=product.id) }}"
+           data-upload-chunk="{{ url_for('admin.product_upload_chunk', product_id=product.id, upload_id='UPLOAD_ID') }}"
+           data-upload-finish="{{ url_for('admin.product_upload_finish', product_id=product.id, upload_id='UPLOAD_ID') }}"
+           {%- endif %}
+           data-upload-max="{{ course_max_mb }}">
         <p class="eyebrow" style="margin:0 0 10px;">What’s inside (optional modules)</p>
         <p class="field-help" style="margin:0 0 12px;">
           Leave blank to skip. Start with two — add more whenever you like, including
           after this is live. New modules reach everyone who already bought it.
+          Each module can hold as many videos, documents and written extracts as
+          you want, worked through in the order they appear.
         </p>
         <div class="form-row studio-modules__drip">
           <div class="field" style="flex:2;">
@@ -222,24 +230,70 @@
         </div>
         <div data-modules-list>
           {% for row in modules %}
-          <div class="form-row studio-modules__row" data-module-row>
-            <div class="field">
-              <label for="mod{{ row.number }}_title">Module {{ row.number }} title</label>
-              <input type="text" id="mod{{ row.number }}_title" name="mod{{ row.number }}_title"
-                     maxlength="160" value="{{ row.title or '' }}">
+          <div class="studio-modules__row" data-module-row>
+            <div class="form-row">
+              <div class="field">
+                <label for="mod{{ row.number }}_title">Module {{ row.number }} title</label>
+                <input type="text" id="mod{{ row.number }}_title" name="mod{{ row.number }}_title"
+                       maxlength="160" value="{{ row.title or '' }}">
+              </div>
+              <div class="field" style="flex:2;">
+                <label for="mod{{ row.number }}_desc">Short note</label>
+                <input type="text" id="mod{{ row.number }}_desc" name="mod{{ row.number }}_desc"
+                       maxlength="500" value="{{ row.description or '' }}">
+              </div>
             </div>
-            <div class="field" style="flex:2;">
-              <label for="mod{{ row.number }}_desc">Short note</label>
-              <input type="text" id="mod{{ row.number }}_desc" name="mod{{ row.number }}_desc"
-                     maxlength="500" value="{{ row.description or '' }}">
-            </div>
-            <div class="field">
-              <label for="mod{{ row.number }}_file">Module file</label>
-              <input type="file" id="mod{{ row.number }}_file" name="mod{{ row.number }}_file"
-                     accept="{{ file_accept }}">
-              {% if row.asset %}
-              <p class="field-help">Now: {{ row.asset.display_title() }} ({{ row.asset.kind|upper }}) — pick a file to replace it.</p>
+
+            {% if not is_new %}
+            <ul class="module-items" data-module-items{% if not row['contents'] %} hidden{% endif %}>
+              {% for item in row['contents'] %}
+              <li class="module-items__row">
+                <span class="module-items__kind module-items__kind--{{ item.kind }}">{{ item.kind_label() }}</span>
+                <span class="module-items__name">{{ item.display_title() }}</span>
+                <span class="module-items__size">{{ item.size_display() }}</span>
+                <button class="btn btn--quiet btn--sm" type="submit" form="del-asset-{{ item.id }}">Remove</button>
+              </li>
+              {% endfor %}
+            </ul>
+            {% endif %}
+
+            <div class="module-add">
+              {% if is_new %}
+              <div class="field">
+                <label for="mod{{ row.number }}_file">Files for this module</label>
+                <input type="file" id="mod{{ row.number }}_file" name="mod{{ row.number }}_file"
+                       accept="{{ file_accept }}" multiple>
+                <p class="field-help">
+                  Pick as many as you like, up to {{ inline_max_mb }} MB each. Save the
+                  product first if you have a long video — the uploader on this page
+                  after saving takes files up to {{ course_max_mb }} MB.
+                </p>
+              </div>
+              {% else %}
+              <div class="field chunk-up" data-chunk-upload data-module="{{ row.number }}">
+                <label for="mod{{ row.number }}_up">Add videos, documents or slides</label>
+                <input type="file" id="mod{{ row.number }}_up" accept="{{ file_accept }}"
+                       multiple data-chunk-input>
+                <p class="field-help">
+                  Up to {{ course_max_mb }} MB each. Large files go up in pieces —
+                  leave this tab open until each one says it's done.
+                </p>
+                <ul class="chunk-up__list" data-chunk-list hidden></ul>
+              </div>
+              <noscript>
+                <div class="field">
+                  <label for="mod{{ row.number }}_file">Add a file</label>
+                  <input type="file" id="mod{{ row.number }}_file" name="mod{{ row.number }}_file"
+                         accept="{{ file_accept }}" multiple>
+                  <p class="field-help">Up to {{ inline_max_mb }} MB each without JavaScript.</p>
+                </div>
+              </noscript>
               {% endif %}
+
+              <div class="module-texts" data-text-blocks></div>
+              <button type="button" class="btn btn--quiet btn--sm" data-text-add>
+                Add a written extract
+              </button>
             </div>
           </div>
           {% endfor %}
@@ -332,43 +386,49 @@
   </form>
 
   {% if not is_new %}
+  {% set loose = product.assets | rejectattr('module_index') | list %}
   <section class="admin-panel studio-card studio-section">
-    <h2>5. On-site reading files</h2>
-    <p class="field-help studio-section__lede">PDF or H5P preferred. Buyers open these in My space — not only via email.</p>
-    {% if product.assets %}
+    <h2>5. Files outside the modules</h2>
+    <p class="field-help studio-section__lede">
+      Anything here is open to a buyer from day one, even on a drip schedule —
+      a welcome PDF, say. Module contents live with their module above.
+    </p>
+    {% if loose %}
     <ul class="asset-list">
-      {% for a in product.assets %}
+      {% for a in loose %}
       <li class="asset-list__row">
         <div class="asset-list__name">
           <strong>{{ a.display_title() }}</strong>
-          <small>
-            {{ a.kind|upper }} · {{ a.size_mb() }} MB
-            {%- if a.module_index %} · Module {{ a.module_index }}
-              {%- if product.is_dripped() %} (released on the drip schedule){% endif %}
-            {%- endif %}
-          </small>
+          <small>{{ a.kind_label() }} · {{ a.size_display() }}</small>
         </div>
         <button class="btn btn--danger btn--sm" type="submit" form="del-asset-{{ a.id }}">Remove</button>
       </li>
       {% endfor %}
     </ul>
     {% endif %}
-    <form method="post" action="{{ url_for('admin.product_asset_upload', product_id=product.id) }}"
-          enctype="multipart/form-data" class="form-row" style="align-items:end; margin-top:10px;">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <div class="field" style="flex:2;">
-        <label for="asset_add">Add file</label>
-        <input type="file" id="asset_add" name="asset"
-               accept=".pdf,.h5p,.zip,.png,.jpg,.jpeg,.webp,.gif,.mp4,.webm,.mp3,.wav,.txt,.md,.html,.doc,.docx">
-      </div>
-      <div class="field">
-        <label for="asset_add_title">Label</label>
-        <input type="text" id="asset_add_title" name="asset_title" maxlength="160" placeholder="Main workbook">
-      </div>
-      <div class="field">
-        <button class="btn btn--secondary" type="submit">Upload</button>
-      </div>
-    </form>
+    <div class="field chunk-up" data-chunk-upload data-module="" style="margin-top:10px;">
+      <label for="asset_add">Add a file</label>
+      <input type="file" id="asset_add" accept="{{ file_accept }}" multiple data-chunk-input>
+      <p class="field-help">Up to {{ course_max_mb }} MB each.</p>
+      <ul class="chunk-up__list" data-chunk-list hidden></ul>
+    </div>
+    <noscript>
+      <form method="post" action="{{ url_for('admin.product_asset_upload', product_id=product.id) }}"
+            enctype="multipart/form-data" class="form-row" style="align-items:end; margin-top:10px;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="field" style="flex:2;">
+          <label for="asset_add_plain">Add file</label>
+          <input type="file" id="asset_add_plain" name="asset" accept="{{ file_accept }}">
+        </div>
+        <div class="field">
+          <label for="asset_add_title">Label</label>
+          <input type="text" id="asset_add_title" name="asset_title" maxlength="160" placeholder="Main workbook">
+        </div>
+        <div class="field">
+          <button class="btn btn--secondary" type="submit">Upload</button>
+        </div>
+      </form>
+    </noscript>
   </section>
 
   <form id="del-product" method="post" action="{{ url_for('admin.product_delete', product_id=product.id) }}"

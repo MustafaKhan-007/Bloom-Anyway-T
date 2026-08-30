@@ -82,7 +82,7 @@
     });
   })();
 
-  /* ---- product modules: start with 2, add more (optional) ---- */
+  /* ---- product modules: title, note, and as much content as you like ---- */
   (function () {
     var root = document.querySelector("[data-studio-modules]");
     if (!root) return;
@@ -91,23 +91,26 @@
     if (!list || !addBtn) return;
     var max = parseInt(root.getAttribute("data-modules-max") || "12", 10) || 12;
     var accept = root.getAttribute("data-modules-accept") || "";
-    var parts = ["title", "desc", "file"];
+    var maxMb = root.getAttribute("data-upload-max") || "";
+    var canChunk = !!root.getAttribute("data-upload-begin");
+    // Field suffixes that carry the module number. Text extracts repeat, so
+    // they are renamed together rather than one input at a time.
+    var parts = ["title", "desc", "file", "up", "text_title", "text_body"];
 
     function renumber() {
       var rows = list.querySelectorAll("[data-module-row]");
       rows.forEach(function (row, i) {
         var n = i + 1;
         row.querySelectorAll("label").forEach(function (lab) {
-          var html = lab.innerHTML;
-          lab.innerHTML = html.replace(/Module\s+\d+/i, "Module " + n);
+          lab.innerHTML = lab.innerHTML.replace(/Module\s+\d+/i, "Module " + n);
         });
-        row.querySelectorAll("input").forEach(function (inp) {
+        row.querySelectorAll("input, textarea").forEach(function (inp) {
           var name = inp.getAttribute("name") || "";
+          var id = inp.getAttribute("id") || "";
           parts.forEach(function (part) {
-            if (new RegExp("^mod\\d+_" + part + "$").test(name)) {
-              inp.name = "mod" + n + "_" + part;
-              inp.id = "mod" + n + "_" + part;
-            }
+            var re = new RegExp("^mod\\d+_" + part + "$");
+            if (re.test(name)) inp.name = "mod" + n + "_" + part;
+            if (re.test(id)) inp.id = "mod" + n + "_" + part;
           });
         });
         row.querySelectorAll("label[for]").forEach(function (lab) {
@@ -118,8 +121,30 @@
             }
           });
         });
+        row.querySelectorAll("[data-chunk-upload]").forEach(function (el) {
+          el.setAttribute("data-module", String(n));
+        });
       });
       addBtn.hidden = rows.length >= max;
+    }
+
+    function addSection(n) {
+      if (canChunk) {
+        return '<div class="field chunk-up" data-chunk-upload data-module="' + n + '">' +
+          '<label for="mod' + n + '_up">Add videos, documents or slides</label>' +
+          '<input type="file" id="mod' + n + '_up" accept="' + accept +
+          '" multiple data-chunk-input>' +
+          '<p class="field-help">Up to ' + maxMb + ' MB each. Large files go up in ' +
+          "pieces — leave this tab open until each one says it's done.</p>" +
+          '<ul class="chunk-up__list" data-chunk-list hidden></ul>' +
+          "</div>";
+      }
+      return '<div class="field">' +
+        '<label for="mod' + n + '_file">Files for this module</label>' +
+        '<input type="file" id="mod' + n + '_file" name="mod' + n +
+        '_file" accept="' + accept + '" multiple>' +
+        '<p class="field-help">Save the product first if you have a long video.</p>' +
+        "</div>";
     }
 
     addBtn.addEventListener("click", function () {
@@ -127,9 +152,10 @@
       if (rows.length >= max) return;
       var n = rows.length + 1;
       var row = document.createElement("div");
-      row.className = "form-row studio-modules__row";
+      row.className = "studio-modules__row";
       row.setAttribute("data-module-row", "");
       row.innerHTML =
+        '<div class="form-row">' +
         '<div class="field">' +
         '<label for="mod' + n + '_title">Module ' + n + " title</label>" +
         '<input type="text" id="mod' + n + '_title" name="mod' + n +
@@ -139,17 +165,187 @@
         '<label for="mod' + n + '_desc">Short note</label>' +
         '<input type="text" id="mod' + n + '_desc" name="mod' + n +
         '_desc" maxlength="500" value="">' +
-        "</div>" +
-        '<div class="field">' +
-        '<label for="mod' + n + '_file">Module file</label>' +
-        '<input type="file" id="mod' + n + '_file" name="mod' + n +
-        '_file" accept="' + accept + '">' +
-        "</div>";
+        "</div></div>" +
+        (canChunk ? '<ul class="module-items" data-module-items hidden></ul>' : "") +
+        '<div class="module-add">' + addSection(n) +
+        '<div class="module-texts" data-text-blocks></div>' +
+        '<button type="button" class="btn btn--quiet btn--sm" data-text-add>' +
+        "Add a written extract</button></div>";
       list.appendChild(row);
       renumber();
     });
 
+    /* Written extracts: typed straight in, any number per module. */
+    list.addEventListener("click", function (e) {
+      var add = e.target.closest("[data-text-add]");
+      if (add) {
+        var row = add.closest("[data-module-row]");
+        var holder = row && row.querySelector("[data-text-blocks]");
+        if (!holder) return;
+        var n = Array.prototype.indexOf.call(
+          list.querySelectorAll("[data-module-row]"), row) + 1;
+        var block = document.createElement("div");
+        block.className = "module-texts__block";
+        block.innerHTML =
+          '<input type="text" name="mod' + n + '_text_title" maxlength="160" ' +
+          'placeholder="What this extract is called">' +
+          '<textarea name="mod' + n + '_text_body" rows="5" ' +
+          'placeholder="Write it here. Buyers read this on the page — no file needed."></textarea>' +
+          '<button type="button" class="btn btn--quiet btn--sm" data-text-remove>Remove</button>';
+        holder.appendChild(block);
+        var field = block.querySelector("input");
+        if (field) field.focus();
+        return;
+      }
+      var rm = e.target.closest("[data-text-remove]");
+      if (rm) {
+        var blk = rm.closest("[data-text-block], .module-texts__block");
+        if (blk) blk.remove();
+      }
+    });
+
     renumber();
+  })();
+
+  /* ---- course files uploaded a slice at a time ----
+     Cloudflare rejects a request body over ~100 MB, so a lesson video cannot
+     arrive in one piece. The file is cut up here and reassembled on the disk. */
+  (function () {
+    var root = document.querySelector("[data-studio-modules]");
+    var beginUrl = root && root.getAttribute("data-upload-begin");
+    if (!beginUrl) return;
+    var chunkTpl = root.getAttribute("data-upload-chunk") || "";
+    var finishTpl = root.getAttribute("data-upload-finish") || "";
+    var maxMb = parseInt(root.getAttribute("data-upload-max") || "0", 10) || 0;
+    var csrf = (document.body && document.body.getAttribute("data-csrf")) || "";
+
+    function readJson(resp) {
+      return resp.json().catch(function () { return {}; })
+        .then(function (body) { return { ok: resp.ok, body: body }; });
+    }
+
+    function listItem(name) {
+      var li = document.createElement("li");
+      li.className = "chunk-up__item";
+      li.innerHTML = '<span class="chunk-up__name"></span>' +
+        '<span class="chunk-up__bar"><i></i></span>' +
+        '<span class="chunk-up__state">Starting</span>';
+      li.querySelector(".chunk-up__name").textContent = name;
+      return li;
+    }
+
+    function showAdded(box, info) {
+      var row = box.closest("[data-module-row]");
+      var items = row ? row.querySelector("[data-module-items]") : null;
+      if (!items) return;
+      var li = document.createElement("li");
+      li.className = "module-items__row";
+      li.innerHTML = '<span class="module-items__kind"></span>' +
+        '<span class="module-items__name"></span>' +
+        '<span class="module-items__size"></span>';
+      li.querySelector(".module-items__kind").textContent = info.kind_label || "File";
+      li.querySelector(".module-items__name").textContent = info.title || "";
+      li.querySelector(".module-items__size").textContent = info.size || "";
+      items.hidden = false;
+      items.appendChild(li);
+    }
+
+    function send(file, box, listEl) {
+      var li = listItem(file.name);
+      listEl.hidden = false;
+      listEl.appendChild(li);
+      var bar = li.querySelector(".chunk-up__bar i");
+      var state = li.querySelector(".chunk-up__state");
+      var moduleNumber = box.getAttribute("data-module") || "";
+
+      if (maxMb && file.size > maxMb * 1024 * 1024) {
+        li.classList.add("is-error");
+        state.textContent = "Over " + maxMb + " MB";
+        return Promise.resolve();
+      }
+
+      return fetch(beginUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": csrf,
+          "X-Requested-With": "fetch"
+        },
+        body: JSON.stringify({ filename: file.name, size: file.size })
+      }).then(readJson).then(function (res) {
+        if (!res.ok) throw new Error(res.body.error || "Could not start that upload.");
+        var id = res.body.upload_id;
+        var step = res.body.chunk_bytes || 8 * 1024 * 1024;
+        var sent = 0;
+
+        function nextSlice() {
+          if (sent >= file.size) return done();
+          var slice = file.slice(sent, Math.min(sent + step, file.size));
+          var fd = new FormData();
+          fd.append("chunk", slice);
+          return fetch(chunkTpl.replace("UPLOAD_ID", id), {
+            method: "POST",
+            headers: { "X-CSRFToken": csrf, "X-Requested-With": "fetch" },
+            body: fd
+          }).then(readJson).then(function (cr) {
+            if (!cr.ok) throw new Error(cr.body.error || "That upload stalled.");
+            sent = cr.body.received;
+            var pct = Math.min(100, Math.round((100 * sent) / file.size));
+            bar.style.width = pct + "%";
+            state.textContent = pct + "%";
+            return nextSlice();
+          });
+        }
+
+        function done() {
+          state.textContent = "Saving";
+          return fetch(finishTpl.replace("UPLOAD_ID", id), {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-CSRFToken": csrf,
+              "X-Requested-With": "fetch"
+            },
+            body: JSON.stringify({
+              filename: file.name,
+              module: moduleNumber ? parseInt(moduleNumber, 10) : null
+            })
+          }).then(readJson).then(function (fr) {
+            if (!fr.ok) throw new Error(fr.body.error || "Could not save that file.");
+            bar.style.width = "100%";
+            li.classList.add("is-done");
+            state.textContent = "Added";
+            showAdded(box, fr.body);
+          });
+        }
+
+        return nextSlice();
+      }).catch(function (err) {
+        li.classList.add("is-error");
+        state.textContent = err.message || "Upload failed.";
+      });
+    }
+
+    document.addEventListener("change", function (e) {
+      var input = e.target.closest("[data-chunk-input]");
+      if (!input) return;
+      var box = input.closest("[data-chunk-upload]");
+      var listEl = box && box.querySelector("[data-chunk-list]");
+      if (!box || !listEl) return;
+      var files = Array.prototype.slice.call(input.files || []);
+      input.value = "";
+      // One at a time: the server appends slices to a single part file, and
+      // parallel uploads would interleave into each other.
+      files.reduce(function (chain, file) {
+        return chain.then(function () { return send(file, box, listEl); });
+      }, Promise.resolve());
+    });
+
+    window.addEventListener("beforeunload", function (e) {
+      if (!document.querySelector(".chunk-up__item:not(.is-done):not(.is-error)")) return;
+      e.preventDefault();
+      e.returnValue = "";
+    });
   })();
 
   /* ---- CSP-safe auto-submit selects ---- */

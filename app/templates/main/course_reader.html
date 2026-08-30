@@ -96,6 +96,9 @@
             <span class="reader-modules__body">
               <strong>{{ m.title }}</strong>
               {% if m.description %}<small>{{ m.description }}</small>{% endif %}
+              {% if m['contents']|length > 1 %}
+              <small>{{ m['contents']|length }} pieces to work through</small>
+              {% endif %}
             </span>
           </a>
           {% else %}
@@ -114,6 +117,29 @@
         {% endfor %}
       </ol>
     </nav>
+    {% endif %}
+
+    {% macro pieces(label, list, module) %}
+    <nav class="reader-pieces" aria-label="{{ label }}">
+      <p class="reader-pieces__title">{{ label }}</p>
+      <ol class="reader-pieces__list">
+        {% for piece in list %}
+        <li class="reader-pieces__item{{ ' is-active' if asset and piece.id == asset.id }}">
+          <a href="{{ url_for('main.course_reader', purchase_id=purchase.id, module=module or None, item=piece.id) }}">
+            <span class="reader-pieces__kind reader-pieces__kind--{{ piece.kind }}">{{ piece.kind_label() }}</span>
+            <span class="reader-pieces__name">{{ piece.display_title() }}</span>
+          </a>
+        </li>
+        {% endfor %}
+      </ol>
+    </nav>
+    {% endmacro %}
+
+    {% if module_items and module_items|length > 1 %}
+    {{ pieces('In this module', module_items, active_module) }}
+    {% endif %}
+    {% if extras and (module_items or extras|length > 1) %}
+    {{ pieces('Yours from day one', extras, 0) }}
     {% endif %}
 
     {% if not asset %}
@@ -188,6 +214,12 @@
           <div class="course-reader__audio">
             <audio controls src="{{ url_for('main.course_file', purchase_id=purchase.id, asset_id=asset.id) }}"></audio>
           </div>
+
+          {% elif asset.is_text() %}
+          <article class="reader-doc reader-doc--written">
+            {% if asset.title %}<h2>{{ asset.title }}</h2>{% endif %}
+            {{ asset.body | markdown }}
+          </article>
 
           {% elif asset.kind in ('text', 'html') %}
           <div class="reader-doc" id="reader-text">Loading…</div>

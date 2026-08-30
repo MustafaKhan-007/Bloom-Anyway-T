@@ -11,7 +11,7 @@ import os
 from datetime import date, datetime, timedelta
 from functools import wraps
 
-from flask import (Response, abort, current_app, flash, redirect,
+from flask import (Response, abort, current_app, flash, jsonify, redirect,
                    render_template, request, send_file, send_from_directory,
                    session, url_for)
 from flask_login import current_user
@@ -384,31 +384,58 @@ def _remap_module_files(product: Product, module_numbers: dict[int, int]) -> Non
             asset.module_index = module_numbers.get(asset.module_index)
 
 
+def _upload_limits() -> dict:
+    """What Studio may promise about file sizes, in the two upload paths."""
+    from ..services.assets import MAX_BYTES
+    return {
+        "course_max_mb": current_app.config["COURSE_UPLOAD_MAX_MB"],
+        "inline_max_mb": MAX_BYTES // (1024 * 1024),
+    }
+
+
 def _save_module_files(product: Product, form, files,
                        module_numbers: dict[int, int]) -> int:
-    """Store the file uploaded against each module, replacing any it had."""
-    from ..services.assets import AssetError, add_asset
+    """Add whatever was attached to each module on this save.
 
-    existing = product.module_files()
+    A module holds as much as the owner wants: several videos, several
+    documents and several written extracts. Everything here is added — nothing
+    replaces what a module already has, which is removed on its own.
+    """
+    from ..services.assets import AssetError, add_asset, add_text
+
     saved = 0
     for row_number, module_number in module_numbers.items():
-        upload = files.get(f"mod{row_number}_file")
-        if not upload or not getattr(upload, "filename", None):
-            continue
         title = (form.get(f"mod{row_number}_title") or "").strip()[:160] or None
-        try:
-            add_asset(product, upload, title=title, module_index=module_number)
-        except AssetError as exc:
-            flash(f"Module {module_number}: {exc}", "error")
-            continue
-        except Exception:
-            log.exception("module file upload failed")
-            flash(f"Module {module_number}: that file didn’t upload.", "error")
-            continue
-        replaced = existing.get(module_number)
-        if replaced is not None:
-            db.session.delete(replaced)
-        saved += 1
+        uploads = [
+            u for u in files.getlist(f"mod{row_number}_file")
+            if u and getattr(u, "filename", None)
+        ]
+        for upload in uploads:
+            try:
+                add_asset(product, upload, title=title, module_index=module_number)
+            except AssetError as exc:
+                flash(f"Module {module_number}: {exc}", "error")
+                continue
+            except Exception:
+                log.exception("module file upload failed")
+                flash(f"Module {module_number}: that file didn’t upload.", "error")
+                continue
+            saved += 1
+
+        bodies = form.getlist(f"mod{row_number}_text_body")
+        headings = form.getlist(f"mod{row_number}_text_title")
+        for i, body in enumerate(bodies):
+            if not (body or "").strip():
+                continue
+            heading = headings[i] if i < len(headings) else ""
+            try:
+                add_text(product, body,
+                         title=heading or f"Extract {i + 1}",
+                         module_index=module_number)
+            except AssetError as exc:
+                flash(f"Module {module_number}: {exc}", "error")
+                continue
+            saved += 1
     return saved
 
 
@@ -504,6 +531,7 @@ def product_new():
         is_new=True,
         modules=[_blank_module(1), _blank_module(2)],
         max_modules=MAX_MODULES,
+        **_upload_limits(),
     )
 
 
@@ -563,6 +591,7 @@ def product_edit(product_id):
         modules=modules,
         max_modules=MAX_MODULES,
         blockers=product.publish_blockers(),
+        **_upload_limits(),
     )
 
 
@@ -594,16 +623,110 @@ def product_asset_upload(product_id):
 @bp.route("/products/<int:product_id>/assets/<int:asset_id>/delete", methods=["POST"])
 @admin_required
 def product_asset_delete(product_id, asset_id):
+    from ..services import assets as asset_svc
+
     product = db.session.get(Product, product_id)
     asset = db.session.get(ProductAsset, asset_id)
     if product is None or asset is None or asset.product_id != product.id:
         flash("That file was already gone.", "info")
         return redirect(url_for("admin.products"))
     label = asset.display_title()
+    asset_svc.delete_file(asset)
     db.session.delete(asset)
     db.session.commit()
     flash(f"Removed “{label}”.", "success")
     return redirect(url_for("admin.product_edit", product_id=product_id))
+
+
+# --- big uploads, a slice at a time ------------------------------------------
+# Cloudflare Free rejects any request body over roughly 100 MB, so a lesson
+# video cannot arrive in one piece however the app is configured. Studio cuts
+# the file up in the browser and posts the slices here instead.
+
+@bp.route("/products/<int:product_id>/uploads/begin", methods=["POST"])
+@admin_required
+def product_upload_begin(product_id):
+    from ..services.assets import AssetError, begin_upload
+
+    product = db.session.get(Product, product_id)
+    if product is None:
+        return jsonify({"error": "That product was already gone."}), 404
+    payload = request.get_json(silent=True) or {}
+    try:
+        upload_id = begin_upload(
+            str(payload.get("filename") or ""),
+            int(payload.get("size") or 0))
+    except (AssetError, TypeError, ValueError) as exc:
+        return jsonify({"error": str(exc) or "That file didn't look right."}), 400
+    return jsonify({
+        "upload_id": upload_id,
+        "chunk_bytes": current_app.config["COURSE_CHUNK_MB"] * 1024 * 1024,
+    })
+
+
+@bp.route("/products/<int:product_id>/uploads/<upload_id>/chunk", methods=["POST"])
+@admin_required
+def product_upload_chunk(product_id, upload_id):
+    from ..services.assets import AssetError, append_chunk
+
+    if db.session.get(Product, product_id) is None:
+        return jsonify({"error": "That product was already gone."}), 404
+    part = request.files.get("chunk")
+    data = part.read() if part else request.get_data()
+    if not data:
+        return jsonify({"error": "That slice was empty."}), 400
+    try:
+        received = append_chunk(upload_id, data)
+    except AssetError as exc:
+        return jsonify({"error": str(exc)}), 400
+    return jsonify({"received": received})
+
+
+@bp.route("/products/<int:product_id>/uploads/<upload_id>/finish", methods=["POST"])
+@admin_required
+def product_upload_finish(product_id, upload_id):
+    from ..services.assets import AssetError, abort_upload, finish_upload
+
+    product = db.session.get(Product, product_id)
+    if product is None:
+        return jsonify({"error": "That product was already gone."}), 404
+    payload = request.get_json(silent=True) or {}
+    module = payload.get("module")
+    try:
+        module_index = int(module) if module else None
+    except (TypeError, ValueError):
+        module_index = None
+    try:
+        asset = finish_upload(
+            product, upload_id, str(payload.get("filename") or ""),
+            title=(str(payload.get("title") or "").strip() or None),
+            module_index=module_index)
+        db.session.commit()
+    except AssetError as exc:
+        db.session.rollback()
+        return jsonify({"error": str(exc)}), 400
+    except Exception:
+        db.session.rollback()
+        abort_upload(upload_id)
+        log.exception("course upload finish failed")
+        return jsonify({"error": "We couldn't save that file. Try again."}), 500
+    return jsonify({
+        "asset_id": asset.id,
+        "title": asset.display_title(),
+        "kind": asset.kind,
+        "kind_label": asset.kind_label(),
+        "size": asset.size_display(),
+        "delete_url": url_for("admin.product_asset_delete",
+                              product_id=product.id, asset_id=asset.id),
+    })
+
+
+@bp.route("/products/<int:product_id>/uploads/<upload_id>/abort", methods=["POST"])
+@admin_required
+def product_upload_abort(product_id, upload_id):
+    from ..services.assets import abort_upload
+    abort_upload(upload_id)
+    return jsonify({"ok": True})
 
 
 @bp.route("/products/<int:product_id>/cover", methods=["POST"])
@@ -696,7 +819,9 @@ def _delete_product(product: Product) -> int:
 
     clear_cover(product.id)
     clear_all_gallery(product.id)
+    from ..services import assets as asset_svc
     for asset in list(product.assets):
+        asset_svc.delete_file(asset)
         db.session.delete(asset)
     db.session.delete(product)
     return order_n

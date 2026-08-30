@@ -4035,6 +4035,164 @@ r = drip_client.get(f"/account/courses/{drip_purchase_id}/file/{mod3_asset_id}")
 ok("New module unlocks on the buyer's own schedule",
    r.status_code == 200 and b"module three" in r.data)
 
+# --- a module holds many videos, documents and written extracts --------------
+with app.app_context():
+    _asset = db.session.get(ProductAsset, mod1_asset_id)
+    _course_dir = app.config["COURSE_FILES_DIR"]
+    ok("Module files stream to the media disk, not into Postgres",
+       bool(_asset.disk_name) and _asset.data is None
+       and _os.path.isfile(_os.path.join(_course_dir, _asset.disk_name)))
+
+from werkzeug.datastructures import MultiDict as _MultiDict  # noqa: E402
+
+r = admin.post(
+    f"/admin/products/{drip_prod_id}/edit",
+    data=_MultiDict([
+        *dict(_drip_fields, **{
+            "slug": "drip-course",
+            "mod1_title": "Week one", "mod1_desc": "Start here",
+            "mod2_title": "Week two", "mod2_desc": "Keep going",
+            "mod3_title": "Week three", "mod3_desc": "Look back",
+        }).items(),
+        ("mod1_file", (BytesIO(b"\x00\x00\x00\x18ftypmp42 lesson"), "lesson.mp4")),
+        ("mod1_file", (BytesIO(b"%PDF-1.4 worksheet"), "worksheet.pdf")),
+        ("mod1_text_title", "Before you start"),
+        ("mod1_text_body", "Read this **first**, then press play."),
+        ("mod1_text_title", "A note on pacing"),
+        ("mod1_text_body", "Slow is fine."),
+    ]),
+    content_type="multipart/form-data",
+    follow_redirects=True,
+)
+ok("Studio accepts several files and extracts for one module",
+   r.status_code == 200)
+with app.app_context():
+    drip_prod = db.session.get(Product, drip_prod_id)
+    m1 = drip_prod.modules()[0]
+    kinds = [a.kind for a in m1["contents"]]
+    ok("Module 1 now holds the original file plus everything just added",
+       len(m1["contents"]) == 5 and kinds.count("video") == 1
+       and kinds.count("text") == 2 and kinds.count("pdf") == 2,
+       f"kinds={kinds}")
+    ok("The module's first item is still the file it started with",
+       m1["contents"][0].id == mod1_asset_id and m1["asset"].id == mod1_asset_id)
+    ok("Other modules were left alone",
+       len(drip_prod.modules()[1]["contents"]) == 1)
+    video_item = next(a for a in m1["contents"] if a.kind == "video")
+    text_item = next(a for a in m1["contents"] if a.kind == "text")
+    video_item_id, text_item_id = video_item.id, text_item.id
+    ok("A written extract keeps its words in the row, with no file on disk",
+       text_item.body.startswith("Read this") and text_item.disk_name is None
+       and text_item.title == "Before you start")
+    ok("A written extract reports a sensible size, not 0.0 MB",
+       text_item.size_display().endswith("B") and text_item.size > 0)
+    _video_path = _os.path.join(app.config["COURSE_FILES_DIR"], video_item.disk_name)
+    ok("The lesson video landed on the disk", _os.path.isfile(_video_path))
+
+r = drip_client.get(f"/account/courses/{drip_purchase_id}?module=1")
+_rbody = r.get_data(as_text=True)
+ok("Reader lists everything in the module so the buyer can move between it",
+   "In this module" in _rbody and "Before you start" in _rbody
+   and f"item={video_item_id}" in _rbody)
+ok("Module list says how much is inside", "5 pieces to work through" in _rbody)
+
+r = drip_client.get(
+    f"/account/courses/{drip_purchase_id}?module=1&item={text_item_id}")
+_rbody = r.get_data(as_text=True)
+ok("A written extract is read on the page, not downloaded",
+   r.status_code == 200 and "Read this <strong>first</strong>" in _rbody
+   and "reader-doc--written" in _rbody)
+
+r = drip_client.get(
+    f"/account/courses/{drip_purchase_id}?module=1&item={video_item_id}")
+ok("Picking the video in a module opens it",
+   r.status_code == 200
+   and "course-reader__video" in r.get_data(as_text=True))
+r = drip_client.get(
+    f"/account/courses/{drip_purchase_id}/file/{video_item_id}",
+    headers={"Range": "bytes=0-7"})
+ok("A lesson video can be scrubbed instead of downloaded whole",
+   r.status_code == 206 and r.headers.get("Accept-Ranges") == "bytes"
+   and len(r.data) == 8)
+r = app.test_client().get(f"/account/courses/{drip_purchase_id}/file/{video_item_id}")
+ok("A stranger still can't reach a course video", r.status_code in (302, 404))
+
+# big files go up in slices, because a single request can't carry them
+_blob = b"\x00\x00\x00\x18ftypmp42" + (b"bigvideo" * 4096)
+r = admin.post(f"/admin/products/{drip_prod_id}/uploads/begin",
+               json={"filename": "keynote.mp4", "size": len(_blob)})
+_started = r.get_json()
+ok("Studio can start a sliced upload",
+   r.status_code == 200 and bool(_started.get("upload_id"))
+   and _started.get("chunk_bytes", 0) > 0)
+_upload_id = _started["upload_id"]
+_step = 4096
+for _i in range(0, len(_blob), _step):
+    r = admin.post(
+        f"/admin/products/{drip_prod_id}/uploads/{_upload_id}/chunk",
+        data={"chunk": (BytesIO(_blob[_i:_i + _step]), "part")},
+        content_type="multipart/form-data")
+ok("Every slice is accepted and counted",
+   r.status_code == 200 and r.get_json().get("received") == len(_blob))
+r = admin.post(f"/admin/products/{drip_prod_id}/uploads/{_upload_id}/finish",
+               json={"filename": "keynote.mp4", "module": 2})
+_finished = r.get_json()
+ok("Finishing a sliced upload files it under the right module",
+   r.status_code == 200 and _finished.get("kind") == "video"
+   and _finished.get("kind_label") == "Video")
+with app.app_context():
+    big = db.session.get(ProductAsset, _finished["asset_id"])
+    ok("The reassembled file is whole and in module 2",
+       big.size == len(_blob) and big.module_index == 2
+       and len(db.session.get(Product, drip_prod_id).modules()[1]["contents"]) == 2)
+    _big_path = _os.path.join(app.config["COURSE_FILES_DIR"], big.disk_name)
+    ok("The reassembled file matches what was sent byte for byte",
+       open(_big_path, "rb").read() == _blob)
+    ok("No half-finished part is left lying around",
+       not _os.path.isfile(_os.path.join(
+           app.config["COURSE_FILES_DIR"], "parts", _upload_id)))
+    _big_id = big.id
+
+r = admin.post(f"/admin/products/{drip_prod_id}/uploads/begin",
+               json={"filename": "huge.mp4",
+                     "size": (app.config["COURSE_UPLOAD_MAX_MB"] + 1) * 1024 * 1024})
+ok("A file over the cap is turned away before a byte is sent",
+   r.status_code == 400 and "MB" in (r.get_json() or {}).get("error", ""))
+r = admin.post(f"/admin/products/{drip_prod_id}/uploads/nonesuch/chunk",
+               data={"chunk": (BytesIO(b"orphan"), "part")},
+               content_type="multipart/form-data")
+ok("Slices for an upload we never started are refused", r.status_code == 400)
+r = app.test_client().post(f"/admin/products/{drip_prod_id}/uploads/begin",
+                           json={"filename": "sneaky.mp4", "size": 10})
+ok("Only owners can start an upload", r.status_code in (302, 401, 403, 404))
+
+# a file with no module is open from day one and stays reachable
+r = admin.post(
+    f"/admin/products/{drip_prod_id}/assets",
+    data={"asset": (BytesIO(b"%PDF-1.4 welcome"), "welcome.pdf"),
+          "asset_title": "Read me first"},
+    content_type="multipart/form-data", follow_redirects=True)
+ok("Studio takes a file that belongs to no module", r.status_code == 200)
+with app.app_context():
+    _mods = db.session.get(Product, drip_prod_id).modules()
+    ok("A loose file doesn't get swept into a module",
+       len(_mods[0]["contents"]) == 5)
+r = drip_client.get(f"/account/courses/{drip_purchase_id}?module=1")
+_rbody = r.get_data(as_text=True)
+ok("A file outside the modules stays reachable while reading a module",
+   "Yours from day one" in _rbody and "Read me first" in _rbody)
+
+# removing one piece leaves the rest of the module alone
+r = admin.post(
+    f"/admin/products/{drip_prod_id}/assets/{_big_id}/delete",
+    follow_redirects=True)
+with app.app_context():
+    ok("Removing one item deletes its file from the disk too",
+       db.session.get(ProductAsset, _big_id) is None
+       and not _os.path.isfile(_big_path))
+    ok("The rest of the module survives",
+       len(db.session.get(Product, drip_prod_id).modules()[1]["contents"]) == 1)
+
 # --- test mode: a real, buyable product only the owners can see --------------
 _test_fields = {
     "title": "Dress Rehearsal",

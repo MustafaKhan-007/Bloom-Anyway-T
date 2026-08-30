@@ -1577,6 +1577,39 @@ html.is-page-loading { cursor: progress; }
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.6);
 }
+
+/* The pieces inside one module: videos, documents and written extracts. */
+.reader-pieces {
+  margin: 0 0 20px; padding: 12px 16px;
+  border: 1px solid rgba(61, 20, 49, 0.12); border-radius: 14px;
+  background: rgba(255, 255, 255, 0.6);
+}
+.reader-pieces__title {
+  margin: 0 0 8px; font-size: 12px; font-weight: 800;
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-soft);
+}
+.reader-pieces__list {
+  list-style: none; margin: 0; padding: 0;
+  display: flex; flex-wrap: wrap; gap: 8px;
+}
+.reader-pieces__item > a {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 12px; border-radius: 999px; text-decoration: none;
+  border: 1px solid rgba(61, 20, 49, 0.16); color: var(--ink);
+  background: #fff;
+}
+.reader-pieces__item > a:hover { border-color: var(--plum); }
+.reader-pieces__item.is-active > a {
+  background: var(--plum); color: #fff8f3; border-color: var(--plum);
+}
+.reader-pieces__kind {
+  font-size: 10px; font-weight: 800; letter-spacing: 0.06em;
+  text-transform: uppercase; color: var(--ink-soft);
+}
+.reader-pieces__item.is-active .reader-pieces__kind { color: rgba(255, 248, 243, 0.75); }
+.reader-pieces__name { font-weight: 700; font-size: 14px; }
+.reader-doc--written { padding: 8px 4px; }
+.reader-doc--written h2 { margin-top: 0; }
 .reader-modules__head {
   display: flex; flex-wrap: wrap; gap: 4px 14px;
   align-items: baseline; justify-content: space-between;
@@ -8839,7 +8872,60 @@ a.at-handle:hover { text-decoration: underline; }
 }
 .studio-teaser-grid__item img { width: 100%; aspect-ratio: 16/10; object-fit: cover; display: block; }
 .studio-teaser-grid__item .btn { margin: 8px; align-self: stretch; }
-.studio-modules__row { margin-bottom: 8px; }
+.studio-modules__row {
+  margin-bottom: 14px; padding: 14px; border-radius: 12px;
+  border: 1px solid rgba(61, 20, 49, 0.12); background: rgba(255, 255, 255, 0.6);
+}
+
+/* What a module holds: any number of videos, documents and written extracts. */
+.module-items { list-style: none; margin: 4px 0 12px; padding: 0; display: grid; gap: 6px; }
+.module-items__row {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 8px 12px; border-radius: 10px; background: var(--ivory-deep);
+}
+.module-items__kind {
+  font-size: 11px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase;
+  padding: 2px 9px; border-radius: 999px; background: var(--plum); color: #fff8f3;
+}
+.module-items__kind--text { background: var(--gold, #B58A3F); }
+.module-items__kind--video { background: #2F6F4F; }
+.module-items__name { font-weight: 700; flex: 1; min-width: 140px; word-break: break-word; }
+.module-items__size { color: var(--ink-soft); font-size: 13px; }
+.module-items__row .btn { margin-left: auto; }
+
+.module-add { display: grid; gap: 10px; justify-items: start; }
+.module-add .field { width: 100%; }
+.module-texts { display: grid; gap: 10px; width: 100%; }
+.module-texts__block {
+  display: grid; gap: 6px; justify-items: start;
+  padding: 12px; border-radius: 10px; border: 1px dashed rgba(61, 20, 49, 0.22);
+}
+.module-texts__block input,
+.module-texts__block textarea { width: 100%; }
+
+/* Progress for a file going up in slices. */
+.chunk-up__list { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 6px; }
+.chunk-up__item {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  font-size: 13px; padding: 7px 12px; border-radius: 10px; background: var(--ivory-deep);
+}
+.chunk-up__name { font-weight: 700; flex: 1; min-width: 120px; word-break: break-word; }
+.chunk-up__bar {
+  flex: 0 0 130px; height: 6px; border-radius: 999px;
+  background: rgba(61, 20, 49, 0.14); overflow: hidden;
+}
+.chunk-up__bar i { display: block; height: 100%; width: 0; background: var(--plum); transition: width 0.2s; }
+.chunk-up__state { min-width: 62px; text-align: right; color: var(--ink-soft); }
+.chunk-up__item.is-done .chunk-up__bar i { background: var(--success); }
+.chunk-up__item.is-done .chunk-up__state { color: var(--success); font-weight: 700; }
+.chunk-up__item.is-error .chunk-up__state { color: var(--error); font-weight: 700; }
+.chunk-up__item.is-error .chunk-up__bar { display: none; }
+
+@media (max-width: 640px) {
+  .module-items__row .btn { margin-left: 0; width: 100%; }
+  .chunk-up__bar { flex-basis: 100%; order: 3; }
+  .chunk-up__state { text-align: left; }
+}
 .studio-subsection {
   margin: 22px 0 6px; font-size: 1.05rem; color: var(--plum-deep, var(--plum));
 }

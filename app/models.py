@@ -488,23 +488,41 @@ class Product(db.Model):
             days = 0
         return max(1, min(365, days or 7))
 
-    def module_files(self) -> dict[int, "ProductAsset"]:
-        """Module number → the file uploaded for it."""
-        out: dict[int, ProductAsset] = {}
+    def module_items(self) -> dict[int, list["ProductAsset"]]:
+        """Module number → everything in it, in the order it should be worked
+        through. A module can hold any mix of videos, documents and written
+        extracts.
+        """
+        out: dict[int, list[ProductAsset]] = {}
         for asset in self.assets:
             number = asset.module_index
-            if number and number not in out:
-                out[number] = asset
+            if number:
+                out.setdefault(number, []).append(asset)
         return out
 
+    def module_files(self) -> dict[int, "ProductAsset"]:
+        """Module number → its first item. Kept for callers that only want one."""
+        return {n: items[0] for n, items in self.module_items().items() if items}
+
     def modules(self) -> list[dict]:
-        """Curriculum rows paired with their file, numbered from 1."""
-        by_number = self.module_files()
-        return [
-            {"number": i, "title": row["title"], "description": row["description"],
-             "asset": by_number.get(i)}
-            for i, row in enumerate(self.curriculum(), start=1)
-        ]
+        """Curriculum rows paired with their contents, numbered from 1.
+
+        ``asset`` is the first item, which is what a caller wanting a single
+        thing to show should use; ``contents`` is the whole list. It is not
+        called "items" because Jinja would resolve that to the dict method.
+        """
+        by_number = self.module_items()
+        rows = []
+        for i, row in enumerate(self.curriculum(), start=1):
+            contents = by_number.get(i, [])
+            rows.append({
+                "number": i,
+                "title": row["title"],
+                "description": row["description"],
+                "contents": contents,
+                "asset": contents[0] if contents else None,
+            })
+        return rows
 
     def is_dripped(self) -> bool:
         """Drip-feed only kicks in once there is more than one module."""
@@ -612,10 +630,13 @@ class Product(db.Model):
 
 
 class ProductAsset(db.Model):
-    """Course/guide file for on-site reading (not a public download).
+    """One piece of a course: a video, a document, or a written extract.
 
-    Stored in the database (like avatars) so files survive Render's ephemeral
-    disk. Served inline to buyers in My space via an ownership-gated route.
+    Bytes live in one of three places. Anything uploaded now is streamed to the
+    media disk and referenced by ``disk_name``, which is what makes room for
+    hour-long videos. Written extracts have no file at all — the words sit in
+    ``body``. ``data`` is the old in-database blob, kept so files uploaded
+    before the move still open.
     """
     __tablename__ = "product_assets"
 
@@ -630,7 +651,12 @@ class ProductAsset(db.Model):
     kind = db.Column(db.String(20), nullable=False)   # pdf / h5p / image / …
     size = db.Column(db.Integer, nullable=False, default=0)
     # Deferred: course readers list every file and download one at a time.
-    data = db.deferred(db.Column(db.LargeBinary, nullable=False))
+    data = db.deferred(db.Column(db.LargeBinary))
+    #: File on the course media disk. Set for everything uploaded since the
+    #: move off the database; ``data`` is set instead on older rows.
+    disk_name = db.Column(db.String(120))
+    #: Written extract typed straight into Studio, rather than uploaded.
+    body = db.deferred(db.Column(db.Text))
     sort_order = db.Column(db.Integer, nullable=False, default=0)
     # Curriculum module this file belongs to (1-based). None = general file,
     # always available to buyers even when the product is drip-fed.
@@ -642,6 +668,28 @@ class ProductAsset(db.Model):
 
     def size_mb(self):
         return round((self.size or 0) / 1024 / 1024, 1)
+
+    def size_display(self) -> str:
+        """Human size — MB is a silly unit for a two-paragraph extract."""
+        n = self.size or 0
+        if n < 1024:
+            return f"{n} B"
+        if n < 1024 * 1024:
+            return f"{round(n / 1024)} KB"
+        if n < 1024 * 1024 * 1024:
+            return f"{n / 1024 / 1024:.1f} MB"
+        return f"{n / 1024 / 1024 / 1024:.2f} GB"
+
+    def is_text(self) -> bool:
+        """A written extract, shown inline rather than fetched as a file."""
+        return self.kind == "text" and self.body is not None
+
+    def kind_label(self) -> str:
+        return {
+            "pdf": "PDF", "h5p": "Interactive", "image": "Image",
+            "video": "Video", "audio": "Audio", "text": "Text",
+            "html": "Page", "doc": "Document", "docx": "Document",
+        }.get(self.kind or "", "File")
 
 
 class CourseProgress(db.Model):

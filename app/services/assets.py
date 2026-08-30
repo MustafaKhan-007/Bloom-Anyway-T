@@ -1,18 +1,66 @@
-"""Upload helpers for on-site course/guide files (ProductAsset)."""
+"""Course/guide content: videos, documents and written extracts.
+
+Files stream to the course media disk in chunks rather than into Postgres, so
+a module can hold a full-length lesson video. ``data`` on older rows is still
+read when present, so nothing uploaded before the move needs migrating.
+"""
 from __future__ import annotations
 
 import os
+import secrets
 import zipfile
 from io import BytesIO
 
+from flask import current_app
 from werkzeug.datastructures import FileStorage
 from werkzeug.utils import secure_filename
 
 from ..extensions import db
 from ..models import Product, ProductAsset
 
-# Keep uploads bounded so the DB / request stay responsive.
-MAX_BYTES = 45 * 1024 * 1024
+#: Cap for a file arriving in a single request. Anything larger has to come
+#: through the chunked uploader, because Cloudflare Free rejects request
+#: bodies over roughly 100 MB whatever this is set to.
+MAX_BYTES = 90 * 1024 * 1024
+_CHUNK = 1024 * 1024
+
+
+def storage_dir() -> str:
+    return current_app.config["COURSE_FILES_DIR"]
+
+
+def parts_dir() -> str:
+    return os.path.join(storage_dir(), "parts")
+
+
+def max_upload_bytes() -> int:
+    return current_app.config["COURSE_UPLOAD_MAX_MB"] * 1024 * 1024
+
+
+def disk_path(disk_name: str) -> str:
+    """Absolute path of a stored file. Never trusts a caller-supplied path."""
+    safe = os.path.basename(disk_name or "")
+    if not safe:
+        raise AssetError("That file is missing.")
+    return os.path.join(storage_dir(), safe)
+
+
+def read_bytes(asset: ProductAsset) -> bytes:
+    """Whole contents of an asset, wherever it lives. Small files only."""
+    if asset.disk_name:
+        with open(disk_path(asset.disk_name), "rb") as fh:
+            return fh.read()
+    return bytes(asset.data or b"")
+
+
+def delete_file(asset: ProductAsset) -> None:
+    """Best-effort removal of an asset's file from the disk."""
+    if not asset.disk_name:
+        return
+    try:
+        os.remove(disk_path(asset.disk_name))
+    except (OSError, AssetError):
+        pass
 
 _MIME_BY_EXT = {
     ".pdf": "application/pdf",
@@ -99,34 +147,62 @@ def _looks_like_h5p(data: bytes, filename: str) -> bool:
         return False
 
 
-def process_upload(upload: FileStorage, *, title: str | None = None) -> dict:
-    """Validate and normalize an uploaded course file. Returns asset fields."""
-    if upload is None or not getattr(upload, "filename", None):
-        raise AssetError("Choose a file to upload.")
-    filename = secure_filename(upload.filename) or "course-file"
-    raw = upload.read()
-    if not raw:
+def describe(filename: str, mimetype: str | None) -> tuple[str, str, str]:
+    """Return (safe filename, mime, kind) for an upload."""
+    safe = secure_filename(filename or "") or "course-file"
+    ext = os.path.splitext(safe)[1].lower()
+    mime = (mimetype or "").strip() or _MIME_BY_EXT.get(
+        ext, "application/octet-stream")
+    return safe[:255], mime[:120], detect_kind(safe, mime)[:20]
+
+
+def _store_stream(stream, first: bytes, limit: int, ext: str) -> tuple[str, int]:
+    """Write a stream to the course disk in chunks. Returns (disk_name, size).
+
+    Chunked so a large video never sits in a worker's memory, and so the size
+    cap can stop a runaway upload partway instead of after we've read it all.
+    """
+    os.makedirs(storage_dir(), exist_ok=True)
+    disk_name = secrets.token_hex(16) + ext
+    path = os.path.join(storage_dir(), disk_name)
+    size = 0
+    try:
+        with open(path, "wb") as fh:
+            if first:
+                fh.write(first)
+                size = len(first)
+            while True:
+                chunk = stream.read(_CHUNK)
+                if not chunk:
+                    break
+                size += len(chunk)
+                if size > limit:
+                    raise AssetError(
+                        f"That file is over {limit // (1024 * 1024)} MB.")
+                fh.write(chunk)
+    except AssetError:
+        _safe_remove(path)
+        raise
+    except OSError:
+        _safe_remove(path)
+        raise AssetError("We couldn't save that upload just now — try again.")
+    if not size:
+        _safe_remove(path)
         raise AssetError("That file was empty.")
-    if len(raw) > MAX_BYTES:
-        raise AssetError("Files must be under 45 MB so reading stays quick.")
+    return disk_name, size
 
-    ext = os.path.splitext(filename)[1].lower()
-    mime = (upload.mimetype or "").strip() or _MIME_BY_EXT.get(ext, "application/octet-stream")
-    kind = detect_kind(filename, mime)
-    if _looks_like_h5p(raw, filename):
-        kind = "h5p"
-        mime = "application/zip"
-        if not filename.lower().endswith(".h5p"):
-            filename = os.path.splitext(filename)[0] + ".h5p"
 
-    return {
-        "title": (title or "").strip()[:160] or None,
-        "filename": filename[:255],
-        "mime": mime[:120],
-        "kind": kind[:20],
-        "size": len(raw),
-        "data": raw,
-    }
+def _safe_remove(path: str) -> None:
+    try:
+        os.remove(path)
+    except OSError:
+        pass
+
+
+def _next_order(product: Product, module_index: int | None) -> int:
+    """Append to the end of the module it belongs to."""
+    same = [a for a in product.assets if a.module_index == module_index]
+    return max((a.sort_order or 0) for a in same) + 1 if same else len(product.assets)
 
 
 def add_asset(
@@ -136,18 +212,144 @@ def add_asset(
     title: str | None = None,
     module_index: int | None = None,
 ) -> ProductAsset:
-    fields = process_upload(upload, title=title)
-    order = len(product.assets)
+    """Store a file arriving in one request and attach it to the product."""
+    if upload is None or not getattr(upload, "filename", None):
+        raise AssetError("Choose a file to upload.")
+    filename, mime, kind = describe(upload.filename, upload.mimetype)
+    ext = os.path.splitext(filename)[1].lower()
+
+    stream = upload.stream
+    head = stream.read(_CHUNK)
+    if not head:
+        raise AssetError("That file was empty.")
+    disk_name, size = _store_stream(stream, head, MAX_BYTES, ext)
+    # A zip only reveals itself as an H5P package from its central directory,
+    # which sits at the end, so this has to wait until the file has landed.
+    if ext in (".h5p", ".zip"):
+        with open(disk_path(disk_name), "rb") as fh:
+            if _looks_like_h5p(fh.read(), filename):
+                kind, mime = "h5p", "application/zip"
+                if not filename.lower().endswith(".h5p"):
+                    filename = os.path.splitext(filename)[0] + ".h5p"
+    return _attach(product, title=title, filename=filename, mime=mime,
+                   kind=kind, size=size, disk_name=disk_name,
+                   module_index=module_index)
+
+
+def add_text(
+    product: Product,
+    body: str,
+    *,
+    title: str | None = None,
+    module_index: int | None = None,
+) -> ProductAsset:
+    """Attach a written extract typed into Studio. No file involved."""
+    text = (body or "").strip()
+    if not text:
+        raise AssetError("Write something first.")
+    if len(text) > 200_000:
+        raise AssetError("That extract is very long — split it into two.")
+    name = (title or "").strip()[:160] or "Extract"
+    return _attach(
+        product, title=name,
+        filename=(secure_filename(name) or "extract")[:240] + ".md",
+        mime="text/markdown", kind="text",
+        size=len(text.encode("utf-8")), body=text,
+        module_index=module_index)
+
+
+def _attach(product: Product, *, title, filename, mime, kind, size,
+            disk_name=None, body=None, module_index=None) -> ProductAsset:
     asset = ProductAsset(
         product_id=product.id,
-        title=fields["title"],
-        filename=fields["filename"],
-        mime=fields["mime"],
-        kind=fields["kind"],
-        size=fields["size"],
-        data=fields["data"],
-        sort_order=order,
+        title=(title or "").strip()[:160] or None,
+        filename=filename,
+        mime=mime,
+        kind=kind,
+        size=size,
+        disk_name=disk_name,
+        body=body,
+        sort_order=_next_order(product, module_index),
         module_index=module_index,
     )
     db.session.add(asset)
     return asset
+
+
+# --- chunked uploads ---------------------------------------------------------
+# Studio sends a big file a slice at a time and we append each slice to a part
+# file on the media disk. Nothing about this depends on which worker handles a
+# given slice, because the state is the file itself.
+
+def begin_upload(filename: str, declared_size: int) -> str:
+    """Reserve a part file and return its id."""
+    if declared_size <= 0:
+        raise AssetError("That file was empty.")
+    if declared_size > max_upload_bytes():
+        raise AssetError(
+            f"That file is over {current_app.config['COURSE_UPLOAD_MAX_MB']} MB.")
+    os.makedirs(parts_dir(), exist_ok=True)
+    ext = os.path.splitext(secure_filename(filename or ""))[1].lower()
+    upload_id = secrets.token_hex(16) + ext
+    open(_part_path(upload_id), "wb").close()
+    return upload_id
+
+
+def _part_path(upload_id: str) -> str:
+    safe = os.path.basename(upload_id or "")
+    if not safe:
+        raise AssetError("That upload has expired — start it again.")
+    return os.path.join(parts_dir(), safe)
+
+
+def append_chunk(upload_id: str, data: bytes) -> int:
+    """Append one slice. Returns how many bytes have arrived so far."""
+    path = _part_path(upload_id)
+    if not os.path.isfile(path):
+        raise AssetError("That upload has expired — start it again.")
+    if os.path.getsize(path) + len(data) > max_upload_bytes():
+        _safe_remove(path)
+        raise AssetError(
+            f"That file is over {current_app.config['COURSE_UPLOAD_MAX_MB']} MB.")
+    with open(path, "ab") as fh:
+        fh.write(data)
+    return os.path.getsize(path)
+
+
+def abort_upload(upload_id: str) -> None:
+    try:
+        _safe_remove(_part_path(upload_id))
+    except AssetError:
+        pass
+
+
+def finish_upload(product: Product, upload_id: str, filename: str, *,
+                  title: str | None = None,
+                  module_index: int | None = None) -> ProductAsset:
+    """Turn a completed part file into a real asset."""
+    path = _part_path(upload_id)
+    if not os.path.isfile(path):
+        raise AssetError("That upload has expired — start it again.")
+    size = os.path.getsize(path)
+    if not size:
+        _safe_remove(path)
+        raise AssetError("That file was empty.")
+
+    name, mime, kind = describe(filename, None)
+    ext = os.path.splitext(name)[1].lower()
+    if ext in (".h5p", ".zip"):
+        with open(path, "rb") as fh:
+            if _looks_like_h5p(fh.read(), name):
+                kind, mime = "h5p", "application/zip"
+                if not name.lower().endswith(".h5p"):
+                    name = os.path.splitext(name)[0] + ".h5p"
+
+    os.makedirs(storage_dir(), exist_ok=True)
+    disk_name = secrets.token_hex(16) + (os.path.splitext(name)[1].lower())
+    try:
+        os.replace(path, os.path.join(storage_dir(), disk_name))
+    except OSError:
+        _safe_remove(path)
+        raise AssetError("We couldn't save that upload just now — try again.")
+    return _attach(product, title=title, filename=name, mime=mime, kind=kind,
+                   size=size, disk_name=disk_name, module_index=module_index)

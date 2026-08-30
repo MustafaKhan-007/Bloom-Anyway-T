@@ -53,7 +53,7 @@ def general_asset(product: Product | None) -> ProductAsset | None:
 
 def open_module(modules: list[dict], wanted: int | None) -> dict | None:
     """The module to open: the one asked for, else the first that's ready."""
-    ready = [m for m in modules if m.get("asset") and m.get("unlocked")]
+    ready = [m for m in modules if m.get("contents") and m.get("unlocked")]
     if not ready:
         return None
     if wanted:
@@ -61,6 +61,22 @@ def open_module(modules: list[dict], wanted: int | None) -> dict | None:
             if row["number"] == wanted:
                 return row
     return ready[0]
+
+
+def open_item(module: dict | None, wanted: int | None) -> ProductAsset | None:
+    """Which piece of a module to show: the one asked for, else the first.
+
+    A module can hold several videos, documents and written extracts, so the
+    reader always has a list to choose from rather than a single file.
+    """
+    contents = (module or {}).get("contents") or []
+    if not contents:
+        return None
+    if wanted:
+        for item in contents:
+            if item.id == wanted:
+                return item
+    return contents[0]
 
 
 def owned_purchase(user, purchase_id: int) -> ShopPurchase | None:
@@ -167,8 +183,8 @@ def ensure_h5p_extracted(asset: ProductAsset) -> Path:
     if marker.is_file() and (dest / "h5p.json").is_file():
         return dest
     dest.mkdir(parents=True, exist_ok=True)
-    raw = bytes(asset.data or b"")
-    with zipfile.ZipFile(BytesIO(raw)) as zf:
+    from . import assets as asset_svc
+    with zipfile.ZipFile(BytesIO(asset_svc.read_bytes(asset))) as zf:
         zf.extractall(dest)
     marker.write_text("ok", encoding="utf-8")
     return dest

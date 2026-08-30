@@ -179,9 +179,32 @@ Everything else is optional or auto-managed:
 
 ## 4c. Course files & the on-site reader
 
-- On a product (Admin → product form → "Course files") the owner uploads PDF or
-  Word files. They're validated (`app/services/assets.py`), capped at 25 MB each,
-  and stored in the database (`product_assets`) so they survive Render deploys.
+- A product's curriculum is a list of **modules**, and each module holds as much
+  as the owner wants: several lesson videos, several documents, and any number
+  of **written extracts** typed straight into Studio (no file involved — the
+  words live in `product_assets.body` and render on the page as Markdown).
+  Everything is a `ProductAsset` row pinned to its module by `module_index`, in
+  `sort_order`. Files not pinned to a module are open from day one, even on a
+  drip schedule.
+- **Where the bytes live.** Uploads stream in 1 MB chunks to `COURSE_FILES_DIR`
+  on the media disk (`/var/media/course_files` on Render) and are referenced by
+  `disk_name` — *not* stored in Postgres. They're served with HTTP **Range** via
+  `send_file(conditional=True)`, so a lesson video can be scrubbed instead of
+  downloading in full. Rows uploaded before this move still carry their blob in
+  `data` and are served from there.
+- **Getting past the 100 MB wall.** Cloudflare's free plan rejects any request
+  body over ~100 MB, so a single upload request can never be bigger no matter
+  what the app is configured for. Studio therefore slices the file in the
+  browser and posts the pieces to `/admin/products/<id>/uploads/{begin,chunk,
+  finish}`, which append to a part file under `course_files/parts/` and then
+  move it into place. Per-file ceiling is `COURSE_UPLOAD_MAX_MB` (default
+  2048); `COURSE_CHUNK_MB` (default 8) is the slice size and is the only number
+  that has to stay under Cloudflare's limit. Files arriving in one request
+  (the no-JS fallback and the "new product" form) are still capped by
+  `assets.MAX_BYTES`, 90 MB.
+- Watch the disk: `render.yaml` mounts 25 GB at `/var/media`, shared with
+  Content Hub videos. Resize it in the Render dashboard before loading a course
+  up with hour-long videos.
 - Buyers read them at `/library/<slug>`. Access is gated by `_owns_product`: the
   studio owner (for preview) or anyone with a **paid** order whose email matches
   their account. Non-buyers get a 404 (the reader's existence is hidden).

@@ -124,6 +124,17 @@ def create_app(config_class=None):
         logging.getLogger(__name__).warning(
             "Could not create shop files directory %s", shop_dir)
 
+    course_dir = (app.config.get("COURSE_FILES_DIR") or "").strip() \
+        or _os.path.join(app.instance_path, "course_files")
+    app.config["COURSE_FILES_DIR"] = course_dir
+    try:
+        # Part-uploads land in a sibling folder so a half-sent file is never
+        # mistaken for a finished one.
+        _os.makedirs(_os.path.join(course_dir, "parts"), exist_ok=True)
+    except OSError:
+        logging.getLogger(__name__).warning(
+            "Could not create course files directory %s", course_dir)
+
     db.init_app(app)
     migrate.init_app(app, db)
     _ensure_secret_key(app)

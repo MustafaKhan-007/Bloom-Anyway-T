@@ -1010,14 +1010,23 @@ def course_reader(purchase_id):
         abort(404)
     product = reader_svc.catalog_product_for_purchase(purchase)
     modules = drip_svc.module_rows(product, purchase.purchased_at)
+    wanted_item = request.args.get("item", type=int)
+    # Files with no module are open from day one, even on a drip schedule.
+    extras = [a for a in (product.assets if product else []) if not a.module_index]
     chosen = reader_svc.open_module(modules, request.args.get("module", type=int))
-    if chosen is not None:
-        asset = chosen["asset"]
+    module_items = []
+    picked_extra = next((a for a in extras if a.id == wanted_item), None)
+    if picked_extra is not None:
+        asset = picked_extra
+        active_module = 0
+    elif chosen is not None:
+        module_items = chosen["contents"]
+        asset = reader_svc.open_item(chosen, wanted_item)
         active_module = chosen["number"]
     else:
-        # No module files (or none ready yet) — fall back to the plain file.
+        # No module contents (or none ready yet) — fall back to the plain file.
         asset = reader_svc.general_asset(product)
-        if asset is None and not any(m["asset"] for m in modules):
+        if asset is None and not any(m["contents"] for m in modules):
             asset = reader_svc.primary_asset(product)
         active_module = 0
     progress = reader_svc.get_progress(current_user.id, purchase.id)
@@ -1037,6 +1046,8 @@ def course_reader(purchase_id):
         product=product,
         asset=asset,
         modules=modules,
+        module_items=module_items,
+        extras=extras,
         active_module=active_module,
         next_locked=drip_svc.next_locked(modules),
         progress=progress,
@@ -1064,13 +1075,30 @@ def course_file(purchase_id, asset_id):
         abort(404)
     if not drip_svc.asset_unlocked(product, asset, purchase.purchased_at):
         abort(404)
+    from ..services import assets as asset_svc
+
     raw_name = (asset.filename or "file").replace('"', "")
     as_download = (request.args.get("download") or "").strip().lower() in ("1", "true", "yes")
     disposition = "attachment" if as_download else "inline"
-    resp = Response(bytes(asset.data), mimetype=asset.mime or "application/octet-stream")
+    mime = asset.mime or "application/octet-stream"
+
+    if asset.body is not None and not asset.disk_name:
+        resp = Response(asset.body, mimetype=mime)
+    elif asset.disk_name:
+        path = asset_svc.disk_path(asset.disk_name)
+        if not os.path.isfile(path):
+            log.error("Course asset %s missing on disk: %s", asset.id, path)
+            abort(404)
+        # conditional=True turns on HTTP Range, so a lesson video can be
+        # scrubbed instead of downloading in full before it plays.
+        resp = send_file(path, mimetype=mime, conditional=True,
+                         as_attachment=False, download_name=raw_name)
+        resp.headers["Accept-Ranges"] = "bytes"
+    else:  # uploaded before files moved to the disk
+        resp = Response(bytes(asset.data or b""), mimetype=mime)
+        resp.headers["Accept-Ranges"] = "none"
     resp.headers["Content-Disposition"] = f'{disposition}; filename="{raw_name}"'
     resp.headers["Cache-Control"] = "private, max-age=300"
-    resp.headers["Accept-Ranges"] = "none"
     return resp
 
 
