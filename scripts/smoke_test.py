@@ -4035,6 +4035,115 @@ r = drip_client.get(f"/account/courses/{drip_purchase_id}/file/{mod3_asset_id}")
 ok("New module unlocks on the buyer's own schedule",
    r.status_code == 200 and b"module three" in r.data)
 
+# --- test mode: a real, buyable product only the owners can see --------------
+_test_fields = {
+    "title": "Dress Rehearsal",
+    "track": "building",
+    "type": "guide",
+    "price": "12.00",
+    "promise": "A dry run of the whole checkout.",
+    "stripe": "price_dress_rehearsal",
+    "live": "1",
+    "test_mode": "1",
+}
+with app.app_context():
+    from app.models import Notification as _Note
+    from app.services import stats as _stats_mod
+    notes_before = _Note.query.filter_by(kind="course").count()
+    insights_before = _stats_mod.payment_insights(days=30)["orders_30d"]
+r = admin.post("/admin/products/new", data=_test_fields,
+               content_type="multipart/form-data", follow_redirects=True)
+ok("Studio creates a test-mode product", r.status_code == 200)
+with app.app_context():
+    tprod = Product.query.filter_by(slug="dress-rehearsal").first()
+    ok("Test mode saves, and the product is still live",
+       tprod is not None and tprod.test_mode is True and tprod.status == "published")
+    test_prod_id = tprod.id
+    ok("A test product is never announced to members",
+       _Note.query.filter_by(kind="course").count() == notes_before)
+ok("Studio flags it as a test in the product list",
+   "status-pill--test" in admin.get("/admin/products").get_data(as_text=True))
+
+_guest_courses = client.get("/courses").get_data(as_text=True)
+_member_courses = drip_client.get("/courses").get_data(as_text=True)
+_owner_courses = admin.get("/courses").get_data(as_text=True)
+ok("Guests never see a test product in the catalogue",
+   "Dress Rehearsal" not in _guest_courses)
+ok("Signed-in members don't see it either",
+   "Dress Rehearsal" not in _member_courses)
+ok("Owners do see it, marked as a test",
+   "Dress Rehearsal" in _owner_courses and "lib-card__badge--test" in _owner_courses)
+
+ok("Guests get a 404 on the test product's page",
+   client.get("/courses/dress-rehearsal").status_code == 404)
+ok("Members get a 404 on it too",
+   drip_client.get("/courses/dress-rehearsal").status_code == 404)
+r = admin.get("/courses/dress-rehearsal")
+_tbody = r.get_data(as_text=True)
+ok("Owners open the page, warned what it is, with a working Buy button",
+   r.status_code == 200 and "pd-preview-banner--test" in _tbody
+   and "Buy now" in _tbody and "Preview only" not in _tbody)
+
+ok("Guests can't reach checkout for a test product",
+   client.get("/checkout/product/dress-rehearsal").status_code == 404)
+ok("Members can't reach it either",
+   drip_client.get("/checkout/product/dress-rehearsal").status_code == 404)
+ok("Owners are allowed through to checkout",
+   admin.get("/checkout/product/dress-rehearsal").status_code != 404)
+
+# artwork shouldn't leak to someone guessing the id
+with app.app_context():
+    db.session.get(Product, cover_id).test_mode = True
+    db.session.commit()
+ok("A test product's cover is withheld from the public",
+   client.get(f"/media/product-cover/{cover_id}").status_code == 404)
+ok("Owners still get that cover",
+   admin.get(f"/media/product-cover/{cover_id}").status_code == 200)
+with app.app_context():
+    db.session.get(Product, cover_id).test_mode = False
+    db.session.commit()
+
+# an owner buying their own test product is a rehearsal, not revenue
+_test_payload = _payment_payload(
+    "9300", "owner@example.com", "price_dress_rehearsal",
+    amount=1200, product_name="Dress Rehearsal")
+r = client.post("/webhooks/stripe", data=_test_payload,
+                headers=_stripe_headers(_test_payload))
+with app.app_context():
+    torder = Order.query.filter_by(ls_order_id="9300").first()
+    ok("A test purchase is recorded like any other",
+       r.status_code == 200 and torder is not None and torder.status == "paid"
+       and torder.product_id == test_prod_id)
+    ok("But it stays out of the dashboard revenue figures",
+       _stats_mod.payment_insights(days=30)["orders_30d"] == insights_before)
+    ok("And out of the top-products list",
+       all(row["title"] != "Dress Rehearsal"
+           for row in _stats_mod.payment_insights(days=30)["top_products"]))
+ok("The owner finds their test purchase in their own library",
+   "Dress Rehearsal" in admin.get("/account?tab=saved").get_data(as_text=True))
+
+# taking it out of test mode is what finally tells everyone
+with app.app_context():
+    notes_before = _Note.query.filter_by(kind="course").count()
+_live_fields = {k: v for k, v in _test_fields.items() if k != "test_mode"}
+r = admin.post(f"/admin/products/{test_prod_id}/edit",
+               data=dict(_live_fields, slug="dress-rehearsal"),
+               content_type="multipart/form-data", follow_redirects=True)
+ok("Leaving test mode announces the product properly",
+   r.status_code == 200 and "notified" in r.get_data(as_text=True))
+with app.app_context():
+    ok("Members finally hear about it",
+       _Note.query.filter_by(kind="course").count() > notes_before)
+ok("And it turns up in the public catalogue",
+   "Dress Rehearsal" in client.get("/courses").get_data(as_text=True))
+
+r = admin.post("/admin/products/new",
+               data={"title": "Quiet Rehearsal", "track": "healing",
+                     "type": "guide", "test_mode": "1"},
+               content_type="multipart/form-data", follow_redirects=True)
+ok("Test mode on a draft says there is nothing to buy yet",
+   "still a draft" in r.get_data(as_text=True))
+
 # the perk is still the owner's to override, and it ends on its own
 with app.app_context():
     from app.services.memberships import reconcile_user, set_manual_tier

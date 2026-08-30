@@ -163,9 +163,20 @@ BUILDING_FILTERS = [
 ]
 
 
+def _sees_test_products() -> bool:
+    """Test products are owner-only, everywhere they could show up."""
+    return bool(current_user.is_authenticated and current_user.is_admin)
+
+
+def _hide_test(query):
+    if _sees_test_products():
+        return query
+    return query.filter(Product.test_mode.is_(False))
+
+
 def _courses_lane(track: str, type_filter: str, sort: str):
-    q = (Product.query.filter_by(status="published", track=track)
-         .filter(Product.type != "bundle"))
+    q = _hide_test(Product.query.filter_by(status="published", track=track)
+                   .filter(Product.type != "bundle"))
     if type_filter and type_filter != "all":
         q = q.filter(Product.type == type_filter)
     rows = q.all()
@@ -206,10 +217,10 @@ def courses():
     healing = _courses_lane("healing", h_filter, sort)
     building = _courses_lane("building", b_filter, sort)
     bundles = {
-        "healing": Product.query.filter_by(
-            status="published", track="healing", type="bundle").first(),
-        "building": Product.query.filter_by(
-            status="published", track="building", type="bundle").first(),
+        "healing": _hide_test(Product.query.filter_by(
+            status="published", track="healing", type="bundle")).first(),
+        "building": _hide_test(Product.query.filter_by(
+            status="published", track="building", type="bundle")).first(),
     }
     owned_purchases = {}
     if current_user.is_authenticated:
@@ -246,6 +257,8 @@ def course_detail(slug):
         db.session.rollback()
 
     product = Product.query.filter_by(slug=slug).first_or_404()
+    if not product.visible_to(current_user):
+        abort(404)
     is_preview = False
     if product.status != "published":
         if not (current_user.is_authenticated and current_user.is_admin):
@@ -272,6 +285,8 @@ def course_detail(slug):
 @limiter.limit("20 per minute")
 def checkout_product(slug):
     product = Product.query.filter_by(slug=slug, status="published").first_or_404()
+    if not product.visible_to(current_user):
+        abort(404)
     pid = (product.stripe_price_id or "").strip()
     if not pid:
         flash("Checkout for this guide isn’t live yet — check back soon.", "info")
@@ -1172,10 +1187,20 @@ def site_image(key):
     return resp
 
 
+def _test_product_hidden(product_id: int) -> bool:
+    """Guessing an id shouldn't leak artwork from an owners-only product."""
+    if _sees_test_products():
+        return False
+    product = db.session.get(Product, product_id)
+    return product is not None and product.test_mode
+
+
 @bp.route("/media/product-gallery/<int:product_id>/<path:filename>")
 def product_gallery_image(product_id, filename):
     """Serve a product teaser / gallery image (DB-backed)."""
     from ..services.product_covers import gallery_bytes
+    if _test_product_hidden(product_id):
+        abort(404)
     row = gallery_bytes(product_id, filename)
     if row is None:
         abort(404)
@@ -1189,6 +1214,8 @@ def product_gallery_image(product_id, filename):
 def product_cover(product_id):
     """Serve an optional product cover image (DB-backed)."""
     from ..services.product_covers import cover_bytes
+    if _test_product_hidden(product_id):
+        abort(404)
     row = cover_bytes(product_id)
     if row is None:
         abort(404)

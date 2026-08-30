@@ -19,6 +19,15 @@
       <a href="{{ url_for('admin.product_edit', product_id=product.id) }}">Back to edit</a>
     </div>
   </div>
+  {% elif product.test_mode %}
+  <div class="pd-preview-banner pd-preview-banner--test" role="status">
+    <div class="container pd-preview-banner__inner">
+      <strong>Test mode</strong>
+      <span>Only owners can see this page. Buying it puts a real charge
+        through Stripe, so refund yourself afterwards.</span>
+      <a href="{{ url_for('admin.product_edit', product_id=product.id) }}">Back to edit</a>
+    </div>
+  </div>
   {% endif %}
   <div class="container pd-page__inner">
     <p class="pd-page__back">

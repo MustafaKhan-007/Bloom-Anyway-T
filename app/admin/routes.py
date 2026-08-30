@@ -328,6 +328,8 @@ def _apply_product_fields(product: Product, form) -> dict[int, int]:
     else:
         product.accent_color = None
 
+    product.test_mode = bool(form.get("test_mode"))
+
     want_live = bool(form.get("live"))
     if want_live:
         blockers = product.publish_blockers()
@@ -346,6 +348,13 @@ def _apply_product_fields(product: Product, form) -> dict[int, int]:
     return module_numbers
 
 
+def _warn_test_not_live(product: Product) -> None:
+    """A test product still has to be live before there is anything to buy."""
+    if product.test_mode and product.status != "published":
+        flash("Test mode is on, but the product is still a draft — tick "
+              "“Live on Courses” too if you want to try buying it.", "info")
+
+
 def _told_suffix(told: int) -> str:
     """Owners never receive their own broadcast, so say it went out."""
     if not told:
@@ -355,8 +364,8 @@ def _told_suffix(told: int) -> str:
 
 
 def _announce_product(product: Product) -> int:
-    """Tell members when a product goes live. No-op for drafts."""
-    if product.status != "published":
+    """Tell members when a product goes live. No-op for drafts and test items."""
+    if product.status != "published" or product.test_mode:
         return 0
     from ..services.social_graph import notify_everyone
     return notify_everyone(
@@ -483,6 +492,7 @@ def product_new():
         told = _announce_product(product)
         db.session.commit()
         flash(f"“{product.title}” created." + _told_suffix(told), "success")
+        _warn_test_not_live(product)
         return redirect(url_for("admin.product_edit", product_id=product.id))
 
     blank = Product(title="", slug="", type="guide", track="healing",
@@ -510,7 +520,7 @@ def product_edit(product_id):
     if request.method == "POST":
         from ..services.product_covers import CoverError, process_and_save as save_cover
 
-        prev_status = product.status
+        prev_public = product.status == "published" and not product.test_mode
         module_numbers = _apply_product_fields(product, request.form)
         _remap_module_files(product, module_numbers)
         _save_module_files(product, request.form, request.files, module_numbers)
@@ -530,12 +540,16 @@ def product_edit(product_id):
                 "Kept as draft — still need: " + ", ".join(blockers) + ".",
                 "info",
             )
-        elif product.status == "published" and prev_status != "published":
+        elif product.status == "published" and product.test_mode:
+            flash(f"“{product.title}” is in test mode — only you and your "
+                  "co-owners can see it or buy it.", "success")
+        elif product.status == "published" and not prev_public:
             told = _announce_product(product)
             flash(f"“{product.title}” is now live on Courses." + _told_suffix(told),
                   "success")
         else:
             flash("Product saved.", "success")
+        _warn_test_not_live(product)
         db.session.commit()
         return redirect(url_for("admin.product_edit", product_id=product.id))
 

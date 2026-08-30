@@ -784,6 +784,7 @@ body.is-studio-readonly .admin-main input[type="submit"] {
 .status-pill--draft { background: var(--gold-soft); color: var(--ink); }
 .status-pill--archived, .status-pill--refunded { background: var(--rose-soft); color: var(--plum); }
 .status-pill--pending { background: #F5E6C8; color: var(--plum); }
+.status-pill--test { background: var(--plum); color: #fff; }
 
 .flagged-list { display: grid; gap: 18px; }
 .flagged-member {
@@ -8253,6 +8254,10 @@ a.at-handle:hover { text-decoration: underline; }
   margin: 0 0 6px; font-size: 11px; font-weight: 800;
   letter-spacing: 0.08em; text-transform: uppercase; color: var(--lib-cover, #5A3158);
 }
+.lib-card__badge--test {
+  display: inline-block; padding: 2px 10px; border-radius: 999px;
+  background: #3d1431; color: #fff8f3; letter-spacing: 0.06em;
+}
 .lib-card__cat {
   margin: 0 0 4px; font-size: 11px; font-weight: 800;
   letter-spacing: 0.1em; text-transform: uppercase; color: #B58A3F;
@@ -8637,6 +8642,9 @@ a.at-handle:hover { text-decoration: underline; }
   color: #fff8f3;
   padding: 12px 0;
   margin: -28px 0 28px;
+}
+.pd-preview-banner--test {
+  background: linear-gradient(135deg, #7A2E62 0%, #B58A3F 100%);
 }
 .pd-preview-banner__inner {
   max-width: 1100px;

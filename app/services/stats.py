@@ -29,6 +29,29 @@ def _is_stripe_ish_id(value: str) -> bool:
     return v.startswith(("price_", "prod_", "pdt_", "cs_", "pi_", "sub_"))
 
 
+def _exclude_test_sales(query):
+    """Drop buys of owners-only test products.
+
+    An owner buying their own test product is a dry run, not trade, so it must
+    not show up as revenue. Orders point at a product either by foreign key or
+    by the Stripe price id, and both routes have to be covered. The NULL checks
+    matter: ``NOT IN`` on a NULL column is NULL, which would silently throw
+    away every membership order along with the test ones.
+    """
+    rows = (db.session.query(Product.id, Product.stripe_price_id)
+            .filter(Product.test_mode.is_(True)).all())
+    if not rows:
+        return query
+    ids = [r[0] for r in rows]
+    prices = [(r[1] or "").strip() for r in rows if (r[1] or "").strip()]
+    query = query.filter(or_(Order.product_id.is_(None),
+                             Order.product_id.notin_(ids)))
+    if prices:
+        query = query.filter(or_(Order.ls_variant_id.is_(None),
+                                 Order.ls_variant_id.notin_(prices)))
+    return query
+
+
 def _chart_title_maps(orders: list[Order]) -> tuple[dict[str, str], dict[str, str]]:
     """Resolve Stripe/Lemon ids → human titles for chart filters.
 
@@ -130,16 +153,20 @@ def payment_insights(days: int = 30) -> dict:
     """Main payment numbers for Studio (not a full ledger)."""
     start = _dt(date.today() - timedelta(days=days - 1))
     revenue, count = (
-        db.session.query(func.coalesce(func.sum(Order.total_cents), 0),
-                         func.count(Order.id))
-        .filter(Order.status.in_(COLLECTED_ORDER_STATUSES), Order.created_at >= start)
+        _exclude_test_sales(
+            db.session.query(func.coalesce(func.sum(Order.total_cents), 0),
+                             func.count(Order.id))
+            .filter(Order.status.in_(COLLECTED_ORDER_STATUSES),
+                    Order.created_at >= start))
         .one()
     )
     # Top products by order count in window
     top_rows = (
         db.session.query(Product.title, func.count(Order.id))
         .join(Order, Order.product_id == Product.id)
-        .filter(Order.status.in_(COLLECTED_ORDER_STATUSES), Order.created_at >= start)
+        .filter(Order.status.in_(COLLECTED_ORDER_STATUSES),
+                Order.created_at >= start,
+                Product.test_mode.is_(False))
         .group_by(Product.title)
         .order_by(func.count(Order.id).desc())
         .limit(3)
@@ -266,12 +293,11 @@ def member_activity(limit: int = 12) -> list[dict]:
     out: list[dict] = []
     now = datetime.utcnow()
 
-    paid = (Order.query
-            .options(joinedload(Order.product))
-            .filter(Order.status.in_(COLLECTED_ORDER_STATUSES))
-            .order_by(Order.created_at.desc())
-            .limit(max(8, limit))
-            .all())
+    paid = _exclude_test_sales(
+        Order.query
+        .options(joinedload(Order.product))
+        .filter(Order.status.in_(COLLECTED_ORDER_STATUSES))
+    ).order_by(Order.created_at.desc()).limit(max(8, limit)).all()
     # One lookup for every buyer, rather than one per order.
     buyer_emails = {(o.buyer_email or "").strip().lower()
                     for o in paid if "@" in (o.buyer_email or "")}
@@ -368,10 +394,11 @@ def purchases_over_time(days: int = 90) -> dict:
     labels = [(start + timedelta(days=i)).isoformat() for i in range(days)]
     label_index = {lab: i for i, lab in enumerate(labels)}
 
-    paid = (Order.query
-            .options(joinedload(Order.product))
-            .filter(Order.status.in_(COLLECTED_ORDER_STATUSES), Order.created_at >= _dt(start))
-            .all())
+    paid = _exclude_test_sales(
+        Order.query
+        .options(joinedload(Order.product))
+        .filter(Order.status.in_(COLLECTED_ORDER_STATUSES),
+                Order.created_at >= _dt(start))).all()
 
     by_variant, by_payment = _chart_title_maps(paid)
 
@@ -412,7 +439,9 @@ def trending_product(window_days: int = 7) -> dict | None:
     rows = (
         db.session.query(Product.title, func.count(Order.id).label("n"))
         .join(Order, Order.product_id == Product.id)
-        .filter(Order.status.in_(COLLECTED_ORDER_STATUSES), Order.created_at >= start)
+        .filter(Order.status.in_(COLLECTED_ORDER_STATUSES),
+                Order.created_at >= start,
+                Product.test_mode.is_(False))
         .group_by(Product.title)
         .order_by(func.count(Order.id).desc())
         .limit(1)

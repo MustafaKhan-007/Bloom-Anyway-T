@@ -14,7 +14,9 @@
   <div class="lib-card__body">
     <div class="lib-card__top">
       <div class="lib-card__intro">
-        {% if product.badge or owned_purchase_id %}
+        {% if product.test_mode %}
+        <p class="lib-card__badge lib-card__badge--test">Test mode · owners only</p>
+        {% elif product.badge or owned_purchase_id %}
         <p class="lib-card__badge">
           {% if owned_purchase_id %}Purchased{% elif product.badge %}{{ product.badge }}{% endif %}
         </p>

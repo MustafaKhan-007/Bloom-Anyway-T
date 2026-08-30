@@ -316,6 +316,9 @@ class Product(db.Model):
     type = db.Column(db.String(20), nullable=False, default="course")
     subject = db.Column(db.String(60))   # filterable catalogue subject
     status = db.Column(db.String(20), nullable=False, default="draft")
+    # Test mode: a real, buyable product that only owners can see, so the
+    # whole checkout can be walked through without shoppers stumbling on it.
+    test_mode = db.Column(db.Boolean, nullable=False, default=False, index=True)
     featured = db.Column(db.Boolean, nullable=False, default=False)
     badge = db.Column(db.String(30))
     sort_order = db.Column(db.Integer, nullable=False, default=0)
@@ -506,6 +509,21 @@ class Product(db.Model):
     def is_dripped(self) -> bool:
         """Drip-feed only kicks in once there is more than one module."""
         return bool(self.drip_enabled) and len(self.curriculum()) > 1
+
+    def visible_to(self, user) -> bool:
+        """Can this account see the product at all? Test items are owners-only.
+
+        Says nothing about whether they already bought it — people who bought
+        a product before it was put in test mode keep reading it either way.
+        """
+        if not self.test_mode:
+            return True
+        return bool(getattr(user, "is_authenticated", False)
+                    and getattr(user, "is_admin", False))
+
+    def buyable_by(self, user) -> bool:
+        """Only live products sell, and test ones only sell to owners."""
+        return self.status == "published" and self.visible_to(user)
 
     def perk_tier(self) -> str:
         tier = (self.perk_membership_tier or "").strip().lower()

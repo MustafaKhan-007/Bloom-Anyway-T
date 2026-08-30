@@ -107,6 +107,16 @@
             <input type="checkbox" name="live" value="1" {{ 'checked' if product.status == 'published' }}>
             Live on Courses
           </label>
+          <label class="checkline">
+            <input type="checkbox" name="test_mode" value="1" {{ 'checked' if product.test_mode }}>
+            Test mode
+          </label>
+          <p class="field-help" style="margin:6px 0 0;">
+            Test mode keeps it off the public catalogue. Only you and your
+            co-owners can open it or buy it, so you can walk the whole
+            checkout through before anyone else sees it. Tick <em>Live on
+            Courses</em> as well, or there is nothing to buy yet.
+          </p>
         </div>
       </div>
     </section>
