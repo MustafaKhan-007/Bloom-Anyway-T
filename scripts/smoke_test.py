@@ -2681,6 +2681,44 @@ with app.app_context():
 ok("The published review is still readable after the clear-out",
    client.get(f"/watch/reviews/{review_id}").status_code == 200)
 
+# hiding a review is reversible, and it can also be deleted outright
+r = admin.post(f"/admin/reel-reviews/review/{review_id}/unpublish",
+               follow_redirects=True)
+abody = r.get_data(as_text=True)
+ok("A hidden review offers both a way back and a way out",
+   "Put back" in abody and "Delete" in abody)
+ok("Guests can't reach a hidden review",
+   app.test_client().get(f"/watch/reviews/{review_id}").status_code == 404)
+r = admin.post(f"/admin/reel-reviews/review/{review_id}/publish",
+               follow_redirects=True)
+ok("A hidden review can be put back up",
+   "live on the Content Hub again" in r.get_data(as_text=True)
+   and client.get(f"/watch/reviews/{review_id}").status_code == 200)
+
+with app.app_context():
+    doomed = db.session.get(ReelReview, review_id)
+    doomed_app_id = doomed.application_id
+    video_path = _os.path.join(app.config["VIDEO_STORAGE_DIR"],
+                               doomed.review_disk_name or "")
+    ok("The review about to be deleted really has a video on disk",
+       bool(doomed.review_disk_name) and _os.path.isfile(video_path))
+r = admin.post(f"/admin/reel-reviews/review/{review_id}/delete",
+               follow_redirects=True)
+ok("Owner can delete a review outright",
+   "back in the queue" in r.get_data(as_text=True))
+with app.app_context():
+    ok("The review row is gone", db.session.get(ReelReview, review_id) is None)
+    ok("Its video file is gone from disk too", not _os.path.isfile(video_path))
+    back = db.session.get(ReelReviewApplication, doomed_app_id)
+    ok("The member's entry survives and is waiting again",
+       back is not None and back.selected is False and back.review is None)
+    ok("Today's slot frees up once the review is deleted",
+       reel_svc.day_is_done() is False)
+ok("The deleted review's page is gone",
+   client.get(f"/watch/reviews/{review_id}").status_code == 404)
+ok("Studio no longer lists the deleted review",
+   "Loved your pacing" not in admin.get("/admin/reel-reviews").get_data(as_text=True))
+
 r = app.test_client().get("/")
 ok("Sunflower favicon is linked in the tab",
    "favicon.svg" in r.get_data(as_text=True))

@@ -149,7 +149,19 @@
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button class="btn btn--secondary btn--sm" type="submit">Unpublish</button>
               </form>
+              {% else %}
+              <form method="post" action="{{ url_for('admin.reel_reviews_republish', review_id=r.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="btn btn--secondary btn--sm" type="submit">Put back</button>
+              </form>
               {% endif %}
+              <form method="post" action="{{ url_for('admin.reel_reviews_delete', review_id=r.id) }}"
+                    data-confirm="Delete “{{ r.title }}” for good? The write-up and any review video go with it. Their entry goes back in the queue."
+                    data-confirm-title="Delete this review?"
+                    data-confirm-ok="Delete">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="btn btn--danger btn--sm" type="submit">Delete</button>
+              </form>
             </div>
           </td>
         </tr>

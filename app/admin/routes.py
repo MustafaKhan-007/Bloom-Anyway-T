@@ -2828,7 +2828,48 @@ def reel_reviews_unpublish(review_id):
     review = db.session.get(ReelReview, review_id) or abort(404)
     review.published = False
     db.session.commit()
-    flash("Review hidden from the Content Hub.", "success")
+    flash("Review hidden from the Content Hub. Put it back or delete it "
+          "from the list below.", "success")
+    return redirect(url_for("admin.reel_reviews"))
+
+
+@bp.route("/reel-reviews/review/<int:review_id>/publish", methods=["POST"])
+@admin_required
+def reel_reviews_republish(review_id):
+    """Put a hidden review back, as long as today's slot is free."""
+    review = db.session.get(ReelReview, review_id) or abort(404)
+    if review.published:
+        return redirect(url_for("admin.reel_reviews"))
+    today = reel_svc.atlanta_today()
+    already = reel_svc.review_on(today)
+    if already and already.id != review.id:
+        flash("A review already went out today — one a day. "
+              "This one can go back up tomorrow.", "error")
+        return redirect(url_for("admin.reel_reviews"))
+    review.published = True
+    review.review_date = today
+    db.session.commit()
+    flash("Review is live on the Content Hub again.", "success")
+    return redirect(url_for("admin.reel_reviews"))
+
+
+@bp.route("/reel-reviews/review/<int:review_id>/delete", methods=["POST"])
+@admin_required
+def reel_reviews_delete(review_id):
+    """Delete a review outright, freeing its entry to be reviewed again."""
+    review = db.session.get(ReelReview, review_id) or abort(404)
+    title = review.title
+    if review.review_disk_name:
+        delete_stored(current_app.config["VIDEO_STORAGE_DIR"],
+                      review.review_disk_name)
+    application = review.application
+    if application is not None:
+        # Back in the queue as if it had never been picked.
+        application.selected = False
+    db.session.delete(review)
+    db.session.commit()
+    flash(f"Deleted “{title[:60]}”. Their entry is back in the queue.",
+          "success")
     return redirect(url_for("admin.reel_reviews"))
 
 
