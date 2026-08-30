@@ -337,6 +337,11 @@ def login():
     next_path = request.form.get("next", "")
 
     user = User.query.filter_by(email=email).first()
+    if user is None and "@" not in email:
+        # Stand-in accounts made in Studio have no address to type, so they
+        # sign in with their handle instead. Real members still need theirs.
+        from ..services import demo_accounts
+        user = demo_accounts.find_by_username(email)
     if user is None or user.deleted_at is not None or not user.check_password(password):
         log.info("auth: failed login (ip=%s)", request.remote_addr)
         flash("That email and password don't match. Take a breath and try again \u2014 or reset your password below.", "error")

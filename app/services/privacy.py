@@ -22,6 +22,7 @@ from ..models import (
     Order,
     QuoteFavorite,
     ReelReviewApplication,
+    ReelSubmission,
     ShopPurchase,
     SiteFeedback,
     SupportGroupApplication,
@@ -108,7 +109,11 @@ def _clear_membership_history(email: str, *, user_id: int) -> dict:
         "still_billing": [],
         "errors": [],
     }
-    if not email_norm or "@" not in email_norm or email_norm.endswith("@invalid.local"):
+    from .demo_accounts import is_demo_address
+
+    if (not email_norm or "@" not in email_norm
+            or email_norm.endswith("@invalid.local")
+            or is_demo_address(email_norm)):
         return out
 
     # 1. Cancel live Stripe memberships immediately (also ends matching Orders).
@@ -242,6 +247,19 @@ def _detach_and_purge_user_rows(user: User, *, tombstone_id: int) -> None:
     ReelReviewApplication.query.filter_by(user_id=uid).update(
         {"user_id": tombstone_id}, synchronize_session=False,
     )
+
+    # Reel of the Week entries go entirely — a featured reel already lives in
+    # site settings, so nothing on the home page depends on the row.
+    for entry in ReelSubmission.query.filter_by(user_id=uid).all():
+        if entry.disk_name:
+            try:
+                from flask import current_app
+                from .videos import delete_stored
+                delete_stored(current_app.config["VIDEO_STORAGE_DIR"],
+                              entry.disk_name)
+            except Exception:
+                log.exception("close_account: could not remove reel upload")
+        db.session.delete(entry)
 
     # Nullable analytics / feedback links.
     ShopPurchase.query.filter_by(user_id=uid).update(

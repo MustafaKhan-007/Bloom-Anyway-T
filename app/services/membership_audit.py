@@ -69,6 +69,7 @@ def audit(tier: str = "") -> dict:
     from Studio. ``unexplained`` rows are the ones worth checking in Stripe.
     """
     query = User.query.filter(User.deleted_at.is_(None),
+                              User.is_demo.is_(False),
                               User.membership.in_(_PAID_TIERS))
     if tier in _PAID_TIERS:
         query = query.filter(User.membership == tier)
@@ -143,6 +144,7 @@ def resync_from_stripe(tier: str = "", limit: int = 400) -> dict:
 
     query = User.query.filter(User.deleted_at.is_(None),
                               User.is_admin.is_(False),
+                              User.is_demo.is_(False),
                               User.membership.in_(_PAID_TIERS))
     if tier in _PAID_TIERS:
         query = query.filter(User.membership == tier)

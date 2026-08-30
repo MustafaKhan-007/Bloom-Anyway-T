@@ -28,6 +28,7 @@ from ..models import (Announcement, ContactMessage, ContentReport, FaqItem,
                       SiteFeedback, Testimonial,
                       User, Video, QUOTE_CATEGORIES, utcnow)
 from ..services import badges as badges_service
+from ..services import demo_accounts
 from ..services import quotes as quotes_service
 from ..services import reel_of_week as rotw_svc
 from ..services import reel_reviews as reel_svc
@@ -1699,7 +1700,32 @@ def members():
     return render_template("admin/members.html", people=people, counts=counts,
                            memberships=MEMBERSHIPS,
                            membership_labels=MEMBERSHIP_LABELS, q=q,
-                           membership_filter=membership)
+                           membership_filter=membership,
+                           demo_count=demo_accounts.count(),
+                           demo_min_password=demo_accounts.MIN_PASSWORD)
+
+
+@bp.route("/members/demo", methods=["POST"])
+@admin_required
+def members_add_demo():
+    """Create a stand-in account from just a username and a password."""
+    username = (request.form.get("username") or "").strip()
+    password = (request.form.get("password") or "").strip()
+    display_name = (request.form.get("display_name") or "").strip()
+    membership = (request.form.get("membership") or "none").strip().lower()
+
+    err = demo_accounts.validation_error(username, password, membership)
+    if err:
+        flash(err, "error")
+        return redirect(url_for("admin.members"))
+    user = demo_accounts.create(username, password,
+                                display_name=display_name,
+                                membership=membership)
+    log.info("studio: demo account @%s created by user %s",
+             user.username, current_user.id)
+    flash(f"Added {user.public_name()}. They sign in with @{user.username} "
+          "and the password you just set.", "success")
+    return redirect(url_for("admin.members"))
 
 
 @bp.route("/members/refresh-cancellations", methods=["POST"])
@@ -1780,7 +1806,8 @@ def members_export_csv():
     """Email list for marketing tools (Email, First Name, Last Name, …)."""
     q = (request.args.get("q") or "").strip()
     membership = (request.args.get("membership") or "").strip().lower()
-    query = User.query.filter(User.deleted_at.is_(None))
+    query = User.query.filter(User.deleted_at.is_(None),
+                              User.is_demo.is_(False))
     if q:
         like = f"%{q}%"
         query = query.filter(db.or_(User.email.ilike(like),

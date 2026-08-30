@@ -67,6 +67,10 @@ class User(UserMixin, db.Model):
     is_admin = db.Column(db.Boolean, nullable=False, default=False)
     # Studio access without edit rights (view-only co-owner / observer).
     admin_readonly = db.Column(db.Boolean, nullable=False, default=False)
+    # Hand-made in Studio to fill out a quiet room. Looks like any other
+    # account from the outside; owners see it flagged, and it is kept out of
+    # anything that emails people, counts members, or talks to Stripe.
+    is_demo = db.Column(db.Boolean, nullable=False, default=False, index=True)
     created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
     last_login_at = db.Column(db.DateTime)
     deleted_at = db.Column(db.DateTime)

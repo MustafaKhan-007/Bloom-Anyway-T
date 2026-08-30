@@ -2305,6 +2305,26 @@ html.is-page-loading { cursor: progress; }
 }
 .member-search { display: flex; gap: 10px; max-width: 520px; align-items: center; }
 .member-search input { flex: 1; }
+
+/* fold-out form for hand-made stand-in accounts */
+.demo-add {
+  margin-bottom: 18px; padding: 4px 0 0;
+  border-bottom: 1.5px solid rgba(43, 38, 34, 0.1);
+}
+.demo-add[open] { padding-bottom: 18px; }
+.demo-add__summary {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 12px; flex-wrap: wrap;
+  cursor: pointer; padding: 8px 0; font-weight: 600; color: var(--ink);
+  list-style: none;
+}
+.demo-add__summary::-webkit-details-marker { display: none; }
+.demo-add__summary::before {
+  content: "+"; margin-right: 8px; font-weight: 700; color: var(--ink-soft);
+}
+.demo-add[open] .demo-add__summary::before { content: "\2013"; }
+.demo-add__summary > span:first-of-type { flex: 1; }
+.demo-add__form { margin-top: 4px; }
 .stat-row { display: flex; gap: 14px; flex-wrap: wrap; }
 .stat-chip {
   background: var(--ivory-deep); border-radius: 12px; padding: 10px 16px;

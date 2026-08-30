@@ -2259,6 +2259,124 @@ ok("Admin subscribers redirects away from local list",
    r.status_code == 200 and ("Dashboard" in r.get_data(as_text=True)
                              or "Payments" in r.get_data(as_text=True)))
 
+# --- 7a2. stand-in accounts owners make by hand in Studio -------------------
+from app.services import demo_accounts
+
+_demo_form = {"username": "quietmaya", "password": "standin-pass-1",
+              "display_name": "Maya R.", "membership": "creator"}
+
+r = admin.get("/admin/members")
+ok("Studio offers a way to add a stand-in account",
+   "Add a stand-in account" in r.get_data(as_text=True)
+   and 'name="username"' in r.get_data(as_text=True))
+
+r = admin.post("/admin/members/demo", data=dict(_demo_form), follow_redirects=True)
+mbody = r.get_data(as_text=True)
+ok("Owner can add an account with just a username and password",
+   "Added Maya R." in mbody)
+ok("Studio says how they sign in", "@quietmaya" in mbody)
+with app.app_context():
+    demo_user = User.query.filter_by(username="quietmaya").first()
+    demo_id = demo_user.id
+    ok("The stand-in is flagged, verified, and on the chosen tier",
+       demo_user.is_demo is True and demo_user.is_verified
+       and demo_user.membership == "creator")
+    ok("It gets an address that can never receive mail",
+       demo_accounts.is_demo_address(demo_user.email)
+       and demo_user.email.endswith("@demo.invalid"))
+    ok("It can be found by handle for the sign-in path",
+       demo_accounts.find_by_username("quietmaya").id == demo_id)
+
+# no email address is typed, so the handle is what signs them in
+demo_client = app.test_client()
+r = demo_client.post("/login", data={"email": "quietmaya",
+                                     "password": "standin-pass-1"},
+                     follow_redirects=True)
+ok("A stand-in signs in with its username", r.status_code == 200
+   and "/login" not in r.request.path)
+ok("The signed-in stand-in reaches member pages",
+   demo_client.get("/account").status_code == 200)
+r = demo_client.post("/login", data={"email": "quietmaya", "password": "wrong"},
+                     follow_redirects=False)
+ok("A wrong password is still refused", r.status_code == 401)
+r = app.test_client().post("/login", data={"email": "nosuchhandle",
+                                           "password": "standin-pass-1"})
+ok("An unknown handle is refused", r.status_code == 401)
+ok("The login form accepts a handle, not just an address",
+   'type="email" id="email"' not in app.test_client().get("/login").get_data(as_text=True))
+
+# they must look ordinary from outside, and never be mailed or counted
+pbody = app.test_client().get(f"/u/{demo_id}").get_data(as_text=True)
+ok("A stand-in's public profile looks like anyone else's",
+   "Maya R." in pbody and "demo.invalid" not in pbody
+   and "stand-in" not in pbody.lower())
+ok("Nothing on the profile hints the account was made in Studio",
+   "is_demo" not in pbody)
+with app.app_context():
+    _demo_mail = []
+    _real_brevo = _mailer._send_via_brevo
+    _mailer._send_via_brevo = lambda to, *a, **kw: _demo_mail.append(to) or True
+    delivered = _mailer.send_email(demo_accounts.address_for("quietmaya"),
+                                   "Should never arrive", "body")
+    _mailer._send_via_brevo = _real_brevo
+    ok("The mailer refuses to write to a stand-in",
+       delivered is False and not _demo_mail)
+
+with app.app_context():
+    from app.services import stats as _stats
+    breakdown = _stats.membership_breakdown()
+    real_creators = User.query.filter(User.deleted_at.is_(None),
+                                      User.is_demo.is_(False),
+                                      User.membership == "creator").count()
+    ok("Stand-ins stay out of the membership breakdown",
+       breakdown["creator"] == real_creators)
+    from app.services import membership_audit as _audit
+    ok("Stand-ins stay out of the paid-tier audit",
+       all(row["user"].id != demo_id for row in _audit.audit()["rows"]))
+    from app.services import memberships as _mem
+    ok("Stripe reconcile leaves a stand-in's tier alone",
+       _mem.reconcile_user(db.session.get(User, demo_id)) is False)
+
+csv_body = admin.get("/admin/members/export.csv").get_data(as_text=True)
+ok("Stand-ins are left out of the email export",
+   "demo.invalid" not in csv_body and "quietmaya" not in csv_body)
+
+r = admin.get("/admin/members")
+ok("Studio marks a stand-in in the members list",
+   "stand-in" in r.get_data(as_text=True)
+   and "Signs in as @quietmaya" in r.get_data(as_text=True))
+
+# the same handle can't be reused, and the rules still apply
+r = admin.post("/admin/members/demo", data=dict(_demo_form), follow_redirects=True)
+ok("The same handle can't be taken twice", "is taken" in r.get_data(as_text=True))
+r = admin.post("/admin/members/demo",
+               data={"username": "shorty", "password": "abc", "membership": "none"},
+               follow_redirects=True)
+ok("A too-short password is refused",
+   "at least 8 characters" in r.get_data(as_text=True))
+r = admin.post("/admin/members/demo",
+               data={"username": "admin", "password": "standin-pass-1",
+                     "membership": "none"}, follow_redirects=True)
+ok("Reserved handles are refused", "reserved" in r.get_data(as_text=True).lower())
+with app.app_context():
+    ok("None of the refused attempts created an account",
+       User.query.filter(User.is_demo.is_(True)).count() == 1)
+
+# removing one uses the same button as any other member, and it stays gone
+r = admin.post(f"/admin/members/{demo_id}/remove", follow_redirects=True)
+ok("A stand-in is removed like anyone else",
+   r.status_code == 200 and "quietmaya" not in r.get_data(as_text=True))
+with app.app_context():
+    ok("The account row is really gone",
+       db.session.get(User, demo_id) is None)
+ok("A removed stand-in can no longer sign in",
+   app.test_client().post("/login", data={"email": "quietmaya",
+                                          "password": "standin-pass-1"}).status_code == 401)
+with app.app_context():
+    import seed as _seed_mod
+    ok("Nothing in the seed script recreates stand-ins",
+       "is_demo" not in open(_seed_mod.__file__, encoding="utf-8").read())
+
 # --- 7b. reel reviews, nav order -------------------------------------------
 from app.models import ReelReview, ReelReviewApplication
 from app.services import reel_reviews as reel_svc

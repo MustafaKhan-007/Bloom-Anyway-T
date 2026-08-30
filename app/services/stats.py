@@ -10,6 +10,10 @@ from ..models import (COLLECTED_ORDER_STATUSES, ForumPost, MarketplaceListing,
                       SiteFeedback, User, Video, VisitEvent)
 from . import support_groups as sg_svc
 
+#: Who counts as a member here. Studio's stand-in accounts are furniture, not
+#: people, so they stay out of every number an owner reads for a decision.
+REAL_MEMBER = (User.deleted_at.is_(None), User.is_demo.is_(False))
+
 
 def _dt(day: date) -> datetime:
     return datetime.combine(day, time.min)
@@ -172,22 +176,22 @@ def dashboard_cards() -> dict:
         ForumPost.created_at >= _dt(week_start)
     ).scalar() or 0
     active_members = db.session.query(func.count(User.id)).filter(
-        User.deleted_at.is_(None),
+        *REAL_MEMBER,
         User.membership.in_(("healing", "creator", "full_bloom")),
     ).scalar() or 0
     free_n = db.session.query(func.count(User.id)).filter(
-        User.deleted_at.is_(None),
+        *REAL_MEMBER,
         User.membership == "none",
     ).scalar() or 0
     denom = max(active_members + free_n, 1)
     engagement = round(100 * posters_week / denom)
     avg_streak = db.session.query(func.avg(User.current_streak)).filter(
-        User.deleted_at.is_(None),
+        *REAL_MEMBER,
         User.current_streak.isnot(None),
         User.current_streak > 0,
     ).scalar()
     new_week = db.session.query(func.count(User.id)).filter(
-        User.deleted_at.is_(None),
+        *REAL_MEMBER,
         User.created_at >= _dt(today - timedelta(days=7)),
     ).scalar() or 0
     pay = payment_insights(30)
@@ -227,7 +231,7 @@ def signups_by_week(weeks: int = 12) -> dict:
 
 def membership_breakdown() -> dict:
     rows = dict(db.session.query(User.membership, func.count(User.id))
-                .filter(User.deleted_at.is_(None)).group_by(User.membership).all())
+                .filter(*REAL_MEMBER).group_by(User.membership).all())
     return {
         "none": rows.get("none", 0),
         "healing": rows.get("healing", 0),
@@ -324,7 +328,7 @@ def member_activity(limit: int = 12) -> list[dict]:
         })
 
     rows = (User.query
-            .filter(User.deleted_at.is_(None))
+            .filter(*REAL_MEMBER)
             .order_by(User.created_at.desc())
             .limit(limit)
             .all())

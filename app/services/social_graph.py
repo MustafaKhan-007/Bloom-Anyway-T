@@ -268,7 +268,8 @@ def notify_everyone(*, kind: str, body: str, url: str | None = None,
     the actor, so they never receive their own broadcast and otherwise have
     no way of seeing that it went out.
     """
-    q = User.query.filter(User.deleted_at.is_(None))
+    # Stand-in accounts are nobody's inbox — skip the rows entirely.
+    q = User.query.filter(User.deleted_at.is_(None), User.is_demo.is_(False))
     if exclude_id:
         q = q.filter(User.id != exclude_id)
     sent = 0

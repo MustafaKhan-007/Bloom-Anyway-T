@@ -42,6 +42,59 @@
   </div>
 
   <section class="admin-panel studio-card">
+    <details class="demo-add"{% if request.args.get('add') %} open{% endif %}>
+      <summary class="demo-add__summary">
+        <span>Add a stand-in account</span>
+        <span class="field-help" style="margin:0;">
+          {% if demo_count %}{{ demo_count }} so far{% else %}None yet{% endif %}
+        </span>
+      </summary>
+      <p class="field-help" style="max-width: 62ch;">
+        For filling out a quiet room. Pick a username and a password and that's
+        it &mdash; no email address, nothing sent, nobody can tell from the
+        outside. Sign in with the username instead of an address. Remove one the
+        same way you'd remove anyone else, and it stays gone through a redeploy.
+      </p>
+      <form method="post" action="{{ url_for('admin.members_add_demo') }}" class="demo-add__form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="form-row">
+          <div class="field">
+            <label for="demo_username">Username</label>
+            <input type="text" id="demo_username" name="username" required
+                   placeholder="mayaonline" autocomplete="off" maxlength="30">
+            <p class="field-help">Letters, numbers and underscores. Shown as @handle.</p>
+          </div>
+          <div class="field">
+            <label for="demo_password">Password</label>
+            <input type="text" id="demo_password" name="password" required
+                   autocomplete="off" minlength="{{ demo_min_password }}">
+            <p class="field-help">
+              At least {{ demo_min_password }} characters. Write it down &mdash;
+              there's no inbox to reset it from.
+            </p>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="field">
+            <label for="demo_display_name">Display name (optional)</label>
+            <input type="text" id="demo_display_name" name="display_name"
+                   placeholder="Maya R." autocomplete="off" maxlength="80">
+            <p class="field-help">Left empty, they show up as their @handle.</p>
+          </div>
+          <div class="field">
+            <label for="demo_membership">Membership</label>
+            <select id="demo_membership" name="membership">
+              {% for tier in memberships %}
+              <option value="{{ tier }}">{{ membership_labels.get(tier, tier) }}</option>
+              {% endfor %}
+            </select>
+            <p class="field-help">Only affects what they can reach on the site.</p>
+          </div>
+        </div>
+        <button class="btn btn--primary btn--sm" type="submit">Add account</button>
+      </form>
+    </details>
+
     <form method="get" class="member-search">
       {% if membership_filter %}
       <input type="hidden" name="membership" value="{{ membership_filter }}">
@@ -84,13 +137,18 @@
           <td>
             {{ m.public_name() }}
             {% if m.is_admin %} <span class="status-pill">owner</span>{% endif %}
+            {% if m.is_demo %} <span class="status-pill">stand-in</span>{% endif %}
             {% if m.membership_is_canceling() %}
             <span class="status-pill status-pill--pending" title="Access continues until period end">
               cancelled, revoked on {{ m.membership_access_end_display() }}
             </span>
             {% endif %}
           </td>
-          <td>{{ m.email }}</td>
+          <td>
+            {%- if m.is_demo -%}
+            <span class="field-help" style="margin:0;">Signs in as @{{ m.username }}</span>
+            {%- else -%}{{ m.email }}{%- endif -%}
+          </td>
           <td>{{ m.created_at.strftime('%b %d, %Y') }}</td>
           <td>
             <form class="inline-form" method="post" action="{{ url_for('admin.set_membership', user_id=m.id) }}">

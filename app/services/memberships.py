@@ -280,6 +280,10 @@ def reconcile_user(user: User, downgrade: bool = False,
         # stamping the column adds nothing — and it used to leave a removed
         # co-owner sitting on a paid tier they never bought.
         return False
+    if user.is_demo:
+        # Stand-in accounts have no address Stripe could ever know, so asking
+        # would only ever demote the tier the owner picked for them.
+        return False
 
     manual = manual_tier(user)
     if manual:

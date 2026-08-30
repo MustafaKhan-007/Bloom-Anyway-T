@@ -235,6 +235,14 @@ def send_email(to: str, subject: str, text_body: str, html_body: str | None = No
     if not to:
         _set_error("Missing recipient email.")
         return False
+    # Studio's stand-in accounts carry an address that can't receive anything.
+    # Catching it here covers every caller rather than each one remembering.
+    from .demo_accounts import is_demo_address
+
+    if is_demo_address(to):
+        log.debug("Skipping email to stand-in account %s", to)
+        _set_error("")
+        return False
 
     if _brevo_api_key():
         return _send_via_brevo(
