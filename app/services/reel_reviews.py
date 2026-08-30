@@ -1,14 +1,38 @@
-"""Weekly reel-review lottery helpers."""
-from datetime import date, timedelta
+"""Weekly reel-review queue.
+
+Members enter one reel a week. Owners review one a day — seven over the week —
+and the slate is wiped every Monday so a fresh round starts clean.
+
+Weeks and days run on Atlanta's clock, not the server's, so "Monday" and
+"today" mean the same thing to the owner wherever the box happens to live.
+"""
+import logging
 import random
+from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
+
+from flask import current_app
 
 from ..extensions import db
 from ..models import ReelReview, ReelReviewApplication
 
+log = logging.getLogger(__name__)
+
+#: Atlanta is US Eastern; the zone handles daylight saving for us.
+ATLANTA_TZ = ZoneInfo("America/New_York")
+
+#: one review a day, so a full week is seven
+REVIEWS_PER_WEEK = 7
+
+
+def atlanta_today() -> date:
+    """Today's date in Atlanta."""
+    return datetime.now(ATLANTA_TZ).date()
+
 
 def week_monday(d: date | None = None) -> date:
-    """Return the Monday that starts the ISO week containing ``d``."""
-    d = d or date.today()
+    """Return the Monday that starts the week containing ``d``."""
+    d = d or atlanta_today()
     return d - timedelta(days=d.weekday())
 
 
@@ -23,7 +47,7 @@ def application_for(user_id: int, week: date | None = None) -> ReelReviewApplica
 
 def week_applicants(week: date | None = None):
     week = week or current_week_key()
-    # Selected winner first, then by entry time
+    # Reviewed entries first, then by entry time.
     return (ReelReviewApplication.query
             .filter_by(week_key=week)
             .order_by(ReelReviewApplication.selected.desc(),
@@ -31,8 +55,13 @@ def week_applicants(week: date | None = None):
             .all())
 
 
-def published_review_for_week(week: date | None = None) -> ReelReview | None:
-    """The live Content Hub review for this draw week, if one exists."""
+def waiting_applicants(week: date | None = None):
+    """This week's entries that haven't been reviewed yet."""
+    return [a for a in week_applicants(week) if a.review is None]
+
+
+def published_reviews_for_week(week: date | None = None):
+    """Every live review drawn from this week's entries, newest first."""
     week = week or current_week_key()
     return (ReelReview.query
             .join(ReelReviewApplication,
@@ -40,29 +69,50 @@ def published_review_for_week(week: date | None = None) -> ReelReview | None:
             .filter(ReelReviewApplication.week_key == week,
                     ReelReview.published.is_(True))
             .order_by(ReelReview.created_at.desc())
+            .all())
+
+
+def review_on(day: date | None = None) -> ReelReview | None:
+    """The review already published on that Atlanta day, if any."""
+    day = day or atlanta_today()
+    return (ReelReview.query
+            .filter(ReelReview.review_date == day,
+                    ReelReview.published.is_(True))
             .first())
 
 
-def week_is_closed(week: date | None = None) -> bool:
-    """True once this week's single review has been published."""
-    return published_review_for_week(week) is not None
+def day_is_done(day: date | None = None) -> bool:
+    """True once today's one review has gone out."""
+    return review_on(day) is not None
+
+
+def week_progress(week: date | None = None) -> dict:
+    """How far through the week's seven reviews the owner is."""
+    week = week or current_week_key()
+    done = len(published_reviews_for_week(week))
+    return {
+        "done": done,
+        "target": REVIEWS_PER_WEEK,
+        "left": max(0, REVIEWS_PER_WEEK - done),
+        "waiting": len(waiting_applicants(week)),
+        "today_done": day_is_done(),
+    }
 
 
 def pick_random_applicant(week: date | None = None) -> ReelReviewApplication | None:
-    """Choose one random applicant for the week and mark them selected.
+    """Choose a random entry that hasn't been reviewed yet and flag it.
 
-    Clears prior ``selected`` flags for that week first. No-op if the week's
-    review is already published (one review per week).
+    Only one entry carries the flag at a time — it marks who is up next, not
+    who has won, so picking again simply moves it.
     """
     week = week or current_week_key()
-    if week_is_closed(week):
+    waiting = waiting_applicants(week)
+    if not waiting:
         return None
-    apps = week_applicants(week)
-    if not apps:
-        return None
-    for a in apps:
-        a.selected = False
-    chosen = random.choice(apps)
+    for a in week_applicants(week):
+        if a.review is None:
+            a.selected = False
+    chosen = random.choice(waiting)
     chosen.selected = True
     db.session.commit()
     return chosen
@@ -71,3 +121,37 @@ def pick_random_applicant(week: date | None = None) -> ReelReviewApplication | N
 def is_instagram_reel_url(url: str) -> bool:
     u = (url or "").strip().lower()
     return ("instagram.com/" in u) and ("/reel/" in u or "/reels/" in u)
+
+
+def purge_old_applications(before: date | None = None) -> int:
+    """Drop unreviewed entries from finished weeks, and their video files.
+
+    Entries that were reviewed stay put — a published review points back at
+    them — but nothing keeps an unreviewed reel around once its week is over,
+    and the raw uploads are large.
+    """
+    before = before or current_week_key()
+    stale = (ReelReviewApplication.query
+             .filter(ReelReviewApplication.week_key < before)
+             .all())
+    from .videos import delete_stored
+
+    store = current_app.config["VIDEO_STORAGE_DIR"]
+    dropped = 0
+    for app_row in stale:
+        if app_row.review is not None:
+            # Keep the row, but the raw upload has done its job.
+            if app_row.disk_name:
+                delete_stored(store, app_row.disk_name)
+                app_row.disk_name = None
+                app_row.size = 0
+            continue
+        if app_row.disk_name:
+            delete_stored(store, app_row.disk_name)
+        db.session.delete(app_row)
+        dropped += 1
+    if stale:
+        db.session.commit()
+    if dropped:
+        log.info("Reel reviews: cleared %s unreviewed entries from past weeks.", dropped)
+    return dropped

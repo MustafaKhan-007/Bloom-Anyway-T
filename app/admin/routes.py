@@ -24,10 +24,12 @@ from ..models import (Announcement, ContactMessage, ContentReport, FaqItem,
                       ForumPost, MEMBERSHIPS, MEMBERSHIP_LABELS, MarketplaceListing,
                       MembershipPlan,
                       Page, Product, ProductAsset, Quote, QuoteFavorite, QuotePin,
-                      ReelReview, ReelReviewApplication, SiteFeedback, Testimonial,
+                      ReelReview, ReelReviewApplication, ReelSubmission,
+                      SiteFeedback, Testimonial,
                       User, Video, QUOTE_CATEGORIES, utcnow)
 from ..services import badges as badges_service
 from ..services import quotes as quotes_service
+from ..services import reel_of_week as rotw_svc
 from ..services import reel_reviews as reel_svc
 from ..services import stats
 from ..services import mailer
@@ -1170,10 +1172,21 @@ def spotlight():
             flash("Creator of the month cleared from the home page.", "success")
             return redirect(url_for("admin.spotlight"))
         if request.form.get("clear_spotlight_reel"):
+            rotw_svc.clear_featured()
             for key in ("reel_url", "reel_description", "reel_expires",
                         "spotlight_reel_notified"):
                 set_setting(key, "")
             flash("Reel of the week cleared from the home page.", "success")
+            return redirect(url_for("admin.spotlight"))
+        feature_id = (request.form.get("feature_reel") or "").strip()
+        if feature_id.isdigit():
+            entry = db.session.get(ReelSubmission, int(feature_id)) or abort(404)
+            rotw_svc.feature(entry)
+            spot.mark_slot_saved("reel", filled=True,
+                                 end=spot.default_end("reel"))
+            who = entry.author.public_name() if entry.author else "That member"
+            flash(f"{who}'s reel is now the Reel of the Week on the home page.",
+                  "success")
             return redirect(url_for("admin.spotlight"))
 
         values = {key: (request.form.get(key) or "").strip()
@@ -1244,7 +1257,34 @@ def spotlight():
         no_instagram=missing,
         draft=draft,
         slots=spot.spotlight_slots(),
+        reel_entries=rotw_svc.week_submissions(),
+        reel_week=rotw_svc.current_week_key(),
+        min_shares=rotw_svc.MIN_SHARES,
     )
+
+
+@bp.route("/spotlight/reel/<int:entry_id>/raw")
+@admin_required
+def spotlight_reel_raw(entry_id):
+    """Download a Reel of the Week entrant's raw video (Studio only)."""
+    entry = db.session.get(ReelSubmission, entry_id) or abort(404)
+    disk_name = os.path.basename(entry.disk_name or "")
+    if not disk_name:
+        flash("That entry has no raw video upload.", "error")
+        return redirect(url_for("admin.spotlight"))
+    directory = os.path.abspath(current_app.config["VIDEO_STORAGE_DIR"])
+    if not os.path.isfile(os.path.join(directory, disk_name)):
+        flash("That entry's raw video is no longer on the server.", "error")
+        return redirect(url_for("admin.spotlight"))
+    resp = send_from_directory(
+        directory, disk_name,
+        mimetype=entry.mime or "application/octet-stream",
+        as_attachment=True,
+        download_name=entry.filename or "reel.mp4",
+        max_age=0,
+    )
+    resp.headers["Cache-Control"] = "private, no-store"
+    return resp
 
 
 # =============================== SETTINGS ====================================
@@ -2631,29 +2671,29 @@ def community_bulk_remove_members():
 @admin_required
 def reel_reviews():
     week = reel_svc.current_week_key()
-    applicants = reel_svc.week_applicants(week)
-    week_review = reel_svc.published_review_for_week(week)
     published = (ReelReview.query
                  .order_by(ReelReview.created_at.desc()).limit(40).all())
     return render_template("admin/reel_reviews.html", week_key=week,
-                           applicants=applicants, reviews=published,
-                           week_review=week_review,
-                           week_closed=week_review is not None,
+                           applicants=reel_svc.week_applicants(week),
+                           reviews=published,
+                           progress=reel_svc.week_progress(week),
+                           today=reel_svc.atlanta_today(),
+                           today_review=reel_svc.review_on(),
                            max_mb=current_app.config["MAX_VIDEO_MB"])
 
 
 @bp.route("/reel-reviews/pick", methods=["POST"])
 @admin_required
 def reel_reviews_pick():
-    if reel_svc.week_is_closed():
-        flash("This week's review is already published — one review per week. "
-              "A new draw opens next Monday.", "info")
+    if reel_svc.day_is_done():
+        flash("Today's review is already out — one a day. "
+              "The next one can go up tomorrow.", "info")
         return redirect(url_for("admin.reel_reviews"))
     chosen = reel_svc.pick_random_applicant()
     if chosen is None:
-        flash("No applicants in this week's draw yet.", "error")
+        flash("Every entry this week has been reviewed already.", "info")
     else:
-        flash(f"Selected {chosen.author.public_name()} for this week's review.",
+        flash(f"{chosen.author.public_name()} is up next — write their review below.",
               "success")
     return redirect(url_for("admin.reel_reviews"))
 
@@ -2702,10 +2742,12 @@ def reel_reviews_raw_download(app_id):
 @admin_required
 def reel_reviews_publish(app_id):
     application = db.session.get(ReelReviewApplication, app_id) or abort(404)
-    existing = reel_svc.published_review_for_week(application.week_key)
-    if existing and (application.review is None or existing.id != application.review.id):
-        flash("This week's review is already published — one review per week. "
-              "Unpublish it first if you need to replace it.", "error")
+    today = reel_svc.atlanta_today()
+    already = reel_svc.review_on(today)
+    # Editing the one that already went out today is fine; a second is not.
+    if already and (application.review is None or already.id != application.review.id):
+        flash("A review already went out today — one a day. "
+              "The next one can go up tomorrow.", "error")
         return redirect(url_for("admin.reel_reviews"))
     title = (request.form.get("title") or "").strip()[:160]
     body = (request.form.get("body") or "").strip()
@@ -2718,6 +2760,8 @@ def reel_reviews_publish(app_id):
     review.title = title
     review.body = body or ""
     review.published = True
+    if review.review_date is None:
+        review.review_date = today
     upload = request.files.get("review_video")
     if upload and upload.filename:
         try:
@@ -2744,7 +2788,9 @@ def reel_reviews_publish(app_id):
         exclude_id=current_user.id,
     )
     db.session.commit()
-    flash("Reel review published to the Content Hub." + _told_suffix(told),
+    left = reel_svc.week_progress(application.week_key)["left"]
+    tail = f" {left} left this week." if left else " That's all seven this week."
+    flash("Reel review published to the Content Hub." + _told_suffix(told) + tail,
           "success")
     return redirect(url_for("admin.reel_reviews"))
 

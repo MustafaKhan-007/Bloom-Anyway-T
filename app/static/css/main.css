@@ -1952,6 +1952,44 @@ html.is-page-loading { cursor: progress; }
   letter-spacing: 0.02em; text-transform: uppercase;
   background: var(--gold); color: var(--plum-deep);
 }
+.reel-winner-badge--done {
+  background: rgba(43, 38, 34, 0.1); color: var(--ink-soft);
+}
+
+/* week-at-a-glance counters above the reel review queue */
+.reel-week__counts {
+  display: flex; flex-wrap: wrap; gap: 12px;
+}
+.reel-week__stat {
+  flex: 1 1 140px; padding: 14px 16px;
+  border-radius: 14px; background: var(--dawn-ivory);
+  border: 1.5px solid rgba(43, 38, 34, 0.1);
+}
+.reel-week__n {
+  display: block; font-size: 26px; font-weight: 700; color: var(--ink);
+  line-height: 1.1;
+}
+.reel-week__of { font-size: 17px; font-weight: 600; color: var(--ink-soft); }
+.reel-week__label {
+  display: block; margin-top: 2px;
+  font-size: 13px; color: var(--ink-soft);
+}
+
+/* Reel of the Week entries in Studio → Spotlight */
+.reel-entry-list { display: grid; gap: 12px; margin-top: 14px; }
+.reel-entry {
+  padding: 14px 16px; border-radius: 14px;
+  background: var(--dawn-ivory);
+  border: 1.5px solid rgba(43, 38, 34, 0.1);
+}
+.reel-entry--featured { border-color: var(--gold); }
+.reel-entry__who { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.reel-entry__who strong { font-size: 16px; color: var(--ink); }
+.reel-entry__actions {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px;
+  margin-top: 10px; font-size: 14px;
+}
+.reel-entry__actions > a:not(.btn) { font-weight: 600; }
 
 /* ------------------------------- badges --------------------------------- */
 .badge {
@@ -7469,6 +7507,28 @@ a.at-handle:hover { text-decoration: underline; }
 }
 .reel-read__cta h2 { margin: 0 0 6px; font-size: 1.2rem; }
 .reel-read__cta p { margin: 0 0 14px; font-size: 14.5px; color: var(--rm-plum); }
+
+/* the taste non-members get, fading into the upgrade prompt */
+.reel-read__body--locked {
+  position: relative; max-height: 240px; overflow: hidden;
+}
+.reel-read__body--locked::after {
+  content: ""; position: absolute; inset: auto 0 0 0; height: 120px;
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0), var(--dawn-ivory));
+  pointer-events: none;
+}
+.reel-read__lock {
+  margin-top: 18px; padding: 22px 24px; border-radius: 18px;
+  background: linear-gradient(135deg, #f7e8c8 0%, #fff7e6 55%, #f0d59a 100%);
+  border: 1px solid rgba(199, 154, 65, 0.4);
+}
+.reel-read__lock h2 { margin: 0 0 6px; font-size: 1.2rem; }
+.reel-read__lock p { margin: 0 0 14px; font-size: 14.5px; color: var(--rm-plum); }
+.hub-exact__notice--lock {
+  margin-top: 20px; display: flex; flex-wrap: wrap;
+  align-items: center; justify-content: space-between; gap: 12px 20px;
+}
+.hub-exact__notice--lock p { margin: 0; }
 .reel-read__more-head { margin-top: 48px; }
 @media (max-width: 640px) {
   .reel-read__body { padding: 20px 18px; }

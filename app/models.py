@@ -1498,8 +1498,8 @@ class ProductGalleryImage(db.Model):
 class ReelReviewApplication(db.Model):
     """A Creator member's weekly request for a reel review.
 
-    One application per user per ISO week (``week_key`` = that Monday). Each
-    week one applicant is randomly selected; Monday clears the slate.
+    One entry per user per week (``week_key`` = that Monday, Atlanta time).
+    Owners review one entry a day; Monday clears whatever wasn't reached.
     """
     __tablename__ = "reel_review_applications"
     __table_args__ = (
@@ -1541,7 +1541,49 @@ class ReelReview(db.Model):
     review_mime = db.Column(db.String(120))
     review_filename = db.Column(db.String(255))
     published = db.Column(db.Boolean, nullable=False, default=True)
+    #: the Atlanta day this went out, so one a day can be enforced and counted
+    review_date = db.Column(db.Date, index=True)
     created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
+
+    def teaser(self, limit: int = 220) -> str:
+        """The opening of the write-up, for members who can't read it yet."""
+        text = " ".join((self.body or "").split())
+        if not text:
+            return ""
+        words = text.split(" ")
+        text = " ".join(words[: max(1, len(words) // 2)])
+        return (text[:limit].rstrip() + "…") if text else ""
+
+
+class ReelSubmission(db.Model):
+    """A Creator member's entry for the home page Reel of the Week.
+
+    One entry per user per week (``week_key`` = that Monday, Atlanta time).
+    Needs the Instagram link and the raw video, and the member states the
+    share count — Instagram gives us no way to check it, so the owner sees
+    the number and decides.
+    """
+    __tablename__ = "reel_submissions"
+    __table_args__ = (
+        db.UniqueConstraint("user_id", "week_key", name="uq_reel_sub_user_week"),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    week_key = db.Column(db.Date, nullable=False, index=True)
+    reel_url = db.Column(db.String(500), nullable=False)
+    share_count = db.Column(db.Integer, nullable=False, default=0)
+    disk_name = db.Column(db.String(64))
+    filename = db.Column(db.String(255))
+    mime = db.Column(db.String(120), nullable=False, default="video/mp4")
+    size = db.Column(db.Integer, nullable=False, default=0)
+    featured = db.Column(db.Boolean, nullable=False, default=False)
+    created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
+
+    author = db.relationship("User")
+
+    def has_raw_video(self) -> bool:
+        return bool(self.disk_name) or bool(self.size)
 
 
 # --- site-branded images (hero / story teaser uploads) ----------------------

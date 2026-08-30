@@ -14,10 +14,12 @@
     {% endif %}
     <div class="hub-exact__review-tags">
       <span>Reel review</span>
-      {% if rev.application and rev.application.selected %}<span>Pick of the week</span>{% endif %}
+      {% if rev.review_date %}<span>{{ rev.review_date.strftime('%a %b %d') }}</span>{% endif %}
+      {% if not can_read %}<span>Creator only</span>{% endif %}
     </div>
     {% if rev.body %}
-    <div class="hub-exact__review-critique">{{ rev.body|truncate(150) }}</div>
+    <div class="hub-exact__review-critique">
+      {{ rev.teaser(150) if not can_read else rev.body|truncate(150) }}</div>
     {% endif %}
     <span class="hub-exact__review-open">Read the review &rarr;</span>
     <span class="hub-exact__review-date">{{ rev.created_at|localtime('%b %d, %Y') }}</span>

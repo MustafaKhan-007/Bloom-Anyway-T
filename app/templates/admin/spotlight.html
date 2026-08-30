@@ -153,11 +153,50 @@
     </section>
 
     <section class="admin-panel studio-card">
+      <h2>This week's Reel of the Week entries ({{ reel_entries|length }})</h2>
+      <p class="field-help" style="margin-top: 0;">
+        Week of {{ reel_week.strftime('%b %d, %Y') }}. Creator and Full Bloom
+        members enter one reel each, {{ min_shares }} shares or more. Featuring
+        one fills in the fields below; Monday clears the rest.
+      </p>
+      {% if reel_entries %}
+      <div class="reel-entry-list">
+        {% for e in reel_entries %}
+        <article class="reel-entry{% if e.featured %} reel-entry--featured{% endif %}">
+          <div class="reel-entry__who">
+            {% if e.featured %}<span class="reel-winner-badge">On the home page</span>{% endif %}
+            <strong>{{ e.author.public_name() if e.author else 'Member' }}</strong>
+            <span class="field-help" style="margin:0;">
+              {{ '{:,}'.format(e.share_count) }} shares &middot;
+              {{ e.filename or 'no raw file' }}
+              {%- if e.size %} &middot; {{ (e.size / 1024 / 1024)|round(1) }} MB{% endif %}
+            </span>
+          </div>
+          <div class="reel-entry__actions">
+            <a href="{{ e.reel_url }}" target="_blank" rel="noopener">Open reel</a>
+            {% if e.has_raw_video() %}
+            <a class="btn btn--secondary btn--sm"
+               href="{{ url_for('admin.spotlight_reel_raw', entry_id=e.id) }}">Download raw</a>
+            {% endif %}
+            {% if not e.featured %}
+            <button class="btn btn--gold btn--sm" type="submit"
+                    name="feature_reel" value="{{ e.id }}">Feature this one</button>
+            {% endif %}
+          </div>
+        </article>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p style="margin-top: 14px;">No entries yet this week — paste a reel by hand below.</p>
+      {% endif %}
+    </section>
+
+    <section class="admin-panel studio-card">
       <fieldset class="spotlight-fieldset">
         <legend>Reel of the week</legend>
         <p class="field-help" style="margin-top: 0;">
-          Your own pick of the week &mdash; go through the reels, paste the link.
-          There's no application for this one.
+          Featuring an entry above fills these in. You can also paste a reel by
+          hand &mdash; handy for a week nobody entered.
         </p>
         <div class="field">
           <label for="reel_url">Instagram reel URL</label>

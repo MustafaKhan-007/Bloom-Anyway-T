@@ -18,10 +18,12 @@ from ..models import (MARKETPLACE_KINDS, MARKETPLACE_KIND_LABELS,
                       ListingImage, MarketplaceListing, MembershipPlan,
                       Notification, Order, Page, Product, ProductAsset,
                       Quote, QuoteFavorite, ReelReview, ReelReviewApplication,
+                      ReelSubmission,
                       ShopPurchase, Subscriber, User, Video, utcnow,
                       journal_prompt_map, random_journal_prompt,
                       sample_journal_prompts)
 from ..services import quotes as quotes_service
+from ..services import reel_of_week as rotw_svc
 from ..services import reel_reviews as reel_svc
 from ..services import settings as settings_service
 from ..services.avatars import AvatarError, process_avatar
@@ -1604,9 +1606,15 @@ def _video_playable(video) -> bool:
     return False
 
 
+def _can_read_reviews(user) -> bool:
+    """Reel reviews are a Creator / Full Bloom perk — everyone else sees a taste."""
+    return bool(getattr(user, "is_authenticated", False)
+                and user.has_feature("reel_reviews"))
+
+
 @bp.route("/watch")
 def videos():
-    """Content Hub: public reel reviews + signed-in video library (Free+)."""
+    """Content Hub: reel reviews (Creator+) and the signed-in video library."""
     can_browse = current_user.is_authenticated
     can_play_creator = _can_play_videos(current_user)
     items = []
@@ -1615,16 +1623,21 @@ def videos():
                  .order_by(Video.sort_order, Video.created_at.desc()).all())
     reviews = (ReelReview.query.filter_by(published=True)
                .order_by(ReelReview.created_at.desc()).limit(24).all())
+    can_reel = _can_read_reviews(current_user)
     my_app = None
+    my_reel = None
     week_key = reel_svc.current_week_key()
-    week_review = reel_svc.published_review_for_week(week_key)
-    if current_user.is_authenticated and current_user.has_feature("reel_reviews"):
+    week_reviews = reel_svc.published_reviews_for_week(week_key)
+    if can_reel:
         my_app = reel_svc.application_for(current_user.id, week_key)
+        my_reel = rotw_svc.submission_for(current_user.id, week_key)
     return render_template(
         "main/videos.html", videos=items, can_browse=can_browse,
         can_play=can_play_creator, can_play_video=_can_play_video,
         reviews=reviews, my_application=my_app, week_key=week_key,
-        week_review=week_review,
+        week_reviews=week_reviews, can_reel=can_reel,
+        my_reel_submission=my_reel, min_shares=rotw_svc.MIN_SHARES,
+        reviews_per_week=reel_svc.REVIEWS_PER_WEEK,
         max_mb=current_app.config.get("REEL_RAW_MAX_MB", 100),
     )
 
@@ -1636,12 +1649,8 @@ def reel_review_request():
         flash("Reel reviews aren’t included in your plan.", "info")
         return redirect(url_for("main.membership"))
     week = reel_svc.current_week_key()
-    if reel_svc.week_is_closed(week):
-        flash("This week's reel review is already live. "
-              "A fresh draw opens next Monday.", "info")
-        return redirect(url_for("main.videos") + "#reviews")
     if reel_svc.application_for(current_user.id, week):
-        flash("You've already entered this week's reel-review draw. "
+        flash("You've already put a reel forward this week. "
               "A fresh round opens every Monday.", "info")
         return redirect(url_for("main.videos") + "#reviews")
     reel_url = (request.form.get("reel_url") or "").strip()[:500]
@@ -1674,9 +1683,69 @@ def reel_review_request():
         log.exception("reel review application failed")
         flash("We couldn't save your entry just now — please try again.", "error")
         return redirect(url_for("main.videos") + "#reviews")
-    flash("You're in this week's reel-review draw. One applicant is chosen at random.",
-          "success")
+    flash("Your reel is in for this week. Reviews go up one a day — "
+          "keep an eye on the Content Hub.", "success")
     return redirect(url_for("main.videos") + "#reviews")
+
+
+@bp.route("/watch/reel-of-week", methods=["POST"])
+@login_required
+def reel_of_week_submit():
+    """Put a reel forward for the home page spotlight."""
+    back = url_for("main.videos") + "#reel-of-week"
+    if not current_user.has_feature("reel_reviews"):
+        flash("Reel of the Week is a Creator perk.", "info")
+        return redirect(url_for("main.membership"))
+    week = rotw_svc.current_week_key()
+    if rotw_svc.submission_for(current_user.id, week):
+        flash("You've already entered a reel this week. "
+              "A fresh round opens every Monday.", "info")
+        return redirect(back)
+
+    reel_url = (request.form.get("reel_url") or "").strip()[:500]
+    if not rotw_svc.is_instagram_reel_url(reel_url):
+        flash("Paste the Instagram link of the reel "
+              "(it should look like instagram.com/reel/\u2026).", "error")
+        return redirect(back)
+    try:
+        shares = int((request.form.get("share_count") or "").strip() or 0)
+    except ValueError:
+        shares = 0
+    if shares < rotw_svc.MIN_SHARES:
+        flash(f"Reel of the Week is for reels with {rotw_svc.MIN_SHARES} shares "
+              "or more. Tell us the share count from your Instagram insights.",
+              "error")
+        return redirect(back)
+    if not request.form.get("confirm_shares"):
+        flash("Tick the box to confirm the share count is accurate.", "error")
+        return redirect(back)
+    upload = request.files.get("raw_video")
+    if not upload or not upload.filename:
+        flash("Upload the raw video for your reel too.", "error")
+        return redirect(back)
+
+    max_bytes = current_app.config.get("REEL_RAW_MAX_MB", 100) * 1024 * 1024
+    try:
+        disk_name, mime, fname, size = process_video(
+            upload, current_app.config["VIDEO_STORAGE_DIR"], max_bytes)
+    except VideoError as exc:
+        flash(str(exc), "error")
+        return redirect(back)
+    row = ReelSubmission(user_id=current_user.id, week_key=week,
+                         reel_url=reel_url, share_count=shares,
+                         disk_name=disk_name, filename=fname, mime=mime,
+                         size=size)
+    db.session.add(row)
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        delete_stored(current_app.config["VIDEO_STORAGE_DIR"], disk_name)
+        log.exception("reel of the week submission failed")
+        flash("We couldn't save your entry just now — please try again.", "error")
+        return redirect(back)
+    flash("Your reel is in the running for this week's spotlight.", "success")
+    return redirect(back)
 
 
 @bp.route("/watch/<int:video_id>")
@@ -1789,6 +1858,8 @@ def reel_review(review_id):
     if not review.published and not getattr(current_user, "is_admin", False):
         abort(404)
     application = review.application
+    # Reading the critique is a Creator perk; everyone else gets the opening.
+    can_read = _can_read_reviews(current_user)
     more = (ReelReview.query
             .filter(ReelReview.published.is_(True), ReelReview.id != review.id)
             .order_by(ReelReview.created_at.desc()).limit(6).all())
@@ -1797,18 +1868,21 @@ def reel_review(review_id):
         author=application.author if application else None,
         reel_url=application.reel_url if application else "",
         reel_embed=instagram_embed_url(application.reel_url) if application else None,
-        playable=_reel_review_playable(review), more=more,
+        playable=_reel_review_playable(review) and can_read, more=more,
+        can_read=can_read,
     )
 
 
 @bp.route("/watch/reviews/<int:review_id>/stream")
 @login_required
 def reel_review_stream(review_id):
-    """Stream the owner's published review video (public to signed-in visitors)."""
+    """Stream the owner's review video (Creator / Full Bloom members)."""
     review = db.session.get(ReelReview, review_id)
     if review is None or not review.review_disk_name:
         abort(404)
     if not review.published and not current_user.is_admin:
+        abort(404)
+    if not _can_read_reviews(current_user):
         abort(404)
     path = os.path.join(current_app.config["VIDEO_STORAGE_DIR"], review.review_disk_name)
     if not os.path.exists(path):

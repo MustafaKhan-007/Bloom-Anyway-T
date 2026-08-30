@@ -4,6 +4,7 @@
 {% block content %}
 {% set has_review_video = review.review_disk_name and playable %}
 {% set has_media = has_review_video or reel_embed %}
+{% if not can_read %}{% set has_media = reel_embed %}{% endif %}
 <section class="section">
   <div class="container reel-read">
     <p class="eyebrow"><a href="{{ url_for('main.videos') }}#reviews">&larr; Content Hub</a></p>
@@ -28,7 +29,7 @@
     <div class="reel-read__grid{% if not has_media %} reel-read__grid--solo{% endif %}">
       {% if has_media %}
       <div class="reel-read__media">
-        {% if review.review_disk_name %}
+        {% if review.review_disk_name and can_read %}
           {% if current_user.is_authenticated %}
             {% if playable %}
             <div class="reel-read__player">
@@ -79,7 +80,20 @@
       {% endif %}
 
       <div class="reel-read__copy">
-        {% if review.body %}
+        {% if not can_read %}
+        <article class="reel-read__body forum-body reel-read__body--locked">
+          {{ review.teaser() }}
+        </article>
+        <div class="reel-read__lock">
+          <h2>The rest is for Creator members</h2>
+          <p>
+            Reel reviews are written for Creator and Full Bloom members — the full
+            critique, the video walkthrough, and a reel of your own reviewed.
+          </p>
+          <a class="btn btn--gold btn--sm" href="{{ url_for('main.membership') }}">
+            See Creator membership</a>
+        </div>
+        {% elif review.body %}
         <article class="reel-read__body forum-body">{{ review.body|nl2br }}</article>
         {% else %}
         <div class="empty-state">
@@ -87,12 +101,14 @@
         </div>
         {% endif %}
 
+        {% if can_read %}
         <div class="reel-read__cta">
           <h2>Want yours reviewed?</h2>
-          <p>Every week one Creator entry is picked at random and reviewed here.</p>
+          <p>Put a reel forward each week — one gets reviewed here every day.</p>
           <a class="btn btn--gold btn--sm" href="{{ url_for('main.videos') }}#reel-review">
             Submit your reel</a>
         </div>
+        {% endif %}
       </div>
     </div>
 

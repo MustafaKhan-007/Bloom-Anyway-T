@@ -159,8 +159,9 @@ def create_app(config_class=None):
     app.register_blueprint(forums_bp, url_prefix="/forums")
     csrf.exempt(webhooks_bp)  # webhook signature check replaces CSRF here
 
-    # Opportunistic 24h reminders (also hit /cron/support-groups): support-group
-    # sessions, and the heads-up before a home-page spotlight slot runs out.
+    # Opportunistic housekeeping (also hit /cron/support-groups): support-group
+    # reminders, the heads-up before a spotlight slot runs out, and Monday's
+    # clear-out of last week's reel entries.
     @app.before_request
     def _timed_reminders():
         path = request.path or ""
@@ -174,6 +175,11 @@ def create_app(config_class=None):
         try:
             from .services import spotlight as spot_svc
             spot_svc.maybe_sweep()
+        except Exception:
+            pass
+        try:
+            from .services import reel_of_week as rotw_svc
+            rotw_svc.maybe_sweep()
         except Exception:
             pass
         return None
@@ -252,6 +258,7 @@ def create_app(config_class=None):
             token = (request.args.get("key") or "").strip()
         if token != secret:
             abort(404)
+        from .services import reel_of_week as rotw_svc
         from .services import spotlight as spot_svc
         from .services import stripe_pay as pay
         from .services import support_groups as sg_svc
@@ -259,7 +266,8 @@ def create_app(config_class=None):
         spotlight_notices = spot_svc.sweep_expiry_notices()
         cancels = pay.sweep_cancel_flags() if pay.configured() else {}
         return {"ok": True, "reminders": n, "spotlight": spotlight_notices,
-                "cancel_flags": cancels}, 200
+                "cancel_flags": cancels,
+                "reels_cleared": rotw_svc.sweep_old_weeks()}, 200
 
     # --- lightweight page-view counter (no cookies, no IPs) --------------------
     from .models import PageView

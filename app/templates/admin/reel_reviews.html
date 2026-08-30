@@ -5,33 +5,51 @@
 <div class="studio-page">
   <div class="page-head">
     <div>
-      <p class="eyebrow">Weekly draw</p>
+      <p class="eyebrow">One a day</p>
       <h1>Reel reviews</h1>
-      <p class="field-help" style="margin: 6px 0 0; max-width: 62ch;">This week's draw (week of {{ week_key.strftime('%b %d, %Y') }}).
-        One applicant is chosen at random; publish <strong>one</strong> review to the Content Hub.
-        A new week starts every Monday and last week's entries no longer count.</p>
+      <p class="field-help" style="margin: 6px 0 0; max-width: 62ch;">
+        Week of {{ week_key.strftime('%b %d, %Y') }} · today is
+        {{ today.strftime('%A, %b %d') }} in Atlanta. Members enter one reel
+        each; you review <strong>one a day</strong>, seven over the week.
+        Monday starts a fresh round and clears whatever you didn't get to.
+      </p>
     </div>
   </div>
 
-  {% if week_closed and week_review %}
-  <div class="flash flash--info">
-    This week's review is live: <strong>{{ week_review.title }}</strong>.
-    The draw is closed — one review per week. Unpublish below if you need to replace it,
-    or wait until Monday for a fresh round.
-  </div>
-  {% endif %}
+  <section class="admin-panel studio-card reel-week">
+    <div class="reel-week__counts">
+      <div class="reel-week__stat">
+        <span class="reel-week__n">{{ progress.done }}<span class="reel-week__of">/{{ progress.target }}</span></span>
+        <span class="reel-week__label">Reviewed this week</span>
+      </div>
+      <div class="reel-week__stat">
+        <span class="reel-week__n">{{ progress.waiting }}</span>
+        <span class="reel-week__label">Still waiting</span>
+      </div>
+      <div class="reel-week__stat">
+        <span class="reel-week__n">{{ 'Done' if progress.today_done else 'Open' }}</span>
+        <span class="reel-week__label">Today</span>
+      </div>
+    </div>
+    {% if today_review %}
+    <p class="field-help" style="margin: 14px 0 0;">
+      Today's review is out: <strong>{{ today_review.title }}</strong>.
+      You can still edit it, but the next new one goes up tomorrow.
+    </p>
+    {% endif %}
+  </section>
 
   <section class="admin-panel studio-card">
     <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;">
-      <h2 style="margin:0;">This week's applicants ({{ applicants|length }})</h2>
-      {% if not week_closed %}
+      <h2 style="margin:0;">This week's entries ({{ applicants|length }})</h2>
+      {% if not progress.today_done %}
       <form method="post" action="{{ url_for('admin.reel_reviews_pick') }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button class="btn btn--primary btn--sm" type="submit"
-                {% if not applicants %}disabled{% endif %}>Pick random winner</button>
+                {% if not progress.waiting %}disabled{% endif %}>Pick one at random</button>
       </form>
       {% else %}
-      <span class="field-help" style="margin:0;">Draw closed for this week</span>
+      <span class="field-help" style="margin:0;">Today's review is done</span>
       {% endif %}
     </div>
 
@@ -39,11 +57,14 @@
     <div class="reel-applicant-list">
       {% for a in applicants %}
       {% set is_live = a.review and a.review.published %}
-      <article class="reel-applicant{% if a.selected %} reel-applicant--winner{% endif %}">
+      <article class="reel-applicant{% if a.selected and not is_live %} reel-applicant--winner{% endif %}">
         <div class="reel-applicant__top">
           <div class="reel-applicant__who">
-            {% if a.selected %}
-            <span class="reel-winner-badge">This week's winner</span>
+            {% if is_live %}
+            <span class="reel-winner-badge reel-winner-badge--done">Reviewed
+              {%- if a.review.review_date %} {{ a.review.review_date.strftime('%a %b %d') }}{% endif %}</span>
+            {% elif a.selected %}
+            <span class="reel-winner-badge">Up next</span>
             {% endif %}
             <strong>{{ a.author.public_name() }}</strong>
             <span class="field-help" style="margin:0;">{{ a.author.email }}</span>
@@ -61,16 +82,14 @@
             {% endif %}
           </div>
         </div>
-        {% if week_closed %}
-          {% if is_live %}
+        {% if is_live %}
           <p class="field-help" style="margin: 12px 0 0;">
             Published as <strong>{{ a.review.title }}</strong>. Use Unpublish below to edit and republish.
           </p>
-          {% else %}
+        {% elif progress.today_done %}
           <p class="field-help" style="margin: 12px 0 0;">
-            Not selected — this week's review is already published.
+            Waiting — today's review is already out. This one can go up tomorrow.
           </p>
-          {% endif %}
         {% else %}
         <details class="reel-applicant__fold"{% if a.selected %} open{% endif %}>
           <summary class="reel-applicant__summary">
@@ -105,7 +124,7 @@
       {% endfor %}
     </div>
     {% else %}
-    <p style="margin-top: 14px;">No applicants yet this week.</p>
+    <p style="margin-top: 14px;">No entries yet this week.</p>
     {% endif %}
   </section>
 

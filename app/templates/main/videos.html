@@ -4,7 +4,6 @@
 {% block content %}
 {% set is_creator = current_user.is_authenticated and current_user.has_feature('content_hub_creator') %}
 {% set is_healing = current_user.is_authenticated and current_user.has_feature('content_hub_healing') %}
-{% set can_reel = current_user.is_authenticated and current_user.has_feature('reel_reviews') %}
 <div class="hub-exact">
   <div class="hub-exact__banner {{ 'hub-exact__banner--soft' if is_creator }}">
     <div class="container hub-exact__banner-inner">
@@ -32,8 +31,8 @@
       <h1>Content Hub</h1>
       <p class="hub-exact__lede">
         Written tips for showing up online (with video when it helps) and reel
-        reviews — send us a reel, get it looked at properly. Open to Creator and
-        Full Bloom members.
+        reviews — put a reel forward each week and one gets looked at properly
+        every day. Reviews are for Creator and Full Bloom members.
       </p>
     </div>
   </header>
@@ -48,12 +47,13 @@
         </a>
         <a class="hub-exact__action hub-exact__action--plum" href="#reel-review" data-reveal-rotw>
           <h2>Submit Your Reel for Review</h2>
+          <p>One a week, reviewed one a day</p>
           <span class="hub-exact__action-link hub-exact__action-link--gold">Submit your reel &rarr;</span>
         </a>
-        <a class="hub-exact__action hub-exact__action--white" href="#reviews">
-          <h2>Published Reviews</h2>
-          <p>Read what the founders sent back</p>
-          <span class="hub-exact__action-link">Browse reviews &rarr;</span>
+        <a class="hub-exact__action hub-exact__action--white" href="#reel-of-week">
+          <h2>Reel of the Week</h2>
+          <p>{{ min_shares }}+ shares? Put it up for the home page</p>
+          <span class="hub-exact__action-link">Enter your reel &rarr;</span>
         </a>
       </div>
     </div>
@@ -127,15 +127,13 @@
       </div>
 
       <div class="hub-exact__status" role="status">
-        <span class="hub-exact__status-label">Today:</span>
-        {% if week_review %}
-        <span>Review live{% if week_key %} · week of {{ week_key.strftime('%b %d, %Y') }}{% endif %}</span>
-        {% elif my_application %}
-        <span>You’re in the draw{% if week_key %} · week of {{ week_key.strftime('%b %d, %Y') }}{% endif %}</span>
+        <span class="hub-exact__status-label">This week:</span>
+        <span>{{ week_reviews|length }} of {{ reviews_per_week }} reviewed{% if week_key %}
+          · week of {{ week_key.strftime('%b %d, %Y') }}{% endif %}</span>
+        {% if my_application %}
+        <span>· your reel is in</span>
         {% elif can_reel %}
-        <span>Draw open — submit your reel below</span>
-        {% else %}
-        <span>Members with reel reviews can enter the weekly draw</span>
+        <span>· submit yours below</span>
         {% endif %}
       </div>
 
@@ -145,6 +143,14 @@
         {% include "partials/review_card.html" %}
         {% endfor %}
       </div>
+      {% if not can_reel %}
+      <div class="hub-exact__notice hub-exact__notice--lock">
+        <p><strong>Reel reviews are a Creator perk.</strong>
+          You can see what's been reviewed, but the write-ups themselves are for
+          Creator and Full Bloom members.</p>
+        <a class="btn btn--gold btn--sm" href="{{ url_for('main.membership', next=url_for('main.videos') + '#reviews') }}">See Creator membership</a>
+      </div>
+      {% endif %}
       {% else %}
       <div class="empty-state">
         <p>No published reel reviews yet — the first ones will show up here.</p>
@@ -156,43 +162,26 @@
           <p class="hub-exact__eyebrow">Get your reel reviewed</p>
           <h2>Submit your reel</h2>
           <ul>
-            <li>Post your Instagram reel and aim for <strong>100 shares</strong></li>
-            <li>Submit the posted link + raw video file</li>
-            <li>One entry is reviewed each week, picked at random</li>
-            <li>A fresh round opens every Monday</li>
+            <li>Post your Instagram reel, then send the link + raw video</li>
+            <li><strong>One reel each per week</strong></li>
+            <li>One gets reviewed every day &mdash; {{ reviews_per_week }} over the week</li>
+            <li>A fresh round opens every Monday, Atlanta time</li>
           </ul>
-          <p class="field-help">Not the same as Creator of the Month or Reel of
-            the Week on the home page &mdash; those two are hand-picked, nothing
-            to enter.</p>
+          <p class="field-help">This is the critique queue. For the home page
+            spotlight, enter <a href="#reel-of-week">Reel of the Week</a> below.</p>
         </div>
         <div class="hub-exact__rotw-form">
           {% if can_reel %}
-            {% if week_review %}
+            {% if my_application %}
             <div class="hub-exact__notice">
-              <p>This week’s reel review is published
-                (week of {{ week_key.strftime('%b %d, %Y') }}).</p>
-              <p class="field-help">
-                The draw is closed — see
-                <strong>{{ week_review.title }}</strong> above.
-                A fresh round opens next Monday.
-              </p>
-              {% if my_application %}
-              <p class="field-help">
-                Your entry:
-                <a href="{{ my_application.reel_url }}" target="_blank" rel="noopener">view on Instagram</a>
-                {% if my_application.selected %}
-                &middot; you were this week’s pick
-                {% endif %}
-              </p>
-              {% endif %}
-            </div>
-            {% elif my_application %}
-            <div class="hub-exact__notice">
-              <p>You’re in this week’s draw
+              <p>Your reel is in for this week
                 (week of {{ week_key.strftime('%b %d, %Y') }}).
-                Hang tight — one person is selected at random.</p>
+                Reviews go up one a day.</p>
               <p class="field-help">
                 Your reel: <a href="{{ my_application.reel_url }}" target="_blank" rel="noopener">view on Instagram</a>
+                {% if my_application.review %} &middot; reviewed
+                {% elif my_application.selected %} &middot; you’re up next
+                {% endif %}
               </p>
             </div>
             {% else %}
@@ -212,14 +201,14 @@
               </label>
               <p class="field-help">Max {{ max_mb }} MB (MP4, MOV or WEBM). Larger files are blocked before they reach us — compress or trim first if needed.</p>
               <p class="field-help flash flash--error" data-upload-error hidden role="alert"></p>
-              <button class="btn btn--primary" type="submit">Enter this week’s draw</button>
+              <button class="btn btn--primary" type="submit">Put my reel forward</button>
             </form>
             {% endif %}
           {% elif current_user.is_authenticated %}
           <div class="hub-exact__notice">
             <p>Reel reviews aren’t included in your plan.
               <a href="{{ url_for('main.membership', next=url_for('main.videos') + '#reviews') }}">See memberships</a>
-              to unlock weekly reviews.</p>
+              to unlock them.</p>
           </div>
           {% else %}
           <div class="hub-exact__notice">
@@ -230,46 +219,72 @@
         </div>
       </div>
 
-      <div class="hub-exact__queue" id="review-queue">
-        <div class="hub-exact__section-head">
-          <div>
-            <h2>Review queue</h2>
-          </div>
+      <div class="hub-exact__rotw" id="reel-of-week">
+        <div class="hub-exact__rotw-copy">
+          <p class="hub-exact__eyebrow">Home page spotlight</p>
+          <h2>Reel of the Week</h2>
+          <ul>
+            <li>For reels with <strong>{{ min_shares }} shares or more</strong></li>
+            <li>Send the Instagram link + the raw video</li>
+            <li><strong>One reel each per week</strong></li>
+            <li>One is featured on the home page; Monday starts again</li>
+          </ul>
+          <p class="field-help">Different from the critique queue &mdash; this one
+            is about a reel that travelled, not one you want notes on.</p>
         </div>
-        {% if week_review %}
-        <ol class="hub-exact__queue-list">
-          <li class="hub-exact__queue-item hub-exact__queue-item--done">
-            <span class="hub-exact__queue-n">1</span>
-            <div>
-              <strong>{{ week_review.title }}</strong>
-              <p>This week’s pick is live. The next queue opens Monday.</p>
-            </div>
-          </li>
-        </ol>
-        {% elif my_application %}
-        <ol class="hub-exact__queue-list">
-          <li class="hub-exact__queue-item">
-            <span class="hub-exact__queue-n">1</span>
-            <div>
-              <strong>Your entry</strong>
-              <p>You’re in this week’s draw. One Creator member will be chosen at random.</p>
+        <div class="hub-exact__rotw-form">
+          {% if can_reel %}
+            {% if my_reel_submission %}
+            <div class="hub-exact__notice">
+              <p>Your reel is in the running for this week
+                (week of {{ week_key.strftime('%b %d, %Y') }}).</p>
               <p class="field-help">
-                <a href="{{ my_application.reel_url }}" target="_blank" rel="noopener">Your reel on Instagram</a>
-                {% if my_application.selected %} &middot; selected{% endif %}
+                <a href="{{ my_reel_submission.reel_url }}" target="_blank" rel="noopener">View on Instagram</a>
+                &middot; {{ '{:,}'.format(my_reel_submission.share_count) }} shares
+                {% if my_reel_submission.featured %} &middot; <strong>featured on the home page</strong>{% endif %}
               </p>
             </div>
-          </li>
-        </ol>
-        {% else %}
-        <ol class="hub-exact__queue-list">
-          <li class="hub-exact__queue-item hub-exact__queue-item--empty">
-            <span class="hub-exact__queue-n">—</span>
-            <div>
-              <p>No queue details to show yet. Send in a reel above when the round is open.</p>
-            </div>
-          </li>
-        </ol>
-        {% endif %}
+            {% else %}
+            <form class="stack-form" method="post" action="{{ url_for('main.reel_of_week_submit') }}"
+                  enctype="multipart/form-data"
+                  data-max-upload-mb="{{ max_mb }}"
+                  data-max-upload-input="raw_video">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <h3>Enter Reel of the Week</h3>
+              <label>Instagram reel link
+                <input type="url" name="reel_url" required
+                       placeholder="https://www.instagram.com/reel/…">
+              </label>
+              <label>Shares
+                <input type="number" name="share_count" min="{{ min_shares }}" step="1" required
+                       placeholder="{{ min_shares }}">
+              </label>
+              <p class="field-help">From your Instagram insights. {{ min_shares }} minimum.</p>
+              <label>Raw video file
+                <input type="file" name="raw_video" accept="video/mp4,video/quicktime,video/webm,.mp4,.mov,.webm" required>
+              </label>
+              <p class="field-help">Max {{ max_mb }} MB (MP4, MOV or WEBM).</p>
+              <label class="checkline">
+                <input type="checkbox" name="confirm_shares" value="1" required>
+                <span>That share count is accurate.</span>
+              </label>
+              <p class="field-help flash flash--error" data-upload-error hidden role="alert"></p>
+              <button class="btn btn--primary" type="submit">Enter my reel</button>
+            </form>
+            {% endif %}
+          {% elif current_user.is_authenticated %}
+          <div class="hub-exact__notice">
+            <p>Reel of the Week is a Creator perk.
+              <a href="{{ url_for('main.membership', next=url_for('main.videos') + '#reel-of-week') }}">See memberships</a>
+              to enter.</p>
+          </div>
+          {% else %}
+          <div class="hub-exact__notice">
+            <p><a href="{{ url_for('auth.login', next=url_for('main.videos') + '#reel-of-week') }}">Sign in</a>
+              with a Creator plan to enter.</p>
+          </div>
+          {% endif %}
+        </div>
       </div>
     </div>
   </section>

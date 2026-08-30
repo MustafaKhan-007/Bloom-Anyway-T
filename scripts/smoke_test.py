@@ -2296,9 +2296,12 @@ r = client.post("/watch/review-request", data={
     "reel_url": "https://www.instagram.com/reel/TESTREEL1/",
     "raw_video": (io.BytesIO(minimal_mp4), "raw.mp4"),
 }, content_type="multipart/form-data", follow_redirects=True)
-ok("Creator member can enter the weekly reel-review draw",
-   "You're in this week's" in r.get_data(as_text=True)
-   or "reel-review draw" in r.get_data(as_text=True))
+ok("Creator member can put a reel forward for the week",
+   "Your reel is in for this week" in r.get_data(as_text=True))
+with app.app_context():
+    ok("Entries are keyed to the Monday of Atlanta's week",
+       reel_svc.current_week_key() == reel_svc.week_monday(reel_svc.atlanta_today())
+       and reel_svc.current_week_key().weekday() == 0)
 with app.app_context():
     import os as _os
     stored = ReelReviewApplication.query.first()
@@ -2312,15 +2315,18 @@ r = client.post("/watch/review-request", data={
     "raw_video": (io.BytesIO(minimal_mp4), "raw2.mp4"),
 }, content_type="multipart/form-data", follow_redirects=True)
 ok("Second reel-review request in the same week is blocked",
-   "already entered" in r.get_data(as_text=True))
+   "already put a reel forward this week" in r.get_data(as_text=True))
 
 r = admin.post("/admin/reel-reviews/pick", follow_redirects=True)
 body = r.get_data(as_text=True)
-ok("Owner can pick a random reel-review applicant",
-   "Selected" in body)
-ok("Picked winner is highlighted at the top of the draw",
-   "reel-applicant--winner" in body and "This week's winner" in body)
-ok("Winner card offers a single raw-video download",
+ok("Owner can pick a random entry to review",
+   "is up next" in body)
+ok("The picked entry is highlighted at the top of the queue",
+   "reel-applicant--winner" in body and "Up next" in body)
+ok("Studio counts the week's progress towards seven",
+   "0<span class=\"reel-week__of\">/7</span>" in body
+   and "Reviewed this week" in body)
+ok("Entry card offers a single raw-video download",
    body.count("Download raw") == 1 and "Download raw video" not in body)
 with app.app_context():
     app_row = ReelReviewApplication.query.filter_by(selected=True).first()
@@ -2335,20 +2341,61 @@ r = admin.post(f"/admin/reel-reviews/{app_id}/publish", data={
 }, follow_redirects=True)
 ok("Owner can publish a reel review",
    "published to the Content Hub" in r.get_data(as_text=True))
+ok("Publishing says how many are left in the week's seven",
+   "6 left this week" in r.get_data(as_text=True))
+with app.app_context():
+    pub = ReelReview.query.order_by(ReelReview.id.desc()).first()
+    ok("A published review is stamped with the Atlanta day it went out",
+       pub.review_date == reel_svc.atlanta_today())
 r = admin.get("/admin/reel-reviews")
 abody = r.get_data(as_text=True)
-ok("Studio hides publish UI once this week's review is live",
-   "Draw closed for this week" in abody
+ok("Studio closes the publish UI once today's review is out",
+   "Today's review is done" in abody
    and "Write &amp; publish review" not in abody
    and "Write & publish review" not in abody)
+ok("Studio shows one of seven done for the week",
+   "1<span class=\"reel-week__of\">/7</span>" in abody)
 r = admin.post("/admin/reel-reviews/pick", follow_redirects=True)
-ok("Picking again is blocked after the week's review is published",
-   "already published" in r.get_data(as_text=True).lower()
-   or "one review per week" in r.get_data(as_text=True).lower())
+ok("Picking again is blocked once today's review is out",
+   "one a day" in r.get_data(as_text=True).lower())
+
+# a second member can still enter while today's review is live — the daily cap
+# is the owner's, not theirs
+creator2 = app.test_client()
+sent_codes.clear()
+creator2.post("/register", data={"email": "reeler2@example.com", "password": USER_PW,
+                                 "password_confirm": USER_PW})
+creator2.post("/verify-email", data={"email": "reeler2@example.com",
+                                     "code": sent_codes[-1][1]})
+with app.app_context():
+    u2 = User.query.filter_by(email="reeler2@example.com").first()
+    u2.membership = "creator"
+    db.session.commit()
+    u2_id = u2.id
+r = creator2.post("/watch/review-request", data={
+    "reel_url": "https://www.instagram.com/reel/TESTREEL9/",
+    "raw_video": (io.BytesIO(minimal_mp4), "raw9.mp4"),
+}, content_type="multipart/form-data", follow_redirects=True)
+ok("Another member can still enter while today's review is live",
+   "Your reel is in for this week" in r.get_data(as_text=True))
+with app.app_context():
+    other_id = (ReelReviewApplication.query
+                .filter_by(user_id=u2_id).first().id)
+r = admin.post(f"/admin/reel-reviews/{other_id}/publish", data={
+    "title": "Second one today", "body": "Should not go out yet.",
+}, follow_redirects=True)
+ok("A second review on the same day is refused",
+   "one a day" in r.get_data(as_text=True).lower())
+with app.app_context():
+    ok("The refused second review was never created",
+       ReelReview.query.filter_by(application_id=other_id).count() == 0)
+
 r = client.get("/watch")
 cbody = r.get_data(as_text=True)
-ok("Published reel reviews are public on Content Hub",
+ok("Published reel reviews show on Content Hub for Creator members",
    "Loved your pacing" in cbody)
+ok("Content Hub counts the week's reviews rather than closing the round",
+   "of 7 reviewed" in cbody and "Hang tight" not in cbody)
 
 # the review opens on its own page: full write-up + a properly sized player
 long_review = ("Your hook lands inside the first second and the caption carries "
@@ -2386,22 +2433,136 @@ ok("Review video streams to a signed-in member",
    r.status_code == 200 and len(r.data) > 0)
 
 guest_body = app.test_client().get(f"/watch/reviews/{review_id}").get_data(as_text=True)
-ok("Guests read the review but are asked to sign in for the video",
-   "who they just watched" in guest_body and "Sign in to watch" in guest_body
-   and "<video" not in guest_body)
+ok("Guests get a taste of the review, not the whole critique",
+   guest_body.count("Loved your pacing") >= 1
+   and "who they just watched" not in guest_body
+   and "The rest is for Creator members" in guest_body)
+ok("Guests are not offered the review video at all",
+   "<video" not in guest_body and "Sign in to watch" not in guest_body)
+heal_body = banclient.get(f"/watch/reviews/{review_id}").get_data(as_text=True)
+ok("Healing members hit the same lock as guests",
+   "The rest is for Creator members" in heal_body
+   and "who they just watched" not in heal_body)
+ok("Non-members can't stream the review video either",
+   banclient.get(f"/watch/reviews/{review_id}/stream").status_code == 404
+   and app.test_client().get(
+       f"/watch/reviews/{review_id}/stream").status_code in (302, 401, 404))
+heal_hub = banclient.get("/watch").get_data(as_text=True)
+ok("Content Hub tells non-members why the reviews are locked",
+   "Reel reviews are a Creator perk" in heal_hub)
 ok("Missing reel review returns 404",
    client.get("/watch/reviews/999999").status_code == 404)
-ok("Content Hub shows the week is closed after publish",
-   "reel review is published" in cbody.lower()
-   and "Hang tight" not in cbody)
-r = client.post("/watch/review-request", data={
-    "reel_url": "https://www.instagram.com/reel/TESTREEL3/",
-    "raw_video": (io.BytesIO(minimal_mp4), "raw3.mp4"),
+
+# --- reel of the week: member entries feed the home page spotlight ----------
+from app.models import ReelSubmission
+from app.services import reel_of_week as rotw_svc
+
+_rotw = {"reel_url": "https://www.instagram.com/reel/SHARED100/",
+         "share_count": "412", "confirm_shares": "1"}
+
+
+def _rotw_post(cl, **over):
+    data = dict(_rotw, **over)
+    data["raw_video"] = (io.BytesIO(minimal_mp4), "shared.mp4")
+    return cl.post("/watch/reel-of-week", data=data,
+                   content_type="multipart/form-data", follow_redirects=True)
+
+
+r = _rotw_post(banclient)
+ok("Healing member can't enter Reel of the Week",
+   "Creator perk" in r.get_data(as_text=True)
+   or banclient.get("/membership").status_code == 200)
+r = _rotw_post(client, share_count="12")
+ok("A reel under 100 shares is turned away",
+   "100 shares or more" in r.get_data(as_text=True))
+r = _rotw_post(client, reel_url="https://example.com/not-a-reel")
+ok("Reel of the Week needs a real Instagram reel link",
+   "instagram.com/reel" in r.get_data(as_text=True))
+r = client.post("/watch/reel-of-week", data={
+    **_rotw, "raw_video": (io.BytesIO(minimal_mp4), "shared.mp4"),
+    "confirm_shares": "",
 }, content_type="multipart/form-data", follow_redirects=True)
-ok("New draw entries are blocked once the week's review is published",
-   "already live" in r.get_data(as_text=True).lower()
-   or "already published" in r.get_data(as_text=True).lower()
-   or "already entered" in r.get_data(as_text=True).lower())
+ok("The share count has to be confirmed before it counts",
+   "confirm the share count" in r.get_data(as_text=True))
+r = client.post("/watch/reel-of-week", data=dict(_rotw),
+                content_type="multipart/form-data", follow_redirects=True)
+ok("Reel of the Week needs the raw video, not just the link",
+   "Upload the raw video" in r.get_data(as_text=True))
+with app.app_context():
+    ok("None of the refused entries were saved",
+       ReelSubmission.query.count() == 0)
+
+r = _rotw_post(client)
+ok("Creator member can enter Reel of the Week",
+   "in the running for this week" in r.get_data(as_text=True))
+r = _rotw_post(client, reel_url="https://www.instagram.com/reel/SHARED200/")
+ok("Second Reel of the Week entry in the same week is blocked",
+   "already entered a reel this week" in r.get_data(as_text=True))
+with app.app_context():
+    sub = ReelSubmission.query.first()
+    sub_id = sub.id
+    ok("The entry keeps the share count and the raw video",
+       sub.share_count == 412 and sub.has_raw_video()
+       and sub.week_key == rotw_svc.current_week_key())
+
+r = admin.get("/admin/spotlight")
+sbody = r.get_data(as_text=True)
+ok("Studio lists this week's Reel of the Week entries",
+   "This week's Reel of the Week entries (1)" in sbody
+   and "412 shares" in sbody and "Feature this one" in sbody)
+r = admin.get(f"/admin/spotlight/reel/{sub_id}/raw")
+ok("Owner can download an entrant's raw video",
+   r.status_code == 200
+   and "attachment" in (r.headers.get("Content-Disposition") or "").lower()
+   and len(r.data) > 0)
+r = admin.post("/admin/spotlight", data={"feature_reel": str(sub_id)},
+               follow_redirects=True)
+ok("Owner can feature an entry as Reel of the Week",
+   "Reel of the Week on the home page" in r.get_data(as_text=True))
+home = app.test_client().get("/").get_data(as_text=True)
+ok("The featured entry lands on the home page spotlight",
+   "instagram.com/reel/SHARED100/embed" in home)
+ok("The home page credits whoever sent it in",
+   "412 shares" in home)
+with app.app_context():
+    ok("Only one entry is flagged as featured",
+       ReelSubmission.query.filter_by(featured=True).count() == 1)
+hub = client.get("/watch").get_data(as_text=True)
+ok("The member sees their reel made the home page",
+   "featured on the home page" in hub)
+r = admin.post("/admin/spotlight", data={"clear_spotlight_reel": "1"},
+               follow_redirects=True)
+ok("Clearing Reel of the Week takes it off the home page",
+   "cleared from the home page" in r.get_data(as_text=True)
+   and "instagram.com/reel/SHARED100/embed"
+   not in app.test_client().get("/").get_data(as_text=True))
+
+# Monday's clear-out: last week's entries go, reviewed ones stay
+with app.app_context():
+    from datetime import timedelta as _td
+    last_week = rotw_svc.current_week_key() - _td(days=7)
+    reviewed = ReelReviewApplication.query.filter(
+        ReelReviewApplication.review.has()).first()
+    unreviewed = ReelReviewApplication.query.filter_by(id=other_id).first()
+    reviewed.week_key = last_week
+    unreviewed.week_key = last_week
+    reviewed_id = reviewed.id
+    ReelSubmission.query.filter_by(id=sub_id).update({"week_key": last_week})
+    db.session.commit()
+    cleared = rotw_svc.sweep_old_weeks()
+    ok("Monday clears last week's unreviewed reel entries",
+       cleared["reel_reviews"] == 1
+       and db.session.get(ReelReviewApplication, other_id) is None)
+    ok("Reviewed entries survive so their published review stays up",
+       db.session.get(ReelReviewApplication, reviewed_id) is not None
+       and ReelReview.query.filter_by(application_id=reviewed_id).count() == 1)
+    ok("The reviewed entry's raw upload is released once it's served its purpose",
+       db.session.get(ReelReviewApplication, reviewed_id).disk_name is None)
+    ok("Monday clears last week's Reel of the Week entries",
+       cleared["reel_of_week"] == 1 and ReelSubmission.query.count() == 0)
+ok("The published review is still readable after the clear-out",
+   client.get(f"/watch/reviews/{review_id}").status_code == 200)
+
 r = app.test_client().get("/")
 ok("Sunflower favicon is linked in the tab",
    "favicon.svg" in r.get_data(as_text=True))
