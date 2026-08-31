@@ -16,7 +16,11 @@ def upgrade():
         ))
         batch.add_column(sa.Column(
             "scheduled_by_user_id", sa.Integer(),
-            sa.ForeignKey("users.id"), nullable=True,
+            # Named on purpose: SQLite has no ALTER, so batch mode rebuilds the
+            # table and refuses to copy across a constraint it can't name.
+            sa.ForeignKey("users.id",
+                          name="fk_support_group_meetings_scheduled_by_user_id"),
+            nullable=True,
         ))
         batch.create_index(
             "ix_support_group_meetings_kind", ["kind"],
