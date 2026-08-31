@@ -3,8 +3,9 @@
 - Loads data/quotes_seed.json, skipping quotes whose text already exists
   (case-insensitive).
 - Creates starter FAQ items and legal page stubs if none exist.
-- Seeds realistic community members + conversations for a busy launch feed
-  (display-only accounts under @bloomanyway.seed — no usable passwords).
+
+It no longer invents community members or conversations. The forums fill up
+with real people now, and a deploy has no business writing posts.
 
 The owner/admin account is created in the browser at /setup (one-time page,
 locks itself after the owner's first sign-in). Passwords are never written
@@ -179,28 +180,7 @@ def seed():
         set_setting("founder_price_ends", FOUNDER_ENDS)
         print(f"Founder pricing ends → {FOUNDER_ENDS}")
 
-        # 8. Launch buzz — realistic community members + threads (idempotent).
-        #    Does not resurrect personas removed in Studio → Members.
-        from app.services.community_seed import seed_community_buzz
-        buzz = seed_community_buzz()
-        if buzz.get("refreshed"):
-            print(
-                f"Community buzz: refreshed copy — "
-                f"{buzz['posts']} posts, {buzz['comments']} comments"
-            )
-        elif buzz.get("cleared"):
-            print("Community buzz: previously removed in Studio, not recreated")
-        elif buzz.get("skipped"):
-            synced = buzz.get("synced") or 0
-            extra = f" (synced {synced} profiles)" if synced else ""
-            print(f"Community buzz: already seeded, skipped{extra}")
-        else:
-            print(
-                f"Community buzz: {buzz['members']} members, "
-                f"{buzz['posts']} posts, {buzz['comments']} comments"
-            )
-
-        # 9. Backfill mime types for stored images. Avatar/thumbnail bytes are
+        # 8. Backfill mime types for stored images. Avatar/thumbnail bytes are
         #    deferred columns now, and "do they have one?" is answered from the
         #    mime — old rows saved before the mime was recorded need it filled.
         patched = 0
