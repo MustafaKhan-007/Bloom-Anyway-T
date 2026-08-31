@@ -12,12 +12,17 @@ SECRET_KEY_SETTING = "_secret_key"
 #: sticks instead of being written back on the next boot
 SUPPORT_EMAIL_SEEDED = "_contact_email_seeded"
 
+#: support addresses we have shipped as the default over time. A site still
+#: sitting on an old one gets moved to the current default; anything the owner
+#: typed themselves is left exactly as it is.
+RETIRED_SUPPORT_EMAILS = ("customersupport@bloomanyway.online",)
+
 DEFAULTS = {
     "site_title": "Bloom Anyway",
     "instagram_url": "https://instagram.com/",
     "hero_image_url": "",
     "portrait_url": "",
-    "contact_email": "customersupport@bloomanyway.online",
+    "contact_email": "bloomsupport@bloomanyway.online",
     "announcement_text": "",
     "announcement_expires": "",   # ISO date (YYYY-MM-DD); blank = never expires
     "announcement_url": "",       # optional; whole card is the button (URL hidden)
@@ -211,17 +216,25 @@ def ensure_brand_title() -> bool:
 
 
 def ensure_support_email() -> bool:
-    """Fill in the public support address the first time, and only the first.
+    """Keep the public support address current. Returns True if it changed.
 
-    Sites that already had a blank ``contact_email`` row would otherwise never
-    pick up the new default. Guarded by a marker so an owner who deliberately
-    clears the field doesn't get it written back on the next deploy.
+    Two jobs. Fill it in the first time, guarded by a marker so an owner who
+    deliberately clears the field doesn't get it written back on the next
+    deploy. And move a site still sitting on an address we used to ship onto
+    the current one — the marker means that first run never repeats, so a
+    renamed mailbox would otherwise be stranded on every existing site.
     """
+    current = (get_setting("contact_email") or "").strip()
+    if current.lower() in RETIRED_SUPPORT_EMAILS:
+        set_setting("contact_email", DEFAULTS["contact_email"])
+        invalidate_cache()
+        return True
+
     marker = db.session.get(Setting, SUPPORT_EMAIL_SEEDED)
     if marker is not None:
         return False
     filled = False
-    if not (get_setting("contact_email") or "").strip():
+    if not current:
         set_setting("contact_email", DEFAULTS["contact_email"])
         filled = True
     db.session.add(Setting(key=SUPPORT_EMAIL_SEEDED, value="1"))

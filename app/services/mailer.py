@@ -72,11 +72,11 @@ def _mail_from() -> str:
 #: mail (welcomes, receipts, session notices) ignores all of this and keeps
 #: using MAIL_FROM — only mail a person composes gets to pick a face.
 SENDERS: tuple[tuple[str, str, str, str], ...] = (
-    ("support", "Customer Support", "customersupport@bloomanyway.online",
+    ("support", "Customer Support", "bloomsupport@bloomanyway.online",
      "BREVO_TEMPLATE_CUSTOMER_SUPPORT"),
-    ("ayesha", "Ayesha", "healing@bloomanyway.online",
+    ("ayesha", "Ayesha", "ayesha@bloomanyway.online",
      "BREVO_TEMPLATE_REPLY_HEALING"),
-    ("saman", "Saman", "creator@bloomanyway.online",
+    ("saman", "Saman", "saman@bloomanyway.online",
      "BREVO_TEMPLATE_REPLY_CREATOR"),
     # No template of its own — the plain house style is the point here.
     ("noreply", "Bloom Anyway", "noreply@bloomanyway.online",

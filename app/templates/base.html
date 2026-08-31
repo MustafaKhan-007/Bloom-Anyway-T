@@ -16,6 +16,7 @@
 <body{% if current_user.is_authenticated %} data-mention-suggest="{{ url_for('main.mention_suggest') }}" data-tz-sync="{{ url_for('main.save_timezone') }}" data-csrf="{{ csrf_token() }}"{% endif %}>
   {% include "partials/page_loader.html" %}
   {% include "partials/badge_defs.html" %}
+  {% include "partials/preview_bar.html" %}
   <header class="site-header">
     <nav class="nav" aria-label="Main">
       <a class="nav-brand" href="{{ url_for('main.index') }}">{% include "partials/logo.html" %}</a>

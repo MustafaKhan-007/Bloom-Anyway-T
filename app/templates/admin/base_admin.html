@@ -15,6 +15,7 @@
       {%- if current_user.is_authenticated %} data-csrf="{{ csrf_token() }}"{% endif %}>
   {% include "partials/page_loader.html" %}
   {% include "partials/badge_defs.html" %}
+  {% include "partials/preview_bar.html" %}
   <div class="admin-shell">
     <aside class="admin-sidebar">
       <a class="brand brand--studio" href="{{ url_for('admin.dashboard') }}">

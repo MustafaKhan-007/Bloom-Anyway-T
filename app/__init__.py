@@ -241,11 +241,21 @@ def create_app(config_class=None):
             anns = active_announcements()
         except Exception:
             anns = []
+        preview = {"on": False}
+        if getattr(current_user, "is_admin", False):
+            try:
+                from .services.preview import CHOICES, choice_label
+                from .services.preview import state as preview_state
+                preview = preview_state(current_user)
+                preview["options"] = [(c, choice_label(c)) for c in CHOICES]
+            except Exception:
+                preview = {"on": False}
         return {"site": all_settings(),
                 "announcements": anns,
                 "current_year": date.today().year,
                 "unread_notes": unread,
                 "nav_notifications": nav_notes,
+                "owner_preview": preview,
                 "turnstile_site_key": app.config.get("TURNSTILE_SITE_KEY") or ""}
 
     # --- health check ---------------------------------------------------------

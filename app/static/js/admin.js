@@ -868,3 +868,74 @@
   });
   paint();
 })();
+
+/* ---- product editor: show the cover as it's being set up ---- */
+(function () {
+  var pane = document.querySelector("[data-cover-preview]");
+  if (!pane) return;
+
+  var frame = pane.querySelector(".lib-card__cover");
+  var titleOut = pane.querySelector(".lib-card__cover-title");
+  var kindOut = pane.querySelector(".lib-card__cover-kind");
+  var photo = pane.querySelector("[data-cover-photo]");
+  if (!frame) return;
+
+  var title = document.getElementById("title");
+  var type = document.getElementById("type");
+  var track = document.getElementById("track");
+  var useAccent = document.getElementById("use_accent");
+  var accent = document.getElementById("accent");
+  var file = document.getElementById("cover") || document.getElementById("cover_file");
+
+  // Mirrors Product.type_pill(). Once a reading file is attached the cover
+  // takes its kind from that file instead, so the server pins it for us.
+  var KINDS = {
+    course: "COURSE", workbook: "WORKBOOK", guide: "GUIDE",
+    audio: "AUDIO GUIDE", template: "TEMPLATE", bundle: "BUNDLE"
+  };
+  var fixedKind = pane.getAttribute("data-cover-kind-fixed");
+
+  /** Mirrors Product.cover_color(). */
+  function colour() {
+    if (useAccent && useAccent.checked && accent && accent.value) return accent.value;
+    return (track && track.value === "healing") ? "#5A3158" : "#C4A574";
+  }
+
+  function paint() {
+    frame.style.setProperty("--lib-cover", colour());
+    if (titleOut) {
+      var text = ((title && title.value) || "").trim();
+      titleOut.textContent = text || "Untitled";
+      titleOut.classList.toggle("is-empty", !text);
+    }
+    if (kindOut && !fixedKind) {
+      var kind = ((type && type.value) || "").toLowerCase();
+      kindOut.textContent = KINDS[kind] || (kind ? kind.toUpperCase() : "GUIDE");
+    }
+  }
+
+  [title, type, track, useAccent, accent].forEach(function (el) {
+    if (!el) return;
+    ["input", "change"].forEach(function (evt) { el.addEventListener(evt, paint); });
+  });
+
+  if (file && photo && window.URL && URL.createObjectURL) {
+    var made = "";
+    file.addEventListener("change", function () {
+      if (made) { URL.revokeObjectURL(made); made = ""; }
+      var picked = file.files && file.files[0];
+      if (!picked) {
+        // Nothing chosen: fall back to the cover already saved, if any.
+        var saved = photo.getAttribute("data-cover-saved");
+        if (saved) { photo.src = saved; photo.hidden = false; }
+        else { photo.removeAttribute("src"); photo.hidden = true; }
+        return;
+      }
+      made = URL.createObjectURL(picked);
+      photo.src = made;
+      photo.hidden = false;
+    });
+  }
+
+  paint();
+})();

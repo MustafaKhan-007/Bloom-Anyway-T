@@ -39,6 +39,47 @@
     </form>
   </section>
 
+  <section class="admin-panel studio-card">
+    <h2 style="margin-top: 0;">View the site as a member</h2>
+    <p class="field-help" style="margin-top: 0;">
+      Owners count as Full Bloom everywhere, so there is normally no way to see
+      what a paying member gets — or whether the free membership months on a
+      test product actually arrived. Pick a tier and the site will gate you like
+      that member until you switch back. Studio stays open the whole time,
+      test products stay visible, and nothing is written to your account.
+    </p>
+    <form method="post" action="{{ url_for('admin.preview') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="next" value="{{ url_for('main.account') }}">
+      <div class="form-row">
+        <div class="field">
+          <label for="preview_tier">View as</label>
+          <select id="preview_tier" name="tier">
+            {% for value, label in (owner_preview.options or []) %}
+              <option value="{{ value }}"
+                      {% if owner_preview.choice == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+          <p class="field-help">
+            “What I've actually earned” is the one for testing perks: it ignores
+            your owner status and shows the tier your own purchases have bought
+            you{% if owner_preview.on and owner_preview.choice == 'real' %},
+            currently {{ owner_preview.label }}{% endif %}.
+          </p>
+        </div>
+      </div>
+      <button class="btn btn--secondary btn--sm" type="submit">Start viewing as a member</button>
+    </form>
+    {% if owner_preview.on %}
+      <form method="post" action="{{ url_for('admin.preview') }}" style="margin-top: .6rem;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="tier" value="off">
+        <input type="hidden" name="next" value="{{ url_for('admin.settings') }}">
+        <button class="btn btn--ghost btn--sm" type="submit">Back to owner view</button>
+      </form>
+    {% endif %}
+  </section>
+
   <form method="post" enctype="multipart/form-data">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <section class="admin-panel studio-card">

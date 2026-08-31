@@ -1,0 +1,26 @@
+{# Owner is browsing as a member. Always offer the way back out. #}
+{% if owner_preview and owner_preview.on %}
+<div class="preview-bar" role="status">
+  <span class="preview-bar__dot" aria-hidden="true"></span>
+  <span class="preview-bar__text">
+    Viewing as <strong>{{ owner_preview.label }}</strong>
+  </span>
+  <form method="post" action="{{ url_for('admin.preview') }}" class="preview-bar__form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="next" value="{{ request.full_path if request.query_string else request.path }}">
+    <label class="sr-only" for="preview-tier">Tier to view as</label>
+    <select id="preview-tier" name="tier" onchange="this.form.submit()">
+      {% for value, label in owner_preview.options %}
+        <option value="{{ value }}" {% if owner_preview.choice == value %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    <noscript><button type="submit" class="btn btn-ghost btn-sm">Switch</button></noscript>
+  </form>
+  <form method="post" action="{{ url_for('admin.preview') }}" class="preview-bar__form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="tier" value="off">
+    <input type="hidden" name="next" value="{{ request.full_path if request.query_string else request.path }}">
+    <button type="submit" class="preview-bar__exit">Back to owner view</button>
+  </form>
+</div>
+{% endif %}

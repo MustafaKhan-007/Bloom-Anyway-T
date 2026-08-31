@@ -44,7 +44,8 @@ def process_listing_image(file_storage) -> tuple[bytes, str]:
 def listing_limit(user) -> int | None:
     """Max active listings for a user's tier (None = unlimited). Owners are
     unlimited; paid plans use Studio ``showcase_listings``; free gets 0."""
-    if getattr(user, "is_admin", False):
+    previewing = bool(getattr(user, "preview_tier", None) and user.preview_tier())
+    if getattr(user, "is_admin", False) and not previewing:
         return None
     if hasattr(user, "feature_int"):
         return max(0, int(user.feature_int("showcase_listings", 0)))

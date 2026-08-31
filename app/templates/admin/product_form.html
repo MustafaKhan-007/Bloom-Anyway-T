@@ -308,32 +308,35 @@
       <h2>4. Cover &amp; teasers</h2>
       <p class="field-help studio-section__lede">Cover appears on cards. Teasers show on the product page gallery.</p>
       {% if is_new %}
-      <div class="form-row">
-        <div class="field">
-          <label for="cover">Cover image (optional)</label>
-          <input type="file" id="cover" name="cover" accept="image/png,image/jpeg,image/webp">
-          <p class="field-help">JPG/PNG — full image kept (shown in a 3∶4 frame). Leave blank for the flower cover.</p>
+      <div class="studio-cover-layout">
+        <div class="studio-cover-layout__fields">
+          <div class="field">
+            <label for="cover">Cover image (optional)</label>
+            <input type="file" id="cover" name="cover" accept="image/png,image/jpeg,image/webp">
+            <p class="field-help">JPG/PNG — full image kept (shown in a 3∶4 frame). Leave blank for the flower cover.</p>
+          </div>
+          <div class="field">
+            <label for="teasers">Teaser pictures (optional)</label>
+            <input type="file" id="teasers" name="teasers" accept="image/png,image/jpeg,image/webp" multiple>
+            <p class="field-help">You can add more after saving.</p>
+          </div>
         </div>
-        <div class="field" style="flex:2;">
-          <label for="teasers">Teaser pictures (optional)</label>
-          <input type="file" id="teasers" name="teasers" accept="image/png,image/jpeg,image/webp" multiple>
-          <p class="field-help">You can add more after saving.</p>
-        </div>
+        {% include "admin/_cover_preview.html" %}
       </div>
       {% else %}
-      <div class="cg-studio-cover">
-        {% if product.cover_url %}
-        <div class="cg-studio-cover__preview">
-          <img src="{{ product.cover_url }}" alt="" width="72" height="96">
+      <div class="studio-cover-layout">
+        <div class="studio-cover-layout__fields">
+          <div class="field">
+            <label for="cover_file">Cover image</label>
+            <input type="file" id="cover_file" name="cover"
+                   accept="image/png,image/jpeg,image/webp">
+            <p class="field-help">Full image is kept — nothing is cropped. Saved with Save changes.</p>
+          </div>
+          {% if product.cover_url %}
           <button class="btn btn--secondary btn--sm" type="submit" form="clear-cover">Remove cover</button>
+          {% endif %}
         </div>
-        {% endif %}
-        <div class="field">
-          <label for="cover_file">Cover image</label>
-          <input type="file" id="cover_file" name="cover"
-                 accept="image/png,image/jpeg,image/webp">
-          <p class="field-help">Full image is kept — nothing is cropped. Saved with Save changes.</p>
-        </div>
+        {% include "admin/_cover_preview.html" %}
       </div>
       {% if product.gallery() %}
       <div class="studio-teaser-grid">

@@ -293,6 +293,17 @@ Everything else is optional or auto-managed:
   - **Creator**: everything in Healing, plus **watching** the Content Library,
     **unlimited** marketplace listings, and eligibility for the home spotlight.
   - Gating helpers: `User.is_member()` (Healing+) and `User.is_creator()`.
+- **Viewing as a member** (**Studio → Settings**, `app/services/preview.py`):
+  owners rank as Full Bloom through `User.effective_membership()`, so there is
+  otherwise no way to see what a member gets. Worse, a **test-mode** product may
+  carry a free-membership perk, and owners are both the only people allowed to
+  buy one and the only people whose tier can't move — so the perk could never be
+  seen working. The switch drops the owner to a chosen tier (or to **what
+  they've actually earned**: their membership column plus any product perk) for
+  the rest of the session. It lives in the session only, writes nothing to the
+  account, and a sticky bar on every page says which tier is in force. Studio
+  stays open and test products stay visible throughout, because those are owner
+  tools rather than membership gates.
 - **Membership choice** is surfaced on the signup page and managed from
   **Settings** (change plan / cancel). Cancelling drops the tier to `none` and
   auto-hides the member's marketplace listings; billing itself is cancelled in

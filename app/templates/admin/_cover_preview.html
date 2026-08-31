@@ -1,0 +1,18 @@
+{# Live cover preview for the product editor. The flower cover is the real
+   catalogue markup, so what shows here is what a Courses card will show; an
+   uploaded photo simply sits over it. #}
+{% from "partials/bloom_cover.html" import bloom_cover %}
+<aside class="studio-cover-preview" data-cover-preview
+       {%- if product.assets %} data-cover-kind-fixed="{{ product.kind_short() }}"{% endif %}>
+  <p class="studio-cover-preview__label">Cover preview</p>
+  <div class="studio-cover-preview__stack">
+    {{ bloom_cover(product.title or '', product.kind_short(), product.cover_color()) }}
+    <img class="studio-cover-preview__photo" data-cover-photo alt=""
+         {%- if product.cover_url %} src="{{ product.cover_url }}"
+         data-cover-saved="{{ product.cover_url }}"{% else %} hidden{% endif %}>
+  </div>
+  <p class="field-help studio-cover-preview__note">
+    Follows the title, type and card colour as you change them. Nothing is
+    stored until you {{ 'create the product' if is_new else 'save changes' }}.
+  </p>
+</aside>

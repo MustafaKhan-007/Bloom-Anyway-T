@@ -1,4 +1,4 @@
-"""Acceptance-criteria smoke test (run: python scripts/smoke_test.py).
+﻿"""Acceptance-criteria smoke test (run: python scripts/smoke_test.py).
 
 Uses a throwaway SQLite database and the Flask test client. Not a pytest
 suite on purpose — a single readable script the owner/dev can run anywhere.
@@ -327,6 +327,16 @@ _new_body = r.get_data(as_text=True)
 ok("Studio offers product cover upload",
    "Cover image" in _new_body and 'name="cover"' in _new_body
    and "Stripe price ID" in _new_body)
+ok("New-product form carries a live cover preview",
+   "data-cover-preview" in _new_body and "Cover preview" in _new_body
+   and "lib-card__cover-title" in _new_body and "data-cover-photo" in _new_body)
+ok("The preview starts on the flower cover with no photo over it",
+   'data-cover-photo alt="" hidden' in _new_body
+   and "data-cover-saved" not in _new_body)
+ok("With nothing typed, the preview shows the type as its kind",
+   ">GUIDE<" in _new_body)
+ok("Nothing pins the kind until a reading file exists",
+   "data-cover-kind-fixed" not in _new_body)
 
 # Tiny JPEG cover upload for a draft product
 from io import BytesIO
@@ -361,6 +371,13 @@ with app.app_context():
 r = client.get(f"/media/product-cover/{cover_id}")
 ok("Product cover image is served",
    cover_id and r.status_code == 200 and r.mimetype.startswith("image/"))
+
+_edit_body = admin.get(f"/admin/products/{cover_id}/edit").get_data(as_text=True)
+ok("Editing a product previews the cover it already has",
+   "data-cover-preview" in _edit_body
+   and f'data-cover-saved="/media/product-cover/{cover_id}' in _edit_body)
+ok("That preview reflects the saved title and track colour",
+   "Cover Test Guide" in _edit_body and "#5A3158" in _edit_body)
 with app.app_context():
     cover_prod = Product.query.filter_by(id=cover_id).first()
     if cover_prod:
@@ -2061,9 +2078,9 @@ ok("Reply page opens with the sender's message quoted",
    r.status_code == 200 and "Which plan includes the circles?" in _rbody
    and "tess@example.com" in _rbody, f"status {r.status_code}")
 ok("Reply page offers all four verified senders",
-   all(addr in _rbody for addr in ("customersupport@bloomanyway.online",
-                                   "healing@bloomanyway.online",
-                                   "creator@bloomanyway.online",
+   all(addr in _rbody for addr in ("bloomsupport@bloomanyway.online",
+                                   "ayesha@bloomanyway.online",
+                                   "saman@bloomanyway.online",
                                    "noreply@bloomanyway.online")))
 ok("Reply page defaults to customer support",
    'value="support" selected' in _rbody, "support option not preselected")
@@ -2086,7 +2103,7 @@ ok("Sending a reply reaches the person who wrote in",
 ok("A reply from the healing address goes out on template #22",
    _call.get("template_id") == 22, f"got {_call.get('template_id')}")
 ok("The reply is sent from the chosen sender, not MAIL_FROM",
-   _call.get("sender") == "Ayesha <healing@bloomanyway.online>",
+   _call.get("sender") == "Ayesha <ayesha@bloomanyway.online>",
    f"got {_call.get('sender')!r}")
 ok("The composed fields become the template params",
    (_call.get("params") or {}).get("PREVIEW") == "Healing includes them."
@@ -2096,12 +2113,12 @@ with app.app_context():
        db.session.get(_CM, _reply_id).status == "reviewed")
 ok("Studio confirms who the reply went to and from",
    "tess@example.com" in r.get_data(as_text=True)
-   and "healing@bloomanyway.online" in r.get_data(as_text=True), flashes(r))
+   and "ayesha@bloomanyway.online" in r.get_data(as_text=True), flashes(r))
 
 # each address wears its own template, and the five params never change
-for _key, _tpl, _from in (("support", 20, "customersupport@bloomanyway.online"),
-                          ("saman", 21, "creator@bloomanyway.online"),
-                          ("ayesha", 22, "healing@bloomanyway.online"),
+for _key, _tpl, _from in (("support", 20, "bloomsupport@bloomanyway.online"),
+                          ("saman", 21, "saman@bloomanyway.online"),
+                          ("ayesha", 22, "ayesha@bloomanyway.online"),
                           ("noreply", 20, "noreply@bloomanyway.online")):
     _brevo_calls.clear()
     r = admin.post(f"/admin/inbox/messages/{_reply_id}/reply",
@@ -2151,7 +2168,7 @@ with app.app_context():
        _mailer.sender_from("impostor") is None
        and _mailer.sender_from("") is None)
     ok("Known sender keys resolve to a verified address",
-       _mailer.sender_from("saman") == "Saman <creator@bloomanyway.online>")
+       _mailer.sender_from("saman") == "Saman <saman@bloomanyway.online>")
 
 _brevo_calls.clear()
 r = admin.post("/admin/settings/test-email",
@@ -2213,10 +2230,12 @@ _mailer.send_email = _orig_send_email
 # --- the public support address is easy to find -----------------------------
 from app.services import settings as _settings  # noqa
 
-SUPPORT_EMAIL = "customersupport@bloomanyway.online"
+SUPPORT_EMAIL = "bloomsupport@bloomanyway.online"
 with app.app_context():
     ok("Support address is the default out of the box",
        _settings.DEFAULTS["contact_email"] == SUPPORT_EMAIL)
+    ok("Replies come from that same address",
+       _mailer.sender_from("support") == f"Customer Support <{SUPPORT_EMAIL}>")
 
 # An older site: blank address, and no marker saying we've ever filled it.
 with app.app_context():
@@ -2233,6 +2252,23 @@ with app.app_context():
        f"got {_settings.get_setting('contact_email')!r}")
     ok("A second boot leaves the filled address alone",
        _settings.ensure_support_email() is False)
+
+# A live site already sitting on the address we used to ship. The seeded marker
+# means the fill-in above never runs again, so the rename has to be its own step.
+with app.app_context():
+    for _old in _settings.RETIRED_SUPPORT_EMAILS:
+        _settings.set_setting("contact_email", _old)
+        _settings.invalidate_cache()
+        ok(f"Boot moves a site off the retired {_old}",
+           _settings.ensure_support_email() is True
+           and (_settings.get_setting("contact_email") or "").strip() == SUPPORT_EMAIL)
+    _settings.set_setting("contact_email", "hello@someone-else.test")
+    _settings.invalidate_cache()
+    ok("But an address the owner chose is never overwritten",
+       _settings.ensure_support_email() is False
+       and _settings.get_setting("contact_email") == "hello@someone-else.test")
+    _settings.set_setting("contact_email", SUPPORT_EMAIL)
+    _settings.invalidate_cache()
 
 for _path, _where in (("/", "home page footer"),
                       ("/contact", "contact page"),
@@ -4139,6 +4175,12 @@ with app.app_context():
     _video_path = _os.path.join(app.config["COURSE_FILES_DIR"], video_item.disk_name)
     ok("The lesson video landed on the disk", _os.path.isfile(_video_path))
 
+# Once files are attached the cover's kind comes from the first one, so the
+# preview must stop following the type dropdown.
+_drip_edit = admin.get(f"/admin/products/{drip_prod_id}/edit").get_data(as_text=True)
+ok("A product with files pins the kind shown on its cover preview",
+   'data-cover-kind-fixed="' in _drip_edit)
+
 r = drip_client.get(f"/account/courses/{drip_purchase_id}?module=1")
 _rbody = r.get_data(as_text=True)
 ok("Reader lists everything in the module so the buyer can move between it",
@@ -4351,6 +4393,86 @@ r = admin.post("/admin/products/new",
                content_type="multipart/form-data", follow_redirects=True)
 ok("Test mode on a draft says there is nothing to buy yet",
    "still a draft" in r.get_data(as_text=True))
+
+# --- viewing as a member, so an owner can check a test product's perk -------
+# Owners rank as Full Bloom and are the only people who may buy a test product,
+# so without this the membership perk on one can never be seen working.
+r = admin.post("/admin/products/new",
+               data={"title": "Perk Rehearsal", "track": "building",
+                     "type": "guide", "price": "20.00",
+                     "promise": "A dry run of the membership perk.",
+                     "stripe": "price_perk_rehearsal", "live": "1",
+                     "test_mode": "1", "perk_tier": "creator",
+                     "perk_months": "3"},
+               content_type="multipart/form-data", follow_redirects=True)
+ok("Studio creates a test product that hands out membership months",
+   r.status_code == 200)
+_perk_payload = _payment_payload(
+    "9301", "owner@example.com", "price_perk_rehearsal",
+    amount=2000, product_name="Perk Rehearsal")
+client.post("/webhooks/stripe", data=_perk_payload,
+            headers=_stripe_headers(_perk_payload))
+with app.app_context():
+    from app.services.perks import perk_state as _perk_state
+    _owner = User.query.filter_by(email="owner@example.com").first()
+    # An owner who pays for nothing is the interesting case: the perk is then
+    # the only thing standing between them and Free.
+    _owner.membership = "none"
+    _owner.membership_manual = None
+    db.session.commit()
+    ok("The owner's test purchase really does carry a Creator perk",
+       _perk_state(_owner)["tier"] == "creator")
+    ok("But their account is untouched: still an owner on no paid tier",
+       _owner.effective_membership() == "full_bloom" and _owner.membership == "none")
+
+ok("Without previewing, the owner sails into the members' marketplace",
+   admin.get("/marketplace/mine").status_code == 200)
+
+r = admin.post("/admin/preview", data={"tier": "real", "next": "/account"},
+               follow_redirects=True)
+_body = r.get_data(as_text=True)
+ok("Viewing as what they've earned reports the perk tier",
+   r.status_code == 200 and "Now browsing as Creator" in _body)
+ok("A bar keeps saying which tier is being previewed",
+   "preview-bar" in _body and "Viewing as" in _body)
+with app.app_context():
+    _owner = User.query.filter_by(email="owner@example.com").first()
+    ok("Previewing changes nothing on the account itself",
+       _owner.membership == "none" and _owner.is_admin is True)
+
+r = admin.post("/admin/preview", data={"tier": "none", "next": "/account"},
+               follow_redirects=True)
+ok("The owner can also drop all the way to Free",
+   "Now browsing as Free" in r.get_data(as_text=True))
+r = admin.get("/marketplace/mine", follow_redirects=True)
+ok("And the members-only marketplace shuts them out like anyone else",
+   "members&#39; perk" in r.get_data(as_text=True)
+   or "members' perk" in r.get_data(as_text=True))
+ok("Studio stays open while previewing", admin.get("/admin/").status_code == 200)
+ok("So do test products — they are owner tooling, not a membership gate",
+   admin.get("/checkout/product/dress-rehearsal").status_code != 404)
+ok("The bar rides along inside Studio too",
+   "preview-bar" in admin.get("/admin/settings").get_data(as_text=True))
+
+r = admin.post("/admin/preview", data={"tier": "off", "next": "/account"},
+               follow_redirects=True)
+ok("Leaving preview hands the owner back their own view",
+   "Back to your owner view" in r.get_data(as_text=True))
+ok("And the marketplace opens again",
+   admin.get("/marketplace/mine").status_code == 200)
+ok("With no bar left on the page",
+   "preview-bar" not in admin.get("/account").get_data(as_text=True))
+
+ok("A member cannot reach the preview switch at all",
+   drip_client.post("/admin/preview", data={"tier": "full_bloom"}).status_code == 404)
+r = admin.post("/admin/preview", data={"tier": "emperor"}, follow_redirects=True)
+ok("An invented tier is refused", "isn&#39;t a tier you can preview" in r.get_data(as_text=True)
+   or "isn't a tier you can preview" in r.get_data(as_text=True))
+r = admin.post("/admin/preview", data={"tier": "healing", "next": "https://evil.test/x"},
+               follow_redirects=False)
+ok("Preview will not bounce the owner off-site",
+   r.status_code == 302 and "evil.test" not in (r.headers.get("Location") or ""))
+admin.post("/admin/preview", data={"tier": "off"})
 
 # the perk is still the owner's to override, and it ends on its own
 with app.app_context():

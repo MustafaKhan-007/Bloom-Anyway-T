@@ -168,8 +168,18 @@ class User(UserMixin, db.Model):
         return bool(self.is_admin)
 
     # --- membership tiers ---------------------------------------------------
+    def preview_tier(self) -> str:
+        """Tier this owner is browsing as, or "" when they are not previewing."""
+        if not self.is_owner():
+            return ""
+        from .services.preview import preview_tier
+        return preview_tier(self)
+
     def effective_membership(self) -> str:
         """The tier used for gating. Owner always ranks as Full Bloom."""
+        preview = self.preview_tier()
+        if preview:
+            return preview
         if self.is_owner():
             return "full_bloom"
         return self.membership or "none"
@@ -209,7 +219,7 @@ class User(UserMixin, db.Model):
     def has_feature(self, key: str) -> bool:
         """True when this user's plan includes a Studio-toggled capability."""
         from .services.plan_features import feature_enabled
-        if self.is_admin:
+        if self.is_admin and not self.preview_tier():
             return True
         return feature_enabled(self.effective_membership(), key)
 
@@ -221,7 +231,7 @@ class User(UserMixin, db.Model):
             return default
 
     def membership_label(self) -> str:
-        if self.is_admin:
+        if self.is_admin and not self.preview_tier():
             return "Owner"
         return MEMBERSHIP_LABELS.get(self.effective_membership(), "Free")
 

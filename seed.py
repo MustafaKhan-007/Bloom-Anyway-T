@@ -170,9 +170,11 @@ def seed():
             print("Site title updated to Bloom Anyway")
 
         # 7a. Public customer support address, seeded once so a deliberate
-        #     clear in Studio isn't undone on the next run.
+        #     clear in Studio isn't undone on the next run. Also moves a site
+        #     off an address we no longer use.
+        from app.services.settings import DEFAULTS as SITE_DEFAULTS
         if ensure_support_email():
-            print("Public support email set to customersupport@bloomanyway.online")
+            print(f"Public support email set to {SITE_DEFAULTS['contact_email']}")
 
         # 7b. Founder launch window — banner on /membership through end of Sept 2026
         #     (Sept has 30 days; active while founder_price_ends >= today).

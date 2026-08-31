@@ -378,6 +378,39 @@ input[type="file"]:not(.sr-only):not(.file-pick__input):hover::-webkit-file-uplo
 .flash--info { background: var(--gold-soft); color: var(--ink); }
 .flash-stack { max-width: var(--container); margin: 16px auto 0; padding: 0 24px; }
 
+/* ---------------------- owner "viewing as a member" ---------------------- */
+/* Deliberately loud and sticky: forgetting you are in preview and concluding
+   the site is broken for members would be worse than the stripe being ugly. */
+.preview-bar {
+  position: sticky; top: 0; z-index: 60;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px;
+  padding: 9px 22px;
+  background: repeating-linear-gradient(135deg, #3b2a4a, #3b2a4a 14px, #45325a 14px, #45325a 28px);
+  color: #fff; font-size: 14px; font-weight: 600;
+}
+.preview-bar__dot {
+  width: 9px; height: 9px; border-radius: 50%; background: #f5c86a;
+  box-shadow: 0 0 0 3px rgba(245, 200, 106, .25); flex: none;
+}
+.preview-bar__text { margin-right: auto; }
+.preview-bar__text strong { color: #f5c86a; }
+.preview-bar__form { display: flex; align-items: center; gap: 8px; margin: 0; }
+.preview-bar select {
+  padding: 5px 10px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, .35);
+  background: rgba(255, 255, 255, .1); color: #fff; font: inherit;
+}
+.preview-bar select option { color: var(--ink); }
+.preview-bar__exit {
+  padding: 6px 14px; border-radius: 999px; border: 0; cursor: pointer;
+  background: #f5c86a; color: #3b2a4a; font: inherit; font-weight: 700;
+}
+.preview-bar__exit:hover { background: #ffd88a; }
+@media (max-width: 560px) {
+  .preview-bar { padding: 9px 16px; font-size: 13px; }
+  /* Keep the dot beside the label; let the controls drop to their own row. */
+  .preview-bar__text { flex: 1 1 calc(100% - 24px); margin-right: 0; }
+}
+
 /* -------------------------- hero announcement ---------------------------- */
 .hero-announcement {
   display: inline-flex;
@@ -8295,12 +8328,29 @@ a.at-handle:hover { text-decoration: underline; }
   margin: 0 0 4px; font-size: 11px; font-weight: 800;
   letter-spacing: 0.1em; text-transform: uppercase; color: #B58A3F;
 }
-.cg-studio-cover__preview {
-  display: flex; align-items: center; gap: 12px; margin-bottom: 8px;
+/* --- live cover preview in the product editor --- */
+.studio-cover-layout {
+  display: flex; flex-wrap: wrap; gap: 20px 28px; align-items: flex-start;
 }
-.cg-studio-cover__preview img {
-  width: 72px; height: 96px; object-fit: cover; border-radius: 10px;
-  border: 1px solid rgba(61, 20, 49, 0.12);
+.studio-cover-layout__fields { flex: 1 1 320px; min-width: 0; }
+.studio-cover-preview { flex: 0 0 200px; max-width: 200px; }
+.studio-cover-preview__label {
+  margin: 0 0 8px; font-size: 12px; font-weight: 800;
+  letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-soft);
+}
+/* The photo lies over the flower cover, so switching between them is a
+   `hidden` toggle rather than rebuilding the card markup in JavaScript. */
+.studio-cover-preview__stack { position: relative; }
+.studio-cover-preview__photo {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  object-fit: contain; object-position: center;
+  background: #1a1020; border-radius: 14px;
+}
+.studio-cover-preview .lib-card__cover-title.is-empty { opacity: 0.55; }
+.studio-cover-preview__note { margin: 10px 0 0; }
+@media (max-width: 620px) {
+  .studio-cover-preview { flex: 1 1 100%; max-width: 220px; }
 }
 .lib-card__wait { margin: 0; flex: 1 1 220px; }
 .lib-card__more { position: relative; margin-left: auto; }

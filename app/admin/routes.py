@@ -57,6 +57,10 @@ def _studio_readonly_guard():
         return None
     if not getattr(current_user, "admin_readonly", False):
         return None
+    if request.endpoint == "admin.preview":
+        # Previewing writes nothing but a session key, and looking around as a
+        # member is exactly what a view-only owner is here to do.
+        return None
     flash(
         "This Studio account is view-only — you can look around, but changes are locked.",
         "error",
@@ -107,6 +111,41 @@ def _form_ids(name: str = "ids") -> list[int]:
         seen.add(value)
         out.append(value)
     return out
+
+
+# ============================= VIEW AS A MEMBER ==============================
+# Owners rank as Full Bloom everywhere, which makes a membership perk (and any
+# paid tier) impossible to check from the inside. This drops the owner to a
+# chosen tier for the session so the site gates them like a real member.
+
+def _preview_return(fallback: str) -> str:
+    """Where to send the owner back to. Same-site paths only."""
+    target = (request.form.get("next") or "").strip()
+    if target.startswith("/") and not target.startswith("//") and "\\" not in target:
+        return target
+    return fallback
+
+
+@bp.route("/preview", methods=["POST"])
+@admin_required
+def preview():
+    from ..services import preview as preview_svc
+
+    choice = (request.form.get("tier") or "").strip().lower()
+    back = _preview_return(url_for("main.index"))
+    if choice in ("", "off"):
+        preview_svc.clear()
+        flash("Back to your owner view.", "success")
+        return redirect(_preview_return(url_for("admin.settings")))
+
+    if not preview_svc.set_choice(choice):
+        flash("That isn't a tier you can preview.", "error")
+        return redirect(url_for("admin.settings"))
+
+    state = preview_svc.state(current_user)
+    flash(f"Now browsing as {state['label']}. Studio stays open, and nothing "
+          "was changed on your account.", "success")
+    return redirect(back)
 
 
 # =============================== DASHBOARD ===================================
