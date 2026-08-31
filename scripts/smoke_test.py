@@ -2083,8 +2083,8 @@ r = admin.post(f"/admin/inbox/messages/{_reply_id}/reply",
 _call = _brevo_calls[-1] if _brevo_calls else {}
 ok("Sending a reply reaches the person who wrote in",
    _call.get("to") == "tess@example.com", f"got {_call.get('to')}")
-ok("The reply goes out on the customer support template",
-   _call.get("template_id") == 20)
+ok("A reply from the healing address goes out on template #22",
+   _call.get("template_id") == 22, f"got {_call.get('template_id')}")
 ok("The reply is sent from the chosen sender, not MAIL_FROM",
    _call.get("sender") == "Ayesha <healing@bloomanyway.online>",
    f"got {_call.get('sender')!r}")
@@ -2097,6 +2097,39 @@ with app.app_context():
 ok("Studio confirms who the reply went to and from",
    "tess@example.com" in r.get_data(as_text=True)
    and "healing@bloomanyway.online" in r.get_data(as_text=True), flashes(r))
+
+# each address wears its own template, and the five params never change
+for _key, _tpl, _from in (("support", 20, "customersupport@bloomanyway.online"),
+                          ("saman", 21, "creator@bloomanyway.online"),
+                          ("ayesha", 22, "healing@bloomanyway.online"),
+                          ("noreply", 20, "noreply@bloomanyway.online")):
+    _brevo_calls.clear()
+    r = admin.post(f"/admin/inbox/messages/{_reply_id}/reply",
+                   data={"sender": _key, "subject": f"Re: from {_key}",
+                         "preview": "A line", "header": "Bloom Anyway",
+                         "title": "Hi Tess,", "body": "Here is the answer."},
+                   follow_redirects=True)
+    _call = _brevo_calls[-1] if _brevo_calls else {}
+    ok(f"Replying as {_key} picks template #{_tpl}",
+       _call.get("template_id") == _tpl, f"got {_call.get('template_id')}")
+    ok(f"Replying as {_key} sends from {_from}",
+       _from in (_call.get("sender") or ""), f"got {_call.get('sender')!r}")
+    ok(f"Template #{_tpl} still takes the same five params",
+       set(_call.get("params") or {}) == {"SUBJECT", "PREVIEW", "HEADER",
+                                          "TITLE", "BODY"},
+       f"got {sorted(_call.get('params') or {})}")
+    ok(f"Studio says which template a {_key} reply used",
+       f"template #{_tpl}" in r.get_data(as_text=True), flashes(r))
+
+with app.app_context():
+    ok("Each address maps to its own template",
+       [_mailer.reply_template_for(k) for k in
+        ("support", "saman", "ayesha")] == [20, 21, 22])
+    ok("An unknown address falls back to customer support rather than nothing",
+       _mailer.reply_template_for("impostor") == 20)
+    ok("The sender list tells Studio which template each address uses",
+       {s["key"]: s["template"] for s in _mailer.sender_choices()}
+       == {"support": 20, "ayesha": 22, "saman": 21, "noreply": 20})
 
 _brevo_calls.clear()
 r = admin.post(f"/admin/inbox/messages/{_reply_id}/reply",
@@ -2131,6 +2164,23 @@ ok("Studio can send a support-template test to any address",
 ok("Studio says which address and template it used",
    "elsewhere@example.com" in r.get_data(as_text=True)
    and "#20" in r.get_data(as_text=True), flashes(r))
+
+for _key, _tpl, _who in (("saman", 21, "Saman"), ("ayesha", 22, "Ayesha")):
+    _brevo_calls.clear()
+    r = admin.post("/admin/settings/test-email",
+                   data={"to": "elsewhere@example.com", "template": _key},
+                   follow_redirects=True)
+    _call = _brevo_calls[-1] if _brevo_calls else {}
+    ok(f"Studio can test {_who}'s reply template (#{_tpl}) before using it",
+       _call.get("template_id") == _tpl
+       and f"#{_tpl}" in r.get_data(as_text=True),
+       f"got {_call.get('template_id')} / {flashes(r)}")
+    ok(f"The {_who} test sends from their own address",
+       _who in (_call.get("sender") or ""), f"got {_call.get('sender')!r}")
+
+r = admin.get("/admin/settings")
+ok("Studio settings offer a test send for all three reply templates",
+   all(t in r.get_data(as_text=True) for t in ("(#20)", "(#21)", "(#22)")))
 
 _brevo_calls.clear()
 r = admin.post("/admin/settings/test-email", data={}, follow_redirects=True)

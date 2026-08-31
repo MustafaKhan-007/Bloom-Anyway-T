@@ -139,8 +139,17 @@ class Config:
     BREVO_TEMPLATE_FULL_BLOOM = int(
         os.environ.get("BREVO_TEMPLATE_FULL_BLOOM", "19") or 0
     )
+    # Replies an owner writes in Studio. All three take the same five
+    # parameters (SUBJECT / PREVIEW / HEADER / TITLE / BODY); which one goes
+    # out depends on the address chosen, so each face keeps its own look.
     BREVO_TEMPLATE_CUSTOMER_SUPPORT = int(
         os.environ.get("BREVO_TEMPLATE_CUSTOMER_SUPPORT", "20") or 0
+    )
+    BREVO_TEMPLATE_REPLY_CREATOR = int(
+        os.environ.get("BREVO_TEMPLATE_REPLY_CREATOR", "21") or 0
+    )
+    BREVO_TEMPLATE_REPLY_HEALING = int(
+        os.environ.get("BREVO_TEMPLATE_REPLY_HEALING", "22") or 0
     )
     # Optional absolute site origin for email CTAs when no request context.
     PUBLIC_BASE_URL = (

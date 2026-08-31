@@ -67,23 +67,55 @@ def _mail_from() -> str:
     return _strip_env_quotes(str(raw))
 
 
-#: Verified Brevo senders an owner may write as, keyed for form values.
-#: Automated mail (welcomes, receipts, session notices) ignores this and keeps
+#: Verified Brevo senders an owner may write as, keyed for form values, each
+#: with the Brevo template a reply from that address goes out on. Automated
+#: mail (welcomes, receipts, session notices) ignores all of this and keeps
 #: using MAIL_FROM — only mail a person composes gets to pick a face.
-SENDERS: tuple[tuple[str, str, str], ...] = (
-    ("support", "Customer Support", "customersupport@bloomanyway.online"),
-    ("ayesha", "Ayesha", "healing@bloomanyway.online"),
-    ("saman", "Saman", "creator@bloomanyway.online"),
-    ("noreply", "Bloom Anyway", "noreply@bloomanyway.online"),
+SENDERS: tuple[tuple[str, str, str, str], ...] = (
+    ("support", "Customer Support", "customersupport@bloomanyway.online",
+     "BREVO_TEMPLATE_CUSTOMER_SUPPORT"),
+    ("ayesha", "Ayesha", "healing@bloomanyway.online",
+     "BREVO_TEMPLATE_REPLY_HEALING"),
+    ("saman", "Saman", "creator@bloomanyway.online",
+     "BREVO_TEMPLATE_REPLY_CREATOR"),
+    # No template of its own — the plain house style is the point here.
+    ("noreply", "Bloom Anyway", "noreply@bloomanyway.online",
+     "BREVO_TEMPLATE_CUSTOMER_SUPPORT"),
 )
 DEFAULT_SENDER_KEY = "support"
+_REPLY_TEMPLATE_DEFAULTS = {
+    "BREVO_TEMPLATE_CUSTOMER_SUPPORT": 20,
+    "BREVO_TEMPLATE_REPLY_CREATOR": 21,
+    "BREVO_TEMPLATE_REPLY_HEALING": 22,
+}
+
+
+def _sender_row(key: str | None) -> tuple[str, str, str, str] | None:
+    wanted = (key or "").strip().lower()
+    for row in SENDERS:
+        if row[0] == wanted:
+            return row
+    return None
+
+
+def reply_template_for(key: str | None) -> int | None:
+    """The Brevo template a reply from this address should use.
+
+    None means no template is configured, and the caller should fall back to
+    a plain text send rather than post an empty design.
+    """
+    row = _sender_row(key) or _sender_row(DEFAULT_SENDER_KEY)
+    if row is None:
+        return None
+    return _int_config(row[3], _REPLY_TEMPLATE_DEFAULTS[row[3]]) or None
 
 
 def sender_choices() -> list[dict]:
     """The sender list for a Studio dropdown."""
     return [{"key": key, "name": name, "email": email,
-             "label": f"{name} <{email}>"}
-            for key, name, email in SENDERS]
+             "label": f"{name} <{email}>",
+             "template": _int_config(cfg, _REPLY_TEMPLATE_DEFAULTS[cfg])}
+            for key, name, email, cfg in SENDERS]
 
 
 def sender_from(key: str | None) -> str | None:
@@ -92,11 +124,8 @@ def sender_from(key: str | None) -> str | None:
     Returning None rather than guessing keeps an unrecognised key from
     silently sending as somebody else.
     """
-    wanted = (key or "").strip().lower()
-    for skey, name, email in SENDERS:
-        if skey == wanted:
-            return f"{name} <{email}>"
-    return None
+    row = _sender_row(key)
+    return f"{row[1]} <{row[2]}>" if row else None
 
 
 def _parse_mail_from(raw: str) -> tuple[str, str]:
@@ -355,15 +384,18 @@ def send_customer_support_email(
     title: str,
     body: str,
     sender: str | None = None,
+    sender_key: str | None = None,
     extra_params: dict | None = None,
 ) -> bool:
-    """Send via the Brevo customer support template (#20).
+    """Send a reply an owner wrote, on the template that address uses.
 
-    Params: SUBJECT, PREVIEW, HEADER, TITLE, BODY. No call-to-action button —
-    an answer to someone's question is the point, not a nudge elsewhere.
+    Customer support goes out on #20, Saman's creator address on #21 and
+    Ayesha's healing address on #22. All three take the same parameters:
+    SUBJECT, PREVIEW, HEADER, TITLE, BODY. No call-to-action button — an
+    answer to someone's question is the point, not a nudge elsewhere.
     """
     text = f"{title}\n\n{body}\n\n— Bloom Anyway"
-    template_id = _int_config("BREVO_TEMPLATE_CUSTOMER_SUPPORT", 20) or None
+    template_id = reply_template_for(sender_key or DEFAULT_SENDER_KEY)
     if not template_id:
         return send_email(to, subject, text, sender=sender)
 

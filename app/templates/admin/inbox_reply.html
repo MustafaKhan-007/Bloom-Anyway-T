@@ -36,10 +36,15 @@
         <select id="sender" name="sender" data-reply-field="sender">
           {% for s in senders %}
           <option value="{{ s.key }}" {% if draft.sender == s.key %}selected{% endif %}
-                  data-name="{{ s.name }}" data-email="{{ s.email }}">{{ s.label }}</option>
+                  data-name="{{ s.name }}" data-email="{{ s.email }}"
+                  data-template="{{ s.template or '' }}">{{ s.label }}</option>
           {% endfor %}
         </select>
-        <p class="field-help">Automated emails always send from noreply — this only changes this reply.</p>
+        <p class="field-help">
+          Each address has its own design, so the reply looks like it came from
+          that person. Automated emails always send from noreply — this only
+          changes this reply.
+        </p>
       </div>
 
       <div class="field">

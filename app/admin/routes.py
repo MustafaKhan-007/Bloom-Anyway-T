@@ -1439,20 +1439,29 @@ def settings_test_email():
         flash("Give me an address to send the test to.", "error")
         return redirect(url_for("admin.settings"))
 
-    if (request.form.get("template") or "").strip().lower() == "support":
-        label = "customer support template (#20)"
+    wanted = (request.form.get("template") or "").strip().lower()
+    # The reply templates differ only in which address they wear, so one test
+    # path covers all three rather than a near-copy each.
+    reply_keys = {"support": "support", "saman": "saman", "ayesha": "ayesha"}
+    if wanted in reply_keys:
+        key = reply_keys[wanted]
+        who = next(s for s in mailer.sender_choices() if s["key"] == key)
+        template_id = mailer.reply_template_for(key)
+        label = f"{who['name']} reply template (#{template_id})"
         sent = send_customer_support_email(
             to,
-            subject="Bloom Anyway — support test email",
-            preview="If you received this, the support template is working.",
+            subject=f"Bloom Anyway — test reply from {who['name']}",
+            preview=f"If you received this, template #{template_id} is working.",
             header="Bloom Anyway",
-            title="Test support email",
+            title=f"Test reply from {who['name']}",
             body=(
-                "If you received this, the customer support template (#20) is "
-                "wired up and every placeholder resolved.\n\n"
+                f"If you received this, template #{template_id} is wired up "
+                "and every placeholder resolved.\n\n"
                 "This is how a reply to someone's question will reach them: no "
                 "button, no upsell, just the answer."
             ),
+            sender=mailer.sender_from(key),
+            sender_key=key,
         )
     else:
         label = "general template (#10)"
@@ -2446,10 +2455,14 @@ def inbox_message_reply(message_id):
             title=draft["title"],
             body=draft["body"],
             sender=sender,
+            sender_key=draft["sender"],
         ):
             msg.status = "reviewed"
             db.session.commit()
-            flash(f"Reply sent to {msg.email} from {sender}.", "success")
+            template_id = mailer.reply_template_for(draft["sender"])
+            flash(f"Reply sent to {msg.email} from {sender}"
+                  + (f" on template #{template_id}." if template_id else "."),
+                  "success")
             return redirect(url_for("admin.inbox", filter="messages"))
         else:
             hint = last_send_error() or "Check the Render logs for Brevo."
